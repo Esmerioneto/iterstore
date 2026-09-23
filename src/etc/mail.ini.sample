@@ -1,0 +1,7 @@
+; SMTP used for admin e-mails (password reset). Copy to mail.ini (git-ignored).
+host=sandbox.smtp.mailtrap.io
+port=587
+username=55104ae845d70b
+password=
+from_email=no-reply@iterstore.local
+from_name=Iterstore

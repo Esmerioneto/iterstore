@@ -38,6 +38,12 @@ class Config
             $value = trim($input[$path]);
             if (($field['type'] ?? 'text') === 'boolean') {
                 $value = $value === '1' ? '1' : '0';
+            } elseif (($field['type'] ?? 'text') === 'url') {
+                if (!filter_var($value, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $value)) {
+                    $errors[] = sprintf('"%s" deve ser um endereço http:// ou https://.', $field['label']);
+                    continue;
+                }
+                $value = rtrim($value, '/');
             } elseif (($field['type'] ?? 'text') === 'number') {
                 $number = filter_var($value, FILTER_VALIDATE_INT, ['options' => array_filter([
                     'min_range' => $field['min'] ?? null,

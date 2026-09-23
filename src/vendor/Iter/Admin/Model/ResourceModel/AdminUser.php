@@ -48,6 +48,15 @@ class AdminUser extends AbstractDb
         return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
+    /** @return array<int, int> active users with this e-mail (it isn't unique) */
+    public function getActiveIdsByEmail(string $email): array
+    {
+        $stmt = $this->getConnection()->prepare('SELECT user_id FROM admin_user WHERE LOWER(email) = LOWER(:email) AND is_active = 1');
+        $stmt->execute(['email' => $email]);
+
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+    }
+
     /** Unix time of the latest password change, null when there is no history. */
     public function getPasswordChangedAt(int $userId): ?int
     {
