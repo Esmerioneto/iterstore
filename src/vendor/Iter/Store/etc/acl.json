@@ -1,0 +1,5 @@
+[
+    { "id": "Iter_Store::store", "parent": "Iter_Admin::root", "title": "Loja" },
+    { "id": "Iter_Store::website", "parent": "Iter_Store::store", "title": "Websites" },
+    { "id": "Iter_Store::group", "parent": "Iter_Store::store", "title": "Grupos de loja" }
+]

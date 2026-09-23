@@ -1,0 +1,17 @@
+[
+    {
+        "route": "core",
+        "vendor": "Iter",
+        "module_name": "Core",
+        "controller_name": "index",
+        "controller_action": "index"
+    },
+    {
+        "route": "core",
+        "vendor": "Iter",
+        "module_name": "Core",
+        "controller_name": "graphql",
+        "controller_action": "index",
+        "method": "POST"
+    }
+]

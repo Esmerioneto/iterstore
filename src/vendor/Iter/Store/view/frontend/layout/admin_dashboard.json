@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "stores": "store/dashboard-summary"
+        }
+    }
+}

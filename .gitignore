@@ -1,0 +1,10 @@
+# Composer dependencies (root only; src/vendor/ is project code)
+/vendor/
+
+# Local DB credentials; copy src/etc/database.ini.sample
+/src/etc/database.ini
+
+.vscode/
+.idea/
+*.log
+.DS_Store

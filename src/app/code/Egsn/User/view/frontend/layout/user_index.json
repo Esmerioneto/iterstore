@@ -1,0 +1,9 @@
+{
+  "content": {
+    "welcome": "user/welcome",
+    "info": {
+      "component": "user/info",
+      "after": "welcome"
+    }
+  }
+}

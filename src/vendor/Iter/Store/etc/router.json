@@ -1,0 +1,50 @@
+[
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Store",
+        "controller_name": "store",
+        "controller_action": "index,create,edit",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Store",
+        "controller_name": "store",
+        "controller_action": "save,delete",
+        "method": "POST"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Store",
+        "controller_name": "website",
+        "controller_action": "index,create,edit",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Store",
+        "controller_name": "website",
+        "controller_action": "save,delete",
+        "method": "POST"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Store",
+        "controller_name": "group",
+        "controller_action": "index,create,edit",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Store",
+        "controller_name": "group",
+        "controller_action": "save,delete",
+        "method": "POST"
+    }
+]

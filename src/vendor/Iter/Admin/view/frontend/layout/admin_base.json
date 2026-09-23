@@ -1,0 +1,10 @@
+{
+    "header": { "component": "admin/header" },
+    "toolbar": {
+        "breadcrumb": { "component": "admin/breadcrumb" },
+        "messages": { "component": "admin/messages" }
+    },
+    "sidebar": { "component": "admin/menu" },
+    "dashboard": { "component": "admin/dashboard-shell" },
+    "footer": { "component": "admin/footer" }
+}

@@ -1,0 +1,12 @@
+{
+    "vendor": {
+        "iter_core": "1",
+        "iter_router": "1",
+        "iter_admin": "1",
+        "iter_config": "1",
+        "iter_store": "1"
+    },
+    "customized": {
+        "egsn_user": "1"
+    }
+}

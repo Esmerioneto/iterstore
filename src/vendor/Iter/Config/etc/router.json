@@ -1,0 +1,18 @@
+[
+    {
+        "vendor": "Iter",
+        "module_name": "Config",
+        "route": "admin",
+        "controller_name": "config",
+        "controller_action": "index",
+        "method": "GET"
+    },
+    {
+        "vendor": "Iter",
+        "module_name": "Config",
+        "route": "admin",
+        "controller_name": "config",
+        "controller_action": "save",
+        "method": "POST"
+    }
+]

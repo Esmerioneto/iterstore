@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "list": "store/group-list"
+        }
+    }
+}

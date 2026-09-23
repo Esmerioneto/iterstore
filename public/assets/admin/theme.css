@@ -1,0 +1,328 @@
+/*
+ * Admin theme — "Margiela" (see /DESIGN.md).
+ * Achromatic, editorial, shadowless. No accent color, no border-radius
+ * except pill inputs, no filled buttons — ghost text-links only.
+ */
+
+:root {
+  --color-ink: #121212;
+  --color-paper: #ffffff;
+  --color-atelier-white: #f7f7f2;
+  --color-linen: #eaeae6;
+  --color-stone: #898989;
+  --color-graphite: #484847;
+  --color-pebble: #bababa;
+  --color-charcoal: #333333;
+  --color-pure-black: #000000;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: 'Cormorant Garamond', ui-serif, Georgia, Cambria, "Times New Roman", serif;
+
+  --spacing-8: 8px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-32: 32px;
+
+  --sidebar-width: 220px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.admin-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-areas:
+    "header header"
+    "menu breadcrumb"
+    "menu messages"
+    "menu main"
+    "footer footer";
+}
+
+/* Header — flush wordmark bar, no border, no shadow */
+.admin-header {
+  grid-area: header;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--color-paper);
+  padding: 20px var(--spacing-32);
+}
+
+.admin-header h1 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 20px;
+  letter-spacing: -0.08px;
+}
+
+.admin-user-nav {
+  display: flex;
+  gap: var(--spacing-16);
+  font-size: 12px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.admin-user-nav a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Sidebar menu — ghost text-links, uppercase, tracked */
+.admin-menu {
+  grid-area: menu;
+  background: var(--color-atelier-white);
+  padding: var(--spacing-32) var(--spacing-20);
+}
+
+.admin-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+}
+
+.admin-menu a {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+.admin-menu a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.admin-menu summary {
+  cursor: pointer;
+}
+
+.admin-submenu {
+  list-style: none;
+  margin: var(--spacing-16) 0 0;
+  padding: 0 0 0 var(--spacing-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+}
+
+/* Breadcrumb — eyebrow caption style */
+.admin-breadcrumb {
+  grid-area: breadcrumb;
+  padding: var(--spacing-16) var(--spacing-32) 0;
+  font-size: 12px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--color-stone);
+}
+
+.admin-breadcrumb a {
+  color: var(--color-stone);
+}
+
+.admin-breadcrumb a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.admin-breadcrumb span:last-child {
+  color: var(--color-ink);
+}
+
+/* Flash messages — achromatic, differentiated by weight/border, not color */
+.admin-messages {
+  grid-area: messages;
+  padding: 0 var(--spacing-32);
+}
+
+.admin-messages:empty {
+  display: none;
+}
+
+.message {
+  margin-top: var(--spacing-16);
+  padding: 12px var(--spacing-16);
+  font-size: 13px;
+  border-left: 1px solid var(--color-ink);
+}
+
+.message::before {
+  content: attr(data-label);
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.91px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.message-success {
+  border-left-color: var(--color-ink);
+}
+
+.message-warning {
+  border-left-color: var(--color-graphite);
+  color: var(--color-graphite);
+}
+
+.message-error {
+  border-left-color: var(--color-pure-black);
+  border-left-width: 3px;
+  font-weight: 500;
+}
+
+/* Dashboard — main content column */
+.admin-dashboard {
+  grid-area: main;
+  padding: var(--spacing-32);
+}
+
+.admin-dashboard-welcome p {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  letter-spacing: -0.07px;
+  color: var(--color-charcoal);
+}
+
+.admin-dashboard-card {
+  margin-top: var(--spacing-32);
+}
+
+.admin-dashboard-card h3 {
+  margin-top: 16px;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+  color: var(--color-stone);
+}
+
+/* Generic table styling reused by module admin pages (e.g. Store list) */
+.admin-dashboard table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-dashboard th,
+.admin-dashboard td {
+  text-align: left;
+  padding: 12px var(--spacing-8);
+  border-bottom: 1px solid var(--color-linen);
+}
+
+.admin-dashboard th {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--color-stone);
+}
+
+.admin-dashboard h2 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 20px;
+  letter-spacing: -0.08px;
+  margin: 0 0 var(--spacing-20);
+}
+
+/* Form — used by admin CRUD pages (e.g. admin user) */
+.admin-dashboard form p {
+  margin: 0 0 var(--spacing-16);
+}
+
+.admin-dashboard form label {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  color: var(--color-stone);
+}
+
+.admin-dashboard form input[type="text"],
+.admin-dashboard form input[type="email"],
+.admin-dashboard form input[type="password"],
+.admin-dashboard form input[type="number"],
+.admin-dashboard form select {
+  width: 100%;
+  max-width: 360px;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid var(--color-pebble);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.admin-dashboard form fieldset {
+  border: 1px solid var(--color-pebble);
+  padding: 12px 16px;
+  margin: 0 0 16px;
+}
+
+.admin-dashboard form legend {
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  color: var(--color-stone);
+  padding: 0 6px;
+}
+
+.admin-dashboard form button {
+  border: 1px solid var(--color-ink);
+  background: none;
+  color: var(--color-ink);
+  padding: 8px 20px;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+}
+
+.admin-dashboard form button:hover {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+
+.admin-role-permissions {
+  border: 1px solid var(--color-linen);
+  padding: var(--spacing-16);
+  margin-bottom: var(--spacing-16);
+}
+
+.admin-role-permission {
+  display: block;
+  padding-top: 4px;
+}
+
+/* Footer — off-white, uppercase tracked links */
+.admin-footer {
+  grid-area: footer;
+  background: var(--color-atelier-white);
+  padding: var(--spacing-20) var(--spacing-32);
+  font-size: 12px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--color-stone);
+}
