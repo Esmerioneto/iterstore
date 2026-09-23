@@ -79,5 +79,6 @@ no admin e o que o usuário ou o administrador precisa saber.
   - A leitura é pública.
   - Criar, alterar e remover exigem uma sessão do admin com o recurso `Iter_Store::store`.
 - **Operação:**
+  - Instalação: clonar o repositório, rodar `composer install`, copiar `src/etc/database.ini.sample` para `src/etc/database.ini` e ajustar as credenciais, subir o banco com `docker compose up -d` e rodar `php bin/migrate.php up`.
   - `php bin/migrate.php up|down` aplica ou desfaz as migrations.
   - `php bin/view-selftest.php` testa as views.
