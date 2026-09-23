@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Iter\Admin\Controllers;
 
+use Iter\Admin\Acl;
+use Iter\Admin\Auth;
 use Iter\Admin\Breadcrumb;
 use Iter\Admin\Model\AdminRole;
 use Iter\Core\Messages;
@@ -64,6 +66,15 @@ class Role
         $id = !empty($_POST['role_id']) ? (int) $_POST['role_id'] : null;
         $redirect = $id ? '/admin/role/edit?id=' . $id : '/admin/role/create';
 
+        // own role must keep access to this screen, or nobody with it can fix the grants
+        if ($id !== null && $id === (int) Auth::user()->getData('role_id')
+            && !Acl::covers(is_array($resources) ? $resources : [], 'Iter_Admin::role')) {
+            Messages::addError('O seu próprio perfil precisa manter acesso a Perfis.');
+            $_SESSION['iter_old_input'] = ['role_name' => $roleName, 'resources' => $resources];
+            header('Location: ' . $redirect);
+            exit;
+        }
+
         if ($roleName === '') {
             Messages::addError('Nome do perfil é obrigatório.');
             $_SESSION['iter_old_input'] = ['role_name' => $roleName, 'resources' => $resources];
@@ -96,7 +107,9 @@ class Role
     public function Delete(): void
     {
         $id = !empty($_POST['role_id']) ? (int) $_POST['role_id'] : 0;
-        if ($id > 0) {
+        if ($id === (int) Auth::user()->getData('role_id')) {
+            Messages::addError('Você não pode remover o próprio perfil.');
+        } elseif ($id > 0) {
             (new AdminRole())->setId($id)->delete();
             Messages::addSuccess('Perfil removido com sucesso.');
         }

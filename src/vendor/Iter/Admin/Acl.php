@@ -20,7 +20,17 @@ class Acl
             return false;
         }
 
-        $granted = (new AdminRole())->getGrantedResources($roleId);
+        return self::covers((new AdminRole())->getGrantedResources($roleId), $resourceId);
+    }
+
+    /**
+     * Same walk-up check against an arbitrary grant list, e.g. the resources
+     * a role form is about to save.
+     *
+     * @param array<int, string> $granted
+     */
+    public static function covers(array $granted, string $resourceId): bool
+    {
         $nodes = AclRegistry::byId();
 
         $current = $resourceId;

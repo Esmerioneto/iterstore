@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Admin\Controllers;
 
+use Iter\Admin\Auth;
 use Iter\Admin\Breadcrumb;
 use Iter\Admin\Model\AdminUser;
 use Iter\Core\Messages;
@@ -109,7 +110,9 @@ class User
     public function Delete(): void
     {
         $id = !empty($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
-        if ($id > 0) {
+        if ($id === (int) Auth::user()->getId()) {
+            Messages::addError('Você não pode remover o próprio usuário.');
+        } elseif ($id > 0) {
             (new AdminUser())->setId($id)->delete();
             Messages::addSuccess('Usuário removido com sucesso.');
         }
@@ -132,6 +135,17 @@ class User
 
         if ($id === null && empty($data['password'])) {
             $errors[] = 'Senha é obrigatória.';
+        }
+
+        // the logged-in admin can't lock themselves out: another admin has to do it
+        $self = Auth::user();
+        if ($id !== null && $id === (int) $self->getId()) {
+            if (empty($data['is_active'])) {
+                $errors[] = 'Você não pode desativar o próprio usuário.';
+            }
+            if ((int) ($data['role_id'] ?? 0) !== (int) $self->getData('role_id')) {
+                $errors[] = 'Você não pode alterar o próprio perfil.';
+            }
         }
 
         if (!empty($data['password']) && $data['password'] !== ($data['password_confirm'] ?? '')) {
