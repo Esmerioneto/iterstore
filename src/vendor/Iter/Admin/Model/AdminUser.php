@@ -30,7 +30,12 @@ class AdminUser extends AbstractModel
 
     public function setPassword(string $plainPassword): static
     {
-        return $this->setData('password', password_hash($plainPassword, PASSWORD_DEFAULT));
+        // any password change kills pending "forgot password" links
+        return $this->addData([
+            'password' => password_hash($plainPassword, PASSWORD_DEFAULT),
+            'rp_token' => null,
+            'rp_token_created_at' => null,
+        ]);
     }
 
     /**
@@ -79,5 +84,38 @@ class AdminUser extends AbstractModel
         $changedAt = $this->getResource()->getPasswordChangedAt((int) $this->getId());
 
         return $days > 0 && $changedAt !== null && $changedAt + $days * 86400 < time();
+    }
+
+    /**
+     * New "forgot password" token. Only its sha256 goes to rp_token, so a DB
+     * leak doesn't hand out working reset links. Returns the plain token for
+     * the e-mail; null when one was issued less than a minute ago (resend spam).
+     */
+    public function createResetToken(): ?string
+    {
+        $createdAt = $this->getData('rp_token_created_at');
+        if ($createdAt && strtotime($createdAt) > time() - 60) {
+            return null;
+        }
+
+        $token = bin2hex(random_bytes(32));
+        $this->addData([
+            'rp_token' => hash('sha256', $token),
+            'rp_token_created_at' => date('Y-m-d H:i:s'),
+        ])->save();
+
+        return $token;
+    }
+
+    /** admin/security/reset_link_hours after it was issued; one use only (cleared on reset). */
+    public function isResetTokenValid(string $token): bool
+    {
+        $hash = (string) $this->getData('rp_token');
+        $createdAt = strtotime((string) $this->getData('rp_token_created_at'));
+        $hours = (int) Config::get('admin/security/reset_link_hours');
+
+        return $hash !== '' && $createdAt && $this->getData('is_active')
+            && hash_equals($hash, hash('sha256', $token))
+            && $createdAt + $hours * 3600 > time();
     }
 }

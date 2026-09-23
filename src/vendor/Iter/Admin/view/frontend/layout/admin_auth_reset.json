@@ -1,0 +1,13 @@
+{
+    "header": { "component": "admin/header" },
+    "toolbar": {
+        "messages": { "component": "admin/messages" }
+    },
+    "dashboard": {
+        "component": "admin/dashboard-shell",
+        "children": {
+            "form": "admin/reset-form"
+        }
+    },
+    "footer": { "component": "admin/footer" }
+}

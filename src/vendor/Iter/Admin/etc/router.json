@@ -43,7 +43,7 @@
         "vendor": "Iter",
         "module_name": "Admin",
         "controller_name": "auth",
-        "controller_action": "login,logout,password",
+        "controller_action": "login,logout,password,forgot,reset",
         "method": "GET"
     },
     {
@@ -51,7 +51,7 @@
         "vendor": "Iter",
         "module_name": "Admin",
         "controller_name": "auth",
-        "controller_action": "loginpost,passwordpost",
+        "controller_action": "loginpost,passwordpost,forgotpost,resetpost",
         "method": "POST"
     }
 ]

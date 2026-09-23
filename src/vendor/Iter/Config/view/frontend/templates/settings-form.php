@@ -17,7 +17,7 @@
                         <option value="0" <?= $field['value'] ? '' : 'selected' ?>>Não</option>
                     </select>
             <?php else: ?>
-                    <input type="<?= ($field['type'] ?? 'text') === 'number' ? 'number' : 'text' ?>"
+                    <input type="<?= in_array($field['type'] ?? 'text', ['number', 'url'], true) ? $field['type'] : 'text' ?>"
                         name="config[<?= htmlspecialchars($field['path']) ?>]"
                         value="<?= htmlspecialchars((string) $field['value']) ?>"
                         <?= isset($field['min']) ? 'min="' . (int) $field['min'] . '"' : '' ?>

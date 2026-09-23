@@ -186,6 +186,8 @@ assertSame('/admin/auth/login', $attacker->login('selftest_victim'), 'após 2 er
 assertSame(['"Tentativas de login antes do bloqueio" deve ser um número inteiro entre 1 e 100.'], $msgs, 'config recusa valor fora da faixa');
 [, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['admin/security/max_failures' => '3']]);
 assertSame(['Configurações salvas.'], $msgs, 'config salva valor válido');
+[, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['web/base_url' => 'javascript:alert(1)']]);
+assertSame(['"Endereço do site (usado nos links enviados por e-mail)" deve ser um endereço http:// ou https://.'], $msgs, 'config recusa URL que não é http(s)');
 assertSame('3', $pdo->query("SELECT value FROM core_config_data WHERE path = 'admin/security/max_failures'")->fetchColumn(), 'valor gravado em core_config_data');
 
 // --- password policy ----------------------------------------------------------------------
@@ -201,6 +203,32 @@ $pdo->exec("UPDATE admin_passwords SET last_updated = last_updated - 91 * 86400 
 assertSame('/admin/auth/password', $dash->request('/admin/index')['location'], 'senha expirada força a troca');
 $changePassword($dash, 'Nova2026x', 'Outra2026x');
 assertSame(200, $dash->request('/admin/index')['status'], 'após a troca o acesso volta');
+
+// --- forgot / reset password (selftest_victim is still locked from above) --------------------
+$genericReply = ['Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.'];
+[, $msgs] = $guest->submit('/admin/auth/forgot', '/admin/auth/forgotpost', ['email' => 'ninguem@selftest.local']);
+assertSame($genericReply, $msgs, 'esqueci a senha: e-mail desconhecido tem a mesma resposta');
+[, $msgs] = $guest->submit('/admin/auth/forgot', '/admin/auth/forgotpost', ['email' => 'selftest_victim@selftest.local']);
+assertSame($genericReply, $msgs, 'esqueci a senha: e-mail cadastrado recebe a resposta genérica');
+assertSame(64, strlen((string) (new AdminUser())->load($victimId)->getData('rp_token')), 'token gravado só como hash sha256');
+
+// the mailed token isn't readable back, so plant a known one
+$setToken = static fn (string $createdAt) => $pdo->prepare('UPDATE admin_user SET rp_token = :hash, rp_token_created_at = ' . $createdAt . ' WHERE user_id = :id')
+    ->execute(['hash' => hash('sha256', 'selftest-token'), 'id' => $victimId]);
+$resetUrl = '/admin/auth/reset?' . http_build_query(['id' => $victimId, 'token' => 'selftest-token']);
+$reset = static fn (string $password) => $guest->submit($resetUrl, '/admin/auth/resetpost', [
+    'id' => $victimId, 'token' => 'selftest-token', 'password' => $password, 'password_confirm' => $password,
+]);
+
+$setToken("NOW() - INTERVAL '3 hours'");
+assertSame('/admin/auth/forgot', $guest->request($resetUrl)['location'], 'link expirado é recusado');
+$setToken('NOW()');
+assertSame('/admin/auth/forgot', $guest->request('/admin/auth/reset?id=' . $victimId . '&token=errado')['location'], 'token errado é recusado');
+assertSame(200, $guest->request($resetUrl)['status'], 'link válido abre o formulário');
+assertSame([$resetUrl, ['A senha deve conter letras e números.']], $reset('somenteletras'), 'redefinição aplica a regra de formato');
+assertSame(['/admin/auth/login', ['Senha redefinida. Entre com a nova senha.']], $reset('Redefinida2026'), 'redefinição válida volta ao login');
+assertSame('/admin/index', (new Browser($base))->login('selftest_victim', 'Redefinida2026'), 'nova senha entra e o bloqueio foi liberado');
+assertSame('/admin/auth/forgot', $guest->request($resetUrl)['location'], 'link não pode ser usado de novo');
 
 // --- self-lockout guard ------------------------------------------------------------------
 [, $msgs] = $admin->submit('/admin/user/index', '/admin/user/delete', ['user_id' => $adminId]);

@@ -14,6 +14,7 @@
         </p>
         <p>
             <button type="submit">Entrar</button>
+            <a href="/admin/auth/forgot">Esqueci minha senha</a>
         </p>
     </form>
 </section>

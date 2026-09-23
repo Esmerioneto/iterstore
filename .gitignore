@@ -3,6 +3,7 @@
 
 # Local DB credentials; copy src/etc/database.ini.sample
 /src/etc/database.ini
+/src/etc/mail.ini
 
 .vscode/
 .idea/

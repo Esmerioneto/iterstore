@@ -1,6 +1,7 @@
 [
     { "path": "admin/security/max_failures", "group": "Segurança do admin", "label": "Tentativas de login antes do bloqueio", "type": "number", "default": 5, "min": 1, "max": 100 },
     { "path": "admin/security/lock_minutes", "group": "Segurança do admin", "label": "Minutos de bloqueio após exceder as tentativas", "type": "number", "default": 15, "min": 1, "max": 1440 },
+    { "path": "admin/security/reset_link_hours", "group": "Segurança do admin", "label": "Horas de validade do link de redefinição de senha", "type": "number", "default": 2, "min": 1, "max": 48 },
     { "path": "admin/security/password_min_length", "group": "Segurança do admin", "label": "Tamanho mínimo da senha", "type": "number", "default": 8, "min": 1, "max": 64 },
     { "path": "admin/security/password_require_alnum", "group": "Segurança do admin", "label": "Exigir letras e números na senha", "type": "boolean", "default": 1 },
     { "path": "admin/security/password_history", "group": "Segurança do admin", "label": "Senhas anteriores que não podem ser reutilizadas (0 = sem restrição)", "type": "number", "default": 4, "min": 0, "max": 20 },

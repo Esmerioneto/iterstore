@@ -15,4 +15,6 @@ return [
     'admin/role-form' => \Iter\Admin\View\RoleForm::class,
     'admin/login-form' => \Iter\Admin\View\LoginForm::class,
     'admin/password-form' => \Iter\Admin\View\PasswordForm::class,
+    'admin/reset-form' => \Iter\Admin\View\ResetForm::class,
+    'admin/forgot-form' => \Iter\Admin\View\ForgotForm::class,
 ];
