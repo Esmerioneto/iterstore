@@ -14,5 +14,11 @@
     ],
     "require": {
         "webonyx/graphql-php": "^15.37"
+    },
+    "scripts": {
+        "test": [
+            "php bin/view-selftest.php",
+            "php bin/admin-selftest.php"
+        ]
     }
 }
