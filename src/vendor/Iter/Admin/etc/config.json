@@ -1,0 +1,8 @@
+{
+    "name": "iter_admin",
+    "version": "1.0.0",
+    "description": "Iter Admin base theme",
+    "enabled": true,
+    "index": "0",
+    "author": "Esmerio"
+}

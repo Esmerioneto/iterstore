@@ -1,0 +1,57 @@
+[
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Admin",
+        "controller_name": "index",
+        "controller_action": "index"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Admin",
+        "controller_name": "user",
+        "controller_action": "index,create,edit",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Admin",
+        "controller_name": "user",
+        "controller_action": "save,delete",
+        "method": "POST"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Admin",
+        "controller_name": "role",
+        "controller_action": "index,create,edit",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Admin",
+        "controller_name": "role",
+        "controller_action": "save,delete",
+        "method": "POST"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Admin",
+        "controller_name": "auth",
+        "controller_action": "login,logout,password",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Admin",
+        "controller_name": "auth",
+        "controller_action": "loginpost,passwordpost",
+        "method": "POST"
+    }
+]

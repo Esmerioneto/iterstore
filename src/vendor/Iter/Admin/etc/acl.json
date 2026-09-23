@@ -1,0 +1,6 @@
+[
+    { "id": "Iter_Admin::root", "title": "Admin" },
+    { "id": "Iter_Admin::dashboard", "parent": "Iter_Admin::root", "title": "Dashboard" },
+    { "id": "Iter_Admin::user", "parent": "Iter_Admin::root", "title": "Usuários" },
+    { "id": "Iter_Admin::role", "parent": "Iter_Admin::root", "title": "Perfis" }
+]

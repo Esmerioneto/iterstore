@@ -1,0 +1,8 @@
+{
+    "dashboard": {
+        "children": {
+            "welcome": "admin/dashboard-welcome",
+            "users": "admin/dashboard-users"
+        }
+    }
+}

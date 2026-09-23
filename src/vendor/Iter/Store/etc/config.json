@@ -1,0 +1,8 @@
+{
+    "name": "iter_store",
+    "version": "1.0.0",
+    "description": "Iter Store",
+    "enabled": true,
+    "index": "0",
+    "author": "Esmerio"
+}

@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "form": "admin/role-form"
+        }
+    }
+}

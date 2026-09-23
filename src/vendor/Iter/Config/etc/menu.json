@@ -1,0 +1,3 @@
+[
+    {"id": "configuracoes", "label": "Configurações", "resource": "Iter_Config::config", "url": "/admin/config/index", "sort_order": 20}
+]
