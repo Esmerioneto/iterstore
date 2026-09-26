@@ -330,12 +330,8 @@ a {
   gap: var(--spacing-16);
 }
 
-/* Square crop keeps the center of the 1408x768 artwork; its gray backdrop reads as an app icon */
 .admin-logo {
   width: 120px;
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: 12px;
 }
 
 .admin-dashboard:has(> .admin-login-form) {
