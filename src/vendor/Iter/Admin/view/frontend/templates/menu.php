@@ -4,7 +4,7 @@
 <?php if (!empty($item['children'])): ?>
         <li>
             <details<?= $item['open'] ? ' open' : '' ?>>
-                <summary><a href="<?= htmlspecialchars($item['url']) ?>"><?= htmlspecialchars($item['label']) ?></a></summary>
+                <summary><?= htmlspecialchars($item['label']) ?></summary>
                 <ul class="admin-submenu">
 <?php foreach ($item['children'] as $child): ?>
                     <li><a href="<?= htmlspecialchars($child['url']) ?>"><?= htmlspecialchars($child['label']) ?></a></li>

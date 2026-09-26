@@ -106,7 +106,8 @@ a {
   gap: var(--spacing-16);
 }
 
-.admin-menu a {
+.admin-menu a,
+.admin-menu summary {
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.8px;
@@ -114,7 +115,8 @@ a {
   color: var(--color-ink);
 }
 
-.admin-menu a:hover {
+.admin-menu a:hover,
+.admin-menu summary:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }

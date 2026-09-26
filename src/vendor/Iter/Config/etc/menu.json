@@ -1,3 +1,4 @@
 [
-    {"id": "configuracoes", "label": "Configurações", "resource": "Iter_Config::config", "url": "/admin/config/index", "sort_order": 20}
+    {"id": "configuracoes", "label": "Configurações", "resource": "Iter_Config::config", "url": "/admin/config/index", "sort_order": 20},
+    {"label": "Ajustes do sistema", "resource": "Iter_Config::config", "url": "/admin/config/index", "parent": "configuracoes", "sort_order": 0}
 ]
