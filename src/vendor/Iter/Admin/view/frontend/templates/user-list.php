@@ -1,5 +1,5 @@
 <section class="admin-user-list">
-    <h2>Usuários</h2>
+    <h2>Usuários admin</h2>
     <p><a href="/admin/user/create">+ Novo usuário</a></p>
     <table>
         <thead>
