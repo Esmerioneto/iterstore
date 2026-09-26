@@ -48,7 +48,9 @@ a {
 
 .admin-shell {
   display: grid;
+  min-height: 100vh;
   grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: auto auto auto 1fr auto;
   grid-template-areas:
     "header header"
     "menu breadcrumb"
@@ -314,6 +316,41 @@ a {
 .admin-role-permission {
   display: block;
   padding-top: 4px;
+}
+
+/* Auth pages (login, forgot, reset, password) — no sidebar, form centered in a card */
+.admin-shell:not(:has(.admin-menu)) .admin-messages,
+.admin-shell:not(:has(.admin-menu)) .admin-dashboard {
+  grid-column: 1 / -1;
+}
+
+.admin-dashboard:has(> .admin-login-form) {
+  display: grid;
+  place-items: center;
+}
+
+.admin-login-form {
+  width: 100%;
+  max-width: 400px;
+  padding: var(--spacing-32);
+  background: var(--color-paper);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+}
+
+.admin-dashboard .admin-login-form form input {
+  max-width: none;
+}
+
+.admin-login-form button + a {
+  margin-left: var(--spacing-16);
+}
+
+.admin-messages:has(+ .admin-dashboard > .admin-login-form) {
+  max-width: 400px;
+  width: 100%;
+  justify-self: center;
+  padding: 0;
 }
 
 /* Footer — off-white, uppercase tracked links */
