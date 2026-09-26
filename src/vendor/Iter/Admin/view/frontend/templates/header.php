@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title><?= htmlspecialchars($title) ?></title>
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Cormorant+Garamond:wght@400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/vendor/sweetalert2/sweetalert2.min.css">
