@@ -123,7 +123,7 @@ a {
   cursor: pointer;
 }
 
-.admin-submenu {
+.admin-menu .admin-submenu {
   list-style: none;
   margin: var(--spacing-16) 0 0;
   padding: 0 0 0 var(--spacing-16);

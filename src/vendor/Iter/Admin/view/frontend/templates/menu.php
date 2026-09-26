@@ -3,7 +3,7 @@
 <?php foreach ($items as $item): ?>
 <?php if (!empty($item['children'])): ?>
         <li>
-            <details>
+            <details<?= $item['open'] ? ' open' : '' ?>>
                 <summary><a href="<?= htmlspecialchars($item['url']) ?>"><?= htmlspecialchars($item['label']) ?></a></summary>
                 <ul class="admin-submenu">
 <?php foreach ($item['children'] as $child): ?>
