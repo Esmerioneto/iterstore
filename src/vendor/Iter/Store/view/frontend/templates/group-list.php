@@ -23,7 +23,7 @@
                 <td><?= htmlspecialchars((string) $group['name']) ?></td>
                 <td>
                     <a href="/admin/group/edit?id=<?= (int) $group['group_id'] ?>">Editar</a>
-                    <form method="post" action="/admin/group/delete" style="display:inline" onsubmit="return confirm('Remover este grupo?')">
+                    <form method="post" action="/admin/group/delete" style="display:inline" data-confirm="Remover este grupo?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="group_id" value="<?= (int) $group['group_id'] ?>">
                         <button type="submit">Remover</button>

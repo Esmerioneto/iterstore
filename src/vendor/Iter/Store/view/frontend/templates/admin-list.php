@@ -25,7 +25,7 @@
                 <td><?= htmlspecialchars($store['theme']) ?></td>
                 <td>
                     <a href="/admin/store/edit?id=<?= (int) $store['id'] ?>">Editar</a>
-                    <form method="post" action="/admin/store/delete" style="display:inline" onsubmit="return confirm('Remover esta loja?')">
+                    <form method="post" action="/admin/store/delete" style="display:inline" data-confirm="Remover esta loja?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="id" value="<?= (int) $store['id'] ?>">
                         <button type="submit">Remover</button>

@@ -25,7 +25,7 @@
                 <td><?= $website['is_default'] ? 'Sim' : '' ?></td>
                 <td>
                     <a href="/admin/website/edit?id=<?= (int) $website['website_id'] ?>">Editar</a>
-                    <form method="post" action="/admin/website/delete" style="display:inline" onsubmit="return confirm('Remover este website e seus grupos?')">
+                    <form method="post" action="/admin/website/delete" style="display:inline" data-confirm="Remover este website e seus grupos?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="website_id" value="<?= (int) $website['website_id'] ?>">
                         <button type="submit">Remover</button>
