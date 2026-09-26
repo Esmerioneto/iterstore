@@ -27,7 +27,7 @@
                 <td><?= $user['is_active'] ? 'Sim' : 'Não' ?></td>
                 <td>
                     <a href="/admin/user/edit?id=<?= (int) $user['user_id'] ?>">Editar</a>
-                    <form method="post" action="/admin/user/delete" style="display:inline" onsubmit="return confirm('Remover este usuário?')">
+                    <form method="post" action="/admin/user/delete" style="display:inline" data-confirm="Remover este usuário?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="user_id" value="<?= (int) $user['user_id'] ?>">
                         <button type="submit">Remover</button>

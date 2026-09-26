@@ -19,7 +19,7 @@
                 <td><?= htmlspecialchars($role['role_name']) ?></td>
                 <td>
                     <a href="/admin/role/edit?id=<?= (int) $role['role_id'] ?>">Editar</a>
-                    <form method="post" action="/admin/role/delete" style="display:inline" onsubmit="return confirm('Remover este perfil?')">
+                    <form method="post" action="/admin/role/delete" style="display:inline" data-confirm="Remover este perfil?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="role_id" value="<?= (int) $role['role_id'] ?>">
                         <button type="submit">Remover</button>
