@@ -394,9 +394,28 @@ a {
   color: var(--color-charcoal);
 }
 
-.admin-swal .swal2-icon.swal2-warning {
-  border-color: var(--color-pebble);
-  color: var(--color-ink);
+/* Toast (flash messages): label as eyebrow caption, text below */
+.admin-swal-toast.swal2-toast {
+  border-radius: 12px;
+  border-left: 3px solid var(--color-ink);
+}
+
+.admin-swal-toast.swal2-toast .swal2-title {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.91px;
+  text-transform: uppercase;
+}
+
+.admin-swal-toast.swal2-toast .swal2-html-container {
+  font-size: 13px;
+  margin: 0;
+  padding: 0;
+}
+
+.admin-swal-toast .swal2-timer-progress-bar {
+  background: var(--color-pebble);
 }
 
 .admin-swal .swal2-actions {
