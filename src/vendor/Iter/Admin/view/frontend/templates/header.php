@@ -12,7 +12,7 @@
 <header class="admin-header">
     <h1><?= htmlspecialchars($title) ?></h1>
 <?php if (!$username): ?>
-    <img class="admin-logo" src="/imagem/logo.jpeg" alt="Iter">
+    <img class="admin-logo" src="/imagem/logo.png" alt="Iter">
 <?php endif; ?>
 <?php if ($username): ?>
     <nav class="admin-user-nav">
