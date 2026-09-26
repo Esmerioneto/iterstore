@@ -18,7 +18,7 @@ class User
     {
         Breadcrumb::set([
             ['label' => 'Dashboard', 'url' => '/admin/index'],
-            ['label' => 'Usuários'],
+            ['label' => 'Usuários admin'],
         ]);
 
         echo Layout::renderAdmin('admin_user_index');
@@ -28,7 +28,7 @@ class User
     {
         Breadcrumb::set([
             ['label' => 'Dashboard', 'url' => '/admin/index'],
-            ['label' => 'Usuários', 'url' => '/admin/user/index'],
+            ['label' => 'Usuários admin', 'url' => '/admin/user/index'],
             ['label' => 'Novo'],
         ]);
 
@@ -51,7 +51,7 @@ class User
 
         Breadcrumb::set([
             ['label' => 'Dashboard', 'url' => '/admin/index'],
-            ['label' => 'Usuários', 'url' => '/admin/user/index'],
+            ['label' => 'Usuários admin', 'url' => '/admin/user/index'],
             ['label' => 'Editar'],
         ]);
 
