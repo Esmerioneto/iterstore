@@ -74,6 +74,9 @@
         <p>
             <button type="submit">Salvar</button>
             <a href="/admin/attributeset/index">Cancelar</a>
+<?php if ($is_edit): ?>
+            <a href="/admin/attributeset/preview?id=<?= (int) $attribute_set_id ?>">Pré-visualizar formulário</a>
+<?php endif; ?>
         </p>
     </form>
 </section>

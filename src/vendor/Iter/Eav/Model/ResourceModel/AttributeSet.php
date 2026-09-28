@@ -69,6 +69,19 @@ class AttributeSet extends AbstractDb
         }
     }
 
+    /** the set $code of the entity type, or its default set when $code is null */
+    public function findId(string $entityType, ?string $code): ?int
+    {
+        $stmt = $this->getConnection()->prepare(
+            'SELECT s.attribute_set_id FROM eav_attribute_set s JOIN eav_entity_type et USING (entity_type_id)
+             WHERE et.code = :entity_type AND ' . ($code === null ? 's.is_default = 1' : 's.code = :code')
+        );
+        $stmt->execute(['entity_type' => $entityType] + ($code === null ? [] : ['code' => $code]));
+        $id = $stmt->fetchColumn();
+
+        return $id === false ? null : (int) $id;
+    }
+
     public function codeExists(int $entityTypeId, string $code): bool
     {
         $stmt = $this->getConnection()->prepare(

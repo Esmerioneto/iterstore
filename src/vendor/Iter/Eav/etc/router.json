@@ -20,7 +20,7 @@
         "vendor": "Iter",
         "module_name": "Eav",
         "controller_name": "attributeset",
-        "controller_action": "index,create,edit",
+        "controller_action": "index,create,edit,preview",
         "method": "GET"
     },
     {
