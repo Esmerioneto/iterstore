@@ -6,7 +6,7 @@ namespace Iter\Inventory\Model;
 
 use Iter\Catalog\Model\ProductService;
 use Iter\Core\Db\Connection;
-use PDO;
+use Iter\Core\Db\Expr;
 
 /**
  * Product quantities per source. Salable quantity = sum of the quantities marked
@@ -18,15 +18,14 @@ class StockService
     /** @return array<int, array{source_id: int, code: string, name: string, is_enabled: int, quantity: string, status: int}> every source, by priority */
     public function getItems(int $productId): array
     {
-        $stmt = Connection::get()->connect()->prepare(
-            'SELECT s.source_id, s.code, s.name, s.is_enabled, COALESCE(i.quantity, 0) AS quantity, COALESCE(i.status, 1) AS status
-             FROM inventory_source s
-             LEFT JOIN inventory_source_item i ON i.source_id = s.source_id AND i.product_id = :id
-             ORDER BY s.priority, s.source_id'
-        );
-        $stmt->execute(['id' => $productId]);
+        $db = Connection::get()->adapter();
+        $select = $db->select()->from(['s' => 'inventory_source'], ['source_id', 'code', 'name', 'is_enabled']);
+        $select->joinLeft(['i' => 'inventory_source_item'], 'i.source_id = s.source_id AND i.product_id = ' . $select->bindValue($productId), [
+            'quantity' => 'COALESCE(i.quantity, 0)',
+            'status' => 'COALESCE(i.status, 1)',
+        ])->order('s.priority, s.source_id');
 
-        return array_map(static fn ($row) => ['quantity' => self::format($row['quantity'])] + $row, $stmt->fetchAll(PDO::FETCH_ASSOC));
+        return array_map(static fn ($row) => ['quantity' => self::format($row['quantity'])] + $row, $db->fetchAll($select));
     }
 
     /**
@@ -55,24 +54,13 @@ class StockService
             $rows[] = ['source_id' => (int) $source['source_id'], 'quantity' => $quantity, 'status' => (int) $status];
         }
 
-        $pdo = Connection::get()->connect();
-        $delete = $pdo->prepare('DELETE FROM inventory_source_item WHERE source_id = :source_id AND product_id = :product_id');
-        $upsert = $pdo->prepare(
-            'INSERT INTO inventory_source_item (source_id, product_id, quantity, status) VALUES (:source_id, :product_id, :quantity, :status)
-             ON CONFLICT (source_id, product_id) DO UPDATE SET quantity = EXCLUDED.quantity, status = EXCLUDED.status, updated_at = NOW()'
-        );
-        $pdo->beginTransaction();
-        try {
+        Connection::get()->adapter()->transaction(static function ($db) use ($rows, $productId): void {
             foreach ($rows as $row) {
                 (float) $row['quantity'] === 0.0 && $row['status'] === 1
-                    ? $delete->execute(['source_id' => $row['source_id'], 'product_id' => $productId])
-                    : $upsert->execute($row + ['product_id' => $productId]);
+                    ? $db->delete('inventory_source_item', ['source_id = ?' => $row['source_id'], 'product_id = ?' => $productId])
+                    : $db->insertOnConflict('inventory_source_item', $row + ['product_id' => $productId], ['source_id', 'product_id'], ['quantity', 'status', 'updated_at' => new Expr('NOW()')]);
             }
-            $pdo->commit();
-        } catch (\Throwable $e) {
-            $pdo->rollBack();
-            throw $e;
-        }
+        });
     }
 
     /**
@@ -87,13 +75,13 @@ class StockService
         if (!$ids) {
             return [];
         }
-        $rows = Connection::get()->connect()->query(
-            'SELECT i.product_id, SUM(i.quantity)
-             FROM inventory_source_item i
-             JOIN inventory_source s ON s.source_id = i.source_id AND s.is_enabled = 1
-             WHERE i.status = 1 AND i.product_id IN (' . implode(',', $ids) . ')
-             GROUP BY i.product_id'
-        )->fetchAll(PDO::FETCH_KEY_PAIR);
+        $db = Connection::get()->adapter();
+        $rows = $db->fetchPairs($db->select()
+            ->from(['i' => 'inventory_source_item'], ['product_id', 'SUM(i.quantity)'])
+            ->join(['s' => 'inventory_source'], 's.source_id = i.source_id AND s.is_enabled = 1', [])
+            ->where('i.status = 1')
+            ->where('i.product_id IN (?)', $ids)
+            ->group('i.product_id'));
 
         return array_map(static fn ($id) => self::format($rows[$id] ?? '0'), array_combine($ids, $ids));
     }

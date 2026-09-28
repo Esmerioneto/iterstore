@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Iter\Eav\Model;
 
+use Iter\Core\Db\Adapter;
 use Iter\Core\Db\Connection;
-use PDO;
 
 /**
  * "Organizar tela" of an entity's form (product, customer): each admin's order of the
@@ -33,9 +33,8 @@ class FormLayout
         if (!$userId) {
             return self::EMPTY;
         }
-        $stmt = $this->pdo()->prepare('SELECT layout FROM eav_form_layout WHERE user_id = :id AND entity_type = :type');
-        $stmt->execute(['id' => $userId, 'type' => $this->entityType]);
-        $json = $stmt->fetchColumn();
+        $json = $this->db()->fetchOne($this->db()->select()->from('eav_form_layout', ['layout'])
+            ->where('user_id = ?', $userId)->where('entity_type = ?', $this->entityType));
 
         return $json === false ? self::EMPTY : (json_decode((string) $json, true) + self::EMPTY);
     }
@@ -59,15 +58,16 @@ class FormLayout
         $new['fields'] += $old['fields'];
         $new['columns'] ??= $old['columns'];
 
-        $this->pdo()->prepare(
-            'INSERT INTO eav_form_layout (user_id, entity_type, layout) VALUES (:id, :type, :layout)
-             ON CONFLICT (user_id, entity_type) DO UPDATE SET layout = EXCLUDED.layout'
-        )->execute(['id' => $userId, 'type' => $this->entityType, 'layout' => json_encode($new, JSON_UNESCAPED_UNICODE)]);
+        $this->db()->insertOnConflict(
+            'eav_form_layout',
+            ['user_id' => $userId, 'entity_type' => $this->entityType, 'layout' => json_encode($new, JSON_UNESCAPED_UNICODE)],
+            ['user_id', 'entity_type']
+        );
     }
 
     public function reset(int $userId): void
     {
-        $this->pdo()->prepare('DELETE FROM eav_form_layout WHERE user_id = :id AND entity_type = :type')->execute(['id' => $userId, 'type' => $this->entityType]);
+        $this->db()->delete('eav_form_layout', ['user_id = ?' => $userId, 'entity_type = ?' => $this->entityType]);
     }
 
     /**
@@ -143,8 +143,8 @@ class FormLayout
         return $valid;
     }
 
-    private function pdo(): PDO
+    private function db(): Adapter
     {
-        return Connection::get()->connect();
+        return Connection::get()->adapter();
     }
 }

@@ -45,19 +45,18 @@ class AttributeService
         }
         $options = $inputType['supports_options'] ? $this->options($data['options'] ?? [], $inputType) : [];
 
-        // ponytail: attribute and options are saved on separate connections (Connection::connect()
-        // opens a new PDO per call), so everything is validated first; a DB failure between the
-        // two leaves an attribute without options, fixable by saving again
-        $model->addData($this->fields($data) + [
-            'entity_type_id' => (int) $entityType['entity_type_id'],
-            'code' => $code,
-            'input_type' => $inputType['code'],
-            'storage_type' => $inputType['storage_type'],
-            'is_system' => $system ? 1 : 0,
-        ])->save();
-        if ($options) {
-            $model->getResource()->replaceOptions((int) $model->getId(), $options);
-        }
+        $model->getResource()->getConnection()->transaction(function () use ($model, $data, $entityType, $code, $inputType, $system, $options): void {
+            $model->addData($this->fields($data) + [
+                'entity_type_id' => (int) $entityType['entity_type_id'],
+                'code' => $code,
+                'input_type' => $inputType['code'],
+                'storage_type' => $inputType['storage_type'],
+                'is_system' => $system ? 1 : 0,
+            ])->save();
+            if ($options) {
+                $model->getResource()->replaceOptions((int) $model->getId(), $options);
+            }
+        });
 
         return $model;
     }
@@ -103,10 +102,12 @@ class AttributeService
             $fields = array_intersect_key($fields, array_flip(self::SYSTEM_EDITABLE));
         }
 
-        $model->addData($fields)->save();
-        if ($options !== null) {
-            $model->getResource()->replaceOptions($id, $options);
-        }
+        $model->getResource()->getConnection()->transaction(function () use ($model, $fields, $options, $id): void {
+            $model->addData($fields)->save();
+            if ($options !== null) {
+                $model->getResource()->replaceOptions($id, $options);
+            }
+        });
 
         return $model;
     }

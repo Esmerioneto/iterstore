@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Core;
 
 use Iter\Core\Db\Connection;
+use Iter\Core\Db\Expr;
 
 /**
  * System settings (Magento's core_config_data). Modules declare fields in
@@ -46,23 +47,19 @@ class Config
     /** @param array<string, string> $values path => value */
     public static function save(array $values, ?int $websiteId = null): void
     {
-        $stmt = Connection::get()->connect()->prepare(
-            "INSERT INTO core_config_data (scope, scope_id, path, value) VALUES (:scope, :scope_id, :path, :value)
-             ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()"
-        );
-        foreach ($values as $path => $value) {
-            $stmt->execute(['path' => $path, 'value' => $value] + self::scope($websiteId));
-        }
+        Connection::get()->adapter()->transaction(static function ($db) use ($values, $websiteId): void {
+            foreach ($values as $path => $value) {
+                $db->insertOnConflict('core_config_data', self::scope($websiteId) + ['path' => $path, 'value' => $value], ['scope', 'scope_id', 'path'], ['value', 'updated_at' => new Expr('NOW()')]);
+            }
+        });
         self::$values = null;
     }
 
     /** Back to the default value: removes the website's own values */
     public static function clear(array $paths, int $websiteId): void
     {
-        $stmt = Connection::get()->connect()->prepare('DELETE FROM core_config_data WHERE scope = :scope AND scope_id = :scope_id AND path = :path');
-        foreach ($paths as $path) {
-            $stmt->execute(['path' => $path] + self::scope($websiteId));
-        }
+        $scope = self::scope($websiteId);
+        Connection::get()->adapter()->delete('core_config_data', ['scope = ?' => $scope['scope'], 'scope_id = ?' => $scope['scope_id'], 'path IN (?)' => $paths]);
         self::$values = null;
     }
 
@@ -82,10 +79,9 @@ class Config
         if ($websiteId < 1 || $websiteId > 32767) { // store_website.website_id is a smallint
             return false;
         }
-        $stmt = Connection::get()->connect()->prepare('SELECT 1 FROM store_website WHERE website_id = :id');
-        $stmt->execute(['id' => $websiteId]);
+        $db = Connection::get()->adapter();
 
-        return (bool) $stmt->fetchColumn();
+        return (bool) $db->fetchOne($db->select()->from('store_website', [new Expr('1')])->where('website_id = ?', $websiteId));
     }
 
     private static function scope(?int $websiteId): array
@@ -97,7 +93,8 @@ class Config
     {
         if (self::$values === null) {
             self::$values = [];
-            foreach (Connection::get()->connect()->query('SELECT scope, scope_id, path, value FROM core_config_data') as $row) {
+            $db = Connection::get()->adapter();
+            foreach ($db->fetchAll($db->select()->from('core_config_data', ['scope', 'scope_id', 'path', 'value'])) as $row) {
                 self::$values[$row['scope'] . ':' . $row['scope_id']][$row['path']] = $row['value'];
             }
         }

@@ -19,6 +19,19 @@ class Website extends AbstractDb
         return parent::getList($orderBy ?? 'sort_order, website_id');
     }
 
+    /** @return array{websites: int, groups: int, stores: int, ungrouped: int} for the dashboard */
+    public function getCounts(): array
+    {
+        $db = $this->getConnection();
+
+        return array_map('intval', $db->fetchRow($db->select()->from('store_website', [])->columns([
+            'websites' => 'COUNT(*)',
+            'groups' => '(SELECT COUNT(*) FROM store_group)',
+            'stores' => '(SELECT COUNT(*) FROM store)',
+            'ungrouped' => '(SELECT COUNT(*) FROM store WHERE group_id IS NULL)',
+        ])));
+    }
+
     /**
      * Only one default website: marking one clears the flag on the others.
      */

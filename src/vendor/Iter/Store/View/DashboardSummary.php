@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Iter\Store\View;
 
 use Iter\Admin\Auth;
-use Iter\Core\Db\Connection;
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Store\Model\ResourceModel\Website;
 
 class DashboardSummary implements ViewComponentInterface
 {
@@ -21,13 +21,6 @@ class DashboardSummary implements ViewComponentInterface
             return ['counts' => null];
         }
 
-        $counts = Connection::get()->connect()->query(
-            'SELECT (SELECT COUNT(*) FROM store_website) AS websites,
-                    (SELECT COUNT(*) FROM store_group) AS groups,
-                    (SELECT COUNT(*) FROM store) AS stores,
-                    (SELECT COUNT(*) FROM store WHERE group_id IS NULL) AS ungrouped'
-        )->fetch(\PDO::FETCH_ASSOC);
-
-        return ['counts' => array_map('intval', $counts)];
+        return ['counts' => (new Website())->getCounts()];
     }
 }
