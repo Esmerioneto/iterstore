@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Iter\Inventory\Model\ResourceModel;
 
+use Iter\Core\Db\Expr;
 use Iter\Core\Model\ResourceModel\AbstractDb;
-use PDO;
 
 class Source extends AbstractDb
 {
@@ -23,17 +23,18 @@ class Source extends AbstractDb
     /** @return array<int, array<string, mixed>> sources + products (count of products with quantity > 0) */
     public function getListWithCounts(): array
     {
-        return $this->getConnection()->query(
-            'SELECT s.*, (SELECT COUNT(*) FROM inventory_source_item i WHERE i.source_id = s.source_id AND i.quantity > 0) AS products
-             FROM inventory_source s ORDER BY s.priority, s.source_id'
-        )->fetchAll(PDO::FETCH_ASSOC);
+        $db = $this->getConnection();
+
+        return $db->fetchAll($db->select()
+            ->from(['s' => 'inventory_source'])
+            ->columns(['products' => '(SELECT COUNT(*) FROM inventory_source_item i WHERE i.source_id = s.source_id AND i.quantity > 0)'])
+            ->order('s.priority, s.source_id'));
     }
 
     public function codeExists(string $code): bool
     {
-        $stmt = $this->getConnection()->prepare('SELECT 1 FROM inventory_source WHERE code = :code');
-        $stmt->execute(['code' => $code]);
+        $db = $this->getConnection();
 
-        return (bool) $stmt->fetchColumn();
+        return (bool) $db->fetchOne($db->select()->from('inventory_source', [new Expr('1')])->where('code = ?', $code));
     }
 }
