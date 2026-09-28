@@ -6,7 +6,8 @@ namespace Iter\Eav;
 
 /**
  * Field types an EAV attribute can use. Modules declare theirs in
- * etc/input_types.json ({code, label, storage_type, supports_options?, multiple?, accept?});
+ * etc/input_types.json ({code, label, storage_type, supports_options?, multiple?, accept?, mask?});
+ * "mask" is one of admin.js's input masks (phone, cep, cpf_cnpj...);
  * "accept" (mime => extension) makes it a file upload field: the value is the
  * stored file's path, see ValueService.
  * EAV asks for capabilities here instead of testing codes like "select".
@@ -18,7 +19,7 @@ class InputTypeRegistry
     /** @var array<string, array>|null */
     private static ?array $types = null;
 
-    /** @return array<string, array> code => {code, label, storage_type, supports_options, multiple, accept} */
+    /** @return array<string, array> code => {code, label, storage_type, supports_options, multiple, accept, mask} */
     public static function all(): array
     {
         return self::$types ??= self::build(\getModuleJson('etc' . DIRECTORY_SEPARATOR . 'input_types.json'));
@@ -63,6 +64,7 @@ class InputTypeRegistry
                 'supports_options' => (bool) ($type['supports_options'] ?? false),
                 'multiple' => (bool) ($type['multiple'] ?? false),
                 'accept' => $accept,
+                'mask' => (string) ($type['mask'] ?? ''),
             ];
         }
 

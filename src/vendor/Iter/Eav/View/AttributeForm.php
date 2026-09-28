@@ -48,7 +48,7 @@ class AttributeForm implements ViewComponentInterface
             'attribute_id' => $id,
             'values' => array_merge(
                 [
-                    'entity_type' => '', 'code' => '', 'label' => '', 'input_type' => 'text', 'default_value' => '',
+                    'entity_type' => (string) ($_GET['entity_type'] ?? ''), 'code' => '', 'label' => '', 'input_type' => 'text', 'default_value' => '',
                     'is_required' => 0, 'is_visible' => 1, 'is_searchable' => 0, 'is_filterable' => 0,
                     'is_sortable' => 0, 'sort_order' => 0, 'storage_type' => '',
                 ],

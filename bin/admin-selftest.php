@@ -29,6 +29,7 @@ use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\AttributeService;
 use Iter\Eav\Model\AttributeSetService;
 use Iter\Eav\Model\ValueService;
+use Iter\Customer\Model\CustomerService;
 use Iter\Inventory\Model\InventoryException;
 use Iter\Inventory\Model\SourceService;
 use Iter\Inventory\Model\StockService;
@@ -141,6 +142,11 @@ $purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTempla
     if (file_get_contents(ETC . 'config.json') !== $savedModules) {
         file_put_contents(ETC . 'config.json', $savedModules);
     }
+    // before the websites: a customer holds its website
+    foreach ($pdo->query("SELECT customer_id FROM customer_entity WHERE email LIKE '%@selftest.local'")->fetchAll(PDO::FETCH_COLUMN) as $customerId) {
+        (new CustomerService())->delete((int) $customerId);
+    }
+    $pdo->exec("DELETE FROM customer_group WHERE code LIKE 'selftest%'");
     foreach ($pdo->query("SELECT product_id FROM catalog_product WHERE sku LIKE 'selftest%'")->fetchAll(PDO::FETCH_COLUMN) as $productId) {
         (new ProductService())->delete((int) $productId);
     }
@@ -1011,6 +1017,72 @@ assertSame([true, true], [str_contains($page, 'name="config[system/log/enabled]"
 Config::save([]); // saved over HTTP: drop this process's cache
 assertSame([['Configurações salvas.'], 0], [$msgs, (int) Config::get('system/log/retention_days')], 'dias do log vazio = nunca apagar');
 
+// --- customers --------------------------------------------------------------------------------
+$admin->submit('/admin/website/create', '/admin/website/save', ['code' => 'selftest_w2', 'name' => 'Selftest W2']);
+$website2 = (int) $pdo->query("SELECT website_id FROM store_website WHERE code = 'selftest_w2'")->fetchColumn();
+$admin->submit('/admin/customergroup/create', '/admin/customergroup/save', ['code' => 'selftest_cg', 'name' => 'Selftest CG']);
+$custGroup = (int) $pdo->query("SELECT customer_group_id FROM customer_group WHERE code = 'selftest_cg'")->fetchColumn();
+// own set: the default one is the user's to edit (extra required attributes would break these checks)
+$custAttr = static fn (string $code) => (int) $pdo->query("SELECT attribute_id FROM eav_attribute a JOIN eav_entity_type et USING (entity_type_id) WHERE et.code = 'customer' AND a.code = '{$code}'")->fetchColumn();
+$service->create(['entity_type' => 'customer', 'code' => 'selftest_prof', 'label' => 'Profissão', 'input_type' => 'text']);
+$custSet = (int) $setService->create(['entity_type' => 'customer', 'code' => 'selftest_cli', 'label' => 'Cli'])->getId();
+$setService->update($custSet, ['label' => 'Cli', 'items' => [
+    $custAttr('gender') => ['in' => 1, 'group' => 'Dados pessoais'], $custAttr('phone') => ['in' => 1, 'group' => 'Dados pessoais'],
+    $custAttr('selftest_prof') => ['in' => 1, 'group' => 'Extra'],
+]]);
+$custRow = static fn (string $email, ?int $website = null) => $pdo->query("SELECT * FROM customer_entity WHERE email = '{$email}' AND website_id = " . ($website ?? $websiteId))->fetch(PDO::FETCH_ASSOC);
+$saveCustomer = static fn (array $fields) => $admin->submit('/admin/customer/create', '/admin/customer/save', $fields + [
+    'attribute_set_id' => $custSet, 'website_id' => $websiteId, 'group_id' => $custGroup, 'email' => 'ana@selftest.local',
+    'firstname' => 'Ana', 'lastname' => 'Silva', 'customer_type' => 'pf', 'cpf' => '529.982.247-25', 'is_active' => '1',
+])[1];
+
+$menu = $admin->request('/admin/index')['body'];
+assertSame([true, true, true], [
+    str_contains($menu, 'href="/admin/customer/index"'),
+    str_contains($menu, 'href="/admin/attribute/index?entity_type=customer"'),
+    str_contains($menu, 'href="/admin/attribute/index?entity_type=product"'),
+], 'menu Clientes, com os atributos de cliente e de produto separados');
+$custForm = $admin->request('/admin/customer/create?set=' . $custSet)['body'];
+assertSame([true, true, true, true, false], [
+    str_contains($custForm, 'name="attributes[gender]"'),
+    (bool) preg_match('/name="attributes\[phone\]"[^>]*data-mask="phone"/', $custForm),
+    str_contains($custForm, 'name="attributes[selftest_prof]"'),
+    (bool) preg_match('/data-customer-type-block="pj" hidden/', $custForm),
+    str_contains($admin->request('/admin/product/create')['body'], 'selftest_prof'),
+], 'form de cliente: atributos EAV com máscara, bloco PJ escondido; atributo de cliente fora do produto');
+assertSame(['Informe um CPF válido.'], $saveCustomer(['cpf' => '529.982.247-24']), 'CPF com dígito errado é recusado');
+assertSame(['Informe um CPF válido.'], $saveCustomer(['cpf' => '11.222.333/0001-81']), 'PF não aceita CNPJ');
+assertSame(['Cliente criado com sucesso.'], $saveCustomer(['email' => 'Ana@Selftest.local', 'dob' => '1990-05-20', 'attributes' => ['gender' => 'f', 'phone' => '(11) 98765-4321', 'selftest_prof' => 'Médica']]), 'cliente PF criado');
+$ana = $custRow('ana@selftest.local');
+$anaId = (int) $ana['customer_id'];
+assertSame(['pf', '52998224725', '1990-05-20', null], [$ana['customer_type'], $ana['taxvat'], $ana['dob'], $ana['company_name']], 'e-mail em minúsculas e CPF gravado só com dígitos');
+assertSame(['gender' => 'f', 'phone' => '(11) 98765-4321', 'selftest_prof' => 'Médica'], (new CustomerService())->getValues($anaId), 'atributos do cliente gravados como valores EAV');
+assertSame(['Já existe um cliente com este e-mail neste website.'], $saveCustomer(['email' => 'ANA@selftest.local', 'cpf' => '111.444.777-35']), 'e-mail repetido no website é recusado');
+assertSame(['Já existe um cliente com este CPF neste website.'], $saveCustomer(['email' => 'outra@selftest.local']), 'CPF repetido no website é recusado');
+assertSame(['Cliente criado com sucesso.'], $saveCustomer(['website_id' => $website2]), 'o mesmo e-mail e CPF em outro website pode');
+
+$pj = ['customer_type' => 'pj', 'email' => 'empresa@selftest.local', 'cnpj' => '11.222.333/0001-81', 'company_name' => 'Selftest Ltda', 'state_registration' => '123.456.789'];
+assertSame(['Informe um CNPJ válido.'], $saveCustomer(['cnpj' => '529.982.247-25'] + $pj), 'PJ não aceita CPF');
+assertSame(['Razão social é obrigatória (máx. 255 caracteres).'], $saveCustomer(['company_name' => ''] + $pj), 'PJ sem razão social é recusada');
+assertSame(['Informe a inscrição estadual ou marque "Isento".'], $saveCustomer(['state_registration' => ''] + $pj), 'PJ sem inscrição estadual nem isento é recusada');
+assertSame(['Cliente criado com sucesso.'], $saveCustomer(['state_registration' => '', 'is_ie_exempt' => '1', 'dob' => '1990-01-01'] + $pj), 'PJ isenta criada');
+$emp = $custRow('empresa@selftest.local');
+assertSame(['11222333000181', null, null, 1], [$emp['taxvat'], $emp['dob'], $emp['state_registration'], (int) $emp['is_ie_exempt']], 'PJ grava o CNPJ e ignora o nascimento');
+[, $msgs] = $admin->submit('/admin/customer/edit?id=' . $emp['customer_id'], '/admin/customer/save', ['customer_id' => $emp['customer_id'], 'website_id' => $websiteId, 'group_id' => $custGroup,
+    'email' => 'empresa@selftest.local', 'firstname' => 'Bia', 'lastname' => 'Souza', 'customer_type' => 'pf', 'cpf' => '111.444.777-35', 'company_name' => 'Selftest Ltda']);
+$emp = $custRow('empresa@selftest.local');
+assertSame([['Cliente atualizado com sucesso.'], 'pf', '11144477735', null, 0, 0], [$msgs, $emp['customer_type'], $emp['taxvat'], $emp['company_name'], (int) $emp['is_ie_exempt'], (int) $emp['is_active']], 'virar PF limpa os campos de PJ');
+
+$list = $admin->request('/admin/customer/index?q=529.982.247-25')['body'];
+assertSame([2, true], [substr_count($list, '/admin/customer/edit?id='), str_contains($list, '529.982.247-25')], 'busca por CPF formatado, lista mostra o CPF com máscara');
+assertSame(1, substr_count($admin->request('/admin/customer/index?q=selftest.local&website_id=' . $website2)['body'], '/admin/customer/edit?id='), 'filtro por website');
+assertSame(403, $dash->request('/admin/customer/index')['status'], 'perfil sem Clientes recebe 403');
+
+[, $msgs] = $admin->submit('/admin/customergroup/index', '/admin/customergroup/delete', ['customer_group_id' => $custGroup]);
+assertSame(['Não é possível remover: há clientes neste grupo.'], $msgs, 'grupo com clientes não é removido');
+[, $msgs] = $admin->submit('/admin/customer/index', '/admin/customer/delete', ['customer_id' => $anaId]);
+assertSame([['Cliente removido com sucesso.'], false, []], [$msgs, $custRow('ana@selftest.local'), $values->load('customer', $anaId)], 'cliente removido com os seus valores');
+
 // --- modules on/off -------------------------------------------------------------------------------
 $toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];
 $configPage = $admin->request('/admin/config/index')['body'];
@@ -1021,7 +1093,7 @@ assertSame([true, true, true, true], [
     str_contains($configPage, 'Usado por Inventory'),
 ], 'lista de módulos: botão Desativar, essenciais e usados por outro sem botão');
 assertSame(['O módulo Core é essencial e não pode ser desativado.'], $toggle('iter_core', 0), 'módulo essencial não é desativado');
-assertSame(['Desative antes os módulos que dependem de Eav: Catalog.'], $toggle('iter_eav', 0), 'módulo com dependentes ativos não é desativado');
+assertSame(['Desative antes os módulos que dependem de Eav: Catalog, Customer.'], $toggle('iter_eav', 0), 'módulo com dependentes ativos não é desativado');
 assertSame(['Desative antes os módulos que dependem de Catalog: Inventory.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com o Inventory ativo');
 assertSame(['Módulo Inventory desativado. Os dados dele continuam no banco.'], $toggle('iter_inventory', 0), 'Inventory desativado pelo admin');
 assertSame([false, false, 404, 'Cannot query field "stock" on type "Product".'], [
@@ -1037,11 +1109,14 @@ assertSame([404, false, 'Cannot query field "products" on type "Query".'], [
     $gql($admin, '{ products { total } }')['errors'][0]['message'] ?? null,
 ], 'módulo desativado: sem rotas, sem menu e sem API');
 assertSame(true, (bool) $productRow('selftest-up'), 'desativar não apaga os dados');
+assertSame(['Módulo Customer desativado. Os dados dele continuam no banco.'], $toggle('iter_customer', 0), 'Customer desativado pelo admin');
+assertSame([404, false], [$admin->request('/admin/customer/index')['status'], str_contains($admin->request('/admin/index')['body'], '/admin/customer/index')], 'Customer desativado: sem rotas e sem menu');
 $toggle('iter_eav', 0);
 assertSame(['Ative antes os módulos de que Catalog depende: Eav.'], $toggle('iter_catalog', 1), 'módulo não é ativado sem as dependências');
 $toggle('iter_eav', 1);
 assertSame([true, 200], [str_starts_with($toggle('iter_catalog', 1)[0] ?? '', 'Módulo Catalog ativado.'), $admin->request('/admin/product/index')['status']], 'módulo reativado volta a funcionar');
 $toggle('iter_inventory', 1);
+$toggle('iter_customer', 1);
 assertSame('7', (new StockService())->getSalable([$estId])[$estId], 'Inventory reativado: o estoque continua lá');
 assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
 assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Configurações não chega aos módulos');

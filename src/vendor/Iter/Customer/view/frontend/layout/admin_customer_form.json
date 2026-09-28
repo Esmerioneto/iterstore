@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "main": "customer/customer-form"
+        }
+    }
+}

@@ -1,4 +1,4 @@
 [
-    { "label": "Atributos", "resource": "Iter_Eav::attribute", "url": "/admin/attribute/index", "parent": "catalogo", "sort_order": 10 },
-    { "label": "Conjuntos de atributos", "resource": "Iter_Eav::attribute_set", "url": "/admin/attributeset/index", "parent": "catalogo", "sort_order": 11 }
+    { "label": "Atributos", "resource": "Iter_Eav::attribute", "url": "/admin/attribute/index?entity_type=product", "parent": "catalogo", "sort_order": 10 },
+    { "label": "Conjuntos de atributos", "resource": "Iter_Eav::attribute_set", "url": "/admin/attributeset/index?entity_type=product", "parent": "catalogo", "sort_order": 11 }
 ]

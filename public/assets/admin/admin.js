@@ -320,10 +320,12 @@ document.addEventListener('input', function (event) {
     });
 });
 
-// input masks: [data-mask="cep|cpf_cnpj|phone|email"] are formatted while typing (and on load);
+// input masks: [data-mask="cep|cpf|cnpj|cpf_cnpj|phone|email"] are formatted while typing (and on load);
 // the pattern also makes the browser refuse an incomplete value
 var masks = {
   cep: { max: 8, format: function () { return '00000-000'; }, pattern: '\\d{5}-\\d{3}' },
+  cpf: { max: 11, format: function () { return '000.000.000-00'; }, pattern: '\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}', title: 'CPF: 000.000.000-00' },
+  cnpj: { max: 14, format: function () { return '00.000.000/0000-00'; }, pattern: '\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}', title: 'CNPJ: 00.000.000/0000-00' },
   cpf_cnpj: {
     max: 14,
     format: function (digits) { return digits.length > 11 ? '00.000.000/0000-00' : '000.000.000-00'; },
@@ -366,4 +368,16 @@ document.addEventListener('input', function (event) {
   if (event.target.matches('input[data-mask]')) {
     applyMask(event.target);
   }
+});
+
+// customer form: the type select shows its block; the other one is hidden and its
+// fieldset disabled, so its required fields don't block the submit and aren't posted
+document.querySelectorAll('select[data-customer-type]').forEach(function (select) {
+  select.addEventListener('change', function () {
+    document.querySelectorAll('[data-customer-type-block]').forEach(function (block) {
+      var off = block.dataset.customerTypeBlock !== select.value;
+      block.hidden = off;
+      block.querySelector('fieldset').disabled = off;
+    });
+  });
 });

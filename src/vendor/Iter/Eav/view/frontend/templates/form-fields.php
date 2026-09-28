@@ -59,7 +59,7 @@ foreach ($schema['fields'] as $field) {
         <?php elseif ($f['type'] === 'textarea'): ?>
     <p><label><?= $label ?><br><textarea<?= $formAttr ?> name="<?= $name ?>" <?= $required ?>><?= $e($value) ?></textarea></label></p>
         <?php else: ?>
-    <p><label><?= $label ?><br><input<?= $formAttr ?> type="<?= $html[$f['type']] ?? 'text' ?>" name="<?= $name ?>" value="<?= $e($value) ?>" <?= $f['type'] === 'number' ? 'step="any"' : '' ?> <?= $required ?>></label></p>
+    <p><label><?= $label ?><br><input<?= $formAttr ?> type="<?= $html[$f['type']] ?? 'text' ?>" name="<?= $name ?>" value="<?= $e($value) ?>" <?= $f['type'] === 'number' ? 'step="any"' : '' ?> <?= isset($f['mask']) ? 'data-mask="' . $e($f['mask']) . '"' : '' ?> <?= $required ?>></label></p>
         <?php endif; ?>
     </div>
     <?php endforeach; ?>
