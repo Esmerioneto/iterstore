@@ -53,5 +53,13 @@
         "controller_name": "auth",
         "controller_action": "loginpost,passwordpost,forgotpost,resetpost",
         "method": "POST"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Admin",
+        "controller_name": "graphiql",
+        "controller_action": "index",
+        "method": "GET"
     }
 ]
