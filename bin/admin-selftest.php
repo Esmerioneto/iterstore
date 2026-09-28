@@ -1057,6 +1057,24 @@ $ana = $custRow('ana@selftest.local');
 $anaId = (int) $ana['customer_id'];
 assertSame(['pf', '52998224725', '1990-05-20', null], [$ana['customer_type'], $ana['taxvat'], $ana['dob'], $ana['company_name']], 'e-mail em minúsculas e CPF gravado só com dígitos');
 assertSame(['gender' => 'f', 'phone' => '(11) 98765-4321', 'selftest_prof' => 'Médica'], (new CustomerService())->getValues($anaId), 'atributos do cliente gravados como valores EAV');
+// customer form layout: same editor as the product's, saved apart from it
+$anaPage = $admin->request('/admin/customer/edit?id=' . $anaId)['body'];
+$custBlocks = $blocksOf($anaPage);
+assertSame([['account', 'pf', 'pj', 'group:Dados pessoais', 'group:Extra'], true, true], [$custBlocks, str_contains($anaPage, 'data-layout-toggle'), str_contains($anaPage, 'data-save-url="/admin/customerlayout/save"')], 'form de cliente em blocos, com "Organizar tela"');
+$custLayout = ['blocks' => [['id' => 'group:Extra', 'wide' => true], ['id' => 'account', 'wide' => false]], 'fields' => ['group:Dados pessoais' => ['phone', 'gender']], 'columns' => 2];
+assertSame([200, 'Layout salvo.'], $layoutPost($admin, '/admin/customerlayout/save', ['layout' => json_encode($custLayout)]), 'layout do cliente salvo pelo admin');
+$anaPage = $admin->request('/admin/customer/edit?id=' . $anaId)['body'];
+assertSame([['group:Extra (largura total)', 'account', 'pf', 'pj', 'group:Dados pessoais'], true, true], [
+    $blocksOf($anaPage),
+    strpos($anaPage, 'data-field="phone"') < strpos($anaPage, 'data-field="gender"'),
+    str_contains($anaPage, '--layout-columns: 2'),
+], 'form de cliente segue o layout salvo (blocos, campos e colunas)');
+assertSame(true, str_contains($anaPage, 'data-customer-type-block="pj" hidden'), 'bloco do outro tipo continua escondido com o layout');
+assertSame($defaultBlocks, $blocksOf($admin->request('/admin/product/edit?id=' . $estId)['body']), 'layout do cliente não muda o do produto');
+assertSame([403, false], [$layoutPost($editor, '/admin/customerlayout/save', ['layout' => '{"blocks":[]}'])[0], str_contains($admin2->request('/admin/customer/edit?id=' . $anaId)['body'], 'group:Extra (largura total)')],
+    'perfil sem "Organizar tela do cliente" recebe 403; outro admin mantém o padrão');
+assertSame([200, 'Layout padrão restaurado.'], $layoutPost($admin, '/admin/customerlayout/reset'), 'restaurar layout do cliente');
+assertSame($custBlocks, $blocksOf($admin->request('/admin/customer/edit?id=' . $anaId)['body']), 'depois de restaurar, cliente volta à ordem padrão');
 assertSame(['Já existe um cliente com este e-mail neste website.'], $saveCustomer(['email' => 'ANA@selftest.local', 'cpf' => '111.444.777-35']), 'e-mail repetido no website é recusado');
 assertSame(['Já existe um cliente com este CPF neste website.'], $saveCustomer(['email' => 'outra@selftest.local']), 'CPF repetido no website é recusado');
 assertSame(['Cliente criado com sucesso.'], $saveCustomer(['website_id' => $website2]), 'o mesmo e-mail e CPF em outro website pode');

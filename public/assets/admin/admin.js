@@ -108,10 +108,10 @@ document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('select[data-options-box]').forEach(syncOptionsBox);
 });
 
-// Product form "Organizar tela": blocks ([data-block]) and the fields inside a
+// Entity form (product, customer) "Organizar tela": blocks ([data-block]) and the fields inside a
 // block ([data-field]) are reordered by native drag and drop, or by the ↑ ↓
 // buttons (touch and keyboard); ↔ makes a block span the whole row. The order
-// is saved for the logged admin only (POST, JSON reply); the product's values
+// is saved for the logged admin only (POST, JSON reply); the entity's values
 // aren't touched and the page doesn't reload.
 document.addEventListener('DOMContentLoaded', function () {
   var grid = document.querySelector('[data-layout-grid]');
@@ -123,6 +123,13 @@ document.addEventListener('DOMContentLoaded', function () {
   var status = document.querySelector('[data-layout-status]');
   var columns = document.querySelector('[data-layout-columns]');
   var dragged = null;
+
+  // the label's own text: a label wrapping a <select> would also bring every option's text
+  function fieldTitle(item) {
+    var label = item.querySelector('label, legend');
+    return label && Array.prototype.filter.call(label.childNodes, function (node) { return node.nodeType === 3; })
+      .map(function (node) { return node.textContent; }).join(' ').trim();
+  }
 
   function bar(item, title, wide) {
     var div = document.createElement('div');
@@ -142,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function () {
     grid.querySelectorAll('[data-block], [data-field]').forEach(function (item) {
       item.draggable = on;
       if (on && !item.querySelector(':scope > .product-layout-bar')) {
-        bar(item, item.dataset.title || item.querySelector('label, legend')?.textContent.trim() || item.dataset.field, 'block' in item.dataset);
+        bar(item, item.dataset.title || fieldTitle(item) || item.dataset.field, 'block' in item.dataset);
       }
     });
   }

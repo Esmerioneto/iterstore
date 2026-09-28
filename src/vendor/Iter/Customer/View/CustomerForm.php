@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Iter\Customer\View;
 
+use Iter\Admin\Auth;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Customer\Model\Customer;
 use Iter\Customer\Model\CustomerService;
 use Iter\Customer\Model\Group;
 use Iter\Eav\Form\FormSchemaGenerator;
+use Iter\Eav\Model\FormLayout;
 use Iter\Store\Model\Website;
 
 class CustomerForm implements ViewComponentInterface
@@ -52,6 +54,9 @@ class CustomerForm implements ViewComponentInterface
             'sets' => $sets,
             'attribute_set_id' => $setId,
             'types' => Customer::TYPES,
+            // without the permission, the default layout (even if one was saved before it was revoked)
+            'can_arrange' => $canArrange = Auth::isAllowed('Iter_Customer::customer_layout'),
+            'layout' => (new FormLayout(Customer::ENTITY_TYPE))->get($canArrange ? (int) Auth::user()->getId() : null),
             'groups' => array_column($groups, 'name', 'customer_group_id'),
             'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
             'schema' => $sets ? (new FormSchemaGenerator())->generate(Customer::ENTITY_TYPE, $sets[$setId]['code']) : ['fields' => []],

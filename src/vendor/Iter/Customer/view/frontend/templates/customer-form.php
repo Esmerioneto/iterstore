@@ -1,5 +1,6 @@
 <?php
 use Iter\Customer\Model\CustomerService;
+use Iter\Eav\Model\FormLayout;
 
 // Same block structure as the product form (fields point to the empty <form> with
 // form="customer-form"). The "Pessoa física"/"Pessoa jurídica" blocks follow the type
@@ -75,7 +76,7 @@ ob_start(); ?>
         </label>
     </p>
 </fieldset>
-<?php $blocks['pf'] = ['title' => 'Pessoa física', 'html' => ob_get_clean()];
+<?php $blocks['pf'] = ['title' => 'Pessoa física', 'html' => ob_get_clean(), 'attrs' => ' data-customer-type-block="pf"' . ($type === 'pf' ? '' : ' hidden')];
 
 ob_start(); ?>
 <fieldset<?= $type === 'pj' ? '' : ' disabled' ?>>
@@ -103,7 +104,7 @@ ob_start(); ?>
     </p>
     <p><small>Nome e sobrenome da conta são os do contato da empresa.</small></p>
 </fieldset>
-<?php $blocks['pj'] = ['title' => 'Pessoa jurídica', 'html' => ob_get_clean()];
+<?php $blocks['pj'] = ['title' => 'Pessoa jurídica', 'html' => ob_get_clean(), 'attrs' => ' data-customer-type-block="pj"' . ($type === 'pj' ? '' : ' hidden')];
 
 // one block per EAV group, rendered by the eav module's template
 $groupFields = [];
@@ -111,13 +112,14 @@ foreach ($schema['fields'] as $field) {
     $groupFields[$field['group'] ?? ''][] = $field;
 }
 foreach ($groupFields as $group => $fields) {
+    $id = 'group:' . $group;
     ob_start();
     (static function (array $schema, array $values): void {
         $name_prefix = 'attributes';
         $form_id = 'customer-form';
         require (new \Iter\Core\View\ComponentResolver())->resolveTemplate('eav/form-fields');
-    })(['fields' => $fields], $attribute_values);
-    $blocks['group:' . $group] = ['title' => $group !== '' ? $group : 'Atributos', 'html' => ob_get_clean()];
+    })(['fields' => FormLayout::sortFields($layout, $id, $fields)], $attribute_values);
+    $blocks[$id] = ['title' => $group !== '' ? $group : 'Atributos', 'html' => ob_get_clean()];
 }
 ?>
 <section class="customer-form">
@@ -143,13 +145,10 @@ foreach ($groupFields as $group => $fields) {
         <input type="hidden" name="attribute_set_id" value="<?= (int) $attribute_set_id ?>">
     </form>
 
-    <div class="product-layout">
-<?php foreach ($blocks as $id => $block): ?>
-        <div class="product-block" data-block="<?= $e($id) ?>"<?= in_array($id, ['pf', 'pj'], true) ? ' data-customer-type-block="' . $id . '"' . ($id === $type ? '' : ' hidden') : '' ?>>
-<?= $block['html'] ?>
-        </div>
-<?php endforeach; ?>
-    </div>
+<?php (static function (array $blocks, array $layout, bool $can_arrange): void {
+    $layout_url = '/admin/customerlayout';
+    require (new \Iter\Core\View\ComponentResolver())->resolveTemplate('eav/form-layout');
+})($blocks, $layout, $can_arrange); ?>
 
     <p class="product-form-submit">
         <button type="submit" form="customer-form">Salvar</button>
