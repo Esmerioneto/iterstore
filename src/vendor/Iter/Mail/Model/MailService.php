@@ -6,9 +6,11 @@ namespace Iter\Mail\Model;
 
 use Iter\Core\Config;
 use Iter\Core\Crypt;
+use Iter\Core\Db\Adapter;
 use Iter\Core\Db\Connection;
+use Iter\Core\Db\Expr;
+use Iter\Core\Db\Select;
 use Iter\Core\Log;
-use PDO;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
@@ -53,9 +55,12 @@ class MailService
             throw new MailException('RECIPIENT_INVALID', 'Informe ao menos um destinatário.');
         }
 
-        $stmt = $this->pdo()->prepare("SELECT COUNT(*) FROM mail_queue WHERE to_email = :to AND template_code = :code AND created_at > NOW() - INTERVAL '1 hour'");
-        $stmt->execute(['to' => $recipients['to'][0], 'code' => $template]);
-        if ((int) $stmt->fetchColumn() >= (int) Config::get('mail/limit_per_hour')) {
+        $db = $this->db();
+        $sentLastHour = $db->fetchOne($db->select()->from('mail_queue', ['COUNT(*)'])
+            ->where('to_email = ?', $recipients['to'][0])
+            ->where('template_code = ?', $template)
+            ->where("created_at > NOW() - INTERVAL '1 hour'"));
+        if ((int) $sentLastHour >= (int) Config::get('mail/limit_per_hour')) {
             Log::notify("Mail: limite por hora atingido para {$recipients['to'][0]} ({$template}); e-mail não enfileirado");
             return 0;
         }
@@ -64,29 +69,23 @@ class MailService
         $definition = Template::get($template);
         $mail = Template::render($definition, $vars + ['store_name' => $fromName]);
 
-        $stmt = $this->pdo()->prepare(
-            'INSERT INTO mail_queue (template_code, website_id, to_email, recipients, from_email, from_name, subject, body_html, body_text, attachments, is_private)
-             VALUES (:code, :website, :to, :recipients, :from_email, :from_name, :subject, :html, :text, :attachments, :private) RETURNING message_id'
-        );
-        $stmt->execute([
-            'code' => $template,
-            'website' => $websiteId,
-            'to' => $recipients['to'][0],
+        $id = (int) $db->insert('mail_queue', [
+            'template_code' => $template,
+            'website_id' => $websiteId,
+            'to_email' => $recipients['to'][0],
             'recipients' => json_encode($recipients),
             'from_email' => $fromEmail === '' ? throw new MailException('SENDER_INVALID', 'Configure o e-mail do remetente (Configurações → E-mail).') : self::addresses($fromEmail)[0],
             'from_name' => str_replace(["\r", "\n"], ' ', (string) $fromName),
             'subject' => $mail['subject'],
-            'html' => $mail['html'],
-            'text' => $mail['text'],
+            'body_html' => $mail['html'],
+            'body_text' => $mail['text'],
             'attachments' => json_encode(array_map([$this, 'keepAttachment'], $options['attachments'] ?? [])),
-            'private' => $definition['private'] ? 1 : 0,
-        ]);
-        $id = (int) $stmt->fetchColumn();
+            'is_private' => $definition['private'] ? 1 : 0,
+        ])['message_id'];
 
         if ($now && Config::get('mail/transport') !== 'disabled') {
-            $claim = $this->pdo()->prepare('UPDATE mail_queue SET send_after = NOW() + ' . self::LEASE . ' WHERE message_id = :id AND status = 0 RETURNING *');
-            $claim->execute(['id' => $id]);
-            $this->deliver($claim->fetch(PDO::FETCH_ASSOC));
+            $claimed = $this->claim($db->select()->from('mail_queue', ['message_id'])->where('message_id = ?', $id)->where('status = 0'));
+            $claimed && $this->deliver($claimed[0]);
         }
 
         return $id;
@@ -102,20 +101,18 @@ class MailService
     {
         $result = ['sent' => 0, 'failed' => 0];
         if (Config::get('mail/transport') !== 'disabled') {
-            $claim = $this->pdo()->prepare(
-                'UPDATE mail_queue SET send_after = NOW() + ' . self::LEASE . ' WHERE message_id IN (
-                    SELECT message_id FROM mail_queue WHERE status = 0 AND send_after <= NOW() ORDER BY message_id LIMIT :limit FOR UPDATE SKIP LOCKED
-                 ) RETURNING *'
-            );
-            $claim->execute(['limit' => $limit]);
-            foreach ($claim->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $due = $this->db()->select()->from('mail_queue', ['message_id'])->where('status = 0')->where('send_after <= NOW()')->order('message_id')->limit($limit);
+            foreach ($this->claim($due) as $row) {
                 $result[$this->deliver($row) ? 'sent' : 'failed']++;
             }
         }
 
-        $old = $this->pdo()->prepare('DELETE FROM mail_queue WHERE status <> 0 AND created_at < NOW() - make_interval(days => :days) RETURNING message_id, attachments');
-        $old->execute(['days' => (int) Config::get('mail/log/retention_days')]);
-        foreach ($old->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $db = $this->db();
+        $old = $db->fetchAll($db->select()->from('mail_queue', ['message_id', 'attachments'])
+            ->where('status <> 0')
+            ->where('created_at < NOW() - make_interval(days => ?)', (int) Config::get('mail/log/retention_days')));
+        $db->delete('mail_queue', ['message_id IN (?)' => array_column($old, 'message_id')]);
+        foreach ($old as $row) {
             $this->removeFiles($row);
         }
 
@@ -125,23 +122,18 @@ class MailService
     /** Only a pending message can be canceled */
     public function cancel(int $id): bool
     {
-        $stmt = $this->pdo()->prepare('UPDATE mail_queue SET status = 3 WHERE message_id = :id AND status = 0');
-        $stmt->execute(['id' => $id]);
-
-        return $stmt->rowCount() === 1;
+        return $this->db()->update('mail_queue', ['status' => self::CANCELED], ['message_id = ?' => $id, 'status = 0']) === 1;
     }
 
     /** Queues a copy of a sent/failed/canceled message; private ones (their body is gone) can't be resent */
     public function resend(int $id): int
     {
-        $stmt = $this->pdo()->prepare(
-            'INSERT INTO mail_queue (template_code, website_id, to_email, recipients, from_email, from_name, subject, body_html, body_text, attachments, is_private)
-             SELECT template_code, website_id, to_email, recipients, from_email, from_name, subject, body_html, body_text, attachments, is_private
-             FROM mail_queue WHERE message_id = :id AND is_private = 0 AND status <> 0 RETURNING message_id'
-        );
-        $stmt->execute(['id' => $id]);
+        $db = $this->db();
+        $copy = $db->fetchRow($db->select()
+            ->from('mail_queue', ['template_code', 'website_id', 'to_email', 'recipients', 'from_email', 'from_name', 'subject', 'body_html', 'body_text', 'attachments', 'is_private'])
+            ->where('message_id = ?', $id)->where('is_private = 0')->where('status <> 0'));
 
-        return (int) $stmt->fetchColumn() ?: throw new MailException('RESEND_BLOCKED', 'Este e-mail não pode ser reenviado.');
+        return $copy ? (int) $db->insert('mail_queue', $copy)['message_id'] : throw new MailException('RESEND_BLOCKED', 'Este e-mail não pode ser reenviado.');
     }
 
     /**
@@ -151,47 +143,38 @@ class MailService
      */
     public function search(array $filters, int $page, int $perPage): array
     {
-        $where = [];
-        $params = [];
+        $db = $this->db();
+        $select = $db->select()->from('mail_queue', ['COUNT(*)']);
         if (($filters['status'] ?? '') !== '' && isset(self::STATUS_LABELS[(int) $filters['status']])) {
-            $where[] = 'status = :status';
-            $params['status'] = (int) $filters['status'];
+            $select->where('status = ?', (int) $filters['status']);
         }
         if (($filters['q'] ?? '') !== '') {
-            $where[] = "to_email LIKE :q ESCAPE '\\'";
-            $params['q'] = '%' . addcslashes(mb_strtolower($filters['q']), '%_\\') . '%';
+            $select->where("to_email LIKE ? ESCAPE '\\'", '%' . addcslashes(mb_strtolower($filters['q']), '%_\\') . '%');
         }
-        foreach (['from' => '>=', 'to' => '<'] as $key => $op) {
-            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters[$key] ?? '')) {
-                $where[] = "created_at {$op} CAST(:{$key} AS DATE)" . ($key === 'to' ? " + 1" : '');
-                $params[$key] = $filters[$key];
-            }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['from'] ?? '')) {
+            $select->where('created_at >= CAST(? AS DATE)', $filters['from']);
         }
-        $sql = ' FROM mail_queue' . ($where ? ' WHERE ' . implode(' AND ', $where) : '');
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['to'] ?? '')) {
+            $select->where('created_at < CAST(? AS DATE) + 1', $filters['to']);
+        }
+        $total = (int) $db->fetchOne($select);
+        $select->reset(Select::COLUMNS)
+            ->columns(['message_id', 'template_code', 'to_email', 'subject', 'status', 'attempts', 'created_at', 'sent_at'])
+            ->order('message_id DESC')->limitPage($page, $perPage);
 
-        $count = $this->pdo()->prepare('SELECT COUNT(*)' . $sql);
-        $count->execute($params);
-        $items = $this->pdo()->prepare(
-            'SELECT message_id, template_code, to_email, subject, status, attempts, created_at, sent_at' . $sql
-            . ' ORDER BY message_id DESC LIMIT ' . $perPage . ' OFFSET ' . (($page - 1) * $perPage)
-        );
-        $items->execute($params);
-
-        return ['items' => $items->fetchAll(PDO::FETCH_ASSOC), 'total' => (int) $count->fetchColumn()];
+        return ['items' => $db->fetchAll($select), 'total' => $total];
     }
 
     public function find(int $id): ?array
     {
-        $stmt = $this->pdo()->prepare('SELECT * FROM mail_queue WHERE message_id = :id');
-        $stmt->execute(['id' => $id]);
-
-        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        return $this->db()->fetchRow($this->db()->select()->from('mail_queue')->where('message_id = ?', $id)) ?: null;
     }
 
     /** Pending for more than 15 minutes: the worker (cron) is probably not running */
     public function stalledCount(): int
     {
-        return (int) $this->pdo()->query("SELECT COUNT(*) FROM mail_queue WHERE status = 0 AND created_at < NOW() - INTERVAL '15 minutes'")->fetchColumn();
+        return (int) $this->db()->fetchOne($this->db()->select()->from('mail_queue', ['COUNT(*)'])
+            ->where('status = 0')->where("created_at < NOW() - INTERVAL '15 minutes'"));
     }
 
     public static function logDir(): string
@@ -223,25 +206,24 @@ class MailService
         } catch (\Throwable $e) {
             $attempts = (int) $row['attempts'] + 1;
             $failed = $attempts >= (int) Config::get('mail/queue/max_attempts');
-            $this->pdo()->prepare(
-                'UPDATE mail_queue SET attempts = :attempts, status = :status, last_error = :error, send_after = NOW() + make_interval(mins => :wait) WHERE message_id = :id'
-            )->execute([
-                'id' => $row['message_id'],
+            $this->db()->update('mail_queue', [
                 'attempts' => $attempts,
                 'status' => $failed ? self::FAILED : self::PENDING,
-                'error' => mb_substr($e->getMessage(), 0, 2000),
-                'wait' => self::BACKOFF_MINUTES[min($attempts, count(self::BACKOFF_MINUTES)) - 1],
-            ]);
+                'last_error' => mb_substr($e->getMessage(), 0, 2000),
+                'send_after' => new Expr('NOW() + make_interval(mins => ' . self::BACKOFF_MINUTES[min($attempts, count(self::BACKOFF_MINUTES)) - 1] . ')'),
+            ], ['message_id = ?' => $row['message_id']]);
             Log::error("Mail: mensagem {$row['message_id']} não enviada (tentativa {$attempts}): " . $e->getMessage());
 
             return false;
         }
 
         // a private message (password reset link) keeps no body once delivered
-        $this->pdo()->prepare(
-            'UPDATE mail_queue SET status = 1, attempts = attempts + 1, sent_at = NOW(), last_error = NULL'
-            . ($row['is_private'] ? ', body_html = NULL, body_text = NULL' : '') . ' WHERE message_id = :id'
-        )->execute(['id' => $row['message_id']]);
+        $this->db()->update('mail_queue', [
+            'status' => self::SENT,
+            'attempts' => new Expr('attempts + 1'),
+            'sent_at' => new Expr('NOW()'),
+            'last_error' => null,
+        ] + ($row['is_private'] ? ['body_html' => null, 'body_text' => null] : []), ['message_id = ?' => $row['message_id']]);
 
         return true;
     }
@@ -324,8 +306,27 @@ class MailService
         }
     }
 
-    private function pdo(): PDO
+    /**
+     * Leases the messages $ids selects (message_id) so no other worker takes them:
+     * locked with SKIP LOCKED, pushed past the lease, committed before sending.
+     *
+     * @return array<int, array<string, mixed>> the claimed rows
+     */
+    private function claim(Select $ids): array
     {
-        return Connection::get()->connect();
+        return $this->db()->transaction(static function (Adapter $db) use ($ids): array {
+            $claimed = $db->fetchCol($ids->forUpdate(true));
+            if (!$claimed) {
+                return [];
+            }
+            $db->update('mail_queue', ['send_after' => new Expr('NOW() + ' . self::LEASE)], ['message_id IN (?)' => $claimed]);
+
+            return $db->fetchAll($db->select()->from('mail_queue')->where('message_id IN (?)', $claimed)->order('message_id'));
+        });
+    }
+
+    private function db(): Adapter
+    {
+        return Connection::get()->adapter();
     }
 }

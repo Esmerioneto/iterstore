@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Iter\Mail\Model;
 
+use Iter\Core\Db\Adapter;
 use Iter\Core\Db\Connection;
-use PDO;
 
 /**
  * E-mail templates. Each module declares its own in etc/email_templates.json
@@ -52,9 +52,7 @@ class Template
     public static function get(string $code): array
     {
         $def = self::all()[$code] ?? throw new MailException('TEMPLATE_UNKNOWN', "Modelo de e-mail desconhecido: {$code}.");
-        $stmt = self::pdo()->prepare('SELECT subject, body_html, body_text FROM mail_template WHERE code = :code');
-        $stmt->execute(['code' => $code]);
-        $custom = $stmt->fetch(PDO::FETCH_ASSOC);
+        $custom = self::db()->fetchRow(self::db()->select()->from('mail_template', ['subject', 'body_html', 'body_text'])->where('code = ?', $code));
 
         return ['code' => $code, 'label' => $def['label'], 'vars' => $def['vars'], 'private' => (bool) $def['private'], 'is_custom' => $custom !== false]
             + ($custom ?: self::fileVersion($code));
@@ -95,15 +93,18 @@ class Template
         if (trim($subject) === '' || trim($html) === '') {
             throw new MailException('TEMPLATE_INVALID', 'Assunto e corpo HTML são obrigatórios.');
         }
-        self::pdo()->prepare(
-            'INSERT INTO mail_template (code, subject, body_html, body_text, updated_by) VALUES (:code, :subject, :html, :text, :user)
-             ON CONFLICT (code) DO UPDATE SET subject = EXCLUDED.subject, body_html = EXCLUDED.body_html, body_text = EXCLUDED.body_text, updated_by = EXCLUDED.updated_by'
-        )->execute(['code' => $code, 'subject' => $subject, 'html' => $html, 'text' => trim((string) $text) === '' ? null : $text, 'user' => $userId]);
+        self::db()->insertOnConflict('mail_template', [
+            'code' => $code,
+            'subject' => $subject,
+            'body_html' => $html,
+            'body_text' => trim((string) $text) === '' ? null : $text,
+            'updated_by' => $userId,
+        ], ['code']);
     }
 
     public static function restore(string $code): void
     {
-        self::pdo()->prepare('DELETE FROM mail_template WHERE code = :code')->execute(['code' => $code]);
+        self::db()->delete('mail_template', ['code = ?' => $code]);
     }
 
     /** {{{ raw }}} first, then {{ escaped }}; unknown variables become empty */
@@ -125,8 +126,8 @@ class Template
         return trim(preg_replace(["/[ \t]+/", "/ *\n */", "/\n{3,}/"], [' ', "\n", "\n\n"], $text));
     }
 
-    private static function pdo(): PDO
+    private static function db(): Adapter
     {
-        return Connection::get()->connect();
+        return Connection::get()->adapter();
     }
 }
