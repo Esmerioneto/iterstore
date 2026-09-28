@@ -6,7 +6,6 @@ namespace Iter\Admin\Model\ResourceModel;
 
 use Iter\Core\Model\AbstractModel;
 use Iter\Core\Model\ResourceModel\AbstractDb;
-use PDO;
 
 class AdminRole extends AbstractDb
 {
@@ -20,12 +19,9 @@ class AdminRole extends AbstractDb
      */
     public function getGrantedResources(int $roleId): array
     {
-        $stmt = $this->getConnection()->prepare(
-            'SELECT resource_id FROM admin_role_rule WHERE role_id = :id'
-        );
-        $stmt->execute(['id' => $roleId]);
+        $db = $this->getConnection();
 
-        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+        return $db->fetchCol($db->select()->from('admin_role_rule', ['resource_id'])->where('role_id = ?', $roleId));
     }
 
     /**
@@ -39,14 +35,12 @@ class AdminRole extends AbstractDb
             return;
         }
 
-        $pdo = $this->getConnection();
-        $pdo->prepare('DELETE FROM admin_role_rule WHERE role_id = :id')->execute(['id' => $object->getId()]);
-
-        $stmt = $pdo->prepare(
-            'INSERT INTO admin_role_rule (role_id, resource_id) VALUES (:role_id, :resource_id)'
-        );
-        foreach ($resources as $resourceId) {
-            $stmt->execute(['role_id' => $object->getId(), 'resource_id' => $resourceId]);
-        }
+        // save() already runs this in a transaction
+        $db = $this->getConnection();
+        $db->delete('admin_role_rule', ['role_id = ?' => $object->getId()]);
+        $db->insertMultiple('admin_role_rule', array_map(
+            static fn ($resourceId) => ['role_id' => $object->getId(), 'resource_id' => $resourceId],
+            array_values($resources)
+        ));
     }
 }
