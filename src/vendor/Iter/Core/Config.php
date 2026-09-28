@@ -79,6 +79,9 @@ class Config
 
     public static function websiteExists(int $websiteId): bool
     {
+        if ($websiteId < 1 || $websiteId > 32767) { // store_website.website_id is a smallint
+            return false;
+        }
         $stmt = Connection::get()->connect()->prepare('SELECT 1 FROM store_website WHERE website_id = :id');
         $stmt->execute(['id' => $websiteId]);
 
