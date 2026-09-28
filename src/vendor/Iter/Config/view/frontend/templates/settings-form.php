@@ -58,6 +58,7 @@
                         <?= $type === 'password' ? 'autocomplete="new-password" placeholder="' . ($field['has_secret'] ? 'Senha salva; deixe vazio para manter' : 'Sem senha') . '"' : '' ?>
                         <?= isset($field['min']) ? 'min="' . (int) $field['min'] . '"' : '' ?>
                         <?= isset($field['max']) ? 'max="' . (int) $field['max'] . '"' : '' ?>
+                        <?= isset($field['cep']) ? 'data-cep="' . $e($field['cep']) . '"' : '' ?>
                         <?= $required ?>>
             <?php endif; ?>
                 </label>

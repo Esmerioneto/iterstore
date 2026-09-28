@@ -277,3 +277,45 @@ document.addEventListener('change', function (event) {
     preview.src = URL.createObjectURL(file);
   }
 });
+
+// CEP lookup (ViaCEP): 8 digits in [data-cep="lookup"] fill the form's [data-cep="<ViaCEP field>"] inputs
+document.addEventListener('input', function (event) {
+  var cep = event.target;
+  if (!cep.matches('[data-cep="lookup"]')) {
+    return;
+  }
+  var digits = cep.value.replace(/\D/g, '');
+  var status = cep.parentNode.querySelector('[data-cep-status]');
+  if (!status) {
+    status = document.createElement('small');
+    status.setAttribute('data-cep-status', '');
+    status.setAttribute('aria-live', 'polite');
+    cep.insertAdjacentElement('afterend', status);
+  }
+  status.textContent = '';
+  if (digits.length !== 8 || digits === cep.dataset.cepLast) {
+    return;
+  }
+  cep.dataset.cepLast = digits;
+  status.textContent = 'Buscando CEP…';
+  fetch('https://viacep.com.br/ws/' + digits + '/json/')
+    .then(function (response) { return response.json(); })
+    .then(function (address) {
+      if (address.erro) {
+        status.textContent = 'CEP não encontrado. Preencha o endereço.';
+        return;
+      }
+      cep.value = digits.slice(0, 5) + '-' + digits.slice(5);
+      cep.form.querySelectorAll('[data-cep]:not([data-cep="lookup"])').forEach(function (input) {
+        if (address[input.dataset.cep]) {
+          input.value = address[input.dataset.cep];
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+      status.textContent = 'Endereço preenchido pelo CEP. Confira e complete o número.';
+    })
+    .catch(function () {
+      cep.dataset.cepLast = '';
+      status.textContent = 'Não foi possível buscar o CEP agora. Preencha o endereço.';
+    });
+});
