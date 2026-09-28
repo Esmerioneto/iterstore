@@ -10,6 +10,7 @@ use GraphQL\Error\UserError;
 use GraphQL\Type\Schema as GraphQLSchema;
 use Iter\Admin\Auth;
 use Iter\Catalog\GraphQl\ProductSchema;
+use Iter\Inventory\GraphQl\StockSchema;
 use Iter\Store\Model\Store as StoreModel;
 
 class Schema
@@ -66,7 +67,9 @@ class Schema
         ]);
 
         // a disabled module's API is off too
-        $product = \isModuleEnabled('iter_catalog') ? ProductSchema::fields() : ['query' => [], 'mutation' => []];
+        // Inventory depends on Catalog, so it's only on when Catalog is
+        $stock = \isModuleEnabled('iter_inventory') ? StockSchema::fields() : ['product' => [], 'query' => [], 'mutation' => []];
+        $product = \isModuleEnabled('iter_catalog') ? ProductSchema::fields($stock['product']) : ['query' => [], 'mutation' => []];
         $stores = \isModuleEnabled('iter_store');
 
         $queryType = new ObjectType([
@@ -81,7 +84,7 @@ class Schema
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($storeType))),
                     'resolve' => fn () => (new StoreModel())->getList(),
                 ],
-            ] : []) + $product['query'],
+            ] : []) + $product['query'] + $stock['query'],
         ]);
 
         $mutationType = new ObjectType([
@@ -120,7 +123,7 @@ class Schema
                         return true;
                     }),
                 ],
-            ] : []) + $product['mutation'],
+            ] : []) + $product['mutation'] + $stock['mutation'],
         ]);
 
         if (!$queryType->getFields()) {

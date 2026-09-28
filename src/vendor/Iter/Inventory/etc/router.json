@@ -1,0 +1,26 @@
+[
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Inventory",
+        "controller_name": "source",
+        "controller_action": "index,create,edit",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Inventory",
+        "controller_name": "source",
+        "controller_action": "save,delete",
+        "method": "POST"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Inventory",
+        "controller_name": "stock",
+        "controller_action": "save",
+        "method": "POST"
+    }
+]

@@ -1,0 +1,14 @@
+{
+    "dashboard": {
+        "children": {
+            "list": {
+                "component": "catalog/product-list",
+                "data": {
+                    "columns": {
+                        "stock": { "label": "Estoque", "provider": "Iter\\Inventory\\Model\\StockService::salableColumn" }
+                    }
+                }
+            }
+        }
+    }
+}

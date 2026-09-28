@@ -34,4 +34,17 @@ class ProductList implements ViewComponentInterface
             'sets' => ProductForm::productSets(),
         ];
     }
+
+    /**
+     * Extra columns other modules add through the layout ("data": {"columns": {name: {label, provider}}});
+     * provider is a "Class::method" taking the page's product ids, returning id => text.
+     *
+     * @return array<int, array{label: string, values: array<int, string>}>
+     */
+    public static function columns(array $columns, array $products): array
+    {
+        $ids = array_map('intval', array_column($products, 'product_id'));
+
+        return array_values(array_map(static fn (array $c) => ['label' => (string) $c['label'], 'values' => $ids ? ($c['provider'])($ids) : []], $columns));
+    }
 }

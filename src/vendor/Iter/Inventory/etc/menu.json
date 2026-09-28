@@ -1,0 +1,3 @@
+[
+    { "label": "Origens de estoque", "resource": "Iter_Inventory::source", "url": "/admin/source/index", "parent": "catalogo", "sort_order": 20 }
+]

@@ -1,0 +1,4 @@
+[
+    { "id": "Iter_Inventory::source", "parent": "Iter_Admin::root", "title": "Origens de estoque" },
+    { "id": "Iter_Inventory::stock", "parent": "Iter_Admin::root", "title": "Estoque de produtos" }
+]

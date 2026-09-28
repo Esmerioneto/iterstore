@@ -27,6 +27,9 @@ use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\AttributeService;
 use Iter\Eav\Model\AttributeSetService;
 use Iter\Eav\Model\ValueService;
+use Iter\Inventory\Model\InventoryException;
+use Iter\Inventory\Model\SourceService;
+use Iter\Inventory\Model\StockService;
 
 const PASSWORD = 'Selftest123';
 
@@ -134,6 +137,8 @@ $purge = static function () use ($pdo, $savedConfig, $savedModules): void {
     foreach ($pdo->query("SELECT product_id FROM catalog_product WHERE sku LIKE 'selftest%'")->fetchAll(PDO::FETCH_COLUMN) as $productId) {
         (new ProductService())->delete((int) $productId);
     }
+    $pdo->exec("DELETE FROM inventory_source_item WHERE source_id IN (SELECT source_id FROM inventory_source WHERE code LIKE 'selftest%')");
+    $pdo->exec("DELETE FROM inventory_source WHERE code LIKE 'selftest%'");
     $pdo->exec("DELETE FROM eav_attribute_set WHERE code LIKE 'selftest%'");
     $pdo->exec("UPDATE eav_attribute_set SET is_default = 1 WHERE code = 'default' AND entity_type_id NOT IN (SELECT entity_type_id FROM eav_attribute_set WHERE is_default = 1)");
     $pdo->exec("DELETE FROM eav_attribute WHERE code LIKE 'selftest%'");
@@ -294,7 +299,7 @@ $throws = static function (callable $fn): string {
     try {
         $fn();
     } catch (Throwable $e) {
-        return $e instanceof AttributeException ? $e->errorCode : get_class($e);
+        return $e instanceof AttributeException || $e instanceof InventoryException ? $e->errorCode : get_class($e);
     }
     return 'nada';
 };
@@ -638,16 +643,95 @@ assertSame('INPUT_TYPE_CHANGE_BLOCKED', $throws(static fn () => $service->update
 array_map('unlink', glob("{$scratch}/*"));
 rmdir($scratch);
 
+// --- inventory: sources ---------------------------------------------------------------------------
+$sourceService = new SourceService();
+$sourceRow = static fn (string $code) => $pdo->query("SELECT * FROM inventory_source WHERE code = '{$code}'")->fetch(PDO::FETCH_ASSOC);
+$saveSource = static fn (array $fields) => $admin->submit('/admin/source/create', '/admin/source/save', $fields + ['name' => 'Depósito', 'is_enabled' => '1'])[1];
+assertSame(['Origem criada com sucesso.'], $saveSource(['code' => 'selftest_cd', 'name' => 'CD Recife', 'city' => 'Recife', 'country_code' => 'br']), 'origem criada pelo admin');
+assertSame(['Recife', 'BR'], [$sourceRow('selftest_cd')['city'], $sourceRow('selftest_cd')['country_code']], 'origem grava endereço; país em maiúsculas');
+assertSame(["Já existe uma origem com o código 'selftest_cd'."], $saveSource(['code' => 'selftest_cd']), 'código de origem duplicado é recusado');
+assertSame(['Código deve começar com letra e conter apenas a-z, 0-9 e _ (máx. 64).'], $saveSource(['code' => 'Selftest CD']), 'código de origem inválido é recusado');
+$saveSource(['code' => 'selftest_loja', 'name' => 'Loja', 'priority' => '5']);
+$cdId = (int) $sourceRow('selftest_cd')['source_id'];
+$lojaId = (int) $sourceRow('selftest_loja')['source_id'];
+$defaultSource = (int) $sourceRow('default')['source_id'];
+assertSame(['SOURCE_DEFAULT_LOCKED', 'SOURCE_DEFAULT_LOCKED'], [
+    $throws(static fn () => $sourceService->update($defaultSource, ['name' => 'Origem padrão', 'is_enabled' => 0])),
+    $throws(static fn () => $sourceService->delete($defaultSource)),
+], 'origem padrão não pode ser desativada nem removida');
+$sourceService->update($cdId, ['code' => 'selftest_outro', 'name' => 'CD Recife', 'is_enabled' => 1]);
+assertSame(['selftest_cd', null], [$sourceRow('selftest_cd')['code'] ?? null, $sourceRow('selftest_cd')['city']], 'código da origem não muda na edição');
+$sourceList = $admin->request('/admin/source/index')['body'];
+assertSame([true, true], [str_contains($sourceList, 'CD Recife'), str_contains($admin->request('/admin/index')['body'], '/admin/source/index')], 'lista e menu de origens');
+
+// --- inventory: stock --------------------------------------------------------------------------------
+$stock = new StockService();
+$estId = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-est', 'name' => 'Estoque', 'is_active' => 1], ['price' => '1'])->getId();
+$estPage = $admin->request('/admin/product/edit?id=' . $estId)['body'];
+assertSame([true, true, false], [str_contains($estPage, 'action="/admin/stock/save"'), str_contains($estPage, 'name="stock[selftest_cd][quantity]"'), str_contains($admin->request('/admin/product/create')['body'], '/admin/stock/save')],
+    'painel de estoque na edição do produto (não na criação)');
+$saveStock = static fn (array $stockFields) => $admin->submit('/admin/product/edit?id=' . $estId, '/admin/stock/save', ['product_id' => $estId, 'stock' => $stockFields])[1];
+assertSame(['Estoque atualizado com sucesso.'], $saveStock(['selftest_cd' => ['quantity' => '10,5', 'status' => '1'], 'selftest_loja' => ['quantity' => '2', 'status' => '1'], 'default' => ['quantity' => '0', 'status' => '1']]), 'estoque salvo pelo admin');
+assertSame(['12.5', '0'], [$stock->getSalable([$estId])[$estId], $stock->getSalable([999999])[999999]], 'saldo vendável = soma das origens; produto sem estoque = 0');
+assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM inventory_source_item WHERE product_id = {$estId} AND source_id = {$defaultSource}")->fetchColumn(), 'quantidade 0 em estoque não grava linha');
+assertSame(true, str_contains($admin->request('/admin/product/edit?id=' . $estId)['body'], 'Saldo vendável: <strong>12,5</strong>'), 'painel mostra o saldo sem zeros à direita');
+assertSame(true, str_contains($admin->request('/admin/product/index?q=selftest-est')['body'], '<td>12,5</td>'), 'coluna Estoque na lista de produtos');
+$saveStock(['selftest_loja' => ['quantity' => '2', 'status' => '0']]);
+assertSame(['10.5', '10.5'], [$stock->getSalable([$estId])[$estId], $stock->getItems($estId)[1]['quantity'] ?? null], 'origem "fora de estoque" sai do saldo; origem não enviada mantém a quantidade');
+$sourceService->update($cdId, ['name' => 'CD Recife', 'is_enabled' => 0]);
+assertSame(['0', '10.5'], [$stock->getSalable([$estId])[$estId], array_column($stock->getItems($estId), 'quantity', 'code')['selftest_cd']], 'origem desativada sai do saldo e mantém a quantidade');
+$sourceService->update($cdId, ['name' => 'CD Recife', 'is_enabled' => 1]);
+foreach (['-1', 'abc', '1.23456'] as $bad) {
+    assertSame(["Quantidade inválida em 'Loja': use um número positivo com até 4 casas decimais."], $saveStock(['selftest_cd' => ['quantity' => '99'], 'selftest_loja' => ['quantity' => $bad]]), "quantidade '{$bad}' é recusada");
+}
+assertSame('10.5', $stock->getSalable([$estId])[$estId], 'quantidade inválida não grava nenhuma origem');
+assertSame('SOURCE_NOT_FOUND', $throws(static fn () => $stock->save($estId, ['selftest_nada' => ['quantity' => '1']])), 'origem inexistente é recusada');
+assertSame(['SOURCE_HAS_STOCK', true], [$throws(static fn () => $sourceService->delete($cdId)), (bool) $sourceRow('selftest_cd')], 'origem com estoque não é removida');
+$stock->save($estId, ['selftest_cd' => ['quantity' => '0']]);
+[, $msgs] = $admin->submit('/admin/source/index', '/admin/source/delete', ['source_id' => $cdId]);
+assertSame([['Origem removida com sucesso.'], false], [$msgs, $sourceRow('selftest_cd')], 'origem zerada é removida');
+preg_match('/name="form_key" value="([0-9a-f]{64})"/', $dash->request('/admin/auth/password')['body'], $m);
+assertSame(403, $dash->request('/admin/stock/save', ['form_key' => $m[1] ?? '', 'product_id' => $estId, 'stock' => ['selftest_loja' => ['quantity' => '1']]])['status'], 'perfil sem Estoque de produtos recebe 403 no save');
+
+// --- inventory: GraphQL --------------------------------------------------------------------------------
+$stock->save($estId, ['selftest_loja' => ['quantity' => '3', 'status' => '1']]);
+$stockRead = 'query ($sku: String) { product(sku: $sku) { stock { salable_quantity is_in_stock } } }';
+assertSame(['salable_quantity' => 3, 'is_in_stock' => true], $gql($guest, $stockRead, ['sku' => 'selftest-est'])['data']['product']['stock'] ?? null, 'GraphQL: visitante vê o saldo vendável');
+$withSources = 'query { products(search: "selftest-est") { items { stock { sources { code quantity status } } } } }';
+assertSame('Acesso negado.', $gql($guest, $withSources)['errors'][0]['message'] ?? null, 'GraphQL: visitante não vê as quantidades por origem');
+$bySource = array_column($gql($admin, $withSources)['data']['products']['items'][0]['stock']['sources'] ?? [], null, 'code');
+assertSame(['code' => 'selftest_loja', 'quantity' => 3, 'status' => 1], $bySource['selftest_loja'] ?? null, 'GraphQL: admin vê as quantidades por origem');
+$setStock = 'mutation ($sources: [ProductStockInput!]!) { setProductStock(sku: "SELFTEST-EST", sources: $sources) { salable_quantity } }';
+assertSame('Acesso negado.', $gql($guest, $setStock, ['sources' => [['code' => 'default', 'quantity' => 1]]])['errors'][0]['message'] ?? null, 'GraphQL: setProductStock exige login');
+assertSame(4.25, $gql($admin, $setStock, ['sources' => [['code' => 'default', 'quantity' => 1.25]]])['data']['setProductStock']['salable_quantity'] ?? null, 'GraphQL: setProductStock soma à origem não enviada');
+assertSame('QUANTITY_INVALID', $gql($admin, $setStock, ['sources' => [['code' => 'default', 'quantity' => -1]]])['errors'][0]['extensions']['code'] ?? null, 'GraphQL: quantidade negativa recusada com o código');
+$many = $gql($admin, 'query { products(search: "selftest") { items { sku stock { salable_quantity } } } }')['data']['products']['items'] ?? [];
+assertSame(4.25, array_column(array_map(static fn ($p) => ['sku' => $p['sku'], 'q' => $p['stock']['salable_quantity']], $many), 'q', 'sku')['selftest-est'] ?? null, 'GraphQL: saldo na lista de produtos');
+assertSame(true, in_array('default', array_column($gql($admin, '{ inventorySources { code } }')['data']['inventorySources'] ?? [], 'code'), true), 'GraphQL: admin lista as origens');
+$productService->delete($estId);
+assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM inventory_source_item WHERE product_id = {$estId}")->fetchColumn(), 'remover o produto apaga o estoque dele');
+$estId = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-est', 'name' => 'Estoque', 'is_active' => 1], ['price' => '1'])->getId();
+$stock->save($estId, ['selftest_loja' => ['quantity' => '7']]);
+
 // --- modules on/off -------------------------------------------------------------------------------
 $toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];
 $configPage = $admin->request('/admin/config/index')['body'];
-assertSame([true, true, true], [
-    (bool) preg_match('/name="module" value="iter_catalog">\s*<input type="hidden" name="enabled" value="0">/', $configPage),
+assertSame([true, true, true, true], [
+    (bool) preg_match('/name="module" value="iter_inventory">\s*<input type="hidden" name="enabled" value="0">/', $configPage),
     str_contains($configPage, 'Essencial'),
     str_contains($configPage, 'Usado por Catalog'),
+    str_contains($configPage, 'Usado por Inventory'),
 ], 'lista de módulos: botão Desativar, essenciais e usados por outro sem botão');
 assertSame(['O módulo Core é essencial e não pode ser desativado.'], $toggle('iter_core', 0), 'módulo essencial não é desativado');
 assertSame(['Desative antes os módulos que dependem de Eav: Catalog.'], $toggle('iter_eav', 0), 'módulo com dependentes ativos não é desativado');
+assertSame(['Desative antes os módulos que dependem de Catalog: Inventory.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com o Inventory ativo');
+assertSame(['Módulo Inventory desativado. Os dados dele continuam no banco.'], $toggle('iter_inventory', 0), 'Inventory desativado pelo admin');
+assertSame([false, false, 404, 'Cannot query field "stock" on type "Product".'], [
+    str_contains($admin->request('/admin/product/edit?id=' . $estId)['body'], '/admin/stock/save'),
+    str_contains($admin->request('/admin/index')['body'], '/admin/source/index'),
+    $admin->request('/admin/source/index')['status'],
+    $gql($admin, '{ products { items { stock { salable_quantity } } } }')['errors'][0]['message'] ?? null,
+], 'Inventory desativado: sem painel, menu, rotas e campos na API');
 assertSame(['Módulo Catalog desativado. Os dados dele continuam no banco.'], $toggle('iter_catalog', 0), 'módulo desativado pelo admin');
 assertSame([404, false, 'Cannot query field "products" on type "Query".'], [
     $admin->request('/admin/product/index')['status'],
@@ -659,6 +743,8 @@ $toggle('iter_eav', 0);
 assertSame(['Ative antes os módulos de que Catalog depende: Eav.'], $toggle('iter_catalog', 1), 'módulo não é ativado sem as dependências');
 $toggle('iter_eav', 1);
 assertSame([true, 200], [str_starts_with($toggle('iter_catalog', 1)[0] ?? '', 'Módulo Catalog ativado.'), $admin->request('/admin/product/index')['status']], 'módulo reativado volta a funcionar');
+$toggle('iter_inventory', 1);
+assertSame('7', (new StockService())->getSalable([$estId])[$estId], 'Inventory reativado: o estoque continua lá');
 assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
 assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Configurações não chega aos módulos');
 
