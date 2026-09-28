@@ -9,6 +9,7 @@ use GraphQL\Type\Definition\Type;
 use GraphQL\Error\UserError;
 use GraphQL\Type\Schema as GraphQLSchema;
 use Iter\Admin\Auth;
+use Iter\Core\Config;
 use Iter\Catalog\GraphQl\ProductSchema;
 use Iter\Inventory\GraphQl\StockSchema;
 use Iter\Store\Model\Store as StoreModel;
@@ -66,6 +67,26 @@ class Schema
             ],
         ]);
 
+        // store data from Configurações (store/info/*, store/address/*), website value over default;
+        // the root handed to these fields is ['id' => website id, null = default scope]
+        $configFields = static fn (string $prefix, array $fields) => array_map(static fn (string $key) => [
+            'type' => Type::string(),
+            'resolve' => static fn (array $root) => (string) Config::get($prefix . $key, $root['id']) ?: null,
+        ], $fields);
+        $storeInfoType = new ObjectType([
+            'name' => 'StoreInfo',
+            'fields' => $configFields('store/info/', ['name' => 'name', 'taxId' => 'tax_id', 'phone' => 'phone', 'email' => 'email', 'details' => 'details']) + [
+                'logoUrl' => ['type' => Type::string(), 'resolve' => static fn (array $root) => Config::mediaUrl(Config::get('store/info/logo', $root['id'])) ?: null],
+                'address' => ['type' => Type::nonNull(new ObjectType([
+                    'name' => 'StoreAddress',
+                    'fields' => $configFields('store/address/', [
+                        'postcode' => 'postcode', 'street' => 'street', 'number' => 'number', 'complement' => 'complement',
+                        'district' => 'district', 'city' => 'city', 'region' => 'region', 'country' => 'country',
+                    ]),
+                ])), 'resolve' => static fn (array $root) => $root],
+            ],
+        ]);
+
         // a disabled module's API is off too
         // Inventory depends on Catalog, so it's only on when Catalog is
         $stock = \isModuleEnabled('iter_inventory') ? StockSchema::fields() : ['product' => [], 'query' => [], 'mutation' => []];
@@ -83,6 +104,15 @@ class Schema
                 'stores' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($storeType))),
                     'resolve' => fn () => (new StoreModel())->getList(),
+                ],
+                'storeInfo' => [
+                    'type' => $storeInfoType,
+                    'description' => 'Dados da loja. Sem websiteId, os do escopo Padrão; website desconhecido dá null.',
+                    'args' => ['websiteId' => Type::id()],
+                    'resolve' => static function ($root, array $args) {
+                        $id = isset($args['websiteId']) ? (int) $args['websiteId'] : null;
+                        return $id === null || Config::websiteExists($id) ? ['id' => $id] : null;
+                    },
                 ],
             ] : []) + $product['query'] + $stock['query'],
         ]);

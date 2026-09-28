@@ -947,6 +947,12 @@ assertSame([true, true, true, "Seg a sex\n9h às 18h"], [
     str_contains($page, 'enctype="multipart/form-data"'),
     Config::get('store/info/details'),
 ], 'logo, endereço e informações aparecem na tela e no Config::get');
+$infoGql = 'query ($w: ID) { storeInfo(websiteId: $w) { name logoUrl details address { street country } } }';
+assertSame(
+    [['name' => 'Selftest Loja', 'logoUrl' => '/media/' . $defaultLogo, 'details' => "Seg a sex\n9h às 18h", 'address' => ['street' => 'Rua <Teste>', 'country' => 'Brasil']], 'Selftest Loja', ['storeInfo' => null], ['storeInfo' => null]],
+    [$gql($guest, $infoGql)['data']['storeInfo'] ?? null, $gql($guest, $infoGql, ['w' => $websiteId])['data']['storeInfo']['name'] ?? null, $gql($guest, $infoGql, ['w' => 999999])['data'] ?? null, $gql($guest, $infoGql, ['w' => 32766])['data'] ?? null],
+    'GraphQL storeInfo: dados da loja do padrão, website herda, website inexistente dá null'
+);
 $scoped = '/admin/config/index?website=' . $websiteId;
 assertSame($defaultLogo, Config::get('store/info/logo', $websiteId), 'website sem logo própria usa a do padrão');
 $admin->submit($scoped, '/admin/config/save', ['website_id' => $websiteId, 'config' => ['store/info/logo' => new CURLFile($png, 'image/png', 'w.png')]]);
