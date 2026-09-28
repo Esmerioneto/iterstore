@@ -1,3 +1,5 @@
 [
-    { "path": "web/base_url", "group": "Geral", "label": "Endereço do site (usado nos links enviados por e-mail)", "type": "url", "default": "http://localhost:8080", "scope": "website" }
+    { "path": "web/base_url", "group": "Geral", "label": "Endereço do site (usado nos links enviados por e-mail)", "type": "url", "default": "http://localhost:8080", "scope": "website" },
+    { "path": "system/log/enabled", "group": "Log do sistema", "label": "Gerar log do sistema (var/log/iter-AAAA-MM-DD.log)", "type": "boolean", "default": 1 },
+    { "path": "system/log/retention_days", "group": "Log do sistema", "label": "Dias para manter os arquivos de log (0 ou vazio = nunca apagar)", "type": "number", "default": 30, "min": 0, "max": 3650, "required": false }
 ]

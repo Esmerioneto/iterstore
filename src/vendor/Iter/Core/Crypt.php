@@ -33,7 +33,7 @@ class Crypt
             self::key()
         ) : false;
         if ($plain === false) {
-            error_log('Crypt: valor não pôde ser decifrado (chave de src/etc/env.ini diferente?)');
+            Log::alert('Crypt: valor não pôde ser decifrado (chave de src/etc/env.ini diferente?)');
         }
 
         return $plain === false ? '' : $plain;
