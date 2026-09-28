@@ -59,6 +59,7 @@
                         <?= isset($field['min']) ? 'min="' . (int) $field['min'] . '"' : '' ?>
                         <?= isset($field['max']) ? 'max="' . (int) $field['max'] . '"' : '' ?>
                         <?= isset($field['cep']) ? 'data-cep="' . $e($field['cep']) . '"' : '' ?>
+                        <?= isset($field['mask']) ? 'data-mask="' . $e($field['mask']) . '"' : '' ?>
                         <?= $required ?>>
             <?php endif; ?>
                 </label>
