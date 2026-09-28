@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Inventory\Model;
 
 use Iter\Core\Db\Connection;
+use Iter\Core\Db\Expr;
 
 /**
  * Stock sources. The code is set on creation and never changes; the default
@@ -46,23 +47,15 @@ class SourceService
             throw new InventoryException('SOURCE_DEFAULT_LOCKED', 'A origem padrão não pode ser removida.');
         }
 
-        $pdo = Connection::get()->connect();
-        $pdo->beginTransaction();
-        try {
+        Connection::get()->adapter()->transaction(static function ($db) use ($id, $source): void {
             // FOR UPDATE: a stock save racing this delete waits, then fails on the FK
-            $stmt = $pdo->prepare('SELECT 1 FROM inventory_source_item WHERE source_id = :id AND quantity > 0 FOR UPDATE');
-            $stmt->execute(['id' => $id]);
-            if ($stmt->fetchColumn()) {
+            if ($db->fetchOne($db->select()->from('inventory_source_item', [new Expr('1')])->where('source_id = ?', $id)->where('quantity > 0')->forUpdate())) {
                 throw new InventoryException('SOURCE_HAS_STOCK', "A origem '{$source->getData('name')}' tem estoque. Zere as quantidades ou desative a origem.");
             }
             // what's left are zero rows marked "out of stock"
-            $pdo->prepare('DELETE FROM inventory_source_item WHERE source_id = :id')->execute(['id' => $id]);
-            $pdo->prepare('DELETE FROM inventory_source WHERE source_id = :id')->execute(['id' => $id]);
-            $pdo->commit();
-        } catch (\Throwable $e) {
-            $pdo->rollBack();
-            throw $e;
-        }
+            $db->delete('inventory_source_item', ['source_id = ?' => $id]);
+            $db->delete('inventory_source', ['source_id = ?' => $id]);
+        });
     }
 
     public function get(int $id): Source

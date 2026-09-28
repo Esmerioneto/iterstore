@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Iter\Config\View;
 
 use Iter\Core\Config;
-use Iter\Core\Db\Connection;
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Store\Model\Website;
 
 class SettingsForm implements ViewComponentInterface
 {
@@ -20,7 +20,7 @@ class SettingsForm implements ViewComponentInterface
         $old = $_SESSION['iter_old_input'] ?? [];
         unset($_SESSION['iter_old_input']);
 
-        $websites = Connection::get()->connect()->query('SELECT website_id, name FROM store_website ORDER BY sort_order, website_id')->fetchAll(\PDO::FETCH_KEY_PAIR);
+        $websites = array_column((new Website())->getList(), 'name', 'website_id');
         $websiteId = (int) ($_GET['website'] ?? 0);
         $websiteId = isset($websites[$websiteId]) ? $websiteId : 0;
 
