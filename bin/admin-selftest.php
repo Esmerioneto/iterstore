@@ -126,7 +126,11 @@ $server = proc_open(
     ['XDEBUG_MODE' => 'off'] + getenv()
 );
 
-$purge = static function () use ($pdo, $savedConfig): void {
+$savedModules = file_get_contents(ETC . 'config.json'); // module on/off tests write it; shared with a running dev server
+$purge = static function () use ($pdo, $savedConfig, $savedModules): void {
+    if (file_get_contents(ETC . 'config.json') !== $savedModules) {
+        file_put_contents(ETC . 'config.json', $savedModules);
+    }
     foreach ($pdo->query("SELECT product_id FROM catalog_product WHERE sku LIKE 'selftest%'")->fetchAll(PDO::FETCH_COLUMN) as $productId) {
         (new ProductService())->delete((int) $productId);
     }
@@ -633,6 +637,30 @@ assertSame(['price' => null, 'selftest_capa' => $url], $gqlImage, 'GraphQL: atri
 assertSame('INPUT_TYPE_CHANGE_BLOCKED', $throws(static fn () => $service->update($attrId('selftest_capa'), ['label' => 'Capa', 'input_type' => 'text'])), 'atributo imagem com valores não vira texto');
 array_map('unlink', glob("{$scratch}/*"));
 rmdir($scratch);
+
+// --- modules on/off -------------------------------------------------------------------------------
+$toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];
+$configPage = $admin->request('/admin/config/index')['body'];
+assertSame([true, true, true], [
+    (bool) preg_match('/name="module" value="iter_catalog">\s*<input type="hidden" name="enabled" value="0">/', $configPage),
+    str_contains($configPage, 'Essencial'),
+    str_contains($configPage, 'Usado por Catalog'),
+], 'lista de módulos: botão Desativar, essenciais e usados por outro sem botão');
+assertSame(['O módulo Core é essencial e não pode ser desativado.'], $toggle('iter_core', 0), 'módulo essencial não é desativado');
+assertSame(['Desative antes os módulos que dependem de Eav: Catalog.'], $toggle('iter_eav', 0), 'módulo com dependentes ativos não é desativado');
+assertSame(['Módulo Catalog desativado. Os dados dele continuam no banco.'], $toggle('iter_catalog', 0), 'módulo desativado pelo admin');
+assertSame([404, false, 'Cannot query field "products" on type "Query".'], [
+    $admin->request('/admin/product/index')['status'],
+    str_contains($admin->request('/admin/index')['body'], '/admin/product/index'),
+    $gql($admin, '{ products { total } }')['errors'][0]['message'] ?? null,
+], 'módulo desativado: sem rotas, sem menu e sem API');
+assertSame(true, (bool) $productRow('selftest-up'), 'desativar não apaga os dados');
+$toggle('iter_eav', 0);
+assertSame(['Ative antes os módulos de que Catalog depende: Eav.'], $toggle('iter_catalog', 1), 'módulo não é ativado sem as dependências');
+$toggle('iter_eav', 1);
+assertSame([true, 200], [str_starts_with($toggle('iter_catalog', 1)[0] ?? '', 'Módulo Catalog ativado.'), $admin->request('/admin/product/index')['status']], 'módulo reativado volta a funcionar');
+assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
+assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Configurações não chega aos módulos');
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());

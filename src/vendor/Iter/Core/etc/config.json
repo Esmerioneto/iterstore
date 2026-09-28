@@ -4,5 +4,6 @@
     "description": "Iter Core",
     "enabled": true,
     "index": "0",
-    "author": "Esmerio"
+    "author": "Esmerio",
+    "required": true
 }

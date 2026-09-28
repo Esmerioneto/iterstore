@@ -12,7 +12,7 @@
         "module_name": "Config",
         "route": "admin",
         "controller_name": "config",
-        "controller_action": "save",
+        "controller_action": "save,module",
         "method": "POST"
     }
 ]

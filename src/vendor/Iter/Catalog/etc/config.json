@@ -1,1 +1,1 @@
-{"name":"iter_catalog","version":"1.0.0","description":"Iter Catalog","enabled":true,"index":"0","author":"Esmerio"}
+{"name":"iter_catalog","version":"1.0.0","description":"Iter Catalog","enabled":true,"index":"0","author":"Esmerio","depends":["iter_eav"]}

@@ -14,7 +14,8 @@ use Iter\Store\Model\Store as StoreModel;
 
 class Schema
 {
-    public static function build(): GraphQLSchema
+    /** null when no enabled module has API fields (a schema needs at least one query) */
+    public static function build(): ?GraphQLSchema
     {
         $load = static function (int $id): ?array {
             $store = (new StoreModel())->load($id);
@@ -64,11 +65,13 @@ class Schema
             ],
         ]);
 
-        $product = ProductSchema::fields();
+        // a disabled module's API is off too
+        $product = \isModuleEnabled('iter_catalog') ? ProductSchema::fields() : ['query' => [], 'mutation' => []];
+        $stores = \isModuleEnabled('iter_store');
 
         $queryType = new ObjectType([
             'name' => 'Query',
-            'fields' => [
+            'fields' => ($stores ? [
                 'store' => [
                     'type' => $storeType,
                     'args' => ['id' => Type::nonNull(Type::id())],
@@ -78,12 +81,12 @@ class Schema
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($storeType))),
                     'resolve' => fn () => (new StoreModel())->getList(),
                 ],
-            ] + $product['query'],
+            ] : []) + $product['query'],
         ]);
 
         $mutationType = new ObjectType([
             'name' => 'Mutation',
-            'fields' => [
+            'fields' => ($stores ? [
                 'createStore' => [
                     'type' => Type::nonNull($storeType),
                     'args' => [
@@ -117,12 +120,16 @@ class Schema
                         return true;
                     }),
                 ],
-            ] + $product['mutation'],
+            ] : []) + $product['mutation'],
         ]);
+
+        if (!$queryType->getFields()) {
+            return null;
+        }
 
         return new GraphQLSchema([
             'query' => $queryType,
-            'mutation' => $mutationType,
+            'mutation' => $mutationType->getFields() ? $mutationType : null,
         ]);
     }
 }
