@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Iter\Store\Model\ResourceModel;
 
 use Iter\Core\Model\ResourceModel\AbstractDb;
-use PDO;
 
 class Group extends AbstractDb
 {
@@ -19,11 +18,11 @@ class Group extends AbstractDb
      */
     public function getList(?string $orderBy = null): array
     {
-        return $this->getConnection()->query(
-            'SELECT g.*, w.name AS website_name
-             FROM store_group g
-             JOIN store_website w ON w.website_id = g.website_id
-             ORDER BY w.sort_order, w.website_id, g.group_id'
-        )->fetchAll(PDO::FETCH_ASSOC);
+        $db = $this->getConnection();
+
+        return $db->fetchAll($db->select()
+            ->from(['g' => 'store_group'])
+            ->join(['w' => 'store_website'], 'w.website_id = g.website_id', ['website_name' => 'name'])
+            ->order('w.sort_order, w.website_id, g.group_id'));
     }
 }

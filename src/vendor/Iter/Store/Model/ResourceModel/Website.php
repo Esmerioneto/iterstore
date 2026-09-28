@@ -25,9 +25,7 @@ class Website extends AbstractDb
     protected function afterSave(AbstractModel $object): void
     {
         if ((int) $object->getData('is_default') === 1) {
-            $this->getConnection()
-                ->prepare('UPDATE store_website SET is_default = 0 WHERE website_id <> :id')
-                ->execute(['id' => $object->getId()]);
+            $this->getConnection()->update('store_website', ['is_default' => 0], ['website_id <> ?' => $object->getId()]);
         }
     }
 }
