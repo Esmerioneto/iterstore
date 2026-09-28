@@ -20,6 +20,7 @@ use Iter\Catalog\Model\CategoryService;
 use Iter\Catalog\Model\ProductService;
 use Iter\Core\Config;
 use Iter\Core\Db\Connection;
+use Iter\Core\Log;
 use Iter\Core\View\LayoutParser;
 use Iter\Core\View\LayoutRenderer;
 use Iter\Eav\Form\FormSchemaGenerator;
@@ -124,12 +125,14 @@ $port = (static function (): int {
     fclose($socket);
     return $port;
 })();
+$logDir = sys_get_temp_dir() . '/selftest_log_' . bin2hex(random_bytes(4)) . '/';
+putenv('ITER_LOG_DIR=' . $logDir); // this process and the server log there, not in var/log
 $server = proc_open(
     [PHP_BINARY, '-S', "127.0.0.1:{$port}", '-t', dirname(__DIR__) . '/public'],
     [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']],
     $pipes,
     null,
-    ['XDEBUG_MODE' => 'off'] + getenv()
+    ['XDEBUG_MODE' => 'off', 'ITER_LOG_DIR' => $logDir] + getenv()
 );
 
 $savedModules = file_get_contents(ETC . 'config.json'); // module on/off tests write it; shared with a running dev server
@@ -175,9 +178,12 @@ $purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTempla
         in_array('config/' . basename($file), $inUse, true) || unlink($file);
     }
 };
-register_shutdown_function(static function () use ($purge, $server): void {
+register_shutdown_function(static function () use ($purge, $server, $logDir): void {
     proc_terminate($server);
     $purge();
+    array_map('unlink', glob($logDir . '{,unit/}*', GLOB_BRACE) ?: []);
+    @rmdir($logDir . 'unit');
+    @rmdir($logDir);
 });
 $purge(); // leftovers from an interrupted run
 
@@ -967,6 +973,43 @@ $admin->submit('/admin/config/index', '/admin/config/save', ['config_clear' => [
 assertSame(['', false], [$logoOf(), is_file(Config::mediaDir() . $newLogo)], '"Remover a imagem" apaga a logo');
 unlink($png);
 unlink($txt);
+
+// --- system log -----------------------------------------------------------------------------------
+putenv('ITER_LOG_DIR=' . $logDir . 'unit/');
+Config::save(['system/log/enabled' => '0']);
+Log::error('selftest desligado');
+assertSame(false, is_file(Log::file()), 'log desligado não grava nada');
+Config::save(['system/log/enabled' => '1']);
+Log::error("selftest erro\nsegunda linha", ['id' => 7]);
+Log::info('selftest info');
+Log::notify('selftest notify');
+Log::alert('selftest alert');
+$lines = file(Log::file(), FILE_IGNORE_NEW_LINES);
+assertSame(
+    [4, true, true, 'iter-' . date('Y-m-d') . '.log'],
+    [
+        count($lines),
+        (bool) preg_match('/^\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\] ERROR: selftest erro\\\\nsegunda linha \{"id":7\}$/', $lines[0]),
+        array_map(static fn ($l) => explode(':', substr($l, 22))[0], $lines) === ['ERROR', 'INFO', 'NOTIFY', 'ALERT'],
+        basename(Log::file()),
+    ],
+    'log ligado: uma linha por mensagem, com data, hora, tipo e contexto, no arquivo do dia'
+);
+$now = strtotime('2026-03-31 12:00');
+foreach (['iter-2026-02-28.log', 'iter-2026-03-01.log', 'iter-2026-03-30.log', 'outro-2020-01-01.log', 'iter-2020-01-01.log.bak'] as $name) {
+    touch(Log::dir() . $name);
+}
+$left = static fn () => array_values(array_diff(scandir(Log::dir()), ['.', '..', basename(Log::file())]));
+assertSame([[], [], 5], [Log::clean(0, $now), Log::clean(-1, $now), count($left())], 'limpeza com 0 dias não apaga nada');
+assertSame([['iter-2026-02-28.log'], ['iter-2020-01-01.log.bak', 'iter-2026-03-01.log', 'iter-2026-03-30.log', 'outro-2020-01-01.log']], [Log::clean(30, $now), $left()], 'limpeza apaga só iter-*.log mais velhos que o prazo');
+array_map('unlink', glob(Log::dir() . '*'));
+rmdir(Log::dir());
+putenv('ITER_LOG_DIR=' . $logDir);
+$page = $admin->request('/admin/config/index')['body'];
+assertSame([true, true], [str_contains($page, 'name="config[system/log/enabled]"'), str_contains($page, 'name="config[system/log/retention_days]"')], 'ajustes do log aparecem nas Configurações');
+[, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['system/log/retention_days' => '']]);
+Config::save([]); // saved over HTTP: drop this process's cache
+assertSame([['Configurações salvas.'], 0], [$msgs, (int) Config::get('system/log/retention_days')], 'dias do log vazio = nunca apagar');
 
 // --- modules on/off -------------------------------------------------------------------------------
 $toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];

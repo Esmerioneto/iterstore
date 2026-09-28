@@ -7,6 +7,7 @@ namespace Iter\Mail\Model;
 use Iter\Core\Config;
 use Iter\Core\Crypt;
 use Iter\Core\Db\Connection;
+use Iter\Core\Log;
 use PDO;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
 use Symfony\Component\Mime\Address;
@@ -55,7 +56,7 @@ class MailService
         $stmt = $this->pdo()->prepare("SELECT COUNT(*) FROM mail_queue WHERE to_email = :to AND template_code = :code AND created_at > NOW() - INTERVAL '1 hour'");
         $stmt->execute(['to' => $recipients['to'][0], 'code' => $template]);
         if ((int) $stmt->fetchColumn() >= (int) Config::get('mail/limit_per_hour')) {
-            error_log("Mail: limite por hora atingido para {$recipients['to'][0]} ({$template}); e-mail não enfileirado");
+            Log::notify("Mail: limite por hora atingido para {$recipients['to'][0]} ({$template}); e-mail não enfileirado");
             return 0;
         }
 
@@ -231,7 +232,7 @@ class MailService
                 'error' => mb_substr($e->getMessage(), 0, 2000),
                 'wait' => self::BACKOFF_MINUTES[min($attempts, count(self::BACKOFF_MINUTES)) - 1],
             ]);
-            error_log("Mail: mensagem {$row['message_id']} não enviada (tentativa {$attempts}): " . $e->getMessage());
+            Log::error("Mail: mensagem {$row['message_id']} não enviada (tentativa {$attempts}): " . $e->getMessage());
 
             return false;
         }

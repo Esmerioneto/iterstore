@@ -8,6 +8,7 @@ use Iter\Admin\Auth as AdminAuth;
 use Iter\Admin\MenuRegistry;
 use Iter\Admin\Model\AdminUser as AdminUserModel;
 use Iter\Core\Config;
+use Iter\Core\Log;
 use Iter\Core\Messages;
 use Iter\Core\View\Layout;
 use Iter\Mail\Model\MailException;
@@ -114,7 +115,7 @@ class Auth
                 ], now: true);
             } catch (MailException $e) {
                 // same answer below either way; a mail setup problem doesn't break the page
-                error_log('Mail: redefinição de senha não enfileirada: ' . $e->getMessage());
+                Log::error('Mail: redefinição de senha não enfileirada: ' . $e->getMessage());
             }
         }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Iter\Traits;
 
 use Iter\Core\ErrorPage;
+use Iter\Core\Log;
 
 trait Router{
 
@@ -53,7 +54,7 @@ trait Router{
                 $action = $route['action'];
 
                 if (!class_exists($controller) || !method_exists($controller, $action)) {
-                    error_log("Rota {$uri} aponta para {$controller}::{$action}, que não existe");
+                    Log::error("Rota {$uri} aponta para {$controller}::{$action}, que não existe");
                     ErrorPage::render(500, 'Ops, algo deu errado', 'Esta página não está disponível no momento.');
                     return;
                 }
@@ -83,7 +84,7 @@ trait Router{
      */
     private function renderError(\Throwable $e): void
     {
-        error_log($e->getMessage() . "\n" . $e->getTraceAsString());
+        Log::error(get_class($e) . ': ' . $e->getMessage() . "\n" . $e->getTraceAsString());
 
         $isDbError = $e instanceof \RuntimeException
             && str_contains($e->getMessage(), 'banco de dados');
