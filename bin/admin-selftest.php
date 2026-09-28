@@ -31,6 +31,8 @@ use Iter\Eav\Model\ValueService;
 use Iter\Inventory\Model\InventoryException;
 use Iter\Inventory\Model\SourceService;
 use Iter\Inventory\Model\StockService;
+use Iter\Mail\Model\MailException;
+use Iter\Mail\Model\MailService;
 
 const PASSWORD = 'Selftest123';
 
@@ -131,7 +133,8 @@ $server = proc_open(
 );
 
 $savedModules = file_get_contents(ETC . 'config.json'); // module on/off tests write it; shared with a running dev server
-$purge = static function () use ($pdo, $savedConfig, $savedModules): void {
+$savedTemplates = $pdo->query('SELECT code, subject, body_html, body_text FROM mail_template')->fetchAll(PDO::FETCH_ASSOC);
+$purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTemplates): void {
     if (file_get_contents(ETC . 'config.json') !== $savedModules) {
         file_put_contents(ETC . 'config.json', $savedModules);
     }
@@ -151,6 +154,14 @@ $purge = static function () use ($pdo, $savedConfig, $savedModules): void {
     $pdo->exec("DELETE FROM store WHERE store_name LIKE 'selftest%'");
     $pdo->exec("DELETE FROM store_group WHERE code LIKE 'selftest%'");
     $pdo->exec("DELETE FROM store_website WHERE code LIKE 'selftest%'");
+    foreach ($pdo->query("DELETE FROM mail_queue WHERE to_email LIKE '%@selftest.local' RETURNING message_id")->fetchAll(PDO::FETCH_COLUMN) as $messageId) {
+        @unlink(MailService::logDir() . $messageId . '.eml');
+    }
+    $pdo->exec('DELETE FROM mail_template');
+    $restoreTemplate = $pdo->prepare('INSERT INTO mail_template (code, subject, body_html, body_text) VALUES (:code, :subject, :body_html, :body_text)');
+    foreach ($savedTemplates as $row) {
+        $restoreTemplate->execute($row);
+    }
     $pdo->exec("DELETE FROM admin_user WHERE username LIKE 'selftest\\_%'");
     $pdo->exec("DELETE FROM admin_role WHERE role_name LIKE 'selftest\\_%'");
     $pdo->exec('DELETE FROM core_config_data');
@@ -173,6 +184,11 @@ Config::save([
     'admin/security/password_require_alnum' => '1',
     'admin/security/password_history' => '4',
     'admin/security/password_lifetime' => '90',
+    'mail/transport' => 'log', // .eml files in var/mail instead of SMTP
+    'mail/from_email' => 'loja@selftest.local',
+    'mail/from_name' => 'Selftest Loja',
+    'mail/limit_per_hour' => '10',
+    'mail/queue/max_attempts' => '5',
 ]);
 
 $makeUser = static function (string $username, array $resources): int {
@@ -251,6 +267,9 @@ assertSame($genericReply, $msgs, 'esqueci a senha: e-mail desconhecido tem a mes
 [, $msgs] = $guest->submit('/admin/auth/forgot', '/admin/auth/forgotpost', ['email' => 'selftest_victim@selftest.local']);
 assertSame($genericReply, $msgs, 'esqueci a senha: e-mail cadastrado recebe a resposta genérica');
 assertSame(64, strlen((string) (new AdminUser())->load($victimId)->getData('rp_token')), 'token gravado só como hash sha256');
+$resetMail = $pdo->query("SELECT * FROM mail_queue WHERE to_email = 'selftest_victim@selftest.local' ORDER BY message_id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+preg_match('#(/admin/auth/reset\?id=\d+&(?:amp;)?token=[0-9a-f]{64})#', quoted_printable_decode((string) @file_get_contents(MailService::logDir() . $resetMail['message_id'] . '.eml')), $m);
+assertSame([1, null, 200], [(int) $resetMail['status'], $resetMail['body_html'], $guest->request(html_entity_decode($m[1] ?? '/x'))['status']], 'e-mail de redefinição enviado na hora, sem corpo guardado, e o link dele abre o formulário');
 
 // the mailed token isn't readable back, so plant a known one
 $setToken = static fn (string $createdAt) => $pdo->prepare('UPDATE admin_user SET rp_token = :hash, rp_token_created_at = ' . $createdAt . ' WHERE user_id = :id')
@@ -305,7 +324,7 @@ $throws = static function (callable $fn): string {
     try {
         $fn();
     } catch (Throwable $e) {
-        return $e instanceof AttributeException || $e instanceof InventoryException ? $e->errorCode : get_class($e);
+        return $e instanceof AttributeException || $e instanceof InventoryException || $e instanceof MailException ? $e->errorCode : get_class($e);
     }
     return 'nada';
 };
@@ -813,6 +832,89 @@ assertSame([false, true, []], [$categoryRow('selftest-camisetas'), (bool) $produ
 $pdo->exec("INSERT INTO catalog_category_product (category_id, product_id) VALUES ({$roupasId}, {$catProduct})");
 (new ProductService())->delete($catProduct);
 assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM catalog_category_product WHERE product_id = {$catProduct}")->fetchColumn(), 'remover o produto apaga os vínculos');
+
+// --- e-mail -------------------------------------------------------------------------------------------
+$mail = new MailService();
+$eml = static fn (int $id): string => quoted_printable_decode((string) @file_get_contents(MailService::logDir() . $id . '.eml'));
+$status = static fn (int $id): int => (int) $mail->find($id)['status'];
+
+$id = $mail->send('mail_test', 'Cliente@Selftest.local', ['name' => '<b>Zé</b>']);
+assertSame([MailService::PENDING, ''], [$status($id), $eml($id)], 'send só enfileira; quem envia é o worker');
+$mail->processQueue();
+assertSame([MailService::SENT, true, true, true, true], [
+    $status($id),
+    str_contains($eml($id), 'Subject: Teste de envio - Selftest Loja'),
+    str_contains($eml($id), 'From: Selftest Loja <loja@selftest.local>'),
+    str_contains($eml($id), 'To: cliente@selftest.local'),
+    str_contains($eml($id), 'Olá, &lt;b&gt;Zé&lt;/b&gt;.'),
+], 'worker envia com remetente, destinatário normalizado e variáveis escapadas');
+assertSame([true, true], [str_contains($eml($id), 'Olá, <b>Zé</b>.'), str_contains($eml($id), 'Content-Type: text/plain')], 'versão texto gerada do HTML, sem escapar');
+assertSame(MailService::SENT, $status($mail->send('mail_test', 'agora@selftest.local', ['name' => 'X'], now: true)), 'now: envia sem esperar o worker');
+assertSame('RECIPIENT_INVALID', $throws(static fn () => $mail->send('mail_test', "a@selftest.local\r\nBcc: x@evil.test")), 'destinatário com quebra de linha é recusado');
+assertSame('RECIPIENT_INVALID', $throws(static fn () => $mail->send('mail_test', 'a@selftest.local', [], ['cc' => 'nao-e-email'])), 'cópia inválida é recusada');
+assertSame('TEMPLATE_UNKNOWN', $throws(static fn () => $mail->send('selftest_nao_existe', 'a@selftest.local')), 'modelo inexistente é recusado');
+
+// limit per recipient and template: 10 an hour
+for ($i = 0; $i < 10; $i++) {
+    $mail->send('mail_test', 'limite@selftest.local');
+}
+assertSame(0, $mail->send('mail_test', 'limite@selftest.local'), 'limite por hora: o 11º não entra na fila');
+$mail->processQueue();
+
+// failure: back-off, then FAILED after max_attempts
+Config::save(['mail/transport' => 'smtp', 'mail/smtp/host' => '127.0.0.1', 'mail/smtp/port' => (string) ($port + 1), 'mail/smtp/encryption' => 'none', 'mail/queue/max_attempts' => '2']);
+$id = $mail->send('mail_test', 'falha@selftest.local', [], now: true);
+$row = $mail->find($id);
+assertSame([MailService::PENDING, 1, true, true], [(int) $row['status'], (int) $row['attempts'], $row['last_error'] !== null, strtotime($row['send_after']) > time()], 'falha: continua pendente, com o erro e a próxima tentativa adiada');
+assertSame(['sent' => 0, 'failed' => 0], $mail->processQueue(), 'worker respeita o intervalo antes de tentar de novo');
+$pdo->exec("UPDATE mail_queue SET send_after = NOW() WHERE message_id = {$id}");
+$mail->processQueue();
+assertSame([MailService::FAILED, 2], [$status($id), (int) $mail->find($id)['attempts']], 'após max_attempts vira Falhou');
+Config::save(['mail/transport' => 'log', 'mail/queue/max_attempts' => '5']);
+
+// history: resend / cancel over HTTP
+$resendForm = '/admin/mail/view?id=' . $id;
+[$location, $msgs] = $admin->submit($resendForm, '/admin/mail/resend', ['message_id' => $id]);
+$copyId = (int) substr($location, strlen('/admin/mail/view?id='));
+assertSame([['Uma cópia do e-mail entrou na fila de envio.'], MailService::PENDING], [$msgs, $status($copyId)], 'reenviar põe uma cópia na fila');
+assertSame(['Envio cancelado.'], $admin->submit('/admin/mail/view?id=' . $copyId, '/admin/mail/cancel', ['message_id' => $copyId])[1], 'pendente pode ser cancelado');
+assertSame(['Só um e-mail pendente pode ser cancelado.'], $admin->submit('/admin/mail/view?id=' . $copyId, '/admin/mail/cancel', ['message_id' => $copyId])[1], 'cancelado não é cancelado de novo');
+assertSame(['Este e-mail não pode ser reenviado.'], $admin->submit('/admin/mail/view?id=' . $copyId, '/admin/mail/resend', ['message_id' => $resetMail['message_id']])[1], 'e-mail privado não é reenviado');
+$list = $admin->request('/admin/mail/index?q=falha%40selftest')['body'];
+assertSame([true, false], [str_contains($list, '/admin/mail/view?id=' . $id), str_contains($list, 'agora@selftest.local')], 'histórico filtra pelo destinatário');
+$view = $admin->request('/admin/mail/view?id=' . $resetMail['message_id'])['body'];
+assertSame([true, false], [str_contains($view, 'Conteúdo não guardado'), str_contains($view, 'token=')], 'e-mail privado não mostra o conteúdo');
+assertSame([403, 403], [$dash->request('/admin/mail/index')['status'], $dash->request('/admin/mailtemplate/index')['status']], 'histórico e modelos exigem permissão');
+
+// template override in the admin
+$templateForm = '/admin/mailtemplate/edit?code=mail_test';
+[, $msgs] = $admin->submit($templateForm, '/admin/mailtemplate/save', ['code' => 'mail_test', 'subject' => 'Selftest {{ name }}', 'body_html' => '<p>Personalizado {{ name }}</p>', 'body_text' => '']);
+$id = $mail->send('mail_test', 'modelo@selftest.local', ['name' => 'Ana'], now: true);
+assertSame([['Modelo salvo.'], true, true], [$msgs, str_contains($eml($id), 'Subject: Selftest Ana'), str_contains($eml($id), 'Personalizado Ana')], 'modelo alterado no admin vale no próximo envio');
+assertSame(['Assunto e corpo HTML são obrigatórios.'], $admin->submit($templateForm, '/admin/mailtemplate/save', ['code' => 'mail_test', 'subject' => '', 'body_html' => 'x'])[1], 'modelo sem assunto é recusado');
+preg_match('/name="form_key" value="([0-9a-f]{64})"/', $admin->request($templateForm)['body'], $m);
+$preview = $admin->request('/admin/mailtemplate/preview', ['form_key' => $m[1], 'code' => 'mail_test', 'subject' => 'Prévia', 'body_html' => '<p>Oi {{ name }}</p>']);
+assertSame(true, str_contains($preview['body'], 'Oi Maria'), 'pré-visualização usa os valores de exemplo');
+$admin->submit($templateForm, '/admin/mailtemplate/restore', ['code' => 'mail_test']);
+$id = $mail->send('mail_test', 'modelo@selftest.local', ['name' => 'Ana'], now: true);
+assertSame(true, str_contains($eml($id), 'Subject: Teste de envio'), 'restaurar volta ao modelo do arquivo');
+
+// settings per website
+$scoped = '/admin/config/index?website=' . $websiteId;
+[, $msgs] = $admin->submit($scoped, '/admin/config/save', ['website_id' => $websiteId, 'config' => [
+    'mail/from_email' => 'w@selftest.local', 'mail/from_name' => 'Loja W', 'mail/smtp/password' => 'segredo-smtp', 'admin/security/max_failures' => '50',
+]]);
+Config::save([]); // saved over HTTP: drop this process's cache
+$secret = (string) Config::websiteValue('mail/smtp/password', $websiteId);
+assertSame([['Configurações salvas.'], 'w@selftest.local', null, 'Selftest Loja'], [$msgs, Config::get('mail/from_email', $websiteId), Config::websiteValue('admin/security/max_failures', $websiteId), Config::get('mail/from_name')], 'website tem valor próprio; campo sem escopo de website é ignorado');
+assertSame([true, 'segredo-smtp', false, false], [str_starts_with($secret, 'enc:'), \Iter\Core\Crypt::decrypt($secret), str_contains($admin->request($scoped)['body'], 'segredo-smtp'), str_contains($admin->request($scoped)['body'], $secret)], 'senha SMTP gravada cifrada e nunca mostrada de volta');
+$id = $mail->send('mail_test', 'site@selftest.local', [], ['website_id' => $websiteId], now: true);
+assertSame(true, str_contains($eml($id), 'From: Loja W <w@selftest.local>'), 'e-mail do website sai com o remetente dele');
+$admin->submit($scoped, '/admin/config/save', ['website_id' => $websiteId, 'config_default' => ['mail/from_name' => '1']]);
+Config::save([]);
+assertSame([null, 'Selftest Loja'], [Config::websiteValue('mail/from_name', $websiteId), Config::get('mail/from_name', $websiteId)], '"Usar o valor padrão" apaga o valor do website');
+[, $msgs] = $admin->submit($scoped, '/admin/mailtest/send', ['website_id' => $websiteId]);
+assertSame(['E-mail de teste enviado para selftest_admin@selftest.local.'], $msgs, 'e-mail de teste pelas Configurações');
 
 // --- modules on/off -------------------------------------------------------------------------------
 $toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];

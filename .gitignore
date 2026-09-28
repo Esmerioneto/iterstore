@@ -4,6 +4,11 @@
 # Local DB credentials; copy src/etc/database.ini.sample
 /src/etc/database.ini
 /src/etc/mail.ini
+# Encryption key of the secrets saved in the DB (created on first use)
+/src/etc/env.ini
+
+# Runtime files (e-mails written by the "log" transport)
+/var/
 
 .vscode/
 .idea/

@@ -1,0 +1,4 @@
+[
+    { "code": "admin_password_reset", "label": "Redefinição de senha do admin", "subject": "Redefinição de senha", "file": "admin-password-reset", "private": true,
+      "vars": { "name": "Maria", "username": "maria", "link": "http://localhost:8080/admin/auth/reset?id=1&token=exemplo", "hours": "2" } }
+]

@@ -1,30 +1,60 @@
+<?php $e = static fn ($v) => htmlspecialchars((string) $v); ?>
 <section class="config-settings-form">
     <h2>Ajustes do Sistema</h2>
+<?php if ($websites): ?>
+    <form method="get" action="/admin/config/index" class="config-scope">
+        <label>Escopo
+            <select name="website" data-autosubmit>
+                <option value="0">Padrão (todos os websites)</option>
+    <?php foreach ($websites as $id => $name): ?>
+                <option value="<?= (int) $id ?>" <?= $id === $website_id ? 'selected' : '' ?>>Website: <?= $e($name) ?></option>
+    <?php endforeach; ?>
+            </select>
+        </label>
+        <noscript><button type="submit">Trocar</button></noscript>
+    <?php if ($website_id): ?>
+        <small>Só aparecem os ajustes que podem mudar por website. Marcado "Usar o valor padrão", vale o valor do escopo Padrão.</small>
+    <?php endif; ?>
+    </form>
+<?php endif; ?>
 <?php if (empty($groups)): ?>
     <p>Nenhum módulo declara ajustes.</p>
 <?php else: ?>
-    <form method="post" action="/admin/config/save">
+    <form method="post" action="/admin/config/save" autocomplete="off">
         <?= \Iter\Core\FormKey::field() ?>
+        <input type="hidden" name="website_id" value="<?= (int) $website_id ?>">
     <?php foreach ($groups as $label => $fields): ?>
         <fieldset>
-            <legend><?= htmlspecialchars($label) ?></legend>
-        <?php foreach ($fields as $field): ?>
+            <legend><?= $e($label) ?></legend>
+        <?php foreach ($fields as $field):
+            $type = $field['type'] ?? 'text';
+            $name = 'config[' . $e($field['path']) . ']';
+            $required = ($field['required'] ?? true) && $type !== 'password' ? 'required' : '';
+        ?>
             <p>
-                <label><?= htmlspecialchars($field['label']) ?><br>
-            <?php if (($field['type'] ?? 'text') === 'boolean'): ?>
-                    <select name="config[<?= htmlspecialchars($field['path']) ?>]">
-                        <option value="1" <?= $field['value'] ? 'selected' : '' ?>>Sim</option>
-                        <option value="0" <?= $field['value'] ? '' : 'selected' ?>>Não</option>
+                <label><?= $e($field['label']) ?><br>
+            <?php if ($type === 'boolean' || $type === 'select'): ?>
+                    <select name="<?= $name ?>">
+                <?php foreach ($type === 'boolean' ? ['1' => 'Sim', '0' => 'Não'] : $field['options'] as $value => $text): ?>
+                        <option value="<?= $e($value) ?>" <?= (string) $field['value'] === (string) $value ? 'selected' : '' ?>><?= $e($text) ?></option>
+                <?php endforeach; ?>
                     </select>
             <?php else: ?>
-                    <input type="<?= in_array($field['type'] ?? 'text', ['number', 'url'], true) ? $field['type'] : 'text' ?>"
-                        name="config[<?= htmlspecialchars($field['path']) ?>]"
-                        value="<?= htmlspecialchars((string) $field['value']) ?>"
+                    <input type="<?= in_array($type, ['number', 'url', 'email', 'password'], true) ? $type : 'text' ?>"
+                        name="<?= $name ?>"
+                        value="<?= $e($field['value']) ?>"
+                        <?= $type === 'password' ? 'autocomplete="new-password" placeholder="' . ($field['has_secret'] ? 'Senha salva; deixe vazio para manter' : 'Sem senha') . '"' : '' ?>
                         <?= isset($field['min']) ? 'min="' . (int) $field['min'] . '"' : '' ?>
                         <?= isset($field['max']) ? 'max="' . (int) $field['max'] . '"' : '' ?>
-                        required>
+                        <?= $required ?>>
             <?php endif; ?>
                 </label>
+            <?php if ($type === 'password' && $field['has_secret']): ?>
+                <label><input type="checkbox" name="config_clear[<?= $e($field['path']) ?>]" value="1"> Apagar a senha salva</label>
+            <?php endif; ?>
+            <?php if ($website_id): ?>
+                <label><input type="checkbox" name="config_default[<?= $e($field['path']) ?>]" value="1" <?= $field['uses_default'] ? 'checked' : '' ?>> Usar o valor padrão</label>
+            <?php endif; ?>
             </p>
         <?php endforeach; ?>
         </fieldset>

@@ -246,3 +246,10 @@ document.addEventListener('click', function (event) {
     customClass: { popup: 'admin-swal admin-swal-image' }
   });
 });
+
+// <select data-autosubmit>: choosing an option submits its form (e.g. the scope of Configurações)
+document.addEventListener('change', function (event) {
+  if (event.target.matches('select[data-autosubmit]')) {
+    event.target.form.submit();
+  }
+});

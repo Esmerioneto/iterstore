@@ -1,0 +1,7 @@
+[
+    { "route": "admin", "vendor": "Iter", "module_name": "Mail", "controller_name": "mail", "controller_action": "index,view", "method": "GET" },
+    { "route": "admin", "vendor": "Iter", "module_name": "Mail", "controller_name": "mail", "controller_action": "resend,cancel", "method": "POST" },
+    { "route": "admin", "vendor": "Iter", "module_name": "Mail", "controller_name": "mailtemplate", "controller_action": "index,edit", "method": "GET" },
+    { "route": "admin", "vendor": "Iter", "module_name": "Mail", "controller_name": "mailtemplate", "controller_action": "save,restore,preview", "method": "POST" },
+    { "route": "admin", "vendor": "Iter", "module_name": "Mail", "controller_name": "mailtest", "controller_action": "send", "method": "POST" }
+]
