@@ -13,6 +13,9 @@ foreach ($schema['fields'] as $field) {
     <?php if ($group !== ''): ?><legend><?= $e($group) ?></legend><?php endif; ?>
     <?php foreach ($groupFields as $f):
         $value = $values[$f['name']] ?? $f['default'];
+        if (is_string($value) && isset($value[9])) { // stored "Y-m-d H:i:s" -> what date inputs accept
+            $value = ['date' => substr($value, 0, 10), 'datetime' => str_replace(' ', 'T', substr($value, 0, 16))][$f['type']] ?? $value;
+        }
         $selected = array_map('strval', (array) $value);
         $name = $e($f['name']) . ($f['multiple'] ? '[]' : '');
         $required = $f['required'] ? 'required' : '';
