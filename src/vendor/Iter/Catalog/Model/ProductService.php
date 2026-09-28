@@ -11,15 +11,16 @@ use Iter\Eav\Model\AttributeSet;
 use Iter\Eav\Model\ValueService;
 
 /**
- * Products: sku/name/is_active live in catalog_product, everything else in
- * EAV values. Only the attributes of the product's set are saved, and a set's
+ * Products: sku/name/is_active live in catalog_product, categories in
+ * catalog_category_product (only touched when $data has category_ids),
+ * everything else in EAV values. Only the attributes of the product's set are saved, and a set's
  * field missing from $attributes is saved empty (unchecked multiselect posts
  * nothing). Errors reuse AttributeException, as ValueService throws it too.
  */
 class ProductService
 {
     /**
-     * @param array{attribute_set_id: int, sku: string, name: string, is_active?: int} $data
+     * @param array{attribute_set_id: int, sku: string, name: string, is_active?: int, category_ids?: int[]} $data
      * @param array<string, mixed> $attributes code => value
      */
     public function create(array $data, array $attributes = []): Product
@@ -28,12 +29,14 @@ class ProductService
         $fields = $this->fields($data);
         $values = new ValueService();
         $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($set, $attributes));
+        $categoryIds = $this->categoryIds($data);
 
         // ponytail: product and values are saved on separate connections (Connection opens a PDO
         // per call), so everything is validated first; a DB failure in between leaves a product
         // without values, fixable by saving it again
         $model = (new Product())->addData($fields + ['attribute_set_id' => (int) $set->getId()])->save();
         $values->write((int) $model->getId(), $rows);
+        $this->saveCategories((int) $model->getId(), $categoryIds);
 
         return $model;
     }
@@ -45,9 +48,11 @@ class ProductService
         $fields = $this->fields($data, $id);
         $values = new ValueService();
         $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes), $id);
+        $categoryIds = $this->categoryIds($data);
 
         $model->addData($fields)->save();
         $values->write($id, $rows);
+        $this->saveCategories($id, $categoryIds);
 
         return $model;
     }
@@ -56,6 +61,25 @@ class ProductService
     public function getValues(int $id): array
     {
         return (new ValueService())->load(Product::ENTITY_TYPE, $id);
+    }
+
+    /** @return int[] */
+    public function getCategoryIds(int $id): array
+    {
+        return (new Category())->getResource()->getProductCategoryIds($id);
+    }
+
+    /** @return ?int[] null = keep the current categories */
+    private function categoryIds(array $data): ?array
+    {
+        return array_key_exists('category_ids', $data) ? (new CategoryService())->validIds($data['category_ids']) : null;
+    }
+
+    private function saveCategories(int $id, ?array $categoryIds): void
+    {
+        if ($categoryIds !== null) {
+            (new Category())->getResource()->setProductCategories($id, $categoryIds);
+        }
     }
 
     public function delete(int $id): void

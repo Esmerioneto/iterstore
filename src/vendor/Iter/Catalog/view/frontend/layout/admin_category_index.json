@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "list": "catalog/category-list"
+        }
+    }
+}

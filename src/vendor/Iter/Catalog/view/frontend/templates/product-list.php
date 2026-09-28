@@ -9,6 +9,12 @@
             <option value="<?= (int) $setId ?>" <?= $filters['attribute_set_id'] === (string) $setId ? 'selected' : '' ?>><?= htmlspecialchars((string) $set['label']) ?></option>
 <?php endforeach; ?>
         </select>
+        <select name="category_id">
+            <option value="">Todas as categorias</option>
+<?php foreach ($categories as $category): ?>
+            <option value="<?= (int) $category['category_id'] ?>" <?= $filters['category_id'] === (string) $category['category_id'] ? 'selected' : '' ?>><?= str_repeat('— ', (int) $category['level']) . htmlspecialchars((string) $category['name']) ?></option>
+<?php endforeach; ?>
+        </select>
         <select name="is_active">
             <option value="">Ativos e inativos</option>
             <option value="1" <?= $filters['is_active'] === '1' ? 'selected' : '' ?>>Só ativos</option>

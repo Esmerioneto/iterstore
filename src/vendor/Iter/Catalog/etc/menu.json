@@ -1,4 +1,5 @@
 [
     { "id": "catalogo", "label": "Catálogo", "resource": "Iter_Catalog::product", "url": "/admin/product/index", "sort_order": 10 },
-    { "label": "Produtos", "resource": "Iter_Catalog::product", "url": "/admin/product/index", "parent": "catalogo", "sort_order": 0 }
+    { "label": "Produtos", "resource": "Iter_Catalog::product", "url": "/admin/product/index", "parent": "catalogo", "sort_order": 0 },
+    { "label": "Categorias", "resource": "Iter_Catalog::category", "url": "/admin/category/index", "parent": "catalogo", "sort_order": 5 }
 ]

@@ -16,6 +16,7 @@ require_once FUNCTIONS . 'bootstrap.php';
 
 use Iter\Admin\Model\AdminRole;
 use Iter\Admin\Model\AdminUser;
+use Iter\Catalog\Model\CategoryService;
 use Iter\Catalog\Model\ProductService;
 use Iter\Core\Config;
 use Iter\Core\Db\Connection;
@@ -137,6 +138,11 @@ $purge = static function () use ($pdo, $savedConfig, $savedModules): void {
     foreach ($pdo->query("SELECT product_id FROM catalog_product WHERE sku LIKE 'selftest%'")->fetchAll(PDO::FETCH_COLUMN) as $productId) {
         (new ProductService())->delete((int) $productId);
     }
+    // leaves first: a category with children isn't deleted
+    do {
+        $leaves = $pdo->query("SELECT category_id FROM catalog_category c WHERE url_key LIKE 'selftest%' AND NOT EXISTS (SELECT 1 FROM catalog_category k WHERE k.parent_id = c.category_id)")->fetchAll(PDO::FETCH_COLUMN);
+        array_map(static fn ($id) => (new CategoryService())->delete((int) $id), $leaves);
+    } while ($leaves);
     $pdo->exec("DELETE FROM inventory_source_item WHERE source_id IN (SELECT source_id FROM inventory_source WHERE code LIKE 'selftest%')");
     $pdo->exec("DELETE FROM inventory_source WHERE code LIKE 'selftest%'");
     $pdo->exec("DELETE FROM eav_attribute_set WHERE code LIKE 'selftest%'");
@@ -712,6 +718,57 @@ $productService->delete($estId);
 assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM inventory_source_item WHERE product_id = {$estId}")->fetchColumn(), 'remover o produto apaga o estoque dele');
 $estId = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-est', 'name' => 'Estoque', 'is_active' => 1], ['price' => '1'])->getId();
 $stock->save($estId, ['selftest_loja' => ['quantity' => '7']]);
+
+// --- catalog: categories -----------------------------------------------------------------------------
+$categoryRow = static fn (string $urlKey) => $pdo->query("SELECT * FROM catalog_category WHERE url_key = '{$urlKey}'")->fetch(PDO::FETCH_ASSOC);
+$saveCategory = static fn (array $fields) => $admin->submit('/admin/category/create', '/admin/category/save', $fields + ['is_active' => '1'])[1];
+assertSame(['Categoria criada com sucesso.'], $saveCategory(['name' => 'Selftest Roupas']), 'categoria criada pelo admin');
+$roupasId = (int) ($categoryRow('selftest-roupas')['category_id'] ?? 0);
+assertSame(['selftest-roupas', 'higiene-cosmeticos'], [$categoryRow('selftest-roupas')['url_key'] ?? null, CategoryService::slug('Higiene & Cosméticos')], 'chave de URL gerada a partir do nome');
+assertSame(["Já existe uma categoria com a chave de URL 'selftest-roupas'."], $saveCategory(['name' => 'Outra', 'url_key' => 'Selftest Roupas']), 'chave de URL duplicada é recusada');
+$saveCategory(['name' => 'Camisetas', 'url_key' => 'selftest-camisetas', 'parent_id' => $roupasId, 'position' => '2']);
+$saveCategory(['name' => 'Oculta', 'url_key' => 'selftest-oculta', 'parent_id' => $roupasId, 'position' => '1', 'is_active' => '']);
+$camisetasId = (int) $categoryRow('selftest-camisetas')['category_id'];
+$ocultaId = (int) $categoryRow('selftest-oculta')['category_id'];
+assertSame([$roupasId, 0], [(int) $categoryRow('selftest-camisetas')['parent_id'], (int) $categoryRow('selftest-oculta')['is_active']], 'subcategoria criada; inativa grava is_active 0');
+assertSame('CATEGORY_PARENT_INVALID', $throws(static fn () => (new CategoryService())->update($roupasId, ['name' => 'Selftest Roupas', 'parent_id' => $camisetasId])), 'categoria não vai para dentro de uma subcategoria sua');
+$categoryList = $admin->request('/admin/category/index')['body'];
+assertSame([true, true], [strpos($categoryList, 'Oculta') < strpos($categoryList, 'Camisetas'), str_contains($admin->request('/admin/index')['body'], '/admin/category/index')], 'árvore ordenada pela posição; menu de categorias');
+assertSame(false, str_contains($admin->request('/admin/category/edit?id=' . $roupasId)['body'], '<option value="' . $camisetasId . '"'), 'form não oferece subcategoria como pai');
+[, $msgs] = $admin->submit('/admin/category/index', '/admin/category/delete', ['category_id' => $roupasId]);
+assertSame(["A categoria 'Selftest Roupas' tem subcategorias. Remova ou mova as subcategorias antes."], $msgs, 'categoria com subcategorias não é removida');
+
+// products in categories
+assertSame(['Produto criado com sucesso.'], $saveProduct(['sku' => 'selftest-cat', 'category_ids' => [$camisetasId, $ocultaId], 'attributes' => ['price' => '5']]), 'produto criado com categorias pelo admin');
+$catProduct = (int) $productRow('selftest-cat')['product_id'];
+assertSame([$camisetasId, $ocultaId], (new ProductService())->getCategoryIds($catProduct), 'categorias do produto gravadas');
+assertSame(true, str_contains($admin->request('/admin/product/edit?id=' . $catProduct)['body'], 'name="category_ids[]" value="' . $camisetasId . '" checked'), 'edição marca as categorias do produto');
+assertSame([1, 0], [
+    substr_count($admin->request('/admin/product/index?category_id=' . $roupasId)['body'], '/admin/product/edit?id='),
+    substr_count($admin->request('/admin/product/index?q=selftest-est&category_id=' . $roupasId)['body'], '/admin/product/edit?id='),
+], 'filtro por categoria inclui as subcategorias');
+assertSame(['Categoria não encontrada: 999999.'], $saveProduct(['sku' => 'selftest-cat2', 'category_ids' => [999999], 'attributes' => ['price' => '5']]), 'categoria inexistente é recusada');
+
+$catRead = 'query ($key: String) { category(url_key: $key) { name children { url_key } products { total items { sku categories { url_key } } } } }';
+$r = $gql($guest, $catRead, ['key' => 'selftest-roupas'])['data']['category'] ?? null;
+assertSame(['name' => 'Selftest Roupas', 'children' => [['url_key' => 'selftest-camisetas']], 'products' => ['total' => 1, 'items' => [['sku' => 'selftest-cat', 'categories' => [['url_key' => 'selftest-camisetas']]]]]], $r, 'GraphQL: visitante vê a árvore e os produtos, sem as inativas');
+assertSame([['category' => null], 'selftest-oculta'], [
+    $gql($guest, $catRead, ['key' => 'selftest-oculta'])['data'] ?? null,
+    $gql($admin, '{ category(id: "' . $ocultaId . '") { url_key } }')['data']['category']['url_key'] ?? null,
+], 'GraphQL: categoria inativa só para o admin');
+assertSame(true, in_array('selftest-roupas', array_column($gql($guest, '{ categories { url_key } }')['data']['categories'] ?? [], 'url_key'), true), 'GraphQL: categorias principais');
+$setCats = static fn (string $args) => $gql($admin, 'mutation { updateProduct(id: "' . $catProduct . '"' . $args . ') { categories { id } } }');
+assertSame([[['id' => (string) $ocultaId], ['id' => (string) $camisetasId]], [], 'CATEGORY_NOT_FOUND'], [
+    $setCats(', name: "Com categorias"')['data']['updateProduct']['categories'] ?? null,
+    $setCats(', categoryIds: []')['data']['updateProduct']['categories'] ?? null,
+    $setCats(', categoryIds: ["999999"]')['errors'][0]['extensions']['code'] ?? null,
+], 'GraphQL: categoryIds omitido mantém, [] tira de todas, id inexistente é recusado');
+$setCats(', categoryIds: ["' . $camisetasId . '"]');
+$admin->submit('/admin/category/index', '/admin/category/delete', ['category_id' => $camisetasId]);
+assertSame([false, true, []], [$categoryRow('selftest-camisetas'), (bool) $productRow('selftest-cat'), (new ProductService())->getCategoryIds($catProduct)], 'remover a categoria mantém o produto e tira o vínculo');
+$pdo->exec("INSERT INTO catalog_category_product (category_id, product_id) VALUES ({$roupasId}, {$catProduct})");
+(new ProductService())->delete($catProduct);
+assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM catalog_category_product WHERE product_id = {$catProduct}")->fetchColumn(), 'remover o produto apaga os vínculos');
 
 // --- modules on/off -------------------------------------------------------------------------------
 $toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];

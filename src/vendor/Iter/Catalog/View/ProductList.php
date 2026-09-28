@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Catalog\View;
 
+use Iter\Catalog\Model\Category;
 use Iter\Catalog\Model\Product;
 use Iter\Core\View\ViewComponentInterface;
 
@@ -19,7 +20,7 @@ class ProductList implements ViewComponentInterface
     public function getData(): array
     {
         $filters = [];
-        foreach (['attribute_set_id', 'is_active', 'q'] as $key) {
+        foreach (['attribute_set_id', 'category_id', 'is_active', 'q'] as $key) {
             $filters[$key] = trim((string) ($_GET[$key] ?? ''));
         }
         $page = max(1, (int) ($_GET['page'] ?? 1));
@@ -32,6 +33,7 @@ class ProductList implements ViewComponentInterface
             'total' => $result['total'],
             'total_pages' => max(1, (int) ceil($result['total'] / self::PER_PAGE)),
             'sets' => ProductForm::productSets(),
+            'categories' => (new Category())->getResource()->getTree(),
         ];
     }
 

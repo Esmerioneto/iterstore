@@ -14,5 +14,21 @@
         "controller_name": "product",
         "controller_action": "save,delete",
         "method": "POST"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Catalog",
+        "controller_name": "category",
+        "controller_action": "index,create,edit",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Catalog",
+        "controller_name": "category",
+        "controller_action": "save,delete",
+        "method": "POST"
     }
 ]
