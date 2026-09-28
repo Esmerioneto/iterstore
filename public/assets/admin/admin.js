@@ -107,3 +107,119 @@ document.addEventListener('change', function (event) {
 document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('select[data-options-box]').forEach(syncOptionsBox);
 });
+
+// Product form "Organizar tela": blocks ([data-block]) and the fields inside a
+// block ([data-field]) are reordered by native drag and drop, or by the ↑ ↓
+// buttons (touch and keyboard); ↔ makes a block span the whole row. The order
+// is saved for the logged admin only (POST, JSON reply); the product's values
+// aren't touched and the page doesn't reload.
+document.addEventListener('DOMContentLoaded', function () {
+  var grid = document.querySelector('[data-layout-grid]');
+  if (!grid || !document.querySelector('[data-layout-toggle]')) {
+    return;
+  }
+  var toggle = document.querySelector('[data-layout-toggle]');
+  var actions = document.querySelector('[data-layout-actions]');
+  var status = document.querySelector('[data-layout-status]');
+  var dragged = null;
+
+  function bar(item, title, wide) {
+    var div = document.createElement('div');
+    div.className = 'product-layout-bar';
+    div.innerHTML = '<span>⠿ </span>' +
+      '<button type="button" data-move="-1" aria-label="Mover para cima">↑</button>' +
+      '<button type="button" data-move="1" aria-label="Mover para baixo">↓</button>' +
+      (wide ? '<button type="button" data-wide aria-label="Largura normal ou total">↔</button>' : '');
+    div.firstChild.appendChild(document.createTextNode(title));
+    item.insertBefore(div, item.firstChild);
+  }
+
+  function arranging(on) {
+    grid.classList.toggle('is-arranging', on);
+    toggle.hidden = on;
+    actions.hidden = !on;
+    grid.querySelectorAll('[data-block], [data-field]').forEach(function (item) {
+      item.draggable = on;
+      if (on && !item.querySelector(':scope > .product-layout-bar')) {
+        bar(item, item.dataset.title || item.querySelector('label, legend')?.textContent.trim() || item.dataset.field, 'block' in item.dataset);
+      }
+    });
+  }
+
+  function say(text) {
+    status.textContent = text;
+  }
+
+  function send(url, body) {
+    var data = new FormData();
+    data.append('form_key', grid.dataset.formKey);
+    Object.keys(body).forEach(function (key) { data.append(key, body[key]); });
+    return fetch(url, { method: 'POST', body: data, credentials: 'same-origin' }).then(function (response) {
+      return response.json().catch(function () { return { message: 'Não foi possível salvar. Recarregue a página e tente de novo.' }; })
+        .then(function (json) { if (!response.ok) { throw new Error(json.message); } return json; });
+    });
+  }
+
+  toggle.addEventListener('click', function () { say(''); arranging(true); });
+  document.querySelector('[data-layout-cancel]').addEventListener('click', function () { location.reload(); });
+  document.querySelector('[data-layout-reset]').addEventListener('click', function () {
+    send(grid.dataset.resetUrl, {}).then(function () { location.reload(); }, function (error) { say(error.message); });
+  });
+  document.querySelector('[data-layout-save]').addEventListener('click', function () {
+    var layout = { blocks: [], fields: {} };
+    grid.querySelectorAll('[data-block]').forEach(function (block) {
+      layout.blocks.push({ id: block.dataset.block, wide: block.classList.contains('is-wide') });
+      var codes = Array.prototype.map.call(block.querySelectorAll('[data-field]'), function (field) { return field.dataset.field; });
+      if (codes.length) {
+        layout.fields[block.dataset.block] = codes;
+      }
+    });
+    send(grid.dataset.saveUrl, { layout: JSON.stringify(layout) }).then(function (json) {
+      arranging(false);
+      say(json.message);
+    }, function (error) { say(error.message); });
+  });
+
+  grid.addEventListener('click', function (event) {
+    var button = event.target.closest('.product-layout-bar button');
+    if (!button) {
+      return;
+    }
+    var item = button.closest('[data-field], [data-block]');
+    if ('wide' in button.dataset) {
+      item.classList.toggle('is-wide');
+    } else if (button.dataset.move === '-1' && item.previousElementSibling) {
+      item.parentNode.insertBefore(item, item.previousElementSibling);
+    } else if (button.dataset.move === '1' && item.nextElementSibling) {
+      item.parentNode.insertBefore(item.nextElementSibling, item);
+    }
+    button.focus();
+  });
+
+  grid.addEventListener('dragstart', function (event) {
+    dragged = event.target.closest('[data-field], [data-block]');
+    dragged.classList.add('is-dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', ''); // Firefox only drags with some data
+  });
+  grid.addEventListener('dragend', function () {
+    dragged.classList.remove('is-dragging');
+    dragged = null;
+  });
+  // a field only moves among its own group's fields; a block among the blocks
+  grid.addEventListener('dragover', function (event) {
+    if (!dragged) {
+      return;
+    }
+    var over = event.target.closest('field' in dragged.dataset ? '[data-field]' : '[data-block]');
+    if (!over || over.parentNode !== dragged.parentNode) {
+      return;
+    }
+    event.preventDefault();
+    if (over !== dragged) {
+      var siblings = Array.prototype.slice.call(over.parentNode.children);
+      over.parentNode.insertBefore(dragged, siblings.indexOf(dragged) < siblings.indexOf(over) ? over.nextSibling : over);
+    }
+  });
+  grid.addEventListener('drop', function (event) { event.preventDefault(); });
+});

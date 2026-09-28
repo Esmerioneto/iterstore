@@ -3,6 +3,8 @@
 $schema ??= (new \Iter\Eav\Form\FormSchemaGenerator())->generate($entity_type, $attribute_set, $fields);
 $html = ['number' => 'number', 'integer' => 'number', 'date' => 'date', 'datetime' => 'datetime-local', 'hidden' => 'hidden'];
 $e = static fn ($v) => htmlspecialchars((string) $v);
+// optional: fields placed outside their <form> (product form layout) point to it with form="..."
+$formAttr = ($form_id ?? '') === '' ? '' : ' form="' . $e($form_id) . '"';
 $groups = [];
 foreach ($schema['fields'] as $field) {
     $groups[$field['group'] ?? ''][] = $field;
@@ -21,6 +23,7 @@ foreach ($schema['fields'] as $field) {
         $required = $f['required'] ? 'required' : '';
         $label = $e($f['label']) . ($f['required'] ? ' *' : '');
     ?>
+    <div class="eav-field" data-field="<?= $e($f['name']) ?>">
         <?php if (isset($f['accept'])): // file field: the value is the stored file's path
             $file = is_string($value) ? $value : '';
         ?>
@@ -28,25 +31,25 @@ foreach ($schema['fields'] as $field) {
             <?php if ($file !== ''): ?>
         <a href="<?= $e(\Iter\Eav\Model\ValueService::MEDIA_URL . $file) ?>" target="_blank"><img class="eav-file-preview" src="<?= $e(\Iter\Eav\Model\ValueService::MEDIA_URL . $file) ?>" alt=""></a><br>
             <?php endif; ?>
-        <input type="file" name="<?= $name ?>" accept="<?= $e(implode(',', $f['accept'])) ?>" <?= $file === '' ? $required : '' ?>>
+        <input<?= $formAttr ?> type="file" name="<?= $name ?>" accept="<?= $e(implode(',', $f['accept'])) ?>" <?= $file === '' ? $required : '' ?>>
     </label>
             <?php if ($file !== '' && !$f['required']): ?>
-        <label><input type="checkbox" name="<?= $name ?>[remove]" value="1"> Remover</label>
+        <label><input<?= $formAttr ?> type="checkbox" name="<?= $name ?>[remove]" value="1"> Remover</label>
             <?php endif; ?>
     </p>
         <?php elseif ($f['type'] === 'hidden'): ?>
-    <input type="hidden" name="<?= $name ?>" value="<?= $e($value) ?>">
+    <input<?= $formAttr ?> type="hidden" name="<?= $name ?>" value="<?= $e($value) ?>">
         <?php elseif ($f['type'] === 'checkbox'): ?>
-    <p><label><input type="hidden" name="<?= $name ?>" value="0"><input type="checkbox" name="<?= $name ?>" value="1" <?= $value ? 'checked' : '' ?>> <?= $label ?></label></p>
+    <p><label><input<?= $formAttr ?> type="hidden" name="<?= $name ?>" value="0"><input<?= $formAttr ?> type="checkbox" name="<?= $name ?>" value="1" <?= $value ? 'checked' : '' ?>> <?= $label ?></label></p>
         <?php elseif (isset($f['options']) && $f['type'] === 'radio'): ?>
     <fieldset><legend><?= $label ?></legend>
             <?php foreach ($f['options'] as $o): ?>
-        <label><input type="radio" name="<?= $name ?>" value="<?= $e($o['value']) ?>" <?= in_array($o['value'], $selected, true) ? 'checked' : '' ?> <?= $required ?>> <?= $e($o['label']) ?></label>
+        <label><input<?= $formAttr ?> type="radio" name="<?= $name ?>" value="<?= $e($o['value']) ?>" <?= in_array($o['value'], $selected, true) ? 'checked' : '' ?> <?= $required ?>> <?= $e($o['label']) ?></label>
             <?php endforeach; ?>
     </fieldset>
         <?php elseif (isset($f['options'])): ?>
     <p><label><?= $label ?><br>
-        <select name="<?= $name ?>" <?= $f['multiple'] ? 'multiple' : '' ?> <?= $required ?>>
+        <select<?= $formAttr ?> name="<?= $name ?>" <?= $f['multiple'] ? 'multiple' : '' ?> <?= $required ?>>
             <?php if (!$f['multiple']): ?><option value="">Selecione</option><?php endif; ?>
             <?php foreach ($f['options'] as $o): ?>
             <option value="<?= $e($o['value']) ?>" <?= in_array($o['value'], $selected, true) ? 'selected' : '' ?>><?= $e($o['label']) ?></option>
@@ -54,10 +57,11 @@ foreach ($schema['fields'] as $field) {
         </select>
     </label></p>
         <?php elseif ($f['type'] === 'textarea'): ?>
-    <p><label><?= $label ?><br><textarea name="<?= $name ?>" <?= $required ?>><?= $e($value) ?></textarea></label></p>
+    <p><label><?= $label ?><br><textarea<?= $formAttr ?> name="<?= $name ?>" <?= $required ?>><?= $e($value) ?></textarea></label></p>
         <?php else: ?>
-    <p><label><?= $label ?><br><input type="<?= $html[$f['type']] ?? 'text' ?>" name="<?= $name ?>" value="<?= $e($value) ?>" <?= $f['type'] === 'number' ? 'step="any"' : '' ?> <?= $required ?>></label></p>
+    <p><label><?= $label ?><br><input<?= $formAttr ?> type="<?= $html[$f['type']] ?? 'text' ?>" name="<?= $name ?>" value="<?= $e($value) ?>" <?= $f['type'] === 'number' ? 'step="any"' : '' ?> <?= $required ?>></label></p>
         <?php endif; ?>
+    </div>
     <?php endforeach; ?>
 </fieldset>
 <?php endforeach; ?>

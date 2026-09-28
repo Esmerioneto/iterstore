@@ -719,6 +719,46 @@ assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM inventory_source_item WHER
 $estId = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-est', 'name' => 'Estoque', 'is_active' => 1], ['price' => '1'])->getId();
 $stock->save($estId, ['selftest_loja' => ['quantity' => '7']]);
 
+// --- catalog: product form layout ("Organizar tela") -----------------------------------------------
+$blocksOf = static function (string $html): array {
+    preg_match_all('/class="product-block( is-wide)?" data-block="([^"]*)"/', $html, $m);
+    return array_map(static fn ($id, $wide) => $id . ($wide ? ' (largura total)' : ''), $m[2], $m[1]);
+};
+$layoutPost = static function (Browser $b, string $action, array $fields = []) use ($estId): array {
+    preg_match('/data-form-key="([0-9a-f]{64})"/', $b->request('/admin/product/edit?id=' . $estId)['body'], $m);
+    $r = $b->request($action, $fields + ['form_key' => $m[1] ?? '']);
+    return [$r['status'], json_decode($r['body'], true)['message'] ?? $r['body']];
+};
+$estPage = $admin->request('/admin/product/edit?id=' . $estId)['body'];
+$defaultBlocks = $blocksOf($estPage);
+assertSame(['base', 'categories', 'group:', 'stock'], array_values(array_intersect($defaultBlocks, ['base', 'categories', 'group:', 'stock'])), 'form de produto em blocos, na ordem padrão, com o estoque como bloco');
+assertSame([true, true, true], [str_contains($estPage, '<form id="product-form"'), str_contains($estPage, 'form="product-form" type="text" name="sku"'), str_contains($estPage, '<input form="product-form" type="number" name="attributes[price]"')], 'campos fora do <form> apontam para ele com form=');
+$layout = ['blocks' => [['id' => 'stock', 'wide' => false], ['id' => 'group:', 'wide' => true], ['id' => 'group:Medidas', 'wide' => false]], 'fields' => ['group:' => ['description', 'price']]];
+assertSame([200, 'Layout salvo.'], $layoutPost($admin, '/admin/productlayout/save', ['layout' => json_encode($layout)]), 'layout salvo pelo admin');
+$estPage = $admin->request('/admin/product/edit?id=' . $estId)['body'];
+assertSame(['stock', 'group: (largura total)', 'base', 'categories'], array_slice($blocksOf($estPage), 0, 4), 'form segue o layout salvo; blocos fora dele vão para o fim; grupo de outro conjunto é ignorado');
+assertSame(true, strpos($estPage, 'data-field="description"') < strpos($estPage, 'data-field="price"'), 'ordem dos campos dentro do grupo segue o layout');
+assertSame(['price', 'description'], array_values(array_intersect(array_column((new FormSchemaGenerator())->generate('product', 'selftest_basico')['fields'], 'name'), ['price', 'description'])), 'layout não muda a ordem do conjunto');
+$makeUser('selftest_admin2', ['Iter_Admin::root']);
+$admin2 = new Browser($base);
+$admin2->login('selftest_admin2');
+assertSame($defaultBlocks, $blocksOf($admin2->request('/admin/product/edit?id=' . $estId)['body']), 'outro admin continua com o layout padrão');
+assertSame([200, 'Layout salvo.'], $layoutPost($admin, '/admin/productlayout/save', ['layout' => json_encode(['blocks' => [['id' => 'base']]])]), 'salvar só os blocos da página');
+assertSame(['base', 'stock', 'group: (largura total)'], array_slice($blocksOf($admin->request('/admin/product/edit?id=' . $estId)['body']), 0, 3), 'blocos não enviados mantêm a ordem salva, depois dos enviados');
+foreach (['não é json', json_encode(['blocks' => [['id' => '<script>']]]), json_encode(['blocks' => [['id' => 'base', 'wide' => 'sim']]])] as $bad) {
+    assertSame([422, 'Layout inválido.'], $layoutPost($admin, '/admin/productlayout/save', ['layout' => $bad]), 'layout inválido é recusado: ' . substr($bad, 0, 20));
+}
+assertSame([200, 'Layout padrão restaurado.'], $layoutPost($admin, '/admin/productlayout/reset'), 'restaurar layout padrão');
+assertSame($defaultBlocks, $blocksOf($admin->request('/admin/product/edit?id=' . $estId)['body']), 'depois de restaurar, volta a ordem padrão');
+preg_match('/name="form_key" value="([0-9a-f]{64})"/', $dash->request('/admin/auth/password')['body'], $m);
+assertSame(403, $dash->request('/admin/productlayout/save', ['form_key' => $m[1] ?? '', 'layout' => '{"blocks":[]}'])['status'], 'perfil sem Produtos recebe 403 ao salvar layout');
+$makeUser('selftest_produtos', ['Iter_Catalog::product', 'Iter_Inventory::stock']);
+$editor = new Browser($base);
+$editor->login('selftest_produtos');
+$page = $editor->request('/admin/product/edit?id=' . $estId);
+assertSame([200, false, $defaultBlocks], [$page['status'], str_contains($page['body'], 'data-layout-toggle'), $blocksOf($page['body'])], 'perfil só com Produtos não vê "Organizar tela" e usa o layout padrão');
+assertSame([403, 403], [$layoutPost($editor, '/admin/productlayout/save', ['layout' => '{"blocks":[]}'])[0], $layoutPost($editor, '/admin/productlayout/reset')[0]], 'perfil só com Produtos recebe 403 ao salvar ou restaurar layout');
+
 // --- catalog: categories -----------------------------------------------------------------------------
 $categoryRow = static fn (string $urlKey) => $pdo->query("SELECT * FROM catalog_category WHERE url_key = '{$urlKey}'")->fetch(PDO::FETCH_ASSOC);
 $saveCategory = static fn (array $fields) => $admin->submit('/admin/category/create', '/admin/category/save', $fields + ['is_active' => '1'])[1];

@@ -254,11 +254,13 @@ a {
 }
 
 /* Form — used by admin CRUD pages (e.g. admin user) */
-.admin-dashboard form p {
+.admin-dashboard form p,
+.catalog-product-form p {
   margin: 0 0 var(--spacing-16);
 }
 
-.admin-dashboard form label {
+.admin-dashboard form label,
+.catalog-product-form label {
   display: block;
   font-size: 12px;
   letter-spacing: 0.4px;
@@ -269,7 +271,12 @@ a {
 .admin-dashboard form input[type="email"],
 .admin-dashboard form input[type="password"],
 .admin-dashboard form input[type="number"],
-.admin-dashboard form select {
+.admin-dashboard form select,
+.catalog-product-form input[type="text"],
+.catalog-product-form input[type="email"],
+.catalog-product-form input[type="password"],
+.catalog-product-form input[type="number"],
+.catalog-product-form select {
   width: 100%;
   max-width: 360px;
   margin-top: 4px;
@@ -281,20 +288,23 @@ a {
   font-size: 14px;
 }
 
-.admin-dashboard form fieldset {
+.admin-dashboard form fieldset,
+.catalog-product-form fieldset {
   border: 1px solid var(--color-pebble);
   padding: 12px 16px;
   margin: 0 0 16px;
 }
 
-.admin-dashboard form legend {
+.admin-dashboard form legend,
+.catalog-product-form legend {
   font-size: 12px;
   letter-spacing: 0.4px;
   color: var(--color-stone);
   padding: 0 6px;
 }
 
-.admin-dashboard form button {
+.admin-dashboard form button,
+.catalog-product-form button {
   border: 1px solid var(--color-ink);
   background: none;
   color: var(--color-ink);
@@ -304,9 +314,79 @@ a {
   cursor: pointer;
 }
 
-.admin-dashboard form button:hover {
+.admin-dashboard form button:hover,
+.catalog-product-form button:hover {
   background: var(--color-ink);
   color: var(--color-paper);
+}
+
+/* Product form: blocks in a grid as wide as the page; each admin arranges their own ("Organizar tela") */
+.product-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  gap: var(--spacing-16);
+  align-items: start;
+}
+
+.product-block.is-wide {
+  grid-column: 1 / -1;
+}
+
+.product-block > fieldset,
+.product-block > section {
+  margin: 0;
+}
+
+.product-layout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin-bottom: var(--spacing-16);
+  font-size: 13px;
+}
+
+.product-layout-bar {
+  display: none;
+}
+
+.product-layout.is-arranging .product-layout-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--color-stone);
+  cursor: move;
+}
+
+.product-layout.is-arranging .product-layout-bar span {
+  flex: 1;
+}
+
+.product-layout.is-arranging .product-layout-bar button {
+  padding: 2px 8px;
+}
+
+.product-layout.is-arranging [data-block],
+.product-layout.is-arranging [data-field] {
+  outline: 1px dashed var(--color-pebble);
+  outline-offset: 2px;
+  background: var(--color-paper);
+}
+
+.product-layout.is-arranging [data-field] {
+  margin-bottom: 8px;
+  padding: 4px;
+}
+
+/* while arranging, the fields are only moved, not filled */
+.product-layout.is-arranging :is(input, select, textarea, a) {
+  pointer-events: none;
+}
+
+.product-layout .is-dragging {
+  opacity: 0.4;
 }
 
 .admin-role-permissions {
