@@ -229,6 +229,8 @@ for ($i = 0; $i < 50 && @file_get_contents($base . '/admin/auth/login') === fals
     usleep(100_000);
 }
 
+assertSame($pdo, Connection::get()->connect(), 'connect() devolve sempre a mesma conexão');
+
 // --- login, CSRF, ACL ------------------------------------------------------------
 $guest = new Browser($base);
 assertSame('/admin/auth/login', $guest->request('/admin/index')['location'], 'sem login, /admin redireciona para o login');
@@ -940,6 +942,7 @@ $txt = sys_get_temp_dir() . '/selftest_fake.png';
 file_put_contents($txt, '<?php echo 1;');
 $logoOf = static function (?int $website = null): string {
     Config::save([]); // saved over HTTP: drop this process's cache
+    clearstatcache(); // the server deleted files: is_file() here must not answer from PHP's stat cache
     return (string) ($website ? Config::websiteValue('store/info/logo', $website) : Config::get('store/info/logo'));
 };
 [, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['store/info/logo' => new CURLFile($txt, 'image/png', 'logo.png')]]);

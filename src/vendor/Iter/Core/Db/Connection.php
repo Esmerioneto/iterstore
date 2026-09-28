@@ -8,12 +8,19 @@ class Connection
 {
     private static ?Connection $conn = null;
 
+    // one PDO per request, so every caller shares the same session and transaction
+    private ?\PDO $pdo = null;
+
     protected function __construct()
     {
     }
 
     public function connect(): \PDO
     {
+        if ($this->pdo !== null) {
+            return $this->pdo;
+        }
+
         $params = parse_ini_file(ETC . 'database.ini');
 
         $conStr = sprintf(
@@ -40,7 +47,7 @@ class Connection
         // NOW()/CURRENT_TIMESTAMP must match PHP's date(), both land in the same columns
         $pdo->exec("SET TIME ZONE '" . date_default_timezone_get() . "'");
 
-        return $pdo;
+        return $this->pdo = $pdo;
     }
 
     public static function get(): Connection
