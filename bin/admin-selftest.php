@@ -169,6 +169,11 @@ $purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTempla
     foreach ($savedConfig as $row) {
         $restore->execute($row);
     }
+    // images uploaded in Configurações that no setting points to anymore
+    $inUse = array_column($savedConfig, 'value');
+    foreach (glob(Config::mediaDir() . 'config/*') ?: [] as $file) {
+        in_array('config/' . basename($file), $inUse, true) || unlink($file);
+    }
 };
 register_shutdown_function(static function () use ($purge, $server): void {
     proc_terminate($server);
@@ -915,6 +920,47 @@ Config::save([]);
 assertSame([null, 'Selftest Loja'], [Config::websiteValue('mail/from_name', $websiteId), Config::get('mail/from_name', $websiteId)], '"Usar o valor padrão" apaga o valor do website');
 [, $msgs] = $admin->submit($scoped, '/admin/mailtest/send', ['website_id' => $websiteId]);
 assertSame(['E-mail de teste enviado para selftest_admin@selftest.local.'], $msgs, 'e-mail de teste pelas Configurações');
+
+// store info: logo upload, address, text
+$png = sys_get_temp_dir() . '/selftest_logo.png';
+file_put_contents($png, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='));
+$txt = sys_get_temp_dir() . '/selftest_fake.png';
+file_put_contents($txt, '<?php echo 1;');
+$logoOf = static function (?int $website = null): string {
+    Config::save([]); // saved over HTTP: drop this process's cache
+    return (string) ($website ? Config::websiteValue('store/info/logo', $website) : Config::get('store/info/logo'));
+};
+[, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['store/info/logo' => new CURLFile($txt, 'image/png', 'logo.png')]]);
+assertSame([['"Logo da loja (PNG, JPG ou WEBP, até 2 MB)": envie uma imagem PNG, JPG ou WEBP.'], ''], [$msgs, $logoOf()], 'logo: arquivo que não é imagem é recusado, mesmo com nome .png');
+[, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => [
+    'store/info/logo' => new CURLFile($png, 'image/png', 'logo.png'),
+    'store/info/name' => 'Selftest Loja',
+    'store/address/street' => 'Rua <Teste>',
+    'store/info/details' => "Seg a sex\n9h às 18h",
+]]);
+$defaultLogo = $logoOf();
+assertSame([['Configurações salvas.'], true, true], [$msgs, (bool) preg_match('#^config/[0-9a-f]{32}\.png$#', $defaultLogo), is_file(Config::mediaDir() . $defaultLogo)], 'logo enviada é gravada em public/media/config com nome aleatório');
+$page = $admin->request('/admin/config/index')['body'];
+assertSame([true, true, true, "Seg a sex\n9h às 18h"], [
+    str_contains($page, 'src="/media/' . $defaultLogo . '"'),
+    str_contains($page, 'Rua &lt;Teste&gt;'),
+    str_contains($page, 'enctype="multipart/form-data"'),
+    Config::get('store/info/details'),
+], 'logo, endereço e informações aparecem na tela e no Config::get');
+$scoped = '/admin/config/index?website=' . $websiteId;
+assertSame($defaultLogo, Config::get('store/info/logo', $websiteId), 'website sem logo própria usa a do padrão');
+$admin->submit($scoped, '/admin/config/save', ['website_id' => $websiteId, 'config' => ['store/info/logo' => new CURLFile($png, 'image/png', 'w.png')]]);
+$websiteLogo = $logoOf($websiteId);
+assertSame([true, $defaultLogo], [$websiteLogo !== '' && $websiteLogo !== $defaultLogo, Config::get('store/info/logo')], 'website tem logo própria sem mexer na do padrão');
+$admin->submit($scoped, '/admin/config/save', ['website_id' => $websiteId, 'config_default' => ['store/info/logo' => '1']]);
+assertSame(['', false, true], [$logoOf($websiteId), is_file(Config::mediaDir() . $websiteLogo), is_file(Config::mediaDir() . $defaultLogo)], '"Usar o valor padrão" apaga a logo do website e o arquivo dela');
+$admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['store/info/logo' => new CURLFile($png, 'image/png', 'nova.png')]]);
+$newLogo = $logoOf();
+assertSame([true, false], [is_file(Config::mediaDir() . $newLogo), is_file(Config::mediaDir() . $defaultLogo)], 'trocar a logo apaga o arquivo antigo');
+$admin->submit('/admin/config/index', '/admin/config/save', ['config_clear' => ['store/info/logo' => '1']]);
+assertSame(['', false], [$logoOf(), is_file(Config::mediaDir() . $newLogo)], '"Remover a imagem" apaga a logo');
+unlink($png);
+unlink($txt);
 
 // --- modules on/off -------------------------------------------------------------------------------
 $toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];

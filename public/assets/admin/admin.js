@@ -253,3 +253,14 @@ document.addEventListener('change', function (event) {
     event.target.form.submit();
   }
 });
+
+// Configurações in a website scope: typing in a field (or choosing a file) stops it from using the default value
+document.addEventListener('input', function (event) {
+  var name = event.target.name || '';
+  var useDefault = name.indexOf('config[') === 0 && event.target.closest('p')
+    ? event.target.closest('p').querySelector('input[name^="config_default["]')
+    : null;
+  if (useDefault) {
+    useDefault.checked = false;
+  }
+});

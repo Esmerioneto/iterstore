@@ -41,6 +41,8 @@ class Config
         $values = [];
         $defaults = [];
         $errors = [];
+        $uploads = []; // path => [tmp file, extension], moved only when nothing failed
+        $oldFiles = []; // this scope's replaced/removed images, deleted after saving
 
         // only declared paths are saved (in a website, only "scope": "website" ones); anything else posted is ignored
         foreach (SystemConfig::fields() as $path => $field) {
@@ -50,6 +52,25 @@ class Config
             }
             if ($websiteId && !empty($useDefault[$path])) {
                 $defaults[] = $path;
+                continue;
+            }
+            if ($type === 'image') {
+                $own = $websiteId ? SystemConfig::websiteValue($path, $websiteId) : SystemConfig::get($path);
+                $file = self::uploadedFile($path);
+                if ($file !== null) {
+                    $mime = $file['error'] === UPLOAD_ERR_OK && is_uploaded_file($file['tmp_name']) ? mime_content_type($file['tmp_name']) : false;
+                    if ($file['error'] === UPLOAD_ERR_INI_SIZE || $file['error'] === UPLOAD_ERR_FORM_SIZE || $file['size'] > SystemConfig::IMAGE_MAX_BYTES) {
+                        $errors[] = sprintf('"%s": o arquivo passa de 2 MB.', $field['label']);
+                    } elseif (!isset(SystemConfig::IMAGE_TYPES[$mime])) {
+                        $errors[] = sprintf('"%s": envie uma imagem PNG, JPG ou WEBP.', $field['label']);
+                    } else {
+                        $uploads[$path] = [$file['tmp_name'], SystemConfig::IMAGE_TYPES[$mime]];
+                        $oldFiles[] = $own;
+                    }
+                } elseif (!empty($clear[$path]) && (string) $own !== '') {
+                    $values[$path] = '';
+                    $oldFiles[] = $own;
+                }
                 continue;
             }
             if ($type === 'password' && !empty($clear[$path])) {
@@ -115,9 +136,25 @@ class Config
             // typed passwords aren't kept in the session
             $_SESSION['iter_old_input'] = array_filter($input, static fn ($v, $path) => is_string($v) && (SystemConfig::fields()[$path]['type'] ?? '') !== 'password', ARRAY_FILTER_USE_BOTH);
         } else {
+            foreach ($uploads as $path => [$tmp, $ext]) {
+                // random name: the upload never picks its own path or extension
+                $values[$path] = 'config/' . bin2hex(random_bytes(16)) . '.' . $ext;
+                is_dir(SystemConfig::mediaDir() . 'config') || mkdir(SystemConfig::mediaDir() . 'config', 0775, true);
+                move_uploaded_file($tmp, SystemConfig::mediaDir() . $values[$path]);
+            }
+            foreach ($defaults as $path) {
+                if ((SystemConfig::fields()[$path]['type'] ?? '') === 'image') {
+                    $oldFiles[] = SystemConfig::websiteValue($path, $websiteId);
+                }
+            }
             SystemConfig::save($values, $websiteId ?: null);
             if ($defaults) {
                 SystemConfig::clear($defaults, $websiteId);
+            }
+            foreach ($oldFiles as $old) {
+                if (preg_match('#^config/[0-9a-f]{32}\.(png|jpg|webp)$#', (string) $old)) {
+                    @unlink(SystemConfig::mediaDir() . $old);
+                }
             }
             Messages::addSuccess('Configurações salvas.');
         }
@@ -146,5 +183,16 @@ class Config
 
         header('Location: /admin/config/index');
         exit;
+    }
+
+    /** config[<path>] file from the multipart form; null when none was chosen */
+    private static function uploadedFile(string $path): ?array
+    {
+        $files = $_FILES['config'] ?? null;
+        if (!is_array($files) || !isset($files['error'][$path]) || !is_int($files['error'][$path]) || $files['error'][$path] === UPLOAD_ERR_NO_FILE) {
+            return null;
+        }
+
+        return ['tmp_name' => (string) $files['tmp_name'][$path], 'size' => (int) $files['size'][$path], 'error' => $files['error'][$path]];
     }
 }
