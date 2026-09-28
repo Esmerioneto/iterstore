@@ -15,7 +15,7 @@ class Product extends AbstractDb
     }
 
     /**
-     * @param array{attribute_set_id?: string, is_active?: string, q?: string} $filters
+     * @param array{attribute_set_id?: string, is_active?: string, q?: string, category_id?: string} $filters category_id includes its subcategories
      * @return array{items: array<int, array<string, mixed>>, total: int} rows + set_label, price
      */
     public function search(array $filters, int $page, int $perPage): array
@@ -29,6 +29,15 @@ class Product extends AbstractDb
         if (in_array($filters['is_active'] ?? '', ['0', '1'], true)) {
             $where[] = 'p.is_active = :is_active';
             $params['is_active'] = (int) $filters['is_active'];
+        }
+        if (($filters['category_id'] ?? '') !== '') {
+            $where[] = 'p.product_id IN (
+                WITH RECURSIVE sub AS (
+                    SELECT category_id FROM catalog_category WHERE category_id = :category_id
+                    UNION ALL
+                    SELECT c.category_id FROM catalog_category c JOIN sub ON c.parent_id = sub.category_id
+                ) SELECT cp.product_id FROM catalog_category_product cp JOIN sub ON sub.category_id = cp.category_id)';
+            $params['category_id'] = (int) $filters['category_id'];
         }
         if (($filters['q'] ?? '') !== '') {
             $where[] = '(p.sku ILIKE :q OR p.name ILIKE :q)';

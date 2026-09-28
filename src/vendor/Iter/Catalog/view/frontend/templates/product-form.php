@@ -33,6 +33,17 @@
         <p>
             <label><input type="checkbox" name="is_active" value="1" <?= $values['is_active'] ? 'checked' : '' ?>> Ativo</label>
         </p>
+<?php if ($categories): ?>
+        <fieldset>
+            <legend>Categorias</legend>
+    <?php foreach ($categories as $category): ?>
+            <label style="display:block; margin-left: <?= (int) $category['level'] * 1.5 ?>em">
+                <input type="checkbox" name="category_ids[]" value="<?= (int) $category['category_id'] ?>" <?= in_array((int) $category['category_id'], $category_ids, true) ? 'checked' : '' ?>>
+                <?= htmlspecialchars((string) $category['name']) ?><?= $category['is_active'] ? '' : ' <small>(inativa)</small>' ?>
+            </label>
+    <?php endforeach; ?>
+        </fieldset>
+<?php endif; ?>
 <?php
 // the EAV fields, rendered by the eav module's template (so a module override of it applies here too)
 (static function (array $schema, array $values): void {

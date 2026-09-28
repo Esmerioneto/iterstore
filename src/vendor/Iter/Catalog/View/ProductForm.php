@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Catalog\View;
 
+use Iter\Catalog\Model\Category;
 use Iter\Catalog\Model\Product;
 use Iter\Catalog\Model\ProductService;
 use Iter\Core\View\ViewComponentInterface;
@@ -39,6 +40,8 @@ class ProductForm implements ViewComponentInterface
             'values' => array_merge(['sku' => '', 'name' => '', 'is_active' => 1], $product ?? [], $old ?? []),
             'sets' => $sets,
             'attribute_set_id' => $setId,
+            'categories' => (new Category())->getResource()->getTree(),
+            'category_ids' => array_map('intval', (array) ($old['category_ids'] ?? ($id ? (new ProductService())->getCategoryIds($id) : []))),
             'schema' => (new FormSchemaGenerator())->generate(Product::ENTITY_TYPE, $sets[$setId]['code']),
             // typed values over the stored ones; file fields keep showing the stored file
             'attribute_values' => array_merge(

@@ -1,1 +1,4 @@
-[{"id":"Iter_Catalog::product","parent":"Iter_Admin::root","title":"Produtos"}]
+[
+    { "id": "Iter_Catalog::product", "parent": "Iter_Admin::root", "title": "Produtos" },
+    { "id": "Iter_Catalog::category", "parent": "Iter_Admin::root", "title": "Categorias" }
+]

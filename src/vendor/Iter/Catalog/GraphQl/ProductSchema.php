@@ -9,6 +9,7 @@ use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use Iter\Admin\Auth;
+use Iter\Catalog\Model\Category;
 use Iter\Catalog\Model\Product;
 use Iter\Catalog\Model\ProductService;
 use Iter\Eav\Form\FormSchemaGenerator;
@@ -26,6 +27,9 @@ use Iter\Eav\Model\ValueService;
  * Reads are public but only see active products; an admin session with the
  * Produtos resource sees all and can write. Files can't be uploaded here:
  * image attributes are kept as they are.
+ *
+ * Categories are read only here (edited in the admin); a guest sees a category
+ * when it and all its parents are active.
  */
 class ProductSchema
 {
@@ -64,6 +68,58 @@ class ProductSchema
 
             return $optionLabels[$id] ??= array_column((new Attribute())->getResource()->getOptions($id), 'label', 'value');
         };
+        // the category tree, loaded once per request: id => row + children ids
+        $tree = null;
+        $categories = static function () use (&$tree, $isAdmin): array {
+            if ($tree === null) {
+                $tree = [];
+                foreach ((new Category())->getResource()->getTree() as $row) { // parents come before their children
+                    $parent = $row['parent_id'] === null ? null : (int) $row['parent_id'];
+                    if (($parent !== null && !isset($tree[$parent])) || (!$row['is_active'] && !$isAdmin())) {
+                        continue;
+                    }
+                    $tree[(int) $row['category_id']] = $row + ['children' => []];
+                    if ($parent !== null) {
+                        $tree[$parent]['children'][] = (int) $row['category_id'];
+                    }
+                }
+            }
+
+            return $tree;
+        };
+        $productList = null; // ProductList, set below; Category.products uses it
+        $categoryType = new ObjectType([
+            'name' => 'Category',
+            'fields' => static function () use (&$categoryType, &$productList, $categories, $isAdmin): array {
+                return [
+                    'id' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($c) => $c['category_id']],
+                    'name' => Type::nonNull(Type::string()),
+                    'url_key' => Type::nonNull(Type::string()),
+                    'is_active' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => fn ($c) => (bool) $c['is_active']],
+                    'position' => Type::nonNull(Type::int()),
+                    'level' => ['type' => Type::nonNull(Type::int()), 'description' => '0 = categoria principal.'],
+                    'parent_id' => Type::id(),
+                    'children' => [
+                        'type' => Type::nonNull(Type::listOf(Type::nonNull($categoryType))),
+                        'resolve' => static fn ($c) => array_map(static fn ($id) => $categories()[$id], $c['children']),
+                    ],
+                    'products' => [
+                        'type' => Type::nonNull($productList),
+                        'description' => 'Inclui os produtos das subcategorias.',
+                        'args' => [
+                            'page' => ['type' => Type::int(), 'defaultValue' => 1],
+                            'pageSize' => ['type' => Type::int(), 'defaultValue' => 20, 'description' => 'Máximo 100.'],
+                        ],
+                        'resolve' => static fn ($c, array $args) => (new Product())->getResource()->search([
+                            'category_id' => (string) $c['category_id'],
+                            'is_active' => $isAdmin() ? '' : '1',
+                        ], max(1, $args['page']), min(100, max(1, $args['pageSize']))),
+                    ],
+                    'created_at' => Type::nonNull(Type::string()),
+                    'updated_at' => Type::nonNull(Type::string()),
+                ];
+            },
+        ]);
         $attributeType = new ObjectType([
             'name' => 'ProductAttribute',
             'fields' => [
@@ -107,7 +163,19 @@ class ProductSchema
                         return $rows;
                     },
                 ],
+                'categories' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($categoryType))),
+                    // ponytail: one query per product (N+1), capped by pageSize
+                    'resolve' => static fn ($p) => array_values(array_intersect_key($categories(), array_flip($service->getCategoryIds((int) $p['product_id'])))),
+                ],
             ] + $productFields,
+        ]);
+        $productList = new ObjectType([
+            'name' => 'ProductList',
+            'fields' => [
+                'items' => Type::nonNull(Type::listOf(Type::nonNull($productType))),
+                'total' => Type::nonNull(Type::int()),
+            ],
         ]);
         $attributeInput = new InputObjectType([
             'name' => 'ProductAttributeInput',
@@ -144,7 +212,7 @@ class ProductSchema
             'sku' => $args['sku'] ?? $current['sku'] ?? '',
             'name' => $args['name'] ?? $current['name'] ?? '',
             'is_active' => $args['isActive'] ?? $current['is_active'] ?? true,
-        ];
+        ] + (isset($args['categoryIds']) ? ['category_ids' => $args['categoryIds']] : []); // omitted = categories unchanged
 
         return [
             'query' => [
@@ -161,17 +229,30 @@ class ProductSchema
                         return $id === null ? null : $load($id);
                     },
                 ],
+                'categories' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($categoryType))),
+                    'description' => 'As categorias principais; as outras vêm em children.',
+                    'resolve' => static fn () => array_values(array_filter($categories(), static fn ($c) => $c['parent_id'] === null)),
+                ],
+                'category' => [
+                    'type' => $categoryType,
+                    'description' => 'Por id ou por url_key; informe um dos dois.',
+                    'args' => ['id' => Type::id(), 'url_key' => Type::string()],
+                    'resolve' => static function ($root, array $args) use ($categories): ?array {
+                        if (isset($args['id']) === isset($args['url_key'])) {
+                            throw new UserError('Informe id ou url_key.');
+                        }
+                        $id = isset($args['id']) ? (int) $args['id'] : (new Category())->getResource()->findIdByUrlKey($args['url_key']);
+
+                        return $categories()[$id] ?? null;
+                    },
+                ],
                 'products' => [
-                    'type' => Type::nonNull(new ObjectType([
-                        'name' => 'ProductList',
-                        'fields' => [
-                            'items' => Type::nonNull(Type::listOf(Type::nonNull($productType))),
-                            'total' => Type::nonNull(Type::int()),
-                        ],
-                    ])),
+                    'type' => Type::nonNull($productList),
                     'args' => [
                         'search' => ['type' => Type::string(), 'description' => 'Parte do SKU ou do nome.'],
                         'attributeSetId' => Type::id(),
+                        'categoryId' => ['type' => Type::id(), 'description' => 'Inclui as subcategorias.'],
                         'isActive' => ['type' => Type::boolean(), 'description' => 'Só para o admin; fora dele a lista traz apenas produtos ativos.'],
                         'page' => ['type' => Type::int(), 'defaultValue' => 1],
                         'pageSize' => ['type' => Type::int(), 'defaultValue' => 20, 'description' => 'Máximo 100.'],
@@ -181,6 +262,7 @@ class ProductSchema
                         return (new Product())->getResource()->search([
                             'q' => (string) ($args['search'] ?? ''),
                             'attribute_set_id' => (string) ($args['attributeSetId'] ?? ''),
+                            'category_id' => (string) ($args['categoryId'] ?? ''),
                             'is_active' => $active === null ? '' : ($active ? '1' : '0'),
                         ], max(1, $args['page']), min(100, max(1, $args['pageSize'])));
                     },
@@ -195,6 +277,7 @@ class ProductSchema
                         'attributeSetId' => ['type' => Type::id(), 'description' => 'Omitido = conjunto padrão de produto.'],
                         'isActive' => ['type' => Type::boolean(), 'defaultValue' => true],
                         'attributes' => Type::listOf(Type::nonNull($attributeInput)),
+                        'categoryIds' => Type::listOf(Type::nonNull(Type::id())),
                     ],
                     'resolve' => $guard(static function ($root, array $args) use ($service, $data, $attributes): array {
                         $setId = (int) ($args['attributeSetId'] ?? (new AttributeSet())->getResource()->findId(Product::ENTITY_TYPE, null));
@@ -210,6 +293,7 @@ class ProductSchema
                         'name' => Type::string(),
                         'isActive' => Type::boolean(),
                         'attributes' => Type::listOf(Type::nonNull($attributeInput)),
+                        'categoryIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Substitui as categorias; [] tira de todas.'],
                     ],
                     'resolve' => $guard(static function ($root, array $args) use ($service, $data, $attributes, $optionsOf): array {
                         $id = (int) $args['id'];
