@@ -68,6 +68,10 @@ class Attribute
         foreach (['is_required', 'is_visible', 'is_searchable', 'is_filterable', 'is_sortable'] as $flag) {
             $data[$flag] = !empty($_POST[$flag]) ? 1 : 0;
         }
+        // absent when the form disabled the options block (input type without options)
+        if (isset($_POST['options']) && is_array($_POST['options'])) {
+            $data['options'] = array_values($_POST['options']);
+        }
         $id = !empty($_POST['attribute_id']) ? (int) $_POST['attribute_id'] : null;
 
         try {

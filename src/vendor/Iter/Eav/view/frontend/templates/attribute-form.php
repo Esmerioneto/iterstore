@@ -45,9 +45,9 @@ $locked = static fn (string $field) => $is_system && !in_array($field, ['label',
         </p>
         <p>
             <label>Tipo de campo<br>
-                <select name="input_type" required <?= $locked('input_type') ?>>
+                <select name="input_type" required data-options-box="attribute-options" <?= $locked('input_type') ?>>
 <?php foreach ($input_types as $code => $type): ?>
-                    <option value="<?= htmlspecialchars($code) ?>" <?= (string) $values['input_type'] === $code ? 'selected' : '' ?>><?= htmlspecialchars($type['label']) ?></option>
+                    <option value="<?= htmlspecialchars($code) ?>" data-supports-options="<?= $type['supports_options'] ? 1 : 0 ?>" <?= (string) $values['input_type'] === $code ? 'selected' : '' ?>><?= htmlspecialchars($type['label']) ?></option>
 <?php endforeach; ?>
                 </select>
             </label>
@@ -68,6 +68,25 @@ $locked = static fn (string $field) => $is_system && !in_array($field, ['label',
             </label>
         </p>
 <?php endforeach; ?>
+        <fieldset id="attribute-options">
+            <legend>Opções</legend>
+            <p><small>O valor é o que fica gravado e não deve mudar depois de usado; o nome pode ser alterado à vontade. Linhas em branco são ignoradas.</small></p>
+            <table>
+                <thead>
+                    <tr><th>Valor</th><th>Nome</th><th>Posição</th><th>Padrão</th></tr>
+                </thead>
+                <tbody>
+<?php foreach (array_values($options) as $i => $option): ?>
+                    <tr>
+                        <td><input type="text" name="options[<?= $i ?>][value]" maxlength="255" value="<?= htmlspecialchars((string) $option['value']) ?>" aria-label="Valor"></td>
+                        <td><input type="text" name="options[<?= $i ?>][label]" maxlength="255" value="<?= htmlspecialchars((string) $option['label']) ?>" aria-label="Nome"></td>
+                        <td><input type="text" inputmode="numeric" name="options[<?= $i ?>][sort_order]" size="4" value="<?= htmlspecialchars((string) $option['sort_order']) ?>" aria-label="Posição"></td>
+                        <td><input type="checkbox" name="options[<?= $i ?>][is_default]" value="1" <?= !empty($option['is_default']) ? 'checked' : '' ?> aria-label="Padrão"></td>
+                    </tr>
+<?php endforeach; ?>
+                </tbody>
+            </table>
+        </fieldset>
         <p>
             <label>Posição<br>
                 <input type="text" inputmode="numeric" name="sort_order" value="<?= (int) $values['sort_order'] ?>">

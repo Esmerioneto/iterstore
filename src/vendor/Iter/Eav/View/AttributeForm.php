@@ -7,6 +7,7 @@ namespace Iter\Eav\View;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Eav\InputTypeRegistry;
 use Iter\Eav\Model\Attribute;
+use Iter\Eav\Model\AttributeService;
 
 class AttributeForm implements ViewComponentInterface
 {
@@ -33,6 +34,14 @@ class AttributeForm implements ViewComponentInterface
         $old = $_SESSION['iter_old_input'] ?? null;
         unset($_SESSION['iter_old_input']);
 
+        $options = isset($old['options'])
+            ? array_filter($old['options'], static fn (array $o) => trim($o['value'] ?? '') !== '' || trim($o['label'] ?? '') !== '')
+            : ($attribute ? (new AttributeService())->getOptions($id) : []);
+        unset($old['options']);
+        // ponytail: spare blank rows instead of an "add row" script; save again for more
+        $blank = ['value' => '', 'label' => '', 'sort_order' => '', 'is_default' => 0];
+        $options = array_merge($options, array_fill(0, 3, $blank));
+
         return [
             'is_edit' => $attribute !== null,
             'is_system' => (int) ($attribute['is_system'] ?? 0) === 1,
@@ -48,6 +57,7 @@ class AttributeForm implements ViewComponentInterface
                 // immutable after creation: old input can't blank them out
                 array_intersect_key($attribute ?? [], array_flip(['entity_type', 'code', 'storage_type']))
             ),
+            'options' => $options,
             'entity_types' => $entityTypes,
             'input_types' => InputTypeRegistry::all(),
         ];

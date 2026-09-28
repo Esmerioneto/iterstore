@@ -294,19 +294,52 @@ assertSame('ATTRIBUTE_SYSTEM_PROTECTED', $throws(static fn () => $service->updat
 $service->update($sysId, ['label' => 'Sys novo', 'is_required' => 1]);
 assertSame(['Sys novo', 0], [$attributeRow('selftest_sys')['label'], $attributeRow('selftest_sys')['is_required']], 'sistema: nome muda, obrigatório não');
 $sysForm = $admin->request('/admin/attribute/edit?id=' . $sysId)['body'];
-assertSame([true, true], [str_contains($sysForm, 'Atributo do sistema'), str_contains($sysForm, 'name="input_type" required disabled')], 'form de atributo do sistema trava o tipo');
+assertSame([true, true], [str_contains($sysForm, 'Atributo do sistema'), (bool) preg_match('/name="input_type"[^>]* disabled/', $sysForm)], 'form de atributo do sistema trava o tipo');
 assertSame(200, $admin->request('/admin/attribute/create')['status'], 'form de novo atributo abre');
 $colorId = (int) $attributeRow('selftest_color')['attribute_id'];
 assertSame('INPUT_TYPE_CHANGE_BLOCKED', $throws(static fn () => $service->update($colorId, ['label' => 'C', 'input_type' => 'integer'])), 'troca de tipo que muda o armazenamento é recusada');
 $service->update($colorId, ['label' => 'C', 'input_type' => 'radio']);
 assertSame('radio', $attributeRow('selftest_color')['input_type'], 'troca para tipo com o mesmo armazenamento é aceita');
 
+// options
+$optionsOf = static fn (string $code) => $pdo->query("SELECT o.value, o.label, o.sort_order, o.is_default FROM eav_attribute_option o
+    JOIN eav_attribute a ON a.attribute_id = o.attribute_id WHERE a.code = '{$code}' ORDER BY o.sort_order")->fetchAll(PDO::FETCH_NUM);
+$blankRow = ['value' => '', 'label' => '', 'sort_order' => ''];
+assertSame(['Atributo criado com sucesso.'], $saveAttribute(['code' => 'selftest_size', 'input_type' => 'select', 'options' => [
+    ['value' => 'p', 'label' => 'Pequeno', 'sort_order' => ''], ['value' => 'g', 'label' => '', 'sort_order' => '', 'is_default' => '1'], $blankRow,
+]]), 'select criado com opções');
+assertSame([['p', 'Pequeno', 10, 0], ['g', 'g', 20, 1]], $optionsOf('selftest_size'), 'opções gravadas; linha vazia ignorada, nome vazio usa o valor');
+assertSame(["A opção 'x' aparece mais de uma vez."], $saveAttribute(['code' => 'selftest_dup', 'input_type' => 'select', 'options' => [['value' => 'x'], ['value' => 'x']]]), 'valor de opção repetido é recusado');
+assertSame(["Informe o valor da opção 'Sem valor'."], $saveAttribute(['code' => 'selftest_noval', 'input_type' => 'radio', 'options' => [['value' => '', 'label' => 'Sem valor']]]), 'opção sem valor é recusada');
+assertSame(["O tipo 'Seleção' aceita só uma opção padrão."], $saveAttribute(['code' => 'selftest_2def', 'input_type' => 'select', 'options' => [['value' => 'a', 'is_default' => '1'], ['value' => 'b', 'is_default' => '1']]]), 'seleção simples aceita só uma opção padrão');
+assertSame(['Atributo criado com sucesso.'], $saveAttribute(['code' => 'selftest_multi', 'input_type' => 'multiselect', 'options' => [['value' => 'a', 'is_default' => '1'], ['value' => 'b', 'is_default' => '1']]]), 'múltipla seleção aceita várias opções padrão');
+$saveAttribute(['code' => 'selftest_texto', 'options' => [['value' => 'ignorada']]]);
+assertSame([], $optionsOf('selftest_texto'), 'tipo sem opções não grava opções');
+
+$sizeId = (int) $attributeRow('selftest_size')['attribute_id'];
+$optionId = static fn (string $value) => $pdo->query("SELECT option_id FROM eav_attribute_option WHERE attribute_id = {$sizeId} AND value = '{$value}'")->fetchColumn();
+$pId = $optionId('p');
+assertSame(true, str_contains($admin->request('/admin/attribute/edit?id=' . $sizeId)['body'], 'value="Pequeno"'), 'form de edição mostra as opções');
+[, $msgs] = $admin->submit('/admin/attribute/edit?id=' . $sizeId, '/admin/attribute/save', [
+    'attribute_id' => $sizeId, 'label' => 'Tamanho', 'input_type' => 'select', 'options' => [['value' => 'p', 'label' => 'P', 'sort_order' => '5'], $blankRow],
+]);
+assertSame(['Atributo atualizado com sucesso.'], $msgs, 'atributo com opções atualizado');
+assertSame([[['p', 'P', 5, 0]], $pId], [$optionsOf('selftest_size'), $optionId('p')], 'opção removida some; a mantida muda de nome e conserva o id');
+$service->update($sizeId, ['label' => 'Tamanho', 'input_type' => 'text']);
+assertSame([], $optionsOf('selftest_size'), 'mudar para tipo sem opções remove as opções');
+
+$sysSelect = (int) $service->create(['entity_type' => 'product', 'code' => 'selftest_sys_sel', 'label' => 'S', 'input_type' => 'select',
+    'options' => [['value' => 'a'], ['value' => 'b']]], true)->getId();
+assertSame('ATTRIBUTE_SYSTEM_PROTECTED', $throws(static fn () => $service->update($sysSelect, ['label' => 'S', 'options' => [['value' => 'a']]])), 'sistema: opção existente não pode ser removida');
+$service->update($sysSelect, ['label' => 'S', 'options' => [['value' => 'a', 'label' => 'A'], ['value' => 'b'], ['value' => 'c']]]);
+assertSame(['A', 'b', 'c'], array_column($optionsOf('selftest_sys_sel'), 1), 'sistema: opção nova e nome alterado são aceitos');
+
 for ($i = 1; $i <= 21; $i++) {
     $service->create(['entity_type' => 'category', 'code' => sprintf('selftest_p%02d', $i), 'label' => 'P', 'input_type' => 'text']);
 }
 $rows = static fn (string $query) => substr_count($admin->request('/admin/attribute/index?' . $query)['body'], '/admin/attribute/edit?id=');
 assertSame([20, 1], [$rows('q=selftest_p'), $rows('q=selftest_p&page=2')], 'lista pagina de 20 em 20');
-assertSame(1, $rows('q=selftest&is_system=1'), 'filtro de atributos do sistema');
+assertSame(2, $rows('q=selftest&is_system=1'), 'filtro de atributos do sistema');
 [, $msgs] = $admin->submit('/admin/attribute/index', '/admin/attribute/delete', ['attribute_id' => $colorId]);
 assertSame(['Atributo removido com sucesso.'], $msgs, 'atributo personalizado é removido');
 
