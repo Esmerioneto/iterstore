@@ -319,3 +319,51 @@ document.addEventListener('input', function (event) {
       status.textContent = 'Não foi possível buscar o CEP agora. Preencha o endereço.';
     });
 });
+
+// input masks: [data-mask="cep|cpf_cnpj|phone|email"] are formatted while typing (and on load);
+// the pattern also makes the browser refuse an incomplete value
+var masks = {
+  cep: { max: 8, format: function () { return '00000-000'; }, pattern: '\\d{5}-\\d{3}' },
+  cpf_cnpj: {
+    max: 14,
+    format: function (digits) { return digits.length > 11 ? '00.000.000/0000-00' : '000.000.000-00'; },
+    pattern: '\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}|\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}',
+    title: 'CPF (000.000.000-00) ou CNPJ (00.000.000/0000-00)'
+  },
+  phone: {
+    max: 11,
+    format: function (digits) { return digits.length > 10 ? '(00) 00000-0000' : '(00) 0000-0000'; },
+    pattern: '\\(\\d{2}\\) \\d{4,5}-\\d{4}',
+    title: 'Telefone com DDD: (00) 0000-0000 ou (00) 00000-0000'
+  }
+};
+function applyMask(input) {
+  if (input.dataset.mask === 'email') {
+    input.value = input.value.replace(/\s/g, '').toLowerCase();
+    return;
+  }
+  var mask = masks[input.dataset.mask];
+  var digits = input.value.replace(/\D/g, '').slice(0, mask.max);
+  var format = mask.format(digits);
+  var value = '';
+  for (var i = 0, d = 0; i < format.length && d < digits.length; i++) {
+    value += format[i] === '0' ? digits[d++] : format[i];
+  }
+  input.value = value;
+}
+document.querySelectorAll('input[data-mask]').forEach(function (input) {
+  var mask = masks[input.dataset.mask];
+  if (mask) {
+    input.inputMode = 'numeric';
+    input.pattern = mask.pattern;
+    input.title = mask.title || '';
+  }
+  if (input.value !== '') {
+    applyMask(input);
+  }
+});
+document.addEventListener('input', function (event) {
+  if (event.target.matches('input[data-mask]')) {
+    applyMask(event.target);
+  }
+});
