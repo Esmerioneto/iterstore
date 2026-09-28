@@ -21,7 +21,7 @@ use Iter\Eav\Model\ValueService;
 /**
  * Product fields for Iter\Core\GraphQl\Schema. EAV values go as a list of
  * {code, value | values}: single-value types use value, multiple ones (multiselect)
- * values, and file types (image) also give their url.
+ * values; option types also give the options' labels, file types (image) their url.
  *
  * Reads are public but only see active products; an admin session with the
  * Produtos resource sees all and can write. Files can't be uploaded here:
@@ -42,13 +42,33 @@ class ProductSchema
             return $resolve(...$args);
         };
 
-        $inputTypes = null; // code => input type, loaded once per request
+        // input type and options by attribute code, loaded once per request
+        $attributeRows = null;
+        $optionLabels = [];
+        $typeOf = static function (string $code) use (&$attributeRows): ?array {
+            $resource = (new Attribute())->getResource();
+            $attributeRows ??= array_column($resource->getByEntityType((int) $resource->getEntityTypes()[Product::ENTITY_TYPE]['entity_type_id']), null, 'code');
+            $inputType = $attributeRows[$code]['input_type'] ?? '';
+
+            return InputTypeRegistry::has($inputType) ? InputTypeRegistry::get($inputType) : null;
+        };
+        /** @return ?array value => label, null when the attribute has no options */
+        $optionsOf = static function (string $code) use ($typeOf, &$attributeRows, &$optionLabels): ?array {
+            if (!($typeOf($code)['supports_options'] ?? false)) {
+                return null;
+            }
+            $id = (int) $attributeRows[$code]['attribute_id'];
+
+            return $optionLabels[$id] ??= array_column((new Attribute())->getResource()->getOptions($id), 'label', 'value');
+        };
         $attributeType = new ObjectType([
             'name' => 'ProductAttribute',
             'fields' => [
                 'code' => Type::nonNull(Type::string()),
                 'value' => ['type' => Type::string(), 'description' => 'Valor de atributos de valor único (Sim/Não = "1"/"0").'],
                 'values' => ['type' => Type::listOf(Type::nonNull(Type::string())), 'description' => 'Valores de atributos de múltipla seleção.'],
+                'option_label' => ['type' => Type::string(), 'description' => 'Rótulo da opção escolhida, em atributos de opções (Seleção, Opções).'],
+                'option_labels' => ['type' => Type::listOf(Type::nonNull(Type::string())), 'description' => 'Rótulos das opções escolhidas, na mesma ordem de values (Múltipla seleção).'],
                 'url' => ['type' => Type::string(), 'description' => 'URL do arquivo, em atributos de arquivo (imagem).'],
             ],
         ]);
@@ -65,20 +85,19 @@ class ProductSchema
                 'attributes' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($attributeType))),
                     // ponytail: one values query per product (N+1), capped by pageSize; batch if lists get slow
-                    'resolve' => static function ($p) use ($service, &$inputTypes): array {
-                        $inputTypes ??= array_column(
-                            (new Attribute())->getResource()->getByEntityType((int) (new Attribute())->getResource()->getEntityTypes()[Product::ENTITY_TYPE]['entity_type_id']),
-                            'input_type',
-                            'code'
-                        );
+                    'resolve' => static function ($p) use ($service, $typeOf, $optionsOf): array {
                         $rows = [];
                         foreach ($service->getValues((int) $p['product_id']) as $code => $value) {
-                            $isFile = InputTypeRegistry::has($inputTypes[$code] ?? '') && InputTypeRegistry::get($inputTypes[$code])['accept'];
+                            $options = $optionsOf($code);
+                            // an option removed after being chosen shows its value
+                            $labels = $options === null ? null : array_map(static fn ($v) => $options[$v] ?? (string) $v, (array) $value);
                             $rows[] = [
                                 'code' => $code,
                                 'value' => is_array($value) ? null : (is_bool($value) ? ($value ? '1' : '0') : (string) $value),
                                 'values' => is_array($value) ? $value : null,
-                                'url' => $isFile ? ValueService::MEDIA_URL . $value : null,
+                                'option_label' => $labels !== null && !is_array($value) ? $labels[0] : null,
+                                'option_labels' => $labels !== null && is_array($value) ? $labels : null,
+                                'url' => ($typeOf($code)['accept'] ?? false) ? ValueService::MEDIA_URL . $value : null,
                             ];
                         }
 
@@ -189,11 +208,20 @@ class ProductSchema
                         'isActive' => Type::boolean(),
                         'attributes' => Type::listOf(Type::nonNull($attributeInput)),
                     ],
-                    'resolve' => $guard(static function ($root, array $args) use ($service, $data, $attributes): array {
+                    'resolve' => $guard(static function ($root, array $args) use ($service, $data, $attributes, $optionsOf): array {
                         $id = (int) $args['id'];
                         $current = $service->get($id)->getData();
-                        // ProductService saves the whole set (missing = empty), so start from the stored values
-                        return $service->update($id, $data($args, $current), $attributes($args, (int) $current['attribute_set_id']) + $service->getValues($id))->getData();
+                        // ProductService saves the whole set (missing = empty), so start from the stored values,
+                        // minus options removed since they were chosen (as the admin form does, which doesn't show them)
+                        $stored = $service->getValues($id);
+                        foreach ($stored as $code => $value) {
+                            $options = $optionsOf($code);
+                            if ($options !== null) {
+                                $stored[$code] = is_array($value) ? array_values(array_filter($value, static fn ($v) => isset($options[$v]))) : (isset($options[$value]) ? $value : '');
+                            }
+                        }
+
+                        return $service->update($id, $data($args, $current), $attributes($args, (int) $current['attribute_set_id']) + $stored)->getData();
                     }),
                 ],
                 'deleteProduct' => [

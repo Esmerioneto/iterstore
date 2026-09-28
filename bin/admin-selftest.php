@@ -529,7 +529,10 @@ $gql = static function (Browser $b, string $query, array $variables = []): array
     return json_decode($b->request('/core/graphql/index', null, json_encode(['query' => $query, 'variables' => $variables ?: null]))['body'], true);
 };
 $service->create(['entity_type' => 'product', 'code' => 'selftest_novo', 'label' => 'Novo', 'input_type' => 'checkbox']);
-$setService->update($defaultProductSet, ['label' => 'Básico', 'items' => [$attrId('price') => ['in' => 1], $attrId('description') => ['in' => 1], $attrId('selftest_novo') => ['in' => 1]]]);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_cor', 'label' => 'Cor', 'input_type' => 'multiselect', 'options' => [['value' => 'az', 'label' => 'Azul'], ['value' => 'vm', 'label' => 'Vermelho']]]);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_marca', 'label' => 'Marca', 'input_type' => 'select', 'options' => [['value' => 'acme', 'label' => 'ACME Ltda']]]);
+$setService->update($defaultProductSet, ['label' => 'Básico', 'items' => [$attrId('price') => ['in' => 1], $attrId('description') => ['in' => 1], $attrId('selftest_novo') => ['in' => 1],
+    $attrId('selftest_cor') => ['in' => 1], $attrId('selftest_marca') => ['in' => 1]]]);
 $createGql = 'mutation ($sku: String!, $attrs: [ProductAttributeInput!]) { createProduct(sku: $sku, name: "Boné", attributeSetId: "' . $defaultProductSet . '", attributes: $attrs) { id sku is_active attributes { code value values url } } }';
 $attrsOf = static function (array $product): array {
     $attrs = array_column($product['attributes'], 'value', 'code');
@@ -548,6 +551,14 @@ $gqlId = (int) ($gqlProduct['id'] ?? 0);
 $r = $gql($admin, 'mutation ($id: ID!) { updateProduct(id: $id, name: "Boné azul", isActive: false) { name is_active attributes { code value } } }', ['id' => $gqlId]);
 assertSame(['Boné azul', false, '19.9', '0'], [$r['data']['updateProduct']['name'] ?? null, $r['data']['updateProduct']['is_active'] ?? null, $attrsOf($r['data']['updateProduct'])['price'] ?? null, $attrsOf($r['data']['updateProduct'])['selftest_novo'] ?? null],
     'GraphQL: update parcial mantém os atributos omitidos (inclusive Sim/Não = não)');
+$r = $gql($admin, 'mutation ($id: ID!, $attrs: [ProductAttributeInput!]) { updateProduct(id: $id, attributes: $attrs) { attributes { code option_label option_labels } } }',
+    ['id' => $gqlId, 'attrs' => [['code' => 'selftest_cor', 'values' => ['vm', 'az']], ['code' => 'selftest_marca', 'value' => 'acme']]]);
+$labels = array_column($r['data']['updateProduct']['attributes'] ?? [], null, 'code');
+assertSame([['Vermelho', 'Azul'], null, 'ACME Ltda', null, null], [$labels['selftest_cor']['option_labels'], $labels['selftest_cor']['option_label'],
+    $labels['selftest_marca']['option_label'], $labels['selftest_marca']['option_labels'], $labels['price']['option_label']], 'GraphQL: rótulos das opções (seleção e múltipla seleção)');
+$service->update($attrId('selftest_cor'), ['label' => 'Cor', 'input_type' => 'multiselect', 'options' => [['value' => 'az', 'label' => 'Azul']]]);
+$labels = array_column($gql($admin, 'query ($id: ID!) { product(id: $id) { attributes { code option_labels } } }', ['id' => $gqlId])['data']['product']['attributes'] ?? [], 'option_labels', 'code');
+assertSame(['vm', 'Azul'], $labels['selftest_cor'] ?? null, 'GraphQL: opção removida mostra o valor no lugar do rótulo');
 $read = 'query ($id: ID!) { product(id: $id) { sku } products(search: "selftest-gql") { total items { sku } } }';
 assertSame([null, 0], [$gql($guest, $read, ['id' => $gqlId])['data']['product'], $gql($guest, $read, ['id' => $gqlId])['data']['products']['total']], 'GraphQL: visitante não vê produto inativo');
 assertSame(['selftest-gql', 1], [$gql($admin, $read, ['id' => $gqlId])['data']['product']['sku'] ?? null, $gql($admin, $read, ['id' => $gqlId])['data']['products']['total'] ?? null], 'GraphQL: admin vê produto inativo');
@@ -560,6 +571,9 @@ assertSame([(string) $gqlId, null, 'Informe id ou sku.'], [
     $gql($guest, 'query { product { id } }')['errors'][0]['message'] ?? null,
 ], 'GraphQL: busca por SKU; SKU inexistente = null; sem id nem sku = erro');
 assertSame(1, $gql($guest, $read, ['id' => $gqlId])['data']['products']['total'], 'GraphQL: visitante vê produto ativo');
+assertSame(['az'], $values->load('product', $gqlId)['selftest_cor'] ?? null, 'GraphQL: update parcial descarta opção removida de atributo não enviado (como o form do admin)');
+$r = $gql($admin, 'mutation ($id: ID!) { updateProduct(id: $id, attributes: [{code: "selftest_cor", values: ["vm"]}]) { id } }', ['id' => $gqlId]);
+assertSame('VALUE_INVALID', $r['errors'][0]['extensions']['code'] ?? null, 'GraphQL: opção inexistente enviada continua dando erro');
 $r = $gql($admin, 'mutation ($id: ID!) { deleteProduct(id: $id) }', ['id' => $gqlId]);
 assertSame([true, false, []], [$r['data']['deleteProduct'] ?? null, $productRow('selftest-gql'), $values->load('product', $gqlId)], 'GraphQL: produto removido com os valores');
 
