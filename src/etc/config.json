@@ -6,7 +6,8 @@
         "iter_config": "1",
         "iter_store": "1",
         "iter_eav": "1",
-        "iter_catalog": "1"
+        "iter_catalog": "1",
+        "iter_inventory": "1"
     },
     "customized": {
         "egsn_user": "1"

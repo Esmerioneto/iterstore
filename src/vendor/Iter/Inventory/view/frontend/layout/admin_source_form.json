@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "form": "inventory/source-form"
+        }
+    }
+}

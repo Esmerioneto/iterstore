@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "stock": { "component": "inventory/stock-panel", "after": "form" }
+        }
+    }
+}

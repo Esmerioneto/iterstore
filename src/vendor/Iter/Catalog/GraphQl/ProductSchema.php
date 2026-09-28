@@ -29,8 +29,11 @@ use Iter\Eav\Model\ValueService;
  */
 class ProductSchema
 {
-    /** @return array{query: array, mutation: array} */
-    public static function fields(): array
+    /**
+     * @param array $productFields extra fields of the Product type, from other modules (e.g. Inventory's stock)
+     * @return array{query: array, mutation: array}
+     */
+    public static function fields(array $productFields = []): array
     {
         $service = new ProductService();
         $isAdmin = static fn (): bool => Auth::isAllowed('Iter_Catalog::product');
@@ -104,7 +107,7 @@ class ProductSchema
                         return $rows;
                     },
                 ],
-            ],
+            ] + $productFields,
         ]);
         $attributeInput = new InputObjectType([
             'name' => 'ProductAttributeInput',

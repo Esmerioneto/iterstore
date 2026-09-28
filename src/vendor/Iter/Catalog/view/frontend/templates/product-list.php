@@ -1,3 +1,4 @@
+<?php $extra = \Iter\Catalog\View\ProductList::columns($columns ?? [], $products); ?>
 <section class="catalog-product-list">
     <h2>Produtos</h2>
     <p><a href="/admin/product/create">+ Novo produto</a></p>
@@ -24,12 +25,15 @@
                 <th>Conjunto</th>
                 <th>Preço</th>
                 <th>Status</th>
+<?php foreach ($extra as $column): ?>
+                <th><?= htmlspecialchars($column['label']) ?></th>
+<?php endforeach; ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php if (empty($products)): ?>
-            <tr><td colspan="6">Nenhum produto encontrado.</td></tr>
+            <tr><td colspan="<?= 6 + count($extra) ?>">Nenhum produto encontrado.</td></tr>
 <?php else: ?>
     <?php foreach ($products as $product): ?>
             <tr>
@@ -38,6 +42,9 @@
                 <td><?= htmlspecialchars((string) $product['set_label']) ?></td>
                 <td><?= $product['price'] === null ? '' : 'R$ ' . number_format((float) $product['price'], 2, ',', '.') ?></td>
                 <td><?= $product['is_active'] ? 'Ativo' : 'Inativo' ?></td>
+        <?php foreach ($extra as $column): ?>
+                <td><?= htmlspecialchars((string) ($column['values'][(int) $product['product_id']] ?? '')) ?></td>
+        <?php endforeach; ?>
                 <td>
                     <a href="/admin/product/edit?id=<?= (int) $product['product_id'] ?>">Editar</a>
                     <form method="post" action="/admin/product/delete" style="display:inline" data-confirm="Remover este produto?">
