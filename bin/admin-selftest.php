@@ -551,7 +551,14 @@ assertSame(['Boné azul', false, '19.9', '0'], [$r['data']['updateProduct']['nam
 $read = 'query ($id: ID!) { product(id: $id) { sku } products(search: "selftest-gql") { total items { sku } } }';
 assertSame([null, 0], [$gql($guest, $read, ['id' => $gqlId])['data']['product'], $gql($guest, $read, ['id' => $gqlId])['data']['products']['total']], 'GraphQL: visitante não vê produto inativo');
 assertSame(['selftest-gql', 1], [$gql($admin, $read, ['id' => $gqlId])['data']['product']['sku'] ?? null, $gql($admin, $read, ['id' => $gqlId])['data']['products']['total'] ?? null], 'GraphQL: admin vê produto inativo');
+$bySku = 'query ($sku: String) { product(sku: $sku) { id } }';
+assertSame([null, (string) $gqlId], [$gql($guest, $bySku, ['sku' => 'SELFTEST-GQL'])['data']['product'], $gql($admin, $bySku, ['sku' => 'SELFTEST-GQL'])['data']['product']['id'] ?? null], 'GraphQL: busca por SKU ignora maiúsculas e respeita inativo');
 $gql($admin, 'mutation ($id: ID!) { updateProduct(id: $id, isActive: true) { id } }', ['id' => $gqlId]);
+assertSame([(string) $gqlId, null, 'Informe id ou sku.'], [
+    $gql($guest, $bySku, ['sku' => 'selftest-gql'])['data']['product']['id'] ?? null,
+    $gql($guest, $bySku, ['sku' => 'selftest-nao-existe'])['data']['product'],
+    $gql($guest, 'query { product { id } }')['errors'][0]['message'] ?? null,
+], 'GraphQL: busca por SKU; SKU inexistente = null; sem id nem sku = erro');
 assertSame(1, $gql($guest, $read, ['id' => $gqlId])['data']['products']['total'], 'GraphQL: visitante vê produto ativo');
 $r = $gql($admin, 'mutation ($id: ID!) { deleteProduct(id: $id) }', ['id' => $gqlId]);
 assertSame([true, false, []], [$r['data']['deleteProduct'] ?? null, $productRow('selftest-gql'), $values->load('product', $gqlId)], 'GraphQL: produto removido com os valores');
