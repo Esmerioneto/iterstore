@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Iter\Customer\Model\ResourceModel;
 
 use Iter\Core\Model\ResourceModel\AbstractDb;
-use PDO;
+use Iter\Customer\Model\ResourceModel\Customer\Collection;
+use Iter\Core\Db\Expr;
 
 class Customer extends AbstractDb
 {
@@ -20,50 +21,32 @@ class Customer extends AbstractDb
      */
     public function search(array $filters, int $page, int $perPage): array
     {
-        $where = [];
-        $params = [];
+        $collection = (new Collection())->setOrder('customer_id')->setPageSize($perPage)->setCurPage($page);
         if (in_array($filters['customer_type'] ?? '', ['pf', 'pj'], true)) {
-            $where[] = 'c.customer_type = :customer_type';
-            $params['customer_type'] = $filters['customer_type'];
+            $collection->addFieldToFilter('customer_type', $filters['customer_type']);
         }
         foreach (['group_id', 'website_id'] as $key) {
             if (ctype_digit($filters[$key] ?? '')) {
-                $where[] = "c.{$key} = :{$key}";
-                $params[$key] = (int) $filters[$key];
+                $collection->addFieldToFilter($key, (int) $filters[$key]);
             }
         }
         if (in_array($filters['is_active'] ?? '', ['0', '1'], true)) {
-            $where[] = 'c.is_active = :is_active';
-            $params['is_active'] = (int) $filters['is_active'];
+            $collection->addFieldToFilter('is_active', (int) $filters['is_active']);
         }
         if (($filters['q'] ?? '') !== '') {
-            $q = [];
-            $params['q'] = '%' . addcslashes($filters['q'], '%_\\') . '%';
+            $q = ['ilike' => '%' . addcslashes($filters['q'], '%_\\') . '%'];
+            $fields = [new Expr("main_table.firstname || ' ' || main_table.lastname"), 'company_name', 'trade_name', 'email'];
+            $conditions = [$q, $q, $q, $q];
             // a typed CPF/CNPJ (with or without the mask) matches the stored digits
             $digits = preg_replace('/\D/', '', $filters['q']);
             if ($digits !== '') {
-                $q[] = 'c.taxvat LIKE :digits';
-                $params['digits'] = '%' . $digits . '%';
+                $fields[] = 'taxvat';
+                $conditions[] = ['like' => '%' . $digits . '%'];
             }
-            $where[] = "(c.firstname || ' ' || c.lastname ILIKE :q OR c.company_name ILIKE :q OR c.trade_name ILIKE :q OR c.email ILIKE :q"
-                . ($q ? ' OR ' . implode(' OR ', $q) : '') . ')';
+            $collection->addFieldToFilter($fields, $conditions);
         }
-        $from = 'FROM customer_entity c
-                 JOIN customer_group g ON g.customer_group_id = c.group_id
-                 JOIN store_website w ON w.website_id = c.website_id'
-            . ($where ? ' WHERE ' . implode(' AND ', $where) : '');
 
-        $count = $this->getConnection()->prepare("SELECT COUNT(*) {$from}");
-        $count->execute($params);
-
-        $stmt = $this->getConnection()->prepare(
-            "SELECT c.*, g.name AS group_name, w.name AS website_name {$from}
-             ORDER BY c.customer_id DESC
-             LIMIT {$perPage} OFFSET " . (($page - 1) * $perPage)
-        );
-        $stmt->execute($params);
-
-        return ['items' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => (int) $count->fetchColumn()];
+        return ['items' => $collection->getData(), 'total' => $collection->getSize()];
     }
 
     /** $column is email (compared ignoring case) or taxvat */

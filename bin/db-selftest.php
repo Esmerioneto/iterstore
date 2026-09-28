@@ -113,3 +113,27 @@ $db->beginTransaction();
 $db->prepare("INSERT INTO selftest_db (code) VALUES ('h')")->execute();
 $db->rollBack();
 assertSame(4, $count(), 'prepare() continua funcionando e respeita a transação do Adapter');
+
+// --- Collection ------------------------------------------------------------------
+$attributes = (new Iter\Eav\Model\ResourceModel\Attribute\Collection())
+    ->addFieldToFilter('et.code', 'product')
+    ->addFieldToFilter(['code', 'label'], [['in' => ['price', 'description']], ['ilike' => 'zzz%']])
+    ->addFieldToFilter('sort_order', ['gteq' => 0, 'lt' => 100000])
+    ->addFieldToFilter('input_type', ['notnull' => true])
+    ->setOrder('code', 'ASC');
+assertSame(
+    'SELECT "main_table".*, "et"."code" AS "entity_type", "et"."label" AS "entity_type_label" FROM "eav_attribute" AS "main_table"'
+    . ' JOIN "eav_entity_type" AS "et" ON et.entity_type_id = main_table.entity_type_id'
+    . ' WHERE ("et"."code" = :p1) AND (("main_table"."code" IN (:p2, :p3)) OR ("main_table"."label" ILIKE :p4))'
+    . ' AND ("main_table"."sort_order" >= :p5 AND "main_table"."sort_order" < :p6) AND ("main_table"."input_type" IS NOT NULL)'
+    . ' ORDER BY "main_table"."code" ASC',
+    (string) $attributes->getSelect(),
+    'Collection: addFieldToFilter (valor, lista de campos em OR, várias condições em AND) e setOrder'
+);
+assertSame([2, ['description', 'price']], [$attributes->getSize(), array_column($attributes->getData(), 'code')], 'Collection: getSize e getData');
+$page = (new Iter\Eav\Model\ResourceModel\Attribute\Collection())->addFieldToFilter('code', ['in' => ['price', 'description']])
+    ->setOrder('code', 'ASC')->setPageSize(1)->setCurPage(2);
+$items = $page->getItems();
+assertSame([2, 1, Iter\Eav\Model\Attribute::class, 'price'], [$page->getSize(), count($page), $items[0]::class, $items[0]->getData('code')], 'Collection: página, getSize ignora a página, getItems devolve models');
+assertSame(0, (new Iter\Eav\Model\ResourceModel\Attribute\Collection())->addFieldToFilter('code', ['in' => []])->getSize(), 'Collection: in com lista vazia não devolve nada');
+assertThrows(fn () => (new Iter\Eav\Model\ResourceModel\Attribute\Collection())->addFieldToFilter('code', ['regex' => 'x']), 'Collection: condição desconhecida é recusada');
