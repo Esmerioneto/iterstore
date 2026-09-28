@@ -1,0 +1,1 @@
+{"name":"iter_customer","version":"1.0.0","description":"Iter Customer","enabled":true,"index":"0","author":"Esmerio","depends":["iter_eav","iter_store"]}

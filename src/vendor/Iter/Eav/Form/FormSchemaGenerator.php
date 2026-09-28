@@ -60,6 +60,9 @@ class FormSchemaGenerator
             'group' => $attribute['group_name'],
             'multiple' => $type['multiple'],
         ];
+        if ($type['mask'] ?? '') {
+            $field['mask'] = $type['mask'];
+        }
         if ($type['accept']) {
             $field['accept'] = array_keys($type['accept']);
         }

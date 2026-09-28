@@ -1,6 +1,15 @@
 <section class="eav-attribute-set-list">
     <h2>Conjuntos de atributos</h2>
-    <p><a href="/admin/attributeset/create">+ Novo conjunto</a></p>
+    <p><a href="/admin/attributeset/create<?= $entity_type !== '' ? '?entity_type=' . urlencode($entity_type) : '' ?>">+ Novo conjunto</a></p>
+    <form method="get" action="/admin/attributeset/index">
+        <select name="entity_type" data-autosubmit>
+            <option value="">Todas as entidades</option>
+<?php foreach ($entity_types as $code => $type): ?>
+            <option value="<?= htmlspecialchars($code) ?>" <?= $entity_type === $code ? 'selected' : '' ?>><?= htmlspecialchars($type['label']) ?></option>
+<?php endforeach; ?>
+        </select>
+        <noscript><button type="submit">Filtrar</button></noscript>
+    </form>
     <table>
         <thead>
             <tr>

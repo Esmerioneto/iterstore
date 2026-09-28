@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Eav\View;
 
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeSet;
 
 class AttributeSetList implements ViewComponentInterface
@@ -16,8 +17,13 @@ class AttributeSetList implements ViewComponentInterface
 
     public function getData(): array
     {
+        $entityType = trim((string) ($_GET['entity_type'] ?? ''));
+        $sets = (new AttributeSet())->getResource()->getList();
+
         return [
-            'sets' => (new AttributeSet())->getResource()->getList(),
+            'sets' => $entityType === '' ? $sets : array_values(array_filter($sets, static fn ($s) => $s['entity_type'] === $entityType)),
+            'entity_type' => $entityType,
+            'entity_types' => (new Attribute())->getResource()->getEntityTypes(),
         ];
     }
 }

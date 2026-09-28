@@ -10,6 +10,9 @@
     { "code": "date", "label": "Data", "storage_type": "datetime" },
     { "code": "datetime", "label": "Data e hora", "storage_type": "datetime" },
     { "code": "hidden", "label": "Oculto", "storage_type": "varchar" },
+    { "code": "phone", "label": "Telefone", "storage_type": "varchar", "mask": "phone" },
+    { "code": "cep", "label": "CEP", "storage_type": "varchar", "mask": "cep" },
+    { "code": "cpf_cnpj", "label": "CPF/CNPJ", "storage_type": "varchar", "mask": "cpf_cnpj" },
     { "code": "image", "label": "Imagem", "storage_type": "varchar",
       "accept": { "image/webp": "webp", "image/avif": "avif", "image/jpeg": "jpg", "image/png": "png" } }
 ]

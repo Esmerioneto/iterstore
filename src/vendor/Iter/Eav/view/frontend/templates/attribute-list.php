@@ -1,6 +1,6 @@
 <section class="eav-attribute-list">
     <h2>Atributos</h2>
-    <p><a href="/admin/attribute/create">+ Novo atributo</a></p>
+    <p><a href="/admin/attribute/create<?= $filters['entity_type'] !== '' ? '?entity_type=' . urlencode($filters['entity_type']) : '' ?>">+ Novo atributo</a></p>
     <form method="get" action="/admin/attribute/index">
         <select name="entity_type">
             <option value="">Todas as entidades</option>

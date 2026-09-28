@@ -50,7 +50,7 @@ class AttributeSetForm implements ViewComponentInterface
             'is_edit' => $set !== null,
             'attribute_set_id' => $id,
             'values' => array_merge(
-                ['entity_type' => '', 'code' => '', 'label' => '', 'is_default' => 0],
+                ['entity_type' => (string) ($_GET['entity_type'] ?? ''), 'code' => '', 'label' => '', 'is_default' => 0],
                 $set ?? [],
                 $old ?? [],
                 // immutable after creation
