@@ -565,4 +565,26 @@ a {
 .mail-text { white-space: pre-wrap; }
 .mail-warning { color: #a33; }
 
-.config-settings-form textarea { width: 100%; max-width: 600px; }
+/* Configurações: two columns of fields per group; one on narrow screens */
+.config-settings-form .config-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 32px;
+}
+.config-settings-form .config-fields > p { margin: 8px 0; }
+.config-settings-form .config-field-wide { grid-column: 1 / -1; }
+.admin-dashboard .config-settings-form form:not(.config-scope) :is(input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="url"], select, textarea) {
+  width: 100%;
+  max-width: none;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid var(--color-pebble);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: inherit;
+  font-size: 14px;
+}
+.config-settings-form .eav-file-preview { display: inline-block; vertical-align: top; margin-right: 8px; }
+@media (max-width: 800px) {
+  .config-settings-form .config-fields { grid-template-columns: 1fr; }
+}

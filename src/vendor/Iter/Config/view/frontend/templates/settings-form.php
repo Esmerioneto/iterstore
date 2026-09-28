@@ -24,14 +24,24 @@
         <?= \Iter\Core\FormKey::field() ?>
         <input type="hidden" name="website_id" value="<?= (int) $website_id ?>">
     <?php foreach ($groups as $label => $fields): ?>
-        <fieldset>
+        <fieldset class="config-fields">
             <legend><?= $e($label) ?></legend>
         <?php foreach ($fields as $field):
             $type = $field['type'] ?? 'text';
             $name = 'config[' . $e($field['path']) . ']';
             $required = ($field['required'] ?? true) && $type !== 'password' ? 'required' : '';
         ?>
-            <p>
+            <p class="<?= $type === 'textarea' ? 'config-field-wide' : '' ?>">
+            <?php if ($type === 'image'): // outside a <label>: a click on the thumbnail must open the popup, not the file picker
+                $id = 'config-' . preg_replace('/[^a-z0-9]+/', '-', $field['path']);
+            ?>
+                <label for="<?= $e($id) ?>"><?= $e($field['label']) ?></label><br>
+                <?php if ($field['value'] !== '' && $field['value'] !== null): ?>
+                <a href="<?= $e(\Iter\Core\Config::mediaUrl($field['value'])) ?>" target="_blank" data-image-popup="<?= $e($field['label']) ?>"><img class="eav-file-preview" src="<?= $e(\Iter\Core\Config::mediaUrl($field['value'])) ?>" alt="<?= $e($field['label']) ?>"></a>
+                <?php endif; ?>
+                <img class="eav-file-preview" alt="Imagem escolhida (salve para gravar)" title="Imagem escolhida (salve para gravar)" data-image-preview hidden>
+                <br><input type="file" id="<?= $e($id) ?>" name="<?= $name ?>" accept="<?= $e(implode(',', array_keys(\Iter\Core\Config::IMAGE_TYPES))) ?>" data-image-input>
+            <?php else: ?>
                 <label><?= $e($field['label']) ?><br>
             <?php if ($type === 'boolean' || $type === 'select'): ?>
                     <select name="<?= $name ?>">
@@ -41,11 +51,6 @@
                     </select>
             <?php elseif ($type === 'textarea'): ?>
                     <textarea name="<?= $name ?>" rows="4" maxlength="2000"><?= $e($field['value']) ?></textarea>
-            <?php elseif ($type === 'image'): ?>
-                <?php if ($field['value'] !== '' && $field['value'] !== null): ?>
-                    <a href="<?= $e(\Iter\Core\Config::mediaUrl($field['value'])) ?>" target="_blank" data-image-popup="<?= $e($field['label']) ?>"><img class="eav-file-preview" src="<?= $e(\Iter\Core\Config::mediaUrl($field['value'])) ?>" alt=""></a><br>
-                <?php endif; ?>
-                    <input type="file" name="<?= $name ?>" accept="<?= $e(implode(',', array_keys(\Iter\Core\Config::IMAGE_TYPES))) ?>">
             <?php else: ?>
                     <input type="<?= in_array($type, ['number', 'url', 'email', 'password'], true) ? $type : 'text' ?>"
                         name="<?= $name ?>"
@@ -56,6 +61,7 @@
                         <?= $required ?>>
             <?php endif; ?>
                 </label>
+            <?php endif; ?>
             <?php if ($type === 'password' && $field['has_secret']): ?>
                 <label><input type="checkbox" name="config_clear[<?= $e($field['path']) ?>]" value="1"> Apagar a senha salva</label>
             <?php endif; ?>

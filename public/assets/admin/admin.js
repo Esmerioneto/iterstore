@@ -264,3 +264,16 @@ document.addEventListener('input', function (event) {
     useDefault.checked = false;
   }
 });
+
+// Image settings: show the chosen file right away (it's only uploaded on "Salvar")
+document.addEventListener('change', function (event) {
+  if (!event.target.matches('input[data-image-input]')) {
+    return;
+  }
+  var preview = event.target.closest('p').querySelector('[data-image-preview]');
+  var file = event.target.files[0];
+  preview.hidden = !file;
+  if (file) {
+    preview.src = URL.createObjectURL(file);
+  }
+});
