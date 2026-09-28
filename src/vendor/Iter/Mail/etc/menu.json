@@ -1,4 +1,4 @@
 [
-    { "label": "E-mails enviados", "resource": "Iter_Mail::log", "url": "/admin/mail/index", "parent": "configuracoes", "sort_order": 40 },
-    { "label": "Modelos de e-mail", "resource": "Iter_Mail::template", "url": "/admin/mailtemplate/index", "parent": "configuracoes", "sort_order": 41 }
+    { "label": "E-mails enviados", "resource": "Iter_Mail::log", "url": "/admin/mail/index", "parent": "sistema", "sort_order": 20 },
+    { "label": "Modelos de e-mail", "resource": "Iter_Mail::template", "url": "/admin/mailtemplate/index", "parent": "lojas", "sort_order": 40 }
 ]

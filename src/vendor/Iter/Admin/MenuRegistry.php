@@ -49,8 +49,8 @@ class MenuRegistry
     }
 
     /**
-     * Nests items under their "parent" id (e.g. Loja/Perfis under
-     * "configuracoes") so the template can render submenus.
+     * Nests items under their "parent" id (e.g. Websites/Lojas under
+     * "lojas") so the template can render submenus.
      *
      * @return array<int, array{label: string, url: string, children: array}>
      */
