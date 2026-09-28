@@ -1,3 +1,3 @@
 [
-    { "path": "web/base_url", "group": "Geral", "label": "Endereço do site (usado nos links enviados por e-mail)", "type": "url", "default": "http://localhost:8080" }
+    { "path": "web/base_url", "group": "Geral", "label": "Endereço do site (usado nos links enviados por e-mail)", "type": "url", "default": "http://localhost:8080", "scope": "website" }
 ]

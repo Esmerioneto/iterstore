@@ -8,6 +8,7 @@ use Iter\Admin\Auth;
 use Iter\Admin\Breadcrumb;
 use Iter\Config\ModuleManager;
 use Iter\Core\Config as SystemConfig;
+use Iter\Core\Crypt;
 use Iter\Core\Messages;
 use Iter\Core\View\Layout;
 
@@ -28,25 +29,68 @@ class Config
     public function Save(): void
     {
         $input = is_array($_POST['config'] ?? null) ? $_POST['config'] : [];
+        $useDefault = is_array($_POST['config_default'] ?? null) ? $_POST['config_default'] : [];
+        $clear = is_array($_POST['config_clear'] ?? null) ? $_POST['config_clear'] : [];
+        $websiteId = (int) ($_POST['website_id'] ?? 0);
+        $back = '/admin/config/index' . ($websiteId ? '?website=' . $websiteId : '');
+        if ($websiteId && !SystemConfig::websiteExists($websiteId)) {
+            Messages::addError('Website não encontrado.');
+            header('Location: /admin/config/index');
+            exit;
+        }
         $values = [];
+        $defaults = [];
         $errors = [];
 
-        // only declared paths are saved; anything else posted is ignored
+        // only declared paths are saved (in a website, only "scope": "website" ones); anything else posted is ignored
         foreach (SystemConfig::fields() as $path => $field) {
+            $type = $field['type'] ?? 'text';
+            if ($websiteId && ($field['scope'] ?? '') !== 'website') {
+                continue;
+            }
+            if ($websiteId && !empty($useDefault[$path])) {
+                $defaults[] = $path;
+                continue;
+            }
+            if ($type === 'password' && !empty($clear[$path])) {
+                $values[$path] = '';
+                continue;
+            }
             if (!isset($input[$path]) || !is_string($input[$path])) {
                 continue;
             }
 
             $value = trim($input[$path]);
-            if (($field['type'] ?? 'text') === 'boolean') {
+            if ($type === 'password') {
+                // empty keeps the saved one; never shown back, stored encrypted
+                if ($input[$path] !== '') {
+                    $values[$path] = Crypt::encrypt($input[$path]);
+                }
+                continue;
+            }
+            if ($value === '' && ($field['required'] ?? true) === false) {
+                $values[$path] = '';
+                continue;
+            }
+            if ($type === 'boolean') {
                 $value = $value === '1' ? '1' : '0';
-            } elseif (($field['type'] ?? 'text') === 'url') {
+            } elseif ($type === 'select') {
+                if (!isset($field['options'][$value])) {
+                    $errors[] = sprintf('"%s": opção inválida.', $field['label']);
+                    continue;
+                }
+            } elseif ($type === 'email') {
+                if (!filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                    $errors[] = sprintf('"%s" deve ser um e-mail válido.', $field['label']);
+                    continue;
+                }
+            } elseif ($type === 'url') {
                 if (!filter_var($value, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $value)) {
                     $errors[] = sprintf('"%s" deve ser um endereço http:// ou https://.', $field['label']);
                     continue;
                 }
                 $value = rtrim($value, '/');
-            } elseif (($field['type'] ?? 'text') === 'number') {
+            } elseif ($type === 'number') {
                 $number = filter_var($value, FILTER_VALIDATE_INT, ['options' => array_filter([
                     'min_range' => $field['min'] ?? null,
                     'max_range' => $field['max'] ?? null,
@@ -56,6 +100,9 @@ class Config
                     continue;
                 }
                 $value = (string) $number;
+            } elseif ($value === '') {
+                $errors[] = sprintf('"%s" é obrigatório.', $field['label']);
+                continue;
             }
 
             $values[$path] = $value;
@@ -65,13 +112,17 @@ class Config
             foreach ($errors as $error) {
                 Messages::addError($error);
             }
-            $_SESSION['iter_old_input'] = array_filter($input, 'is_string');
+            // typed passwords aren't kept in the session
+            $_SESSION['iter_old_input'] = array_filter($input, static fn ($v, $path) => is_string($v) && (SystemConfig::fields()[$path]['type'] ?? '') !== 'password', ARRAY_FILTER_USE_BOTH);
         } else {
-            SystemConfig::save($values);
+            SystemConfig::save($values, $websiteId ?: null);
+            if ($defaults) {
+                SystemConfig::clear($defaults, $websiteId);
+            }
             Messages::addSuccess('Configurações salvas.');
         }
 
-        header('Location: /admin/config/index');
+        header('Location: ' . $back);
         exit;
     }
 

@@ -4,6 +4,7 @@
         "iter_router": "1",
         "iter_admin": "1",
         "iter_config": "1",
+        "iter_mail": "1",
         "iter_store": "1",
         "iter_eav": "1",
         "iter_catalog": "1",

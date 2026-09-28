@@ -8,9 +8,10 @@ use Iter\Admin\Auth as AdminAuth;
 use Iter\Admin\MenuRegistry;
 use Iter\Admin\Model\AdminUser as AdminUserModel;
 use Iter\Core\Config;
-use Iter\Core\Mailer;
 use Iter\Core\Messages;
 use Iter\Core\View\Layout;
+use Iter\Mail\Model\MailException;
+use Iter\Mail\Model\MailService;
 
 class Auth
 {
@@ -104,16 +105,17 @@ class Auth
             }
 
             $link = Config::get('web/base_url') . '/admin/auth/reset?' . http_build_query(['id' => $userId, 'token' => $token]);
-            Mailer::send((string) $user->getData('email'), 'Redefinição de senha', implode("\n", [
-                'Olá, ' . ($user->getData('firstname') ?: $user->getData('username')) . '.',
-                '',
-                'Recebemos um pedido para redefinir a senha do usuário "' . $user->getData('username') . '" no painel administrativo.',
-                'Para escolher uma nova senha, acesse o link abaixo (válido por ' . $hours . ' hora(s), uso único):',
-                '',
-                $link,
-                '',
-                'Se você não fez esse pedido, ignore este e-mail; sua senha continua a mesma.',
-            ]));
+            try {
+                (new MailService())->send('admin_password_reset', (string) $user->getData('email'), [
+                    'name' => $user->getData('firstname') ?: $user->getData('username'),
+                    'username' => $user->getData('username'),
+                    'link' => $link,
+                    'hours' => $hours,
+                ], now: true);
+            } catch (MailException $e) {
+                // same answer below either way; a mail setup problem doesn't break the page
+                error_log('Mail: redefinição de senha não enfileirada: ' . $e->getMessage());
+            }
         }
 
         // same answer whether or not the e-mail exists, no account enumeration

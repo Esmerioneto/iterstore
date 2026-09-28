@@ -1,0 +1,4 @@
+[
+    { "id": "Iter_Mail::log", "parent": "Iter_Admin::root", "title": "E-mails enviados (histórico)" },
+    { "id": "Iter_Mail::template", "parent": "Iter_Admin::root", "title": "Modelos de e-mail" }
+]
