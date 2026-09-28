@@ -128,8 +128,16 @@ class ProductSchema
             'query' => [
                 'product' => [
                     'type' => $productType,
-                    'args' => ['id' => Type::nonNull(Type::id())],
-                    'resolve' => fn ($root, array $args) => $load((int) $args['id']),
+                    'description' => 'Por id ou por SKU (sem diferenciar maiúsculas); informe um dos dois.',
+                    'args' => ['id' => Type::id(), 'sku' => Type::string()],
+                    'resolve' => static function ($root, array $args) use ($load): ?array {
+                        if (isset($args['id']) === isset($args['sku'])) {
+                            throw new UserError('Informe id ou sku.');
+                        }
+                        $id = isset($args['id']) ? (int) $args['id'] : (new Product())->getResource()->findIdBySku($args['sku']);
+
+                        return $id === null ? null : $load($id);
+                    },
                 ],
                 'products' => [
                     'type' => Type::nonNull(new ObjectType([
