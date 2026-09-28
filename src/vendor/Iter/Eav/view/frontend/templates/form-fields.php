@@ -23,13 +23,13 @@ foreach ($schema['fields'] as $field) {
         $required = $f['required'] ? 'required' : '';
         $label = $e($f['label']) . ($f['required'] ? ' *' : '');
     ?>
-    <div class="eav-field" data-field="<?= $e($f['name']) ?>">
+    <div class="eav-field<?= isset($f['accept']) ? ' eav-field-file' : '' ?>" data-field="<?= $e($f['name']) ?>">
         <?php if (isset($f['accept'])): // file field: the value is the stored file's path
             $file = is_string($value) ? $value : '';
         ?>
     <p><label><?= $label ?><br>
             <?php if ($file !== ''): ?>
-        <a href="<?= $e(\Iter\Eav\Model\ValueService::MEDIA_URL . $file) ?>" target="_blank"><img class="eav-file-preview" src="<?= $e(\Iter\Eav\Model\ValueService::MEDIA_URL . $file) ?>" alt=""></a><br>
+        <a href="<?= $e(\Iter\Eav\Model\ValueService::MEDIA_URL . $file) ?>" target="_blank" data-image-popup="<?= $e($f['label']) ?>"><img class="eav-file-preview" src="<?= $e(\Iter\Eav\Model\ValueService::MEDIA_URL . $file) ?>" alt=""></a><br>
             <?php endif; ?>
         <input<?= $formAttr ?> type="file" name="<?= $name ?>" accept="<?= $e(implode(',', $f['accept'])) ?>" <?= $file === '' ? $required : '' ?>>
     </label>
