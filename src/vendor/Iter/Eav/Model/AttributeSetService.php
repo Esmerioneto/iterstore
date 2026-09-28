@@ -74,7 +74,15 @@ class AttributeSetService
         if ($model->isDefault()) {
             throw new AttributeException('ATTRIBUTE_SET_DEFAULT', 'O conjunto padrão não pode ser removido; marque outro como padrão antes.');
         }
-        $model->delete();
+        try {
+            $model->delete();
+        } catch (\PDOException $e) {
+            // entity tables (catalog_product...) reference their set with ON DELETE RESTRICT
+            if ($e->getCode() === '23503') {
+                throw new AttributeException('ATTRIBUTE_SET_IN_USE', 'O conjunto tem registros (ex.: produtos) e não pode ser removido.');
+            }
+            throw $e;
+        }
     }
 
     public function get(int $id): AttributeSet
