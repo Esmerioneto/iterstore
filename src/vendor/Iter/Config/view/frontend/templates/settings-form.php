@@ -20,7 +20,7 @@
 <?php if (empty($groups)): ?>
     <p>Nenhum módulo declara ajustes.</p>
 <?php else: ?>
-    <form method="post" action="/admin/config/save" autocomplete="off">
+    <form method="post" action="/admin/config/save" autocomplete="off" enctype="multipart/form-data">
         <?= \Iter\Core\FormKey::field() ?>
         <input type="hidden" name="website_id" value="<?= (int) $website_id ?>">
     <?php foreach ($groups as $label => $fields): ?>
@@ -39,6 +39,13 @@
                         <option value="<?= $e($value) ?>" <?= (string) $field['value'] === (string) $value ? 'selected' : '' ?>><?= $e($text) ?></option>
                 <?php endforeach; ?>
                     </select>
+            <?php elseif ($type === 'textarea'): ?>
+                    <textarea name="<?= $name ?>" rows="4" maxlength="2000"><?= $e($field['value']) ?></textarea>
+            <?php elseif ($type === 'image'): ?>
+                <?php if ($field['value'] !== '' && $field['value'] !== null): ?>
+                    <a href="<?= $e(\Iter\Core\Config::mediaUrl($field['value'])) ?>" target="_blank" data-image-popup="<?= $e($field['label']) ?>"><img class="eav-file-preview" src="<?= $e(\Iter\Core\Config::mediaUrl($field['value'])) ?>" alt=""></a><br>
+                <?php endif; ?>
+                    <input type="file" name="<?= $name ?>" accept="<?= $e(implode(',', array_keys(\Iter\Core\Config::IMAGE_TYPES))) ?>">
             <?php else: ?>
                     <input type="<?= in_array($type, ['number', 'url', 'email', 'password'], true) ? $type : 'text' ?>"
                         name="<?= $name ?>"
@@ -51,6 +58,9 @@
                 </label>
             <?php if ($type === 'password' && $field['has_secret']): ?>
                 <label><input type="checkbox" name="config_clear[<?= $e($field['path']) ?>]" value="1"> Apagar a senha salva</label>
+            <?php endif; ?>
+            <?php if ($type === 'image' && (string) $field['value'] !== '' && !$field['uses_default']): ?>
+                <label><input type="checkbox" name="config_clear[<?= $e($field['path']) ?>]" value="1"> Remover a imagem</label>
             <?php endif; ?>
             <?php if ($website_id): ?>
                 <label><input type="checkbox" name="config_default[<?= $e($field['path']) ?>]" value="1" <?= $field['uses_default'] ? 'checked' : '' ?>> Usar o valor padrão</label>

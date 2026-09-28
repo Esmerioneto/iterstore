@@ -15,6 +15,9 @@ use Iter\Core\Db\Connection;
 class Config
 {
     public const SCOPE_WEBSITES = 'websites';
+    /** "type": "image" fields: accepted uploads (mime => extension), saved in public/media/config */
+    public const IMAGE_TYPES = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp'];
+    public const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 
     /** @var array<string, array<string, string>>|null "scope:id" => path => value */
     private static ?array $values = null;
@@ -61,6 +64,17 @@ class Config
             $stmt->execute(['path' => $path] + self::scope($websiteId));
         }
         self::$values = null;
+    }
+
+    /** Public URL of an image setting's value ('' when there's none) */
+    public static function mediaUrl(?string $value): string
+    {
+        return (string) $value === '' ? '' : '/media/' . $value;
+    }
+
+    public static function mediaDir(): string
+    {
+        return \getPath('public') . 'media' . DIRECTORY_SEPARATOR;
     }
 
     public static function websiteExists(int $websiteId): bool

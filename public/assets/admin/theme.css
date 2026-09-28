@@ -564,3 +564,5 @@ a {
 .mail-preview { width: 100%; height: 420px; border: 1px solid #ddd; background: #fff; }
 .mail-text { white-space: pre-wrap; }
 .mail-warning { color: #a33; }
+
+.config-settings-form textarea { width: 100%; max-width: 600px; }
