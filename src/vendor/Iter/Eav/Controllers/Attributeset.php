@@ -54,6 +54,24 @@ class Attributeset
         echo Layout::renderAdmin('admin_attributeset_form');
     }
 
+    public function Preview(): void
+    {
+        $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+        if ($id <= 0 || !(new AttributeSetModel())->load($id)->getId()) {
+            Messages::addError('Conjunto não encontrado.');
+            header('Location: /admin/attributeset/index');
+            exit;
+        }
+
+        Breadcrumb::set([
+            ['label' => 'Dashboard', 'url' => '/admin/index'],
+            ['label' => 'Conjuntos de atributos', 'url' => '/admin/attributeset/index'],
+            ['label' => 'Pré-visualizar'],
+        ]);
+
+        echo Layout::renderAdmin('admin_attributeset_preview');
+    }
+
     public function Save(): void
     {
         $data = [

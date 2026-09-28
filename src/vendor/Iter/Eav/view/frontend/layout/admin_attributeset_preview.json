@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "preview": "eav/attribute-set-preview"
+        }
+    }
+}

@@ -18,6 +18,9 @@ use Iter\Admin\Model\AdminRole;
 use Iter\Admin\Model\AdminUser;
 use Iter\Core\Config;
 use Iter\Core\Db\Connection;
+use Iter\Core\View\LayoutParser;
+use Iter\Core\View\LayoutRenderer;
+use Iter\Eav\Form\FormSchemaGenerator;
 use Iter\Eav\InputTypeRegistry;
 use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\AttributeService;
@@ -370,11 +373,39 @@ assertSame(true, str_contains($form, 'name="items[' . $attrId('selftest_a1') . '
 assertSame(['Conjunto atualizado com sucesso.'], $msgs, 'atributos do conjunto salvos');
 $order = static fn () => array_map(static fn ($i) => [$i['code'], $i['group_name']], (new AttributeSetService())->getItems($setId));
 assertSame([['selftest_a2', 'Geral'], ['selftest_a1', 'Técnico'], ['selftest_a3', null]], $order(), 'itens por grupo (menor posição) e sem grupo por último; desmarcado fica fora');
-$customerAttr = (int) $pdo->query("SELECT attribute_id FROM eav_attribute WHERE code = 'selftest_color' ORDER BY attribute_id DESC")->fetchColumn();
+// form generation
+$service->create(['entity_type' => 'product', 'code' => 'selftest_gen_sel', 'label' => 'Sel', 'input_type' => 'select', 'is_required' => 1,
+    'options' => [['value' => 'x', 'label' => 'X'], ['value' => 'y', 'label' => 'Y', 'is_default' => 1]]]);
 $setService = new AttributeSetService();
+$setService->update($setId, ['label' => 'Selftest', 'items' => [
+    $attrId('selftest_a1') => ['in' => 1, 'group' => 'Técnico', 'sort_order' => 30],
+    $attrId('selftest_a2') => ['in' => 1, 'group' => 'Geral', 'sort_order' => 20],
+    $attrId('selftest_gen_sel') => ['in' => 1, 'group' => 'Geral', 'sort_order' => 25],
+    $attrId('selftest_a3') => ['in' => 1, 'group' => '', 'sort_order' => 10],
+]]);
+$service->update($attrId('selftest_a1'), ['label' => 'A1', 'is_visible' => 0]);
+$generator = new FormSchemaGenerator();
+$schema = $generator->generate('product', 'selftest_set');
+$byName = array_column($schema['fields'], null, 'name');
+assertSame(['selftest_a2', 'selftest_gen_sel', 'selftest_a3'], array_keys($byName), 'schema segue a ordem do conjunto e deixa de fora o invisível');
+assertSame([[['value' => 'x', 'label' => 'X'], ['value' => 'y', 'label' => 'Y']], 'y', true, 'Geral'],
+    [$byName['selftest_gen_sel']['options'], $byName['selftest_gen_sel']['default'], $byName['selftest_gen_sel']['required'], $byName['selftest_gen_sel']['group']], 'campo select traz opções, padrão, obrigatório e grupo');
+assertSame(false, isset($byName['selftest_a2']['options']), 'tipo sem opções não traz options');
+$custom = $generator->generate('product', 'selftest_set', ['selftest_gen_sel' => ['label' => 'Outro', 'required' => false], 'selftest_a3' => false]);
+assertSame([['selftest_a2', 'A2', false], ['selftest_gen_sel', 'Outro', false]], array_map(static fn ($f) => [$f['name'], $f['label'], $f['required']], $custom['fields']), 'configuração do formulário sobrescreve e remove campos');
+assertSame('ATTRIBUTE_SET_NOT_FOUND', $throws(static fn () => $generator->generate('product', 'selftest_nada')), 'conjunto inexistente lança exceção');
+assertSame((int) $setRow('default')['attribute_set_id'], $generator->generate('product')['attribute_set'], 'sem conjunto usa o padrão da entidade');
+$preview = $admin->request('/admin/attributeset/preview?id=' . $setId)['body'];
+assertSame([true, true, true, false], [str_contains($preview, '<legend>Geral</legend>'), str_contains($preview, '<option value="y" selected>'),
+    (bool) preg_match('/name="selftest_gen_sel"[^>]* required/', $preview), str_contains($preview, 'selftest_a1')], 'pré-visualização renderiza o formulário do conjunto');
+$html = (new LayoutRenderer())->render((new LayoutParser())->parse(['f' => ['component' => 'eav/form-fields',
+    'data' => ['entity_type' => 'product', 'attribute_set' => 'selftest_set', 'fields' => ['selftest_gen_sel' => false], 'values' => ['selftest_a2' => 'abc']]]]));
+assertSame([true, false], [str_contains($html, 'name="selftest_a2" value="abc"'), str_contains($html, 'selftest_gen_sel')], 'componente eav/form-fields configurado pelo layout JSON');
+
+$customerAttr = (int) $pdo->query("SELECT attribute_id FROM eav_attribute WHERE code = 'selftest_color' ORDER BY attribute_id DESC")->fetchColumn();
 assertSame('ATTRIBUTE_NOT_FOUND', $throws(static fn () => $setService->update($setId, ['label' => 'S', 'items' => [$customerAttr => ['in' => 1]]])), 'atributo de outra entidade não entra no conjunto');
 $service->delete($attrId('selftest_a3'));
-assertSame(2, count($order()), 'remover o atributo tira ele do conjunto');
+assertSame(3, count($order()), 'remover o atributo tira ele do conjunto');
 
 $default = (int) $setRow('default')['attribute_set_id'];
 assertSame('ATTRIBUTE_SET_DEFAULT', $throws(static fn () => $setService->delete($default)), 'conjunto padrão não pode ser removido');

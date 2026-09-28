@@ -25,6 +25,7 @@
                 <td><?= $set['is_default'] ? 'Sim' : '' ?></td>
                 <td>
                     <a href="/admin/attributeset/edit?id=<?= (int) $set['attribute_set_id'] ?>">Editar</a>
+                    <a href="/admin/attributeset/preview?id=<?= (int) $set['attribute_set_id'] ?>">Pré-visualizar</a>
         <?php if (!$set['is_default']): ?>
                     <form method="post" action="/admin/attributeset/delete" style="display:inline" data-confirm="Remover este conjunto?">
                         <?= \Iter\Core\FormKey::field() ?>
