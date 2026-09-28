@@ -277,6 +277,9 @@ $graphql = static fn (Browser $b) => json_decode($b->request('/core/graphql/inde
 ]))['body'], true);
 assertSame('Acesso negado.', $graphql($guest)['errors'][0]['message'] ?? null, 'GraphQL: mutation sem login é negada');
 assertSame(true, isset($graphql($admin)['data']['createStore']['id']), 'GraphQL: mutation com admin funciona');
+$page = $admin->request('/admin/graphiql/index');
+assertSame([200, true], [$page['status'], str_contains($page['body'], "url: '/core/graphql/index'")], 'GraphiQL abre no admin apontando para o endpoint');
+assertSame(403, $dash->request('/admin/graphiql/index')['status'], 'GraphiQL exige o recurso Iter_Admin::graphiql');
 
 // --- EAV: input types + attributes -------------------------------------------------------------
 $caps = static fn (string $code) => [InputTypeRegistry::get($code)['supports_options'], InputTypeRegistry::get($code)['multiple']];
@@ -483,9 +486,13 @@ $productValues = static function (string $sku) use ($productRow): array {
     ksort($values); // union order across eav_value_* isn't fixed
     return $values;
 };
-$defaultProductSet = (int) $setRow('default')['attribute_set_id'];
-$newProduct = $admin->request('/admin/product/create')['body'];
-assertSame([true, true], [str_contains($newProduct, 'name="attributes[price]"'), str_contains($newProduct, 'name="attributes[description]"')], 'form de produto traz os atributos do conjunto padrão');
+assertSame(true, str_contains($admin->request('/admin/product/create')['body'], 'name="attributes[price]"'), 'form de produto traz os atributos do conjunto padrão');
+// own set: the default one is the user's to edit (extra required attributes would break these checks)
+$setService->create(['entity_type' => 'product', 'code' => 'selftest_basico', 'label' => 'Básico']);
+$defaultProductSet = (int) $setRow('selftest_basico')['attribute_set_id'];
+$setService->update($defaultProductSet, ['label' => 'Básico', 'items' => [$attrId('price') => ['in' => 1], $attrId('description') => ['in' => 1]]]);
+$newProduct = $admin->request('/admin/product/create?set=' . $defaultProductSet)['body'];
+assertSame([true, true], [str_contains($newProduct, 'name="attributes[price]"'), str_contains($newProduct, 'name="attributes[description]"')], 'form de produto traz os atributos do conjunto');
 $saveProduct = static fn (array $fields) => $admin->submit('/admin/product/create', '/admin/product/save', $fields + [
     'attribute_set_id' => $defaultProductSet, 'name' => 'Camiseta', 'is_active' => '1',
 ])[1];
