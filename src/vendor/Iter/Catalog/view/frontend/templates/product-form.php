@@ -1,5 +1,5 @@
 <?php
-use Iter\Catalog\Model\ProductFormLayout;
+use Iter\Eav\Model\FormLayout;
 
 // The form is split into blocks the admin can arrange ("Organizar tela", admin.js).
 // The <form> itself is empty: fields point to it with form="product-form", so a
@@ -53,7 +53,7 @@ foreach ($groups as $group => $fields) {
         $name_prefix = 'attributes';
         $form_id = 'product-form';
         require (new \Iter\Core\View\ComponentResolver())->resolveTemplate('eav/form-fields');
-    })(['fields' => ProductFormLayout::sortFields($layout, $id, $fields)], $attribute_values);
+    })(['fields' => FormLayout::sortFields($layout, $id, $fields)], $attribute_values);
     $blocks[$id] = ['title' => $group !== '' ? $group : 'Atributos', 'html' => ob_get_clean()];
 }
 
@@ -87,33 +87,10 @@ foreach ($children ?? [] as $name => $html) {
         <input type="hidden" name="attribute_set_id" value="<?= (int) $attribute_set_id ?>">
     </form>
 
-<?php if ($can_arrange): ?>
-    <div class="product-layout-actions">
-        <button type="button" data-layout-toggle>Organizar tela</button>
-        <span data-layout-actions hidden>
-            Arraste os blocos e os campos, ou use os botões de cada um.
-            <label>Colunas
-                <select data-layout-columns>
-                    <option value="0">Automático</option>
-<?php for ($n = 1; $n <= ProductFormLayout::MAX_COLUMNS; $n++): ?>
-                    <option value="<?= $n ?>" <?= $layout['columns'] === $n ? 'selected' : '' ?>><?= $n ?></option>
-<?php endfor; ?>
-                </select>
-            </label>
-            <button type="button" data-layout-save>Salvar layout</button>
-            <button type="button" data-layout-cancel>Cancelar</button>
-            <button type="button" data-layout-reset>Restaurar padrão</button>
-        </span>
-        <span data-layout-status role="status"></span>
-    </div>
-<?php endif; ?>
-    <div class="product-layout<?= $layout['columns'] ? ' has-columns' : '' ?>"<?= $layout['columns'] ? ' style="--layout-columns: ' . (int) $layout['columns'] . '"' : '' ?> data-layout-grid data-save-url="/admin/productlayout/save" data-reset-url="/admin/productlayout/reset" data-form-key="<?= $e(\Iter\Core\FormKey::get()) ?>">
-<?php foreach (ProductFormLayout::apply($layout, $blocks) as $id => $block): ?>
-        <div class="product-block<?= $block['wide'] ? ' is-wide' : '' ?>" data-block="<?= $e($id) ?>" data-title="<?= $e($block['title']) ?>">
-<?= $block['html'] ?>
-        </div>
-<?php endforeach; ?>
-    </div>
+<?php (static function (array $blocks, array $layout, bool $can_arrange): void {
+    $layout_url = '/admin/productlayout';
+    require (new \Iter\Core\View\ComponentResolver())->resolveTemplate('eav/form-layout');
+})($blocks, $layout, $can_arrange); ?>
 
     <p class="product-form-submit">
         <button type="submit" form="product-form">Salvar</button>

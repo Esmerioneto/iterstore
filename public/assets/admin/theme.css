@@ -320,7 +320,7 @@ a {
   color: var(--color-paper);
 }
 
-/* Product form: blocks in a grid as wide as the page; each admin arranges their own ("Organizar tela") */
+/* Entity forms (product, customer): blocks in a grid as wide as the page; each admin arranges their own ("Organizar tela") */
 .product-layout {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));

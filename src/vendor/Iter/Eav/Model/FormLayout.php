@@ -2,24 +2,30 @@
 
 declare(strict_types=1);
 
-namespace Iter\Catalog\Model;
+namespace Iter\Eav\Model;
 
 use Iter\Core\Db\Connection;
-use Iter\Eav\Model\AttributeException;
 use PDO;
 
 /**
- * Each admin's order of the product form blocks (base, categories, group:<name>,
- * module children such as stock), their width, and the order of the fields
- * inside each group, and the number of grid columns (0 = as many as fit). One layout for every product: blocks a product doesn't
- * have are skipped, blocks missing from the layout go last in the default order.
+ * "Organizar tela" of an entity's form (product, customer): each admin's order of the
+ * form blocks (e.g. base, categories, group:<name>, module children such as stock),
+ * their width, the order of the fields inside each group, and the number of grid
+ * columns (0 = as many as fit). One layout per admin and entity type for every
+ * entity: blocks an entity doesn't have are skipped, blocks missing from the
+ * layout go last in the default order.
  *
  * @phpstan-type Layout array{blocks: array<int, array{id: string, wide: bool}>, fields: array<string, string[]>, columns: int}
  */
-class ProductFormLayout
+class FormLayout
 {
     public const MAX_COLUMNS = 6;
     private const EMPTY = ['blocks' => [], 'fields' => [], 'columns' => 0];
+
+    /** @param string $entityType code in eav_entity_type */
+    public function __construct(private readonly string $entityType)
+    {
+    }
 
     /** @return Layout */
     public function get(?int $userId): array
@@ -27,8 +33,8 @@ class ProductFormLayout
         if (!$userId) {
             return self::EMPTY;
         }
-        $stmt = $this->pdo()->prepare('SELECT layout FROM catalog_product_form_layout WHERE user_id = :id');
-        $stmt->execute(['id' => $userId]);
+        $stmt = $this->pdo()->prepare('SELECT layout FROM eav_form_layout WHERE user_id = :id AND entity_type = :type');
+        $stmt->execute(['id' => $userId, 'type' => $this->entityType]);
         $json = $stmt->fetchColumn();
 
         return $json === false ? self::EMPTY : (json_decode((string) $json, true) + self::EMPTY);
@@ -54,14 +60,14 @@ class ProductFormLayout
         $new['columns'] ??= $old['columns'];
 
         $this->pdo()->prepare(
-            'INSERT INTO catalog_product_form_layout (user_id, layout) VALUES (:id, :layout)
-             ON CONFLICT (user_id) DO UPDATE SET layout = EXCLUDED.layout'
-        )->execute(['id' => $userId, 'layout' => json_encode($new, JSON_UNESCAPED_UNICODE)]);
+            'INSERT INTO eav_form_layout (user_id, entity_type, layout) VALUES (:id, :type, :layout)
+             ON CONFLICT (user_id, entity_type) DO UPDATE SET layout = EXCLUDED.layout'
+        )->execute(['id' => $userId, 'type' => $this->entityType, 'layout' => json_encode($new, JSON_UNESCAPED_UNICODE)]);
     }
 
     public function reset(int $userId): void
     {
-        $this->pdo()->prepare('DELETE FROM catalog_product_form_layout WHERE user_id = :id')->execute(['id' => $userId]);
+        $this->pdo()->prepare('DELETE FROM eav_form_layout WHERE user_id = :id AND entity_type = :type')->execute(['id' => $userId, 'type' => $this->entityType]);
     }
 
     /**
