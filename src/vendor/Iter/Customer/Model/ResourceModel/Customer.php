@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Iter\Customer\Model\ResourceModel;
 
+use Iter\Core\Db\Expr;
 use Iter\Core\Model\ResourceModel\AbstractDb;
 use Iter\Customer\Model\ResourceModel\Customer\Collection;
-use Iter\Core\Db\Expr;
 
 class Customer extends AbstractDb
 {
@@ -52,12 +52,12 @@ class Customer extends AbstractDb
     /** $column is email (compared ignoring case) or taxvat */
     public function exists(string $column, string $value, int $websiteId, ?int $exceptId = null): bool
     {
-        $compare = $column === 'email' ? 'LOWER(email) = LOWER(:value)' : 'taxvat = :value';
-        $stmt = $this->getConnection()->prepare(
-            "SELECT 1 FROM customer_entity WHERE {$compare} AND website_id = :website_id AND customer_id <> :id"
-        );
-        $stmt->execute(['value' => $value, 'website_id' => $websiteId, 'id' => $exceptId ?? 0]);
+        $db = $this->getConnection();
 
-        return (bool) $stmt->fetchColumn();
+        return (bool) $db->fetchOne($db->select()->from('customer_entity', [new Expr('1')])
+            ->where($column === 'email' ? 'LOWER(email) = LOWER(?)' : 'taxvat = ?', $value)
+            ->where('website_id = ?', $websiteId)
+            ->where('customer_id <> ?', $exceptId ?? 0)
+            ->limit(1));
     }
 }
