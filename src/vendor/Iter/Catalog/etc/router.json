@@ -30,5 +30,13 @@
         "controller_name": "category",
         "controller_action": "save,delete",
         "method": "POST"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Catalog",
+        "controller_name": "productlayout",
+        "controller_action": "save,reset",
+        "method": "POST"
     }
 ]

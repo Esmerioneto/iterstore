@@ -1,7 +1,7 @@
 {
     "dashboard": {
         "children": {
-            "form": "catalog/product-form"
+            "form": { "component": "catalog/product-form" }
         }
     }
 }
