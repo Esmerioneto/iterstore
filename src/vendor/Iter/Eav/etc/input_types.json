@@ -1,0 +1,13 @@
+[
+    { "code": "text", "label": "Texto", "storage_type": "varchar" },
+    { "code": "textarea", "label": "Área de texto", "storage_type": "text" },
+    { "code": "number", "label": "Número decimal", "storage_type": "decimal" },
+    { "code": "integer", "label": "Número inteiro", "storage_type": "int" },
+    { "code": "select", "label": "Seleção", "storage_type": "varchar", "supports_options": true },
+    { "code": "multiselect", "label": "Múltipla seleção", "storage_type": "text", "supports_options": true, "multiple": true },
+    { "code": "checkbox", "label": "Sim/Não", "storage_type": "boolean" },
+    { "code": "radio", "label": "Opções", "storage_type": "varchar", "supports_options": true },
+    { "code": "date", "label": "Data", "storage_type": "datetime" },
+    { "code": "datetime", "label": "Data e hora", "storage_type": "datetime" },
+    { "code": "hidden", "label": "Oculto", "storage_type": "varchar" }
+]

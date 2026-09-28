@@ -18,6 +18,9 @@ use Iter\Admin\Model\AdminRole;
 use Iter\Admin\Model\AdminUser;
 use Iter\Core\Config;
 use Iter\Core\Db\Connection;
+use Iter\Eav\InputTypeRegistry;
+use Iter\Eav\Model\AttributeException;
+use Iter\Eav\Model\AttributeService;
 
 const PASSWORD = 'Selftest123';
 
@@ -108,6 +111,7 @@ $server = proc_open(
 );
 
 $purge = static function () use ($pdo, $savedConfig): void {
+    $pdo->exec("DELETE FROM eav_attribute WHERE code LIKE 'selftest%'");
     $pdo->exec("DELETE FROM store WHERE store_name LIKE 'selftest%'");
     $pdo->exec("DELETE FROM store_group WHERE code LIKE 'selftest%'");
     $pdo->exec("DELETE FROM store_website WHERE code LIKE 'selftest%'");
@@ -252,6 +256,59 @@ $graphql = static fn (Browser $b) => json_decode($b->request('/core/graphql/inde
 ]))['body'], true);
 assertSame('Acesso negado.', $graphql($guest)['errors'][0]['message'] ?? null, 'GraphQL: mutation sem login é negada');
 assertSame(true, isset($graphql($admin)['data']['createStore']['id']), 'GraphQL: mutation com admin funciona');
+
+// --- EAV: input types + attributes -------------------------------------------------------------
+$caps = static fn (string $code) => [InputTypeRegistry::get($code)['supports_options'], InputTypeRegistry::get($code)['multiple']];
+assertSame([true, false], $caps('select'), 'select: aceita opções, valor único');
+assertSame([true, true], $caps('multiselect'), 'multiselect: aceita opções, vários valores');
+assertSame([false, false], $caps('text'), 'text: sem opções');
+$throws = static function (callable $fn): string {
+    try {
+        $fn();
+    } catch (Throwable $e) {
+        return $e instanceof AttributeException ? $e->errorCode : get_class($e);
+    }
+    return 'nada';
+};
+assertSame('InvalidArgumentException', $throws(static fn () => InputTypeRegistry::get('foo')), 'tipo de campo inexistente lança exceção');
+assertSame('RuntimeException', $throws(static fn () => InputTypeRegistry::build([
+    ['code' => 'x', 'storage_type' => 'varchar'], ['code' => 'x', 'storage_type' => 'varchar'],
+])), 'tipo de campo duplicado lança exceção');
+
+$saveAttribute = static fn (array $fields) => $admin->submit('/admin/attribute/create', '/admin/attribute/save', $fields + [
+    'entity_type' => 'product', 'label' => 'Selftest', 'input_type' => 'text',
+])[1];
+$attributeRow = static fn (string $code) => $pdo->query("SELECT * FROM eav_attribute WHERE code = '{$code}' ORDER BY attribute_id")->fetch(PDO::FETCH_ASSOC);
+assertSame(['Atributo criado com sucesso.'], $saveAttribute(['code' => 'selftest_color', 'input_type' => 'select', 'is_system' => '1']), 'atributo select criado pelo admin');
+assertSame(['varchar', 0], [$attributeRow('selftest_color')['storage_type'], $attributeRow('selftest_color')['is_system']], 'storage_type vem do tipo; is_system do POST é ignorado');
+assertSame(["O tipo de campo 'foo' não está registrado."], $saveAttribute(['code' => 'selftest_foo', 'input_type' => 'foo']), 'tipo de campo inválido é recusado');
+assertSame(['Código deve começar com letra e conter apenas a-z, 0-9 e _ (máx. 100).'], $saveAttribute(['code' => '1selftest']), 'código começando com número é recusado');
+assertSame(["Já existe um atributo 'selftest_color' nesta entidade."], $saveAttribute(['code' => 'selftest_color']), 'código duplicado na entidade é recusado');
+assertSame(['Atributo criado com sucesso.'], $saveAttribute(['code' => 'selftest_color', 'entity_type' => 'customer']), 'mesmo código em outra entidade é aceito');
+
+$service = new AttributeService();
+$system = $service->create(['entity_type' => 'product', 'code' => 'selftest_sys', 'label' => 'Sys', 'input_type' => 'text'], true);
+$sysId = (int) $system->getId();
+assertSame('ATTRIBUTE_SYSTEM_PROTECTED', $throws(static fn () => $service->delete($sysId)), 'atributo do sistema não pode ser removido');
+assertSame('ATTRIBUTE_SYSTEM_PROTECTED', $throws(static fn () => $service->update($sysId, ['label' => 'Sys', 'input_type' => 'textarea'])), 'tipo do atributo do sistema não muda');
+$service->update($sysId, ['label' => 'Sys novo', 'is_required' => 1]);
+assertSame(['Sys novo', 0], [$attributeRow('selftest_sys')['label'], $attributeRow('selftest_sys')['is_required']], 'sistema: nome muda, obrigatório não');
+$sysForm = $admin->request('/admin/attribute/edit?id=' . $sysId)['body'];
+assertSame([true, true], [str_contains($sysForm, 'Atributo do sistema'), str_contains($sysForm, 'name="input_type" required disabled')], 'form de atributo do sistema trava o tipo');
+assertSame(200, $admin->request('/admin/attribute/create')['status'], 'form de novo atributo abre');
+$colorId = (int) $attributeRow('selftest_color')['attribute_id'];
+assertSame('INPUT_TYPE_CHANGE_BLOCKED', $throws(static fn () => $service->update($colorId, ['label' => 'C', 'input_type' => 'integer'])), 'troca de tipo que muda o armazenamento é recusada');
+$service->update($colorId, ['label' => 'C', 'input_type' => 'radio']);
+assertSame('radio', $attributeRow('selftest_color')['input_type'], 'troca para tipo com o mesmo armazenamento é aceita');
+
+for ($i = 1; $i <= 21; $i++) {
+    $service->create(['entity_type' => 'category', 'code' => sprintf('selftest_p%02d', $i), 'label' => 'P', 'input_type' => 'text']);
+}
+$rows = static fn (string $query) => substr_count($admin->request('/admin/attribute/index?' . $query)['body'], '/admin/attribute/edit?id=');
+assertSame([20, 1], [$rows('q=selftest_p'), $rows('q=selftest_p&page=2')], 'lista pagina de 20 em 20');
+assertSame(1, $rows('q=selftest&is_system=1'), 'filtro de atributos do sistema');
+[, $msgs] = $admin->submit('/admin/attribute/index', '/admin/attribute/delete', ['attribute_id' => $colorId]);
+assertSame(['Atributo removido com sucesso.'], $msgs, 'atributo personalizado é removido');
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());

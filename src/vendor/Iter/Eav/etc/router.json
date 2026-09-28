@@ -1,0 +1,18 @@
+[
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Eav",
+        "controller_name": "attribute",
+        "controller_action": "index,create,edit",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Eav",
+        "controller_name": "attribute",
+        "controller_action": "save,delete",
+        "method": "POST"
+    }
+]
