@@ -11,14 +11,15 @@ use PDO;
 /**
  * Each admin's order of the product form blocks (base, categories, group:<name>,
  * module children such as stock), their width, and the order of the fields
- * inside each group. One layout for every product: blocks a product doesn't
+ * inside each group, and the number of grid columns (0 = as many as fit). One layout for every product: blocks a product doesn't
  * have are skipped, blocks missing from the layout go last in the default order.
  *
- * @phpstan-type Layout array{blocks: array<int, array{id: string, wide: bool}>, fields: array<string, string[]>}
+ * @phpstan-type Layout array{blocks: array<int, array{id: string, wide: bool}>, fields: array<string, string[]>, columns: int}
  */
 class ProductFormLayout
 {
-    private const EMPTY = ['blocks' => [], 'fields' => []];
+    public const MAX_COLUMNS = 6;
+    private const EMPTY = ['blocks' => [], 'fields' => [], 'columns' => 0];
 
     /** @return Layout */
     public function get(?int $userId): array
@@ -50,6 +51,7 @@ class ProductFormLayout
             }
         }
         $new['fields'] += $old['fields'];
+        $new['columns'] ??= $old['columns'];
 
         $this->pdo()->prepare(
             'INSERT INTO catalog_product_form_layout (user_id, layout) VALUES (:id, :layout)
@@ -96,7 +98,7 @@ class ProductFormLayout
         return array_values($keyed);
     }
 
-    /** @return Layout */
+    /** @return array{blocks: array, fields: array, columns?: int} columns only when sent */
     private static function validate(mixed $layout): array
     {
         $invalid = new AttributeException('LAYOUT_INVALID', 'Layout inválido.');
@@ -124,7 +126,15 @@ class ProductFormLayout
             $fields[$id] = array_values(array_unique($codes));
         }
 
-        return ['blocks' => array_values($blocks), 'fields' => $fields];
+        $valid = ['blocks' => array_values($blocks), 'fields' => $fields];
+        if (array_key_exists('columns', $layout)) {
+            if (!is_int($layout['columns']) || $layout['columns'] < 0 || $layout['columns'] > self::MAX_COLUMNS) {
+                throw $invalid;
+            }
+            $valid['columns'] = $layout['columns'];
+        }
+
+        return $valid;
     }
 
     private function pdo(): PDO

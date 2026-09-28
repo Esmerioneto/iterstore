@@ -92,6 +92,14 @@ foreach ($children ?? [] as $name => $html) {
         <button type="button" data-layout-toggle>Organizar tela</button>
         <span data-layout-actions hidden>
             Arraste os blocos e os campos, ou use os botões de cada um.
+            <label>Colunas
+                <select data-layout-columns>
+                    <option value="0">Automático</option>
+<?php for ($n = 1; $n <= ProductFormLayout::MAX_COLUMNS; $n++): ?>
+                    <option value="<?= $n ?>" <?= $layout['columns'] === $n ? 'selected' : '' ?>><?= $n ?></option>
+<?php endfor; ?>
+                </select>
+            </label>
             <button type="button" data-layout-save>Salvar layout</button>
             <button type="button" data-layout-cancel>Cancelar</button>
             <button type="button" data-layout-reset>Restaurar padrão</button>
@@ -99,7 +107,7 @@ foreach ($children ?? [] as $name => $html) {
         <span data-layout-status role="status"></span>
     </div>
 <?php endif; ?>
-    <div class="product-layout" data-layout-grid data-save-url="/admin/productlayout/save" data-reset-url="/admin/productlayout/reset" data-form-key="<?= $e(\Iter\Core\FormKey::get()) ?>">
+    <div class="product-layout<?= $layout['columns'] ? ' has-columns' : '' ?>"<?= $layout['columns'] ? ' style="--layout-columns: ' . (int) $layout['columns'] . '"' : '' ?> data-layout-grid data-save-url="/admin/productlayout/save" data-reset-url="/admin/productlayout/reset" data-form-key="<?= $e(\Iter\Core\FormKey::get()) ?>">
 <?php foreach (ProductFormLayout::apply($layout, $blocks) as $id => $block): ?>
         <div class="product-block<?= $block['wide'] ? ' is-wide' : '' ?>" data-block="<?= $e($id) ?>" data-title="<?= $e($block['title']) ?>">
 <?= $block['html'] ?>

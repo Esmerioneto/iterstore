@@ -733,19 +733,21 @@ $estPage = $admin->request('/admin/product/edit?id=' . $estId)['body'];
 $defaultBlocks = $blocksOf($estPage);
 assertSame(['base', 'categories', 'group:', 'stock'], array_values(array_intersect($defaultBlocks, ['base', 'categories', 'group:', 'stock'])), 'form de produto em blocos, na ordem padrão, com o estoque como bloco');
 assertSame([true, true, true], [str_contains($estPage, '<form id="product-form"'), str_contains($estPage, 'form="product-form" type="text" name="sku"'), str_contains($estPage, '<input form="product-form" type="number" name="attributes[price]"')], 'campos fora do <form> apontam para ele com form=');
-$layout = ['blocks' => [['id' => 'stock', 'wide' => false], ['id' => 'group:', 'wide' => true], ['id' => 'group:Medidas', 'wide' => false]], 'fields' => ['group:' => ['description', 'price']]];
+$layout = ['blocks' => [['id' => 'stock', 'wide' => false], ['id' => 'group:', 'wide' => true], ['id' => 'group:Medidas', 'wide' => false]], 'fields' => ['group:' => ['description', 'price']], 'columns' => 3];
 assertSame([200, 'Layout salvo.'], $layoutPost($admin, '/admin/productlayout/save', ['layout' => json_encode($layout)]), 'layout salvo pelo admin');
 $estPage = $admin->request('/admin/product/edit?id=' . $estId)['body'];
 assertSame(['stock', 'group: (largura total)', 'base', 'categories'], array_slice($blocksOf($estPage), 0, 4), 'form segue o layout salvo; blocos fora dele vão para o fim; grupo de outro conjunto é ignorado');
 assertSame(true, strpos($estPage, 'data-field="description"') < strpos($estPage, 'data-field="price"'), 'ordem dos campos dentro do grupo segue o layout');
+assertSame([true, true], [str_contains($estPage, 'class="product-layout has-columns" style="--layout-columns: 3"'), str_contains($estPage, '<option value="3" selected>')], 'grade usa o número de colunas salvo');
 assertSame(['price', 'description'], array_values(array_intersect(array_column((new FormSchemaGenerator())->generate('product', 'selftest_basico')['fields'], 'name'), ['price', 'description'])), 'layout não muda a ordem do conjunto');
 $makeUser('selftest_admin2', ['Iter_Admin::root']);
 $admin2 = new Browser($base);
 $admin2->login('selftest_admin2');
 assertSame($defaultBlocks, $blocksOf($admin2->request('/admin/product/edit?id=' . $estId)['body']), 'outro admin continua com o layout padrão');
 assertSame([200, 'Layout salvo.'], $layoutPost($admin, '/admin/productlayout/save', ['layout' => json_encode(['blocks' => [['id' => 'base']]])]), 'salvar só os blocos da página');
-assertSame(['base', 'stock', 'group: (largura total)'], array_slice($blocksOf($admin->request('/admin/product/edit?id=' . $estId)['body']), 0, 3), 'blocos não enviados mantêm a ordem salva, depois dos enviados');
-foreach (['não é json', json_encode(['blocks' => [['id' => '<script>']]]), json_encode(['blocks' => [['id' => 'base', 'wide' => 'sim']]])] as $bad) {
+$estPage = $admin->request('/admin/product/edit?id=' . $estId)['body'];
+assertSame([['base', 'stock', 'group: (largura total)'], true], [array_slice($blocksOf($estPage), 0, 3), str_contains($estPage, '--layout-columns: 3')], 'blocos e colunas não enviados mantêm o que estava salvo');
+foreach (['não é json', json_encode(['blocks' => [['id' => '<script>']]]), json_encode(['blocks' => [['id' => 'base', 'wide' => 'sim']]]), json_encode(['blocks' => [], 'columns' => 7]), json_encode(['blocks' => [], 'columns' => '3'])] as $bad) {
     assertSame([422, 'Layout inválido.'], $layoutPost($admin, '/admin/productlayout/save', ['layout' => $bad]), 'layout inválido é recusado: ' . substr($bad, 0, 20));
 }
 assertSame([200, 'Layout padrão restaurado.'], $layoutPost($admin, '/admin/productlayout/reset'), 'restaurar layout padrão');
