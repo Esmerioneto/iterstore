@@ -74,10 +74,12 @@ class AttributeService
             if ($model->isSystem()) {
                 throw new AttributeException('ATTRIBUTE_SYSTEM_PROTECTED', 'O tipo de um atributo do sistema não pode ser alterado.');
             }
-            // stored values would sit in the wrong eav_value_* table
-            if ($this->inputType($newType)['storage_type'] !== $model->getData('storage_type')
+            // stored values would sit in the wrong eav_value_* table, or text would be read as a file path
+            $old = $this->inputType($model->getData('input_type'));
+            $new = $this->inputType($newType);
+            if (($new['storage_type'] !== $old['storage_type'] || (bool) $new['accept'] !== (bool) $old['accept'])
                 && $model->getResource()->hasValues($id, $model->getData('storage_type'))) {
-                throw new AttributeException('INPUT_TYPE_CHANGE_BLOCKED', 'O atributo já tem valores gravados e o novo tipo de campo usa outro formato de armazenamento; crie um novo atributo.');
+                throw new AttributeException('INPUT_TYPE_CHANGE_BLOCKED', 'O atributo já tem valores gravados e o novo tipo de campo guarda os valores de outro jeito; crie um novo atributo.');
             }
         }
 

@@ -26,13 +26,14 @@ class ProductService
     {
         $set = $this->set((int) ($data['attribute_set_id'] ?? 0));
         $fields = $this->fields($data);
-        $rows = (new ValueService())->validate(Product::ENTITY_TYPE, $this->setValues($set, $attributes));
+        $values = new ValueService();
+        $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($set, $attributes));
 
         // ponytail: product and values are saved on separate connections (Connection opens a PDO
         // per call), so everything is validated first; a DB failure in between leaves a product
         // without values, fixable by saving it again
         $model = (new Product())->addData($fields + ['attribute_set_id' => (int) $set->getId()])->save();
-        (new Attribute())->getResource()->saveValues((int) $model->getId(), $rows);
+        $values->write((int) $model->getId(), $rows);
 
         return $model;
     }
@@ -42,10 +43,11 @@ class ProductService
     {
         $model = $this->get($id);
         $fields = $this->fields($data, $id);
-        $rows = (new ValueService())->validate(Product::ENTITY_TYPE, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes));
+        $values = new ValueService();
+        $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes), $id);
 
         $model->addData($fields)->save();
-        (new Attribute())->getResource()->saveValues($id, $rows);
+        $values->write($id, $rows);
 
         return $model;
     }

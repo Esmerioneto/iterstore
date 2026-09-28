@@ -9,5 +9,7 @@
     { "code": "radio", "label": "Opções", "storage_type": "varchar", "supports_options": true },
     { "code": "date", "label": "Data", "storage_type": "datetime" },
     { "code": "datetime", "label": "Data e hora", "storage_type": "datetime" },
-    { "code": "hidden", "label": "Oculto", "storage_type": "varchar" }
+    { "code": "hidden", "label": "Oculto", "storage_type": "varchar" },
+    { "code": "image", "label": "Imagem", "storage_type": "varchar",
+      "accept": { "image/webp": "webp", "image/avif": "avif", "image/jpeg": "jpg", "image/png": "png" } }
 ]

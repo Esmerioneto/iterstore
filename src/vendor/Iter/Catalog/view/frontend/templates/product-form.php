@@ -13,7 +13,7 @@
         <small>Trocar o conjunto recarrega o formulário; o que já foi digitado se perde.</small>
     </form>
 <?php endif; ?>
-    <form method="post" action="/admin/product/save">
+    <form method="post" action="/admin/product/save" enctype="multipart/form-data">
         <?= \Iter\Core\FormKey::field() ?>
 <?php if ($product_id): ?>
         <input type="hidden" name="product_id" value="<?= (int) $product_id ?>">

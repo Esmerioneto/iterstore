@@ -40,7 +40,11 @@ class ProductForm implements ViewComponentInterface
             'sets' => $sets,
             'attribute_set_id' => $setId,
             'schema' => (new FormSchemaGenerator())->generate(Product::ENTITY_TYPE, $sets[$setId]['code']),
-            'attribute_values' => $old['attributes'] ?? ($id ? (new ProductService())->getValues($id) : []),
+            // typed values over the stored ones; file fields keep showing the stored file
+            'attribute_values' => array_merge(
+                $id ? (new ProductService())->getValues($id) : [],
+                array_filter($old['attributes'] ?? [], static fn ($v) => !is_array($v) || array_is_list($v))
+            ),
         ];
     }
 

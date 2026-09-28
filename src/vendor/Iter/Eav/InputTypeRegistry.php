@@ -6,7 +6,9 @@ namespace Iter\Eav;
 
 /**
  * Field types an EAV attribute can use. Modules declare theirs in
- * etc/input_types.json ({code, label, storage_type, supports_options?, multiple?});
+ * etc/input_types.json ({code, label, storage_type, supports_options?, multiple?, accept?});
+ * "accept" (mime => extension) makes it a file upload field: the value is the
+ * stored file's path, see ValueService.
  * EAV asks for capabilities here instead of testing codes like "select".
  */
 class InputTypeRegistry
@@ -16,7 +18,7 @@ class InputTypeRegistry
     /** @var array<string, array>|null */
     private static ?array $types = null;
 
-    /** @return array<string, array> code => {code, label, storage_type, supports_options, multiple} */
+    /** @return array<string, array> code => {code, label, storage_type, supports_options, multiple, accept} */
     public static function all(): array
     {
         return self::$types ??= self::build(\getModuleJson('etc' . DIRECTORY_SEPARATOR . 'input_types.json'));
@@ -48,12 +50,19 @@ class InputTypeRegistry
             if (!in_array($type['storage_type'] ?? null, self::STORAGE_TYPES, true)) {
                 throw new \RuntimeException("Tipo de campo '{$code}' com storage_type inválido.");
             }
+            $accept = $type['accept'] ?? [];
+            foreach ($accept as $mime => $ext) {
+                if (!is_string($mime) || !preg_match('/^[a-z0-9]{1,8}$/', (string) $ext)) {
+                    throw new \RuntimeException("Tipo de campo '{$code}' com accept inválido (mime => extensão).");
+                }
+            }
             $types[$code] = [
                 'code' => $code,
                 'label' => $type['label'] ?? $code,
                 'storage_type' => $type['storage_type'],
                 'supports_options' => (bool) ($type['supports_options'] ?? false),
                 'multiple' => (bool) ($type['multiple'] ?? false),
+                'accept' => $accept,
             ];
         }
 

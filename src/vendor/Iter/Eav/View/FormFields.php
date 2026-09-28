@@ -13,6 +13,7 @@ use Iter\Core\View\ViewComponentInterface;
  * Only fields are rendered, so the page's own <form> can wrap them. A
  * "values" array (code => value) fills them in; defaults otherwise.
  * "name_prefix": "attributes" posts them as attributes[code].
+ * File fields (e.g. image) need the page's <form enctype="multipart/form-data">.
  */
 class FormFields implements ViewComponentInterface
 {

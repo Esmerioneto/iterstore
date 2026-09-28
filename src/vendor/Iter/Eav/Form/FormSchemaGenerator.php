@@ -22,7 +22,7 @@ class FormSchemaGenerator
     /**
      * @return array{entity_type: string, attribute_set: int, fields: array<int, array{name: string, type: string,
      *               label: string, required: bool, default: string|array|null, group: ?string, multiple: bool,
-     *               options?: array<int, array{value: string, label: string}>}>}
+     *               options?: array<int, array{value: string, label: string}>, accept?: array<int, string>}>}
      */
     public function generate(string $entityType, ?string $setCode = null, array $overrides = []): array
     {
@@ -49,7 +49,7 @@ class FormSchemaGenerator
     {
         $type = InputTypeRegistry::has($attribute['input_type'])
             ? InputTypeRegistry::get($attribute['input_type'])
-            : ['supports_options' => false, 'multiple' => false]; // type of a disabled module: plain field
+            : ['supports_options' => false, 'multiple' => false, 'accept' => []]; // type of a disabled module: plain field
 
         $field = [
             'name' => $attribute['code'],
@@ -60,6 +60,9 @@ class FormSchemaGenerator
             'group' => $attribute['group_name'],
             'multiple' => $type['multiple'],
         ];
+        if ($type['accept']) {
+            $field['accept'] = array_keys($type['accept']);
+        }
         if ($type['supports_options']) {
             $options = (new Attribute())->getResource()->getOptions((int) $attribute['attribute_id']);
             $field['options'] = array_map(static fn ($o) => ['value' => $o['value'], 'label' => $o['label']], $options);
