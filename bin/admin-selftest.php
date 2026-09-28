@@ -641,7 +641,9 @@ $msgs = $admin->submit('/admin/product/create', '/admin/product/save', ['attribu
 assertSame(['Produto criado com sucesso.'], $msgs, 'produto criado com upload de imagem pelo admin');
 $upId = (int) $productRow('selftest-up')['product_id'];
 $url = ValueService::MEDIA_URL . $productService->getValues($upId)['selftest_capa'];
-assertSame([true, 200], [str_contains($admin->request('/admin/product/edit?id=' . $upId)['body'], 'src="' . $url . '"'), $admin->request($url)['status']], 'edição mostra a imagem e ela é servida');
+$upPage = $admin->request('/admin/product/edit?id=' . $upId)['body'];
+assertSame([true, 200], [str_contains($upPage, 'src="' . $url . '"'), $admin->request($url)['status']], 'edição mostra a imagem e ela é servida');
+assertSame([true, true], [str_contains($upPage, 'class="eav-field eav-field-file" data-field="selftest_capa"'), str_contains($upPage, 'href="' . $url . '" target="_blank" data-image-popup="')], 'imagem vira miniatura que abre no popup');
 $gqlImage = array_column($gql($admin, 'query ($id: ID!) { product(id: $id) { attributes { code url } } }', ['id' => $upId])['data']['product']['attributes'] ?? [], 'url', 'code');
 ksort($gqlImage);
 assertSame(['price' => null, 'selftest_capa' => $url], $gqlImage, 'GraphQL: atributo imagem traz a url; os outros, não');

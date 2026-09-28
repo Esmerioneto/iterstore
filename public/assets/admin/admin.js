@@ -228,3 +228,21 @@ document.addEventListener('DOMContentLoaded', function () {
   });
   grid.addEventListener('drop', function (event) { event.preventDefault(); });
 });
+
+// Image fields: the thumbnail opens the full image in a popup (the link still opens a new tab without JS)
+document.addEventListener('click', function (event) {
+  var link = event.target.closest('[data-image-popup]');
+  if (!link || typeof Swal === 'undefined') {
+    return;
+  }
+  event.preventDefault();
+  Swal.fire({
+    imageUrl: link.href,
+    imageAlt: link.dataset.imagePopup,
+    title: link.dataset.imagePopup,
+    width: 'auto',
+    showConfirmButton: false,
+    showCloseButton: true,
+    customClass: { popup: 'admin-swal admin-swal-image' }
+  });
+});
