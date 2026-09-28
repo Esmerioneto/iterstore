@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Customer\Model;
 
+use Iter\Core\Db\Connection;
 use Iter\Eav\Form\FormSchemaGenerator;
 use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeException;
@@ -31,11 +32,12 @@ class CustomerService
         $values = new ValueService();
         $rows = $values->validate(Customer::ENTITY_TYPE, $this->setValues($set, $attributes));
 
-        // ponytail: customer and values are saved on separate connections, as in ProductService
-        $model = (new Customer())->addData($fields + ['attribute_set_id' => (int) $set->getId()])->save();
-        $values->write((int) $model->getId(), $rows);
+        return Connection::get()->adapter()->transaction(static function () use ($fields, $set, $values, $rows): Customer {
+            $model = (new Customer())->addData($fields + ['attribute_set_id' => (int) $set->getId()])->save();
+            $values->write((int) $model->getId(), $rows);
 
-        return $model;
+            return $model;
+        });
     }
 
     /** the attribute set is chosen on creation and doesn't change */
@@ -46,10 +48,12 @@ class CustomerService
         $values = new ValueService();
         $rows = $values->validate(Customer::ENTITY_TYPE, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes), $id);
 
-        $model->addData($fields)->save();
-        $values->write($id, $rows);
+        return Connection::get()->adapter()->transaction(static function () use ($model, $fields, $values, $id, $rows): Customer {
+            $model->addData($fields)->save();
+            $values->write($id, $rows);
 
-        return $model;
+            return $model;
+        });
     }
 
     /** @return array<string, mixed> code => value */
@@ -60,8 +64,11 @@ class CustomerService
 
     public function delete(int $id): void
     {
-        $this->get($id)->delete();
-        (new ValueService())->deleteEntity(Customer::ENTITY_TYPE, $id);
+        $model = $this->get($id);
+        Connection::get()->adapter()->transaction(static function () use ($model, $id): void {
+            $model->delete();
+            (new ValueService())->deleteEntity(Customer::ENTITY_TYPE, $id);
+        });
     }
 
     public function get(int $id): Customer

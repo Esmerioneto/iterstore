@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Catalog\Model;
 
+use Iter\Core\Db\Connection;
 use Iter\Eav\Form\FormSchemaGenerator;
 use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeException;
@@ -31,14 +32,14 @@ class ProductService
         $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($set, $attributes));
         $categoryIds = $this->categoryIds($data);
 
-        // ponytail: product and values are saved on separate connections (Connection opens a PDO
-        // per call), so everything is validated first; a DB failure in between leaves a product
-        // without values, fixable by saving it again
-        $model = (new Product())->addData($fields + ['attribute_set_id' => (int) $set->getId()])->save();
-        $values->write((int) $model->getId(), $rows);
-        $this->saveCategories((int) $model->getId(), $categoryIds);
+        // one transaction; values last, as write() deletes the files they replaced
+        return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $categoryIds): Product {
+            $model = (new Product())->addData($fields + ['attribute_set_id' => (int) $set->getId()])->save();
+            $this->saveCategories((int) $model->getId(), $categoryIds);
+            $values->write((int) $model->getId(), $rows);
 
-        return $model;
+            return $model;
+        });
     }
 
     /** the attribute set is chosen on creation and doesn't change */
@@ -50,11 +51,13 @@ class ProductService
         $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes), $id);
         $categoryIds = $this->categoryIds($data);
 
-        $model->addData($fields)->save();
-        $values->write($id, $rows);
-        $this->saveCategories($id, $categoryIds);
+        return Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $categoryIds): Product {
+            $model->addData($fields)->save();
+            $this->saveCategories($id, $categoryIds);
+            $values->write($id, $rows);
 
-        return $model;
+            return $model;
+        });
     }
 
     /** @return array<string, mixed> the product's EAV values, code => value */
@@ -85,9 +88,11 @@ class ProductService
     public function delete(int $id): void
     {
         $model = $this->get($id);
-        $model->delete();
-        // after the product: if this fails, orphan values are harmless and the product is gone
-        (new ValueService())->deleteEntity(Product::ENTITY_TYPE, $id);
+        // values after the product: deleteEntity() deletes their files
+        Connection::get()->adapter()->transaction(static function () use ($model, $id): void {
+            $model->delete();
+            (new ValueService())->deleteEntity(Product::ENTITY_TYPE, $id);
+        });
     }
 
     public function get(int $id): Product

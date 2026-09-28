@@ -11,6 +11,8 @@ class Connection
     // one PDO per request, so every caller shares the same session and transaction
     private ?\PDO $pdo = null;
 
+    private ?Adapter $adapter = null;
+
     protected function __construct()
     {
     }
@@ -48,6 +50,11 @@ class Connection
         $pdo->exec("SET TIME ZONE '" . date_default_timezone_get() . "'");
 
         return $this->pdo = $pdo;
+    }
+
+    public function adapter(): Adapter
+    {
+        return $this->adapter ??= new Adapter($this->connect());
     }
 
     public static function get(): Connection
