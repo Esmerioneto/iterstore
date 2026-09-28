@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "form": "eav/attribute-set-form"
+        }
+    }
+}

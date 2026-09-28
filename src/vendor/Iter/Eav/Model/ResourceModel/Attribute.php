@@ -108,6 +108,17 @@ class Attribute extends AbstractDb
         }
     }
 
+    /** @return array<int, array<string, mixed>> the entity type's attributes by position */
+    public function getByEntityType(int $entityTypeId): array
+    {
+        $stmt = $this->getConnection()->prepare(
+            'SELECT * FROM eav_attribute WHERE entity_type_id = :id ORDER BY sort_order, code'
+        );
+        $stmt->execute(['id' => $entityTypeId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
     public function codeExists(int $entityTypeId, string $code): bool
     {
         $stmt = $this->getConnection()->prepare(

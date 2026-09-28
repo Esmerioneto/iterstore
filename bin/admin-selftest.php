@@ -21,6 +21,7 @@ use Iter\Core\Db\Connection;
 use Iter\Eav\InputTypeRegistry;
 use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\AttributeService;
+use Iter\Eav\Model\AttributeSetService;
 
 const PASSWORD = 'Selftest123';
 
@@ -111,6 +112,8 @@ $server = proc_open(
 );
 
 $purge = static function () use ($pdo, $savedConfig): void {
+    $pdo->exec("DELETE FROM eav_attribute_set WHERE code LIKE 'selftest%'");
+    $pdo->exec("UPDATE eav_attribute_set SET is_default = 1 WHERE code = 'default' AND entity_type_id NOT IN (SELECT entity_type_id FROM eav_attribute_set WHERE is_default = 1)");
     $pdo->exec("DELETE FROM eav_attribute WHERE code LIKE 'selftest%'");
     $pdo->exec("DELETE FROM store WHERE store_name LIKE 'selftest%'");
     $pdo->exec("DELETE FROM store_group WHERE code LIKE 'selftest%'");
@@ -342,6 +345,46 @@ assertSame([20, 1], [$rows('q=selftest_p'), $rows('q=selftest_p&page=2')], 'list
 assertSame(2, $rows('q=selftest&is_system=1'), 'filtro de atributos do sistema');
 [, $msgs] = $admin->submit('/admin/attribute/index', '/admin/attribute/delete', ['attribute_id' => $colorId]);
 assertSame(['Atributo removido com sucesso.'], $msgs, 'atributo personalizado é removido');
+
+// --- EAV: attribute sets and groups -----------------------------------------------------------
+$setRow = static fn (string $code) => $pdo->query("SELECT s.* FROM eav_attribute_set s JOIN eav_entity_type et USING (entity_type_id)
+    WHERE et.code = 'product' AND s.code = '{$code}'")->fetch(PDO::FETCH_ASSOC);
+$saveSet = static fn (array $fields) => $admin->submit('/admin/attributeset/create', '/admin/attributeset/save', $fields + ['entity_type' => 'product', 'label' => 'Selftest']);
+[$location, $msgs] = $saveSet(['code' => 'selftest_set']);
+$setId = (int) $setRow('selftest_set')['attribute_set_id'];
+assertSame(['/admin/attributeset/edit?id=' . $setId, ['Conjunto criado. Agora escolha os atributos.']], [$location, $msgs], 'conjunto criado leva à escolha dos atributos');
+assertSame(["Já existe um conjunto 'selftest_set' nesta entidade."], $saveSet(['code' => 'selftest_set'])[1], 'código de conjunto duplicado é recusado');
+
+$attrId = static fn (string $code) => (int) $pdo->query("SELECT attribute_id FROM eav_attribute a JOIN eav_entity_type et USING (entity_type_id) WHERE et.code = 'product' AND a.code = '{$code}'")->fetchColumn();
+$service->create(['entity_type' => 'product', 'code' => 'selftest_a1', 'label' => 'A1', 'input_type' => 'text']);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_a2', 'label' => 'A2', 'input_type' => 'text']);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_a3', 'label' => 'A3', 'input_type' => 'text']);
+$form = $admin->request('/admin/attributeset/edit?id=' . $setId)['body'];
+assertSame(true, str_contains($form, 'name="items[' . $attrId('selftest_a1') . '][in]"'), 'form do conjunto lista os atributos da entidade');
+[, $msgs] = $admin->submit('/admin/attributeset/edit?id=' . $setId, '/admin/attributeset/save', ['attribute_set_id' => $setId, 'label' => 'Selftest', 'items' => [
+    $attrId('selftest_a1') => ['in' => '1', 'group' => 'Técnico', 'sort_order' => '30'],
+    $attrId('selftest_a2') => ['in' => '1', 'group' => 'Geral', 'sort_order' => '20'],
+    $attrId('selftest_a3') => ['in' => '1', 'group' => '', 'sort_order' => '10'],
+    $attrId('selftest_sys') => ['group' => 'Geral', 'sort_order' => '1'],
+]]);
+assertSame(['Conjunto atualizado com sucesso.'], $msgs, 'atributos do conjunto salvos');
+$order = static fn () => array_map(static fn ($i) => [$i['code'], $i['group_name']], (new AttributeSetService())->getItems($setId));
+assertSame([['selftest_a2', 'Geral'], ['selftest_a1', 'Técnico'], ['selftest_a3', null]], $order(), 'itens por grupo (menor posição) e sem grupo por último; desmarcado fica fora');
+$customerAttr = (int) $pdo->query("SELECT attribute_id FROM eav_attribute WHERE code = 'selftest_color' ORDER BY attribute_id DESC")->fetchColumn();
+$setService = new AttributeSetService();
+assertSame('ATTRIBUTE_NOT_FOUND', $throws(static fn () => $setService->update($setId, ['label' => 'S', 'items' => [$customerAttr => ['in' => 1]]])), 'atributo de outra entidade não entra no conjunto');
+$service->delete($attrId('selftest_a3'));
+assertSame(2, count($order()), 'remover o atributo tira ele do conjunto');
+
+$default = (int) $setRow('default')['attribute_set_id'];
+assertSame('ATTRIBUTE_SET_DEFAULT', $throws(static fn () => $setService->delete($default)), 'conjunto padrão não pode ser removido');
+$setService->update($default, ['label' => 'Padrão', 'is_default' => 0]);
+assertSame(1, (int) $setRow('default')['is_default'], 'desmarcar o padrão não tira o padrão');
+$setService->update($setId, ['label' => 'Selftest', 'is_default' => 1]);
+assertSame([1, 0], [(int) $setRow('selftest_set')['is_default'], (int) $setRow('default')['is_default']], 'marcar outro conjunto como padrão tira o anterior');
+$setService->update($default, ['label' => 'Padrão', 'is_default' => 1]);
+[, $msgs] = $admin->submit('/admin/attributeset/index', '/admin/attributeset/delete', ['attribute_set_id' => $setId]);
+assertSame(['Conjunto removido com sucesso.'], $msgs, 'conjunto não padrão é removido');
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());
