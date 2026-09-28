@@ -1,0 +1,8 @@
+{
+    "name": "iter_eav",
+    "version": "1.0.0",
+    "description": "Iter EAV",
+    "enabled": true,
+    "index": "0",
+    "author": "Esmerio"
+}

@@ -1,0 +1,3 @@
+[
+    { "label": "Atributos", "resource": "Iter_Eav::attribute", "url": "/admin/attribute/index", "parent": "configuracoes", "sort_order": 15 }
+]
