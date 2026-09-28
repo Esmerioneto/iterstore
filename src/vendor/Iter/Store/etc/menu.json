@@ -1,5 +1,5 @@
 [
-    { "label": "Websites", "resource": "Iter_Store::website", "url": "/admin/website/index", "parent": "configuracoes", "sort_order": 8 },
-    { "label": "Grupos de loja", "resource": "Iter_Store::group", "url": "/admin/group/index", "parent": "configuracoes", "sort_order": 9 },
-    { "label": "Loja", "resource": "Iter_Store::store", "url": "/admin/store/index", "parent": "configuracoes", "sort_order": 10 }
+    { "label": "Websites", "resource": "Iter_Store::website", "url": "/admin/website/index", "parent": "lojas", "sort_order": 8 },
+    { "label": "Grupos de loja", "resource": "Iter_Store::group", "url": "/admin/group/index", "parent": "lojas", "sort_order": 9 },
+    { "label": "Lojas", "resource": "Iter_Store::store", "url": "/admin/store/index", "parent": "lojas", "sort_order": 10 }
 ]

@@ -1,4 +1,4 @@
 [
-    {"id": "configuracoes", "label": "Configurações", "resource": "Iter_Config::config", "url": "/admin/config/index", "sort_order": 20},
-    {"label": "Ajustes do sistema", "resource": "Iter_Config::config", "url": "/admin/config/index", "parent": "configuracoes", "sort_order": 0}
+    {"id": "lojas", "label": "Lojas", "resource": "Iter_Config::config", "url": "/admin/config/index", "sort_order": 80},
+    {"label": "Configurações", "resource": "Iter_Config::config", "url": "/admin/config/index", "parent": "lojas", "sort_order": 0}
 ]
