@@ -328,6 +328,11 @@ a {
   align-items: start;
 }
 
+/* a chosen number of columns is a maximum: narrower screens still get fewer (each at least 280px) */
+.product-layout.has-columns {
+  grid-template-columns: repeat(auto-fill, minmax(max(280px, (100% - (var(--layout-columns) - 1) * var(--spacing-16)) / var(--layout-columns)), 1fr));
+}
+
 .product-block.is-wide {
   grid-column: 1 / -1;
 }

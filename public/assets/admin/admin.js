@@ -121,6 +121,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var toggle = document.querySelector('[data-layout-toggle]');
   var actions = document.querySelector('[data-layout-actions]');
   var status = document.querySelector('[data-layout-status]');
+  var columns = document.querySelector('[data-layout-columns]');
   var dragged = null;
 
   function bar(item, title, wide) {
@@ -161,12 +162,16 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   toggle.addEventListener('click', function () { say(''); arranging(true); });
+  columns.addEventListener('change', function () {
+    grid.classList.toggle('has-columns', columns.value !== '0');
+    grid.style.setProperty('--layout-columns', columns.value);
+  });
   document.querySelector('[data-layout-cancel]').addEventListener('click', function () { location.reload(); });
   document.querySelector('[data-layout-reset]').addEventListener('click', function () {
     send(grid.dataset.resetUrl, {}).then(function () { location.reload(); }, function (error) { say(error.message); });
   });
   document.querySelector('[data-layout-save]').addEventListener('click', function () {
-    var layout = { blocks: [], fields: {} };
+    var layout = { blocks: [], fields: {}, columns: Number(columns.value) };
     grid.querySelectorAll('[data-block]').forEach(function (block) {
       layout.blocks.push({ id: block.dataset.block, wide: block.classList.contains('is-wide') });
       var codes = Array.prototype.map.call(block.querySelectorAll('[data-field]'), function (field) { return field.dataset.field; });
