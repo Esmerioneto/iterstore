@@ -9,6 +9,7 @@ use GraphQL\Type\Definition\Type;
 use GraphQL\Error\UserError;
 use GraphQL\Type\Schema as GraphQLSchema;
 use Iter\Admin\Auth;
+use Iter\Catalog\GraphQl\ProductSchema;
 use Iter\Store\Model\Store as StoreModel;
 
 class Schema
@@ -63,6 +64,8 @@ class Schema
             ],
         ]);
 
+        $product = ProductSchema::fields();
+
         $queryType = new ObjectType([
             'name' => 'Query',
             'fields' => [
@@ -75,7 +78,7 @@ class Schema
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($storeType))),
                     'resolve' => fn () => (new StoreModel())->getList(),
                 ],
-            ],
+            ] + $product['query'],
         ]);
 
         $mutationType = new ObjectType([
@@ -114,7 +117,7 @@ class Schema
                         return true;
                     }),
                 ],
-            ],
+            ] + $product['mutation'],
         ]);
 
         return new GraphQLSchema([

@@ -205,7 +205,7 @@ class ValueService
         } elseif (is_array($value)) {
             throw new AttributeException('VALUE_INVALID', "Valor inválido para '{$label}'.");
         } else {
-            $value = trim((string) $value);
+            $value = is_bool($value) ? (string) (int) $value : trim((string) $value); // bool: what load() gives back
         }
 
         if ($value === '' || $value === []) {

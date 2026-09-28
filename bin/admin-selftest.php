@@ -524,6 +524,38 @@ assertSame('ATTRIBUTE_SET_IN_USE', $throws(static fn () => $setService->delete($
 [, $msgs] = $admin->submit('/admin/product/index', '/admin/product/delete', ['product_id' => $p2]);
 assertSame([['Produto removido com sucesso.'], false, []], [$msgs, $productRow('selftest-2'), $values->load('product', $p2)], 'produto removido com os seus valores');
 
+// --- GraphQL: products ------------------------------------------------------------------------
+$gql = static function (Browser $b, string $query, array $variables = []): array {
+    return json_decode($b->request('/core/graphql/index', null, json_encode(['query' => $query, 'variables' => $variables ?: null]))['body'], true);
+};
+$service->create(['entity_type' => 'product', 'code' => 'selftest_novo', 'label' => 'Novo', 'input_type' => 'checkbox']);
+$setService->update($defaultProductSet, ['label' => 'Básico', 'items' => [$attrId('price') => ['in' => 1], $attrId('description') => ['in' => 1], $attrId('selftest_novo') => ['in' => 1]]]);
+$createGql = 'mutation ($sku: String!, $attrs: [ProductAttributeInput!]) { createProduct(sku: $sku, name: "Boné", attributeSetId: "' . $defaultProductSet . '", attributes: $attrs) { id sku is_active attributes { code value values url } } }';
+$attrsOf = static function (array $product): array {
+    $attrs = array_column($product['attributes'], 'value', 'code');
+    ksort($attrs);
+    return $attrs;
+};
+assertSame('Acesso negado.', $gql($guest, $createGql, ['sku' => 'selftest-gql'])['errors'][0]['message'] ?? null, 'GraphQL: criar produto sem login é negado');
+$r = $gql($admin, $createGql, ['sku' => 'selftest-gql', 'attrs' => [['code' => 'price', 'value' => '19,90'], ['code' => 'selftest_novo', 'value' => '0']]]);
+$gqlProduct = $r['data']['createProduct'] ?? [];
+assertSame(['price' => '19.9', 'selftest_novo' => '0'], $attrsOf($gqlProduct + ['attributes' => []]), 'GraphQL: produto criado com atributos EAV');
+$r = $gql($admin, $createGql, ['sku' => 'selftest-gql2', 'attrs' => [['code' => 'price', 'value' => '1'], ['code' => 'selftest_tam', 'value' => 'm']]]);
+assertSame(['ATTRIBUTE_NOT_FOUND', null], [$r['errors'][0]['extensions']['code'] ?? null, $productRow('selftest-gql2') ?: null], 'GraphQL: atributo fora do conjunto é recusado, com o código do erro');
+$r = $gql($admin, $createGql, ['sku' => 'selftest-gql2']);
+assertSame(["'Preço' é obrigatório.", 'VALUE_REQUIRED'], [$r['errors'][0]['message'] ?? null, $r['errors'][0]['extensions']['code'] ?? null], 'GraphQL: mensagem de negócio chega ao cliente');
+$gqlId = (int) ($gqlProduct['id'] ?? 0);
+$r = $gql($admin, 'mutation ($id: ID!) { updateProduct(id: $id, name: "Boné azul", isActive: false) { name is_active attributes { code value } } }', ['id' => $gqlId]);
+assertSame(['Boné azul', false, '19.9', '0'], [$r['data']['updateProduct']['name'] ?? null, $r['data']['updateProduct']['is_active'] ?? null, $attrsOf($r['data']['updateProduct'])['price'] ?? null, $attrsOf($r['data']['updateProduct'])['selftest_novo'] ?? null],
+    'GraphQL: update parcial mantém os atributos omitidos (inclusive Sim/Não = não)');
+$read = 'query ($id: ID!) { product(id: $id) { sku } products(search: "selftest-gql") { total items { sku } } }';
+assertSame([null, 0], [$gql($guest, $read, ['id' => $gqlId])['data']['product'], $gql($guest, $read, ['id' => $gqlId])['data']['products']['total']], 'GraphQL: visitante não vê produto inativo');
+assertSame(['selftest-gql', 1], [$gql($admin, $read, ['id' => $gqlId])['data']['product']['sku'] ?? null, $gql($admin, $read, ['id' => $gqlId])['data']['products']['total'] ?? null], 'GraphQL: admin vê produto inativo');
+$gql($admin, 'mutation ($id: ID!) { updateProduct(id: $id, isActive: true) { id } }', ['id' => $gqlId]);
+assertSame(1, $gql($guest, $read, ['id' => $gqlId])['data']['products']['total'], 'GraphQL: visitante vê produto ativo');
+$r = $gql($admin, 'mutation ($id: ID!) { deleteProduct(id: $id) }', ['id' => $gqlId]);
+assertSame([true, false, []], [$r['data']['deleteProduct'] ?? null, $productRow('selftest-gql'), $values->load('product', $gqlId)], 'GraphQL: produto removido com os valores');
+
 // --- EAV: image attributes ----------------------------------------------------------------------
 $scratch = sys_get_temp_dir() . '/iter-selftest-' . getmypid();
 @mkdir($scratch);
@@ -574,6 +606,9 @@ assertSame(['Produto criado com sucesso.'], $msgs, 'produto criado com upload de
 $upId = (int) $productRow('selftest-up')['product_id'];
 $url = ValueService::MEDIA_URL . $productService->getValues($upId)['selftest_capa'];
 assertSame([true, 200], [str_contains($admin->request('/admin/product/edit?id=' . $upId)['body'], 'src="' . $url . '"'), $admin->request($url)['status']], 'edição mostra a imagem e ela é servida');
+$gqlImage = array_column($gql($admin, 'query ($id: ID!) { product(id: $id) { attributes { code url } } }', ['id' => $upId])['data']['product']['attributes'] ?? [], 'url', 'code');
+ksort($gqlImage);
+assertSame(['price' => null, 'selftest_capa' => $url], $gqlImage, 'GraphQL: atributo imagem traz a url; os outros, não');
 assertSame('INPUT_TYPE_CHANGE_BLOCKED', $throws(static fn () => $service->update($attrId('selftest_capa'), ['label' => 'Capa', 'input_type' => 'text'])), 'atributo imagem com valores não vira texto');
 array_map('unlink', glob("{$scratch}/*"));
 rmdir($scratch);
