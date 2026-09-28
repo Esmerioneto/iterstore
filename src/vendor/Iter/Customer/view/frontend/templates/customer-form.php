@@ -127,14 +127,14 @@ foreach ($groupFields as $group => $fields) {
 <?php if (!$is_edit && count($sets) > 1): ?>
     <form method="get" action="/admin/customer/create">
         <label>Conjunto de atributos
-            <select name="set">
+            <select name="set" data-autosubmit>
     <?php foreach ($sets as $setId => $set): ?>
                 <option value="<?= (int) $setId ?>" <?= $setId === $attribute_set_id ? 'selected' : '' ?>><?= $e($set['label']) ?></option>
     <?php endforeach; ?>
             </select>
         </label>
-        <button type="submit">Trocar</button>
-        <small>Trocar o conjunto recarrega o formulário; o que já foi digitado se perde.</small>
+        <noscript><button type="submit">Trocar</button></noscript>
+        <small>Escolha o conjunto antes de preencher: trocar recarrega o formulário e o que já foi digitado se perde.</small>
     </form>
 <?php endif; ?>
     <form id="customer-form" method="post" action="/admin/customer/save" enctype="multipart/form-data">
