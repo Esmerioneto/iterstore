@@ -19,6 +19,7 @@
     "scripts": {
         "test": [
             "php bin/view-selftest.php",
+            "php bin/db-selftest.php",
             "php bin/admin-selftest.php"
         ]
     }

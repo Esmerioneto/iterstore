@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Iter\Core\Model\ResourceModel;
 
 use Iter\Core\Model\AbstractModel;
-use PDO;
+use Iter\Core\Db\Adapter;
 use Iter\Core\Db\Connection;
 
 /**
@@ -20,8 +20,8 @@ abstract class AbstractDb
 
     protected string $idFieldName;
 
-    /** @var array<int, string>|null column names of $mainTable, cached per instance */
-    private ?array $columns = null;
+    /** @var array<string, array<int, string>> table => column names, read once per request */
+    private static array $columns = [];
 
     public function __construct()
     {
@@ -39,20 +39,17 @@ abstract class AbstractDb
         $this->idFieldName = $idFieldName;
     }
 
-    protected function getConnection(): PDO
+    protected function getConnection(): Adapter
     {
-        return Connection::get()->connect();
+        return Connection::get()->adapter();
     }
 
     public function load(AbstractModel $object, $value, ?string $field = null): void
     {
-        $field ??= $this->idFieldName;
-
-        $stmt = $this->getConnection()->prepare(
-            sprintf('SELECT * FROM %s WHERE %s = :value', $this->mainTable, $field)
+        $adapter = $this->getConnection();
+        $row = $adapter->fetchRow(
+            $adapter->select()->from($this->mainTable)->where($adapter->quoteIdentifier($field ?? $this->idFieldName) . ' = ?', $value)
         );
-        $stmt->execute(['value' => $value]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         $object->unsetData();
         if ($row !== false) {
@@ -60,15 +57,18 @@ abstract class AbstractDb
         }
     }
 
+    /** the row and whatever afterSave() writes are one transaction */
     public function save(AbstractModel $object): void
     {
-        if ($object->getId()) {
-            $this->performUpdate($object);
-        } else {
-            $this->performInsert($object);
-        }
+        $this->getConnection()->transaction(function () use ($object): void {
+            if ($object->getId()) {
+                $this->performUpdate($object);
+            } else {
+                $this->performInsert($object);
+            }
 
-        $this->afterSave($object);
+            $this->afterSave($object);
+        });
     }
 
     /**
@@ -81,10 +81,8 @@ abstract class AbstractDb
 
     public function delete(AbstractModel $object): void
     {
-        $stmt = $this->getConnection()->prepare(
-            sprintf('DELETE FROM %s WHERE %s = :id', $this->mainTable, $this->idFieldName)
-        );
-        $stmt->execute(['id' => $object->getId()]);
+        $adapter = $this->getConnection();
+        $adapter->delete($this->mainTable, [$adapter->quoteIdentifier($this->idFieldName) . ' = ?' => $object->getId()]);
         $object->unsetData();
     }
 
@@ -93,11 +91,9 @@ abstract class AbstractDb
      */
     public function getList(?string $orderBy = null): array
     {
-        $stmt = $this->getConnection()->query(
-            sprintf('SELECT * FROM %s ORDER BY %s', $this->mainTable, $orderBy ?? $this->idFieldName)
-        );
+        $adapter = $this->getConnection();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $adapter->fetchAll($adapter->select()->from($this->mainTable)->order($orderBy ?? $this->idFieldName));
     }
 
     private function performInsert(AbstractModel $object): void
@@ -105,39 +101,27 @@ abstract class AbstractDb
         $data = $this->filterColumns($object->getData());
         unset($data[$this->idFieldName]);
 
-        $columns = array_keys($data);
-        $sql = sprintf(
-            'INSERT INTO %s (%s) VALUES (%s) RETURNING *',
-            $this->mainTable,
-            implode(', ', $columns),
-            implode(', ', array_map(static fn (string $c) => ":$c", $columns))
-        );
-
-        $stmt = $this->getConnection()->prepare($sql);
-        $stmt->execute($data);
-
         // merge (not replace): virtual, non-column fields like a role's
         // "resources" must survive into afterSave()
-        $object->addData($stmt->fetch(PDO::FETCH_ASSOC));
+        $object->addData($this->getConnection()->insert($this->mainTable, $data));
     }
 
     private function performUpdate(AbstractModel $object): void
     {
+        $adapter = $this->getConnection();
         $data = $this->filterColumns($object->getData());
         $id = $data[$this->idFieldName];
         unset($data[$this->idFieldName]);
+        $where = [$adapter->quoteIdentifier($this->idFieldName) . ' = ?' => $id];
 
-        $set = implode(', ', array_map(static fn (string $c) => "$c = :$c", array_keys($data)));
-
-        // ponytail: bound as :iter_pk (not :id) so a real "id"-named column
-        // in $data can never collide with the WHERE placeholder.
-        $sql = sprintf('UPDATE %s SET %s WHERE %s = :iter_pk RETURNING *', $this->mainTable, $set, $this->idFieldName);
-        $data['iter_pk'] = $id;
-
-        $stmt = $this->getConnection()->prepare($sql);
-        $stmt->execute($data);
-
-        $object->addData($stmt->fetch(PDO::FETCH_ASSOC));
+        if ($data) {
+            $adapter->update($this->mainTable, $data, $where);
+        }
+        // read back what triggers/defaults set (updated_at)
+        $row = $adapter->fetchRow($adapter->select()->from($this->mainTable)->where(key($where), $id));
+        if ($row !== false) {
+            $object->addData($row);
+        }
     }
 
     /**
@@ -155,14 +139,12 @@ abstract class AbstractDb
      */
     private function getColumns(): array
     {
-        if ($this->columns === null) {
-            $stmt = $this->getConnection()->prepare(
-                'SELECT column_name FROM information_schema.columns WHERE table_name = :table'
-            );
-            $stmt->execute(['table' => $this->mainTable]);
-            $this->columns = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        }
+        $adapter = $this->getConnection();
 
-        return $this->columns;
+        return self::$columns[$this->mainTable] ??= $adapter->fetchCol(
+            $adapter->select()->from('information_schema.columns', ['column_name'])
+                ->where('table_schema = current_schema()')
+                ->where('table_name = ?', $this->mainTable)
+        );
     }
 }
