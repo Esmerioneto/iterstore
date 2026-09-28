@@ -25,6 +25,7 @@ use Iter\Eav\InputTypeRegistry;
 use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\AttributeService;
 use Iter\Eav\Model\AttributeSetService;
+use Iter\Eav\Model\ValueService;
 
 const PASSWORD = 'Selftest123';
 
@@ -303,7 +304,6 @@ $sysForm = $admin->request('/admin/attribute/edit?id=' . $sysId)['body'];
 assertSame([true, true], [str_contains($sysForm, 'Atributo do sistema'), (bool) preg_match('/name="input_type"[^>]* disabled/', $sysForm)], 'form de atributo do sistema trava o tipo');
 assertSame(200, $admin->request('/admin/attribute/create')['status'], 'form de novo atributo abre');
 $colorId = (int) $attributeRow('selftest_color')['attribute_id'];
-assertSame('INPUT_TYPE_CHANGE_BLOCKED', $throws(static fn () => $service->update($colorId, ['label' => 'C', 'input_type' => 'integer'])), 'troca de tipo que muda o armazenamento é recusada');
 $service->update($colorId, ['label' => 'C', 'input_type' => 'radio']);
 assertSame('radio', $attributeRow('selftest_color')['input_type'], 'troca para tipo com o mesmo armazenamento é aceita');
 
@@ -416,6 +416,51 @@ assertSame([1, 0], [(int) $setRow('selftest_set')['is_default'], (int) $setRow('
 $setService->update($default, ['label' => 'Padrão', 'is_default' => 1]);
 [, $msgs] = $admin->submit('/admin/attributeset/index', '/admin/attributeset/delete', ['attribute_set_id' => $setId]);
 assertSame(['Conjunto removido com sucesso.'], $msgs, 'conjunto não padrão é removido');
+
+// --- EAV: values -------------------------------------------------------------------------------
+$types = ['name' => 'text', 'age' => 'integer', 'price' => 'number', 'ok' => 'checkbox', 'birth' => 'date', 'tags' => 'multiselect', 'size' => 'select'];
+foreach ($types as $code => $type) {
+    $service->create(['entity_type' => 'customer', 'code' => "selftest_v_{$code}", 'label' => ucfirst($code), 'input_type' => $type, 'is_required' => $code === 'name' ? 1 : 0,
+        'options' => [['value' => 'a'], ['value' => 'b'], ['value' => 'c']]]);
+}
+$v = static fn (array $values) => array_combine(array_map(static fn ($c) => "selftest_v_{$c}", array_keys($values)), $values);
+$values = new ValueService();
+$loaded = static function (int $entityId) use ($values): array {
+    $all = array_filter($values->load('customer', $entityId), static fn ($c) => str_starts_with($c, 'selftest_v_'), ARRAY_FILTER_USE_KEY);
+    ksort($all);
+    return $all;
+};
+$values->save('customer', 999001, $v(['name' => ' Ana ', 'age' => '30', 'price' => '12,50', 'ok' => '1', 'birth' => '1990-05-01', 'tags' => ['c', 'a', 'a', ''], 'size' => 'b']));
+$expected = $v(['age' => 30, 'birth' => '1990-05-01 00:00:00', 'name' => 'Ana', 'ok' => true, 'price' => '12.5', 'size' => 'b', 'tags' => ['c', 'a']]);
+assertSame($expected, $loaded(999001), 'valores gravados e lidos com o tipo de cada atributo');
+assertSame([], $loaded(999002), 'valores são por entidade');
+$values->save('customer', 999001, $v(['age' => '', 'ok' => '0']));
+assertSame([false, false], [isset($loaded(999001)['selftest_v_age']), $loaded(999001)['selftest_v_ok']], 'valor vazio apaga; outros atributos ficam como estavam');
+$valueError = static fn (array $data) => $throws(static fn () => $values->save('customer', 999001, $v($data)));
+assertSame(['VALUE_REQUIRED', 'VALUE_INVALID', 'VALUE_INVALID', 'VALUE_INVALID', 'VALUE_INVALID', 'VALUE_INVALID'], [
+    $valueError(['name' => '']), $valueError(['age' => '1.5']), $valueError(['price' => 'abc']),
+    $valueError(['size' => 'z']), $valueError(['tags' => ['a', 'z']]), $valueError(['birth' => '2026-02-30']),
+], 'valores fora do tipo, das opções ou obrigatórios vazios são recusados');
+assertSame('ATTRIBUTE_NOT_FOUND', $throws(static fn () => $values->save('customer', 999001, ['selftest_a1' => 'x'])), 'atributo de outra entidade é recusado');
+$valueError(['size' => 'c', 'age' => 'x']);
+assertSame('b', $loaded(999001)['selftest_v_size'], 'erro em um valor não grava nenhum');
+
+$vId = static fn (string $code) => (int) $pdo->query("SELECT attribute_id FROM eav_attribute WHERE code = 'selftest_v_{$code}'")->fetchColumn();
+assertSame('INPUT_TYPE_CHANGE_BLOCKED', $throws(static fn () => $service->update($vId('price'), ['label' => 'Price', 'input_type' => 'integer'])), 'atributo com valores não troca de armazenamento');
+$service->update($vId('age'), ['label' => 'Age', 'input_type' => 'text']);
+assertSame('varchar', $attributeRow('selftest_v_age')['storage_type'], 'atributo sem valores troca de armazenamento');
+assertSame('ATTRIBUTE_HAS_VALUES', $throws(static fn () => $service->delete($vId('size'))), 'atributo com valores não é removido');
+
+$setService->create(['entity_type' => 'customer', 'code' => 'selftest_vset', 'label' => 'V']);
+$vSet = (int) $pdo->query("SELECT attribute_set_id FROM eav_attribute_set WHERE code = 'selftest_vset'")->fetchColumn();
+$setService->update($vSet, ['label' => 'V', 'items' => array_fill_keys(array_map($vId, array_keys($types)), ['in' => 1])]);
+$html = (new LayoutRenderer())->render((new LayoutParser())->parse(['f' => ['component' => 'eav/form-fields',
+    'data' => ['entity_type' => 'customer', 'attribute_set' => 'selftest_vset', 'values' => $values->load('customer', 999001)]]]));
+assertSame([true, true, true], [str_contains($html, 'value="1990-05-01"'), str_contains($html, '<option value="c" selected>'),
+    (bool) preg_match('/name="selftest_v_price" value="12.5"/', $html)], 'valores gravados preenchem o formulário gerado');
+$values->deleteEntity('customer', 999001);
+assertSame([], $loaded(999001), 'remover a entidade apaga os valores');
+$service->delete($vId('size'));
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());

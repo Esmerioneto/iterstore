@@ -62,7 +62,7 @@ class AttributeService
         return $model;
     }
 
-    /** entity_type, code, storage_type and is_system never change here */
+    /** entity_type, code and is_system never change here; storage_type follows the input type while there are no values */
     public function update(int $id, array $data): Attribute
     {
         $model = $this->get($id);
@@ -74,10 +74,10 @@ class AttributeService
             if ($model->isSystem()) {
                 throw new AttributeException('ATTRIBUTE_SYSTEM_PROTECTED', 'O tipo de um atributo do sistema não pode ser alterado.');
             }
-            // ponytail: blocks every storage change since value tables don't exist yet;
-            // relax to "only when the attribute has values" once eav_value_* lands
-            if ($this->inputType($newType)['storage_type'] !== $model->getData('storage_type')) {
-                throw new AttributeException('INPUT_TYPE_CHANGE_BLOCKED', 'O novo tipo de campo usa outro formato de armazenamento; crie um novo atributo.');
+            // stored values would sit in the wrong eav_value_* table
+            if ($this->inputType($newType)['storage_type'] !== $model->getData('storage_type')
+                && $model->getResource()->hasValues($id, $model->getData('storage_type'))) {
+                throw new AttributeException('INPUT_TYPE_CHANGE_BLOCKED', 'O atributo já tem valores gravados e o novo tipo de campo usa outro formato de armazenamento; crie um novo atributo.');
             }
         }
 
@@ -96,7 +96,7 @@ class AttributeService
             }
         }
 
-        $fields = $this->fields($data) + ['input_type' => $newType];
+        $fields = $this->fields($data) + ['input_type' => $newType, 'storage_type' => $inputType['storage_type']];
         if ($model->isSystem()) {
             $fields = array_intersect_key($fields, array_flip(self::SYSTEM_EDITABLE));
         }
@@ -121,7 +121,9 @@ class AttributeService
         if ($model->isSystem()) {
             throw new AttributeException('ATTRIBUTE_SYSTEM_PROTECTED', 'Atributos do sistema não podem ser removidos.');
         }
-        // TODO(eav_value_*): refuse with ATTRIBUTE_HAS_VALUES once values are stored
+        if ($model->getResource()->hasValues($id, $model->getData('storage_type'))) {
+            throw new AttributeException('ATTRIBUTE_HAS_VALUES', 'O atributo tem valores gravados e não pode ser removido.');
+        }
         $model->delete();
     }
 

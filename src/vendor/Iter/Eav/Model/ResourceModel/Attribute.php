@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Eav\Model\ResourceModel;
 
 use Iter\Core\Model\ResourceModel\AbstractDb;
+use Iter\Eav\InputTypeRegistry;
 use PDO;
 
 class Attribute extends AbstractDb
@@ -117,6 +118,82 @@ class Attribute extends AbstractDb
         $stmt->execute(['id' => $entityTypeId]);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** @return array<int, array{code: string, storage_type: string, input_type: string, value: string}> raw values, as text */
+    public function getValues(int $entityTypeId, int $entityId): array
+    {
+        $union = implode(' UNION ALL ', array_map(
+            static fn ($storage) => "SELECT attribute_id, entity_id, value::text FROM eav_value_{$storage}",
+            InputTypeRegistry::STORAGE_TYPES
+        ));
+        $stmt = $this->getConnection()->prepare(
+            "SELECT a.code, a.storage_type, a.input_type, v.value FROM ({$union}) v
+             JOIN eav_attribute a ON a.attribute_id = v.attribute_id
+             WHERE a.entity_type_id = :entity_type_id AND v.entity_id = :entity_id"
+        );
+        $stmt->execute(['entity_type_id' => $entityTypeId, 'entity_id' => $entityId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * One transaction for the whole entity: a null value deletes the row.
+     *
+     * @param array<int, array{attribute_id: int, storage_type: string, value: string|int|null}> $rows
+     */
+    public function saveValues(int $entityId, array $rows): void
+    {
+        $pdo = $this->getConnection();
+        $pdo->beginTransaction();
+        try {
+            foreach ($rows as $row) {
+                $table = $this->valueTable($row['storage_type']);
+                $params = ['attribute_id' => $row['attribute_id'], 'entity_id' => $entityId];
+                if ($row['value'] === null) {
+                    $pdo->prepare("DELETE FROM {$table} WHERE attribute_id = :attribute_id AND entity_id = :entity_id")->execute($params);
+                } else {
+                    $pdo->prepare(
+                        "INSERT INTO {$table} (attribute_id, entity_id, value) VALUES (:attribute_id, :entity_id, :value)
+                         ON CONFLICT (attribute_id, entity_id) DO UPDATE SET value = EXCLUDED.value"
+                    )->execute($params + ['value' => $row['value']]);
+                }
+            }
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    public function deleteValues(int $entityTypeId, int $entityId): void
+    {
+        foreach (InputTypeRegistry::STORAGE_TYPES as $storage) {
+            $this->getConnection()->prepare(
+                "DELETE FROM eav_value_{$storage} v USING eav_attribute a
+                 WHERE a.attribute_id = v.attribute_id AND a.entity_type_id = :entity_type_id AND v.entity_id = :entity_id"
+            )->execute(['entity_type_id' => $entityTypeId, 'entity_id' => $entityId]);
+        }
+    }
+
+    public function hasValues(int $attributeId, string $storageType): bool
+    {
+        $stmt = $this->getConnection()->prepare(
+            "SELECT 1 FROM {$this->valueTable($storageType)} WHERE attribute_id = :id LIMIT 1"
+        );
+        $stmt->execute(['id' => $attributeId]);
+
+        return (bool) $stmt->fetchColumn();
+    }
+
+    /** table names can't be bound, so the storage type is checked against the fixed list */
+    private function valueTable(string $storageType): string
+    {
+        if (!in_array($storageType, InputTypeRegistry::STORAGE_TYPES, true)) {
+            throw new \InvalidArgumentException("storage_type inválido: {$storageType}");
+        }
+
+        return 'eav_value_' . $storageType;
     }
 
     public function codeExists(int $entityTypeId, string $code): bool
