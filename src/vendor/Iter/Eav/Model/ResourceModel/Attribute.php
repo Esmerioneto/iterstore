@@ -64,6 +64,50 @@ class Attribute extends AbstractDb
         return array_column($rows, null, 'code');
     }
 
+    /** @return array<int, array{value: string, label: string, sort_order: int, is_default: int}> */
+    public function getOptions(int $attributeId): array
+    {
+        $stmt = $this->getConnection()->prepare(
+            'SELECT value, label, sort_order, is_default FROM eav_attribute_option
+             WHERE attribute_id = :id ORDER BY sort_order, option_id'
+        );
+        $stmt->execute(['id' => $attributeId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Makes the attribute's options exactly $options, matched by value, so
+     * an option keeps its option_id while its label/position change.
+     *
+     * @param array<int, array{value: string, label: string, sort_order: int, is_default: int}> $options
+     */
+    public function replaceOptions(int $attributeId, array $options): void
+    {
+        $pdo = $this->getConnection();
+        $pdo->beginTransaction();
+        try {
+            $values = array_column($options, 'value');
+            $keep = $values ? ' AND value NOT IN (' . implode(', ', array_fill(0, count($values), '?')) . ')' : '';
+            $pdo->prepare("DELETE FROM eav_attribute_option WHERE attribute_id = ?{$keep}")
+                ->execute([$attributeId, ...$values]);
+
+            $upsert = $pdo->prepare(
+                'INSERT INTO eav_attribute_option (attribute_id, value, label, sort_order, is_default)
+                 VALUES (:attribute_id, :value, :label, :sort_order, :is_default)
+                 ON CONFLICT (attribute_id, value) DO UPDATE
+                 SET label = EXCLUDED.label, sort_order = EXCLUDED.sort_order, is_default = EXCLUDED.is_default'
+            );
+            foreach ($options as $option) {
+                $upsert->execute(['attribute_id' => $attributeId] + $option);
+            }
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+    }
+
     public function codeExists(int $entityTypeId, string $code): bool
     {
         $stmt = $this->getConnection()->prepare(

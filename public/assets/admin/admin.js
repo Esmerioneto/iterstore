@@ -82,3 +82,27 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }, Promise.resolve());
 });
+
+// A select with data-options-box shows that block only while the chosen
+// <option> has data-supports-options="1"; disabling the fieldset also keeps
+// its inputs out of the POST. Without JS the block just stays visible.
+function syncOptionsBox(select) {
+  var box = document.getElementById(select.dataset.optionsBox);
+  var chosen = select.options[select.selectedIndex];
+  if (!box) {
+    return;
+  }
+  var on = !!chosen && chosen.dataset.supportsOptions === '1';
+  box.hidden = !on;
+  box.disabled = !on;
+}
+
+document.addEventListener('change', function (event) {
+  if (event.target.dataset && event.target.dataset.optionsBox) {
+    syncOptionsBox(event.target);
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('select[data-options-box]').forEach(syncOptionsBox);
+});
