@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Iter\Catalog\Model\ResourceModel;
 
+use Iter\Core\Db\Expr;
 use Iter\Core\Model\ResourceModel\AbstractDb;
-use PDO;
 
 class Category extends AbstractDb
 {
@@ -22,7 +22,8 @@ class Category extends AbstractDb
      */
     public function getTree(): array
     {
-        return $this->getConnection()->query(
+        // ponytail: recursive CTE stays SQL, Select has no WITH
+        return $this->getConnection()->fetchAll(
             "WITH RECURSIVE tree AS (
                 SELECT c.*, 0 AS level, ARRAY[LPAD(c.position::text, 11, '0') || c.name || c.category_id] AS sort
                 FROM catalog_category c WHERE c.parent_id IS NULL
@@ -33,73 +34,64 @@ class Category extends AbstractDb
             SELECT t.category_id, t.parent_id, t.name, t.url_key, t.is_active, t.position, t.created_at, t.updated_at, t.level,
                    (SELECT COUNT(*) FROM catalog_category_product cp WHERE cp.category_id = t.category_id) AS products
             FROM tree t ORDER BY t.sort"
-        )->fetchAll(PDO::FETCH_ASSOC);
+        );
     }
 
     /** @return int[] the category and everything under it */
     public function getSubtreeIds(int $id): array
     {
-        $stmt = $this->getConnection()->prepare(
+        return array_map('intval', $this->getConnection()->fetchCol(
             'WITH RECURSIVE sub AS (
                 SELECT category_id FROM catalog_category WHERE category_id = :id
                 UNION ALL
                 SELECT c.category_id FROM catalog_category c JOIN sub ON c.parent_id = sub.category_id
-            ) SELECT category_id FROM sub'
-        );
-        $stmt->execute(['id' => $id]);
-
-        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+            ) SELECT category_id FROM sub',
+            ['id' => $id]
+        ));
     }
 
     public function hasChildren(int $id): bool
     {
-        $stmt = $this->getConnection()->prepare('SELECT 1 FROM catalog_category WHERE parent_id = :id LIMIT 1');
-        $stmt->execute(['id' => $id]);
+        $db = $this->getConnection();
 
-        return (bool) $stmt->fetchColumn();
+        return (bool) $db->fetchOne($db->select()->from('catalog_category', [new Expr('1')])->where('parent_id = ?', $id)->limit(1));
     }
 
     public function findIdByUrlKey(string $urlKey): ?int
     {
-        $stmt = $this->getConnection()->prepare('SELECT category_id FROM catalog_category WHERE url_key = :url_key');
-        $stmt->execute(['url_key' => strtolower(trim($urlKey))]);
-        $id = $stmt->fetchColumn();
+        $db = $this->getConnection();
+        $id = $db->fetchOne($db->select()->from('catalog_category', ['category_id'])->where('url_key = ?', strtolower(trim($urlKey))));
 
         return $id === false ? null : (int) $id;
     }
 
     public function urlKeyExists(string $urlKey, ?int $exceptId = null): bool
     {
-        $stmt = $this->getConnection()->prepare('SELECT 1 FROM catalog_category WHERE url_key = :url_key AND category_id <> :id');
-        $stmt->execute(['url_key' => $urlKey, 'id' => $exceptId ?? 0]);
+        $db = $this->getConnection();
 
-        return (bool) $stmt->fetchColumn();
+        return (bool) $db->fetchOne($db->select()->from('catalog_category', [new Expr('1')])
+            ->where('url_key = ?', $urlKey)
+            ->where('category_id <> ?', $exceptId ?? 0));
     }
 
     /** @return int[] categories of the product */
     public function getProductCategoryIds(int $productId): array
     {
-        $stmt = $this->getConnection()->prepare('SELECT category_id FROM catalog_category_product WHERE product_id = :id ORDER BY category_id');
-        $stmt->execute(['id' => $productId]);
+        $db = $this->getConnection();
 
-        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        return array_map('intval', $db->fetchCol($db->select()->from('catalog_category_product', ['category_id'])
+            ->where('product_id = ?', $productId)->order('category_id')));
     }
 
     /** @param int[] $categoryIds replaces the product's categories */
     public function setProductCategories(int $productId, array $categoryIds): void
     {
-        $pdo = $this->getConnection();
-        $pdo->beginTransaction();
-        try {
-            $pdo->prepare('DELETE FROM catalog_category_product WHERE product_id = :id')->execute(['id' => $productId]);
-            $insert = $pdo->prepare('INSERT INTO catalog_category_product (category_id, product_id) VALUES (:category_id, :product_id)');
-            foreach (array_unique($categoryIds) as $categoryId) {
-                $insert->execute(['category_id' => $categoryId, 'product_id' => $productId]);
-            }
-            $pdo->commit();
-        } catch (\Throwable $e) {
-            $pdo->rollBack();
-            throw $e;
-        }
+        $this->getConnection()->transaction(static function ($db) use ($productId, $categoryIds): void {
+            $db->delete('catalog_category_product', ['product_id = ?' => $productId]);
+            $db->insertMultiple('catalog_category_product', array_map(
+                static fn ($categoryId) => ['category_id' => $categoryId, 'product_id' => $productId],
+                array_values(array_unique($categoryIds))
+            ));
+        });
     }
 }

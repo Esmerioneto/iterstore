@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Catalog\Model\ResourceModel;
 
+use Iter\Core\Db\Expr;
 use Iter\Core\Model\ResourceModel\AbstractDb;
 use Iter\Catalog\Model\ResourceModel\Product\Collection;
 
@@ -41,20 +42,18 @@ class Product extends AbstractDb
     /** SKUs are unique ignoring case, so the lookup ignores it too */
     public function findIdBySku(string $sku): ?int
     {
-        $stmt = $this->getConnection()->prepare('SELECT product_id FROM catalog_product WHERE LOWER(sku) = LOWER(:sku)');
-        $stmt->execute(['sku' => trim($sku)]);
-        $id = $stmt->fetchColumn();
+        $db = $this->getConnection();
+        $id = $db->fetchOne($db->select()->from('catalog_product', ['product_id'])->where('LOWER(sku) = LOWER(?)', trim($sku)));
 
         return $id === false ? null : (int) $id;
     }
 
     public function skuExists(string $sku, ?int $exceptId = null): bool
     {
-        $stmt = $this->getConnection()->prepare(
-            'SELECT 1 FROM catalog_product WHERE LOWER(sku) = LOWER(:sku) AND product_id <> :id'
-        );
-        $stmt->execute(['sku' => $sku, 'id' => $exceptId ?? 0]);
+        $db = $this->getConnection();
 
-        return (bool) $stmt->fetchColumn();
+        return (bool) $db->fetchOne($db->select()->from('catalog_product', [new Expr('1')])
+            ->where('LOWER(sku) = LOWER(?)', $sku)
+            ->where('product_id <> ?', $exceptId ?? 0));
     }
 }
