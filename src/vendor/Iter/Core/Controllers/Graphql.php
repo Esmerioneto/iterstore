@@ -16,7 +16,12 @@ class Graphql
         $query = $input['query'] ?? '';
         $variables = $input['variables'] ?? null;
 
-        $result = \GraphQL\GraphQL::executeQuery(Schema::build(), $query, null, null, $variables);
+        $schema = Schema::build();
+        if ($schema === null) {
+            echo json_encode(['errors' => [['message' => 'Nenhum módulo com API está ativo.']]]);
+            return;
+        }
+        $result = \GraphQL\GraphQL::executeQuery($schema, $query, null, null, $variables);
 
         echo json_encode($result->toArray());
     }

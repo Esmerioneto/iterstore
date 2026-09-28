@@ -2,6 +2,7 @@
  * Admin behaviors. Forms with data-confirm ask before submitting, using
  * SweetAlert2 (vendored in /assets/vendor/sweetalert2). If the library
  * failed to load, falls back to the native confirm() so nothing breaks.
+ * data-confirm-button changes the confirm button's text (default "Remover").
  * form.submit() does not fire the submit event, so there is no loop.
  *
  * Flash messages are rendered by the server in .admin-messages (works
@@ -33,7 +34,7 @@ document.addEventListener('submit', function (event) {
     icon: 'warning',
     iconColor: inkColor(),
     showCancelButton: true,
-    confirmButtonText: 'Remover',
+    confirmButtonText: form.dataset.confirmButton || 'Remover',
     cancelButtonText: 'Cancelar',
     focusCancel: true,
     buttonsStyling: false,

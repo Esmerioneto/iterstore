@@ -1,3 +1,4 @@
 [
-    { "id": "Iter_Config::config", "parent": "Iter_Admin::root", "title": "Configurações" }
+    { "id": "Iter_Config::config", "parent": "Iter_Admin::root", "title": "Configurações" },
+    { "id": "Iter_Config::modules", "parent": "Iter_Admin::root", "title": "Módulos do sistema (ativar/desativar)" }
 ]

@@ -46,6 +46,17 @@ function getModules(): array
     return json_decode(file_get_contents(ETC . 'config.json'), true) ?? [];
 }
 
+function isModuleEnabled(string $module): bool
+{
+    foreach (getModules() as $group) {
+        if (isset($group[$module])) {
+            return $group[$module] == 1;
+        }
+    }
+
+    return false;
+}
+
 function getModuleName(string $module): string
 {
     return explode('_', $module)[1];

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Iter\Config\Controllers;
 
+use Iter\Admin\Auth;
 use Iter\Admin\Breadcrumb;
+use Iter\Config\ModuleManager;
 use Iter\Core\Config as SystemConfig;
 use Iter\Core\Messages;
 use Iter\Core\View\Layout;
@@ -67,6 +69,28 @@ class Config
         } else {
             SystemConfig::save($values);
             Messages::addSuccess('Configurações salvas.');
+        }
+
+        header('Location: /admin/config/index');
+        exit;
+    }
+
+    public function Module(): void
+    {
+        $key = (string) ($_POST['module'] ?? '');
+        $enabled = ($_POST['enabled'] ?? '') === '1';
+        if (!Auth::isAllowed('Iter_Config::modules')) {
+            Messages::addError('Seu perfil não tem permissão para ativar ou desativar módulos.');
+        } else {
+            try {
+                ModuleManager::setEnabled($key, $enabled);
+                $name = ucfirst(\getModuleName($key));
+                Messages::addSuccess($enabled
+                    ? "Módulo {$name} ativado. Se é a primeira ativação, rode php bin/migrate.php up para criar as tabelas dele."
+                    : "Módulo {$name} desativado. Os dados dele continuam no banco.");
+            } catch (\DomainException $e) {
+                Messages::addError($e->getMessage());
+            }
         }
 
         header('Location: /admin/config/index');
