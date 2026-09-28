@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "list": "eav/attribute-set-list"
+        }
+    }
+}

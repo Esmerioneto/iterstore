@@ -1,3 +1,4 @@
 [
-    { "id": "Iter_Eav::attribute", "parent": "Iter_Admin::root", "title": "Atributos" }
+    { "id": "Iter_Eav::attribute", "parent": "Iter_Admin::root", "title": "Atributos" },
+    { "id": "Iter_Eav::attribute_set", "parent": "Iter_Admin::root", "title": "Conjuntos de atributos" }
 ]
