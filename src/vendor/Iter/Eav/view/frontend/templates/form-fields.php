@@ -21,7 +21,20 @@ foreach ($schema['fields'] as $field) {
         $required = $f['required'] ? 'required' : '';
         $label = $e($f['label']) . ($f['required'] ? ' *' : '');
     ?>
-        <?php if ($f['type'] === 'hidden'): ?>
+        <?php if (isset($f['accept'])): // file field: the value is the stored file's path
+            $file = is_string($value) ? $value : '';
+        ?>
+    <p><label><?= $label ?><br>
+            <?php if ($file !== ''): ?>
+        <a href="<?= $e(\Iter\Eav\Model\ValueService::MEDIA_URL . $file) ?>" target="_blank"><img class="eav-file-preview" src="<?= $e(\Iter\Eav\Model\ValueService::MEDIA_URL . $file) ?>" alt=""></a><br>
+            <?php endif; ?>
+        <input type="file" name="<?= $name ?>" accept="<?= $e(implode(',', $f['accept'])) ?>" <?= $file === '' ? $required : '' ?>>
+    </label>
+            <?php if ($file !== '' && !$f['required']): ?>
+        <label><input type="checkbox" name="<?= $name ?>[remove]" value="1"> Remover</label>
+            <?php endif; ?>
+    </p>
+        <?php elseif ($f['type'] === 'hidden'): ?>
     <input type="hidden" name="<?= $name ?>" value="<?= $e($value) ?>">
         <?php elseif ($f['type'] === 'checkbox'): ?>
     <p><label><input type="hidden" name="<?= $name ?>" value="0"><input type="checkbox" name="<?= $name ?>" value="1" <?= $value ? 'checked' : '' ?>> <?= $label ?></label></p>

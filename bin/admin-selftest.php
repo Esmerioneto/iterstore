@@ -59,7 +59,17 @@ class Browser
             CURLOPT_HTTPHEADER => [],
         ]);
         if ($post !== null) {
-            curl_setopt($this->ch, CURLOPT_POSTFIELDS, http_build_query($post));
+            // with a CURLFile inside, send multipart: curl wants flat "a[b][c]" keys
+            $flat = [];
+            $flatten = static function (array $data, string $prefix) use (&$flatten, &$flat): void {
+                foreach ($data as $key => $value) {
+                    $name = $prefix === '' ? (string) $key : "{$prefix}[{$key}]";
+                    is_array($value) ? $flatten($value, $name) : $flat[$name] = $value;
+                }
+            };
+            $flatten($post, '');
+            $multipart = array_filter($flat, static fn ($v) => $v instanceof CURLFile) !== [];
+            curl_setopt($this->ch, CURLOPT_POSTFIELDS, $multipart ? $flat : http_build_query($post));
         } elseif ($json !== null) {
             curl_setopt_array($this->ch, [CURLOPT_POSTFIELDS => $json, CURLOPT_HTTPHEADER => ['Content-Type: application/json']]);
         }
@@ -468,7 +478,11 @@ $service->delete($vId('size'));
 
 // --- catalog: products -------------------------------------------------------------------------
 $productRow = static fn (string $sku) => $pdo->query("SELECT * FROM catalog_product WHERE sku = '{$sku}'")->fetch(PDO::FETCH_ASSOC);
-$productValues = static fn (string $sku) => (new ProductService())->getValues((int) $productRow($sku)['product_id']);
+$productValues = static function (string $sku) use ($productRow): array {
+    $values = (new ProductService())->getValues((int) $productRow($sku)['product_id']);
+    ksort($values); // union order across eav_value_* isn't fixed
+    return $values;
+};
 $defaultProductSet = (int) $setRow('default')['attribute_set_id'];
 $newProduct = $admin->request('/admin/product/create')['body'];
 assertSame([true, true], [str_contains($newProduct, 'name="attributes[price]"'), str_contains($newProduct, 'name="attributes[description]"')], 'form de produto traz os atributos do conjunto padrão');
@@ -478,7 +492,7 @@ $saveProduct = static fn (array $fields) => $admin->submit('/admin/product/creat
 assertSame(["'Preço' é obrigatório."], $saveProduct(['sku' => 'selftest-1', 'attributes' => ['price' => '']]), 'atributo obrigatório vazio é recusado');
 assertSame(false, $productRow('selftest-1'), 'erro nos atributos não cria o produto');
 assertSame(['Produto criado com sucesso.'], $saveProduct(['sku' => 'selftest-1', 'attributes' => ['price' => '49,90', 'description' => 'Algodão']]), 'produto criado pelo admin');
-assertSame(['price' => '49.9', 'description' => 'Algodão'], array_intersect_key($productValues('selftest-1'), ['price' => 1, 'description' => 1]), 'preço e descrição gravados como valores EAV');
+assertSame(['description' => 'Algodão', 'price' => '49.9'], array_intersect_key($productValues('selftest-1'), ['price' => 1, 'description' => 1]), 'preço e descrição gravados como valores EAV');
 assertSame(["Já existe um produto com o SKU 'SELFTEST-1'."], $saveProduct(['sku' => 'SELFTEST-1', 'attributes' => ['price' => '1']]), 'SKU repetido (maiúsculas ou não) é recusado');
 assertSame(['SKU deve ter até 64 caracteres: letras, números, ponto, hífen e _ (começando por letra ou número).'], $saveProduct(['sku' => 'a b', 'attributes' => ['price' => '1']]), 'SKU com espaço é recusado');
 
@@ -502,6 +516,60 @@ assertSame(1, substr_count($admin->request('/admin/product/index?q=selftest&is_a
 assertSame('ATTRIBUTE_SET_IN_USE', $throws(static fn () => $setService->delete($roupa)), 'conjunto com produtos não é removido');
 [, $msgs] = $admin->submit('/admin/product/index', '/admin/product/delete', ['product_id' => $p2]);
 assertSame([['Produto removido com sucesso.'], false, []], [$msgs, $productRow('selftest-2'), $values->load('product', $p2)], 'produto removido com os seus valores');
+
+// --- EAV: image attributes ----------------------------------------------------------------------
+$scratch = sys_get_temp_dir() . '/iter-selftest-' . getmypid();
+@mkdir($scratch);
+$img = imagecreatetruecolor(4, 3);
+[imagewebp($img, "{$scratch}/a.webp"), imageavif($img, "{$scratch}/a.avif"), imagejpeg($img, "{$scratch}/a.jpg"), imagepng($img, "{$scratch}/a.png"), imagegif($img, "{$scratch}/a.gif")];
+file_put_contents("{$scratch}/fake.png", '<?php echo 1;');
+assertSame(['image/webp', 'image/avif', 'image/jpeg', 'image/png'], array_keys(InputTypeRegistry::get('image')['accept']), 'tipo imagem aceita WebP, AVIF, JPG e PNG');
+$service->create(['entity_type' => 'product', 'code' => 'selftest_foto', 'label' => 'Foto', 'input_type' => 'image']);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_capa', 'label' => 'Capa', 'input_type' => 'image', 'is_required' => 1]);
+$fotoSet = $setService->create(['entity_type' => 'product', 'code' => 'selftest_fotos', 'label' => 'Fotos']);
+$setService->update((int) $fotoSet->getId(), ['label' => 'Fotos', 'items' => [$attrId('price') => ['in' => 1], $attrId('selftest_foto') => ['in' => 1], $attrId('selftest_capa') => ['in' => 1]]]);
+$schemaFoto = array_column($generator->generate('product', 'selftest_fotos')['fields'], null, 'name');
+assertSame(['image/webp', 'image/avif', 'image/jpeg', 'image/png'], $schemaFoto['selftest_foto']['accept'], 'schema do campo imagem traz os formatos aceitos');
+$upload = static fn (string $file) => ['path' => "{$scratch}/{$file}", 'name' => $file];
+$productService = new ProductService();
+$fileError = static fn (array $attributes) => $throws(static fn () => $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-img', 'name' => 'I'], $attributes + ['price' => '1']));
+assertSame(['VALUE_REQUIRED', 'FILE_TYPE_INVALID', 'FILE_TYPE_INVALID'], [$fileError([]), $fileError(['selftest_capa' => $upload('a.gif')]), $fileError(['selftest_capa' => $upload('fake.png')])],
+    'imagem obrigatória, GIF e arquivo que só finge ser PNG são recusados');
+assertSame(false, $productRow('selftest-img'), 'imagem recusada não cria o produto');
+$media = static fn (string $sku, string $code) => ValueService::mediaDir() . ($productService->getValues((int) $productRow($sku)['product_id'])[$code] ?? 'nada');
+foreach (['a.webp' => 'webp', 'a.avif' => 'avif', 'a.jpg' => 'jpg', 'a.png' => 'png'] as $file => $ext) {
+    $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => "selftest-img-{$ext}", 'name' => 'I'], ['price' => '1', 'selftest_capa' => $upload($file), 'selftest_foto' => 'qualquer/caminho.png']);
+    $stored = $media("selftest-img-{$ext}", 'selftest_capa');
+    assertSame([true, $ext, false], [is_file($stored), pathinfo($stored, PATHINFO_EXTENSION), isset($productService->getValues((int) $productRow("selftest-img-{$ext}")['product_id'])['selftest_foto'])],
+        "imagem {$ext} gravada com o formato detectado; texto postado não vira caminho");
+}
+$imgId = (int) $productRow('selftest-img-png')['product_id'];
+$oldCapa = $media('selftest-img-png', 'selftest_capa');
+$imgData = ['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-img-png', 'name' => 'I'];
+$productService->update($imgId, $imgData, ['price' => '2', 'selftest_foto' => $upload('a.jpg')]);
+assertSame([true, true], [is_file($oldCapa), is_file($media('selftest-img-png', 'selftest_foto'))], 'salvar sem enviar mantém a imagem; nova imagem entra');
+$productService->update($imgId, $imgData, ['price' => '2', 'selftest_capa' => $upload('a.webp')]);
+assertSame([false, true], [is_file($oldCapa), is_file($media('selftest-img-png', 'selftest_capa'))], 'imagem substituída apaga o arquivo antigo');
+$foto = $media('selftest-img-png', 'selftest_foto');
+assertSame('VALUE_REQUIRED', $throws(static fn () => $productService->update($imgId, $imgData, ['price' => '2', 'selftest_capa' => ['remove' => '1']])), 'imagem obrigatória não pode ser removida');
+$productService->update($imgId, $imgData, ['price' => '2', 'selftest_foto' => ['remove' => '1']]);
+assertSame(false, is_file($foto), 'remover a imagem apaga o arquivo');
+$capa = $media('selftest-img-png', 'selftest_capa');
+$productService->delete($imgId);
+assertSame(false, is_file($capa), 'remover o produto apaga as imagens');
+
+// through the admin form (real multipart upload)
+$imgForm = $admin->request('/admin/product/create?set=' . $fotoSet->getId())['body'];
+assertSame([true, true], [str_contains($imgForm, 'enctype="multipart/form-data"'), (bool) preg_match('/type="file" name="attributes\[selftest_capa\]" accept="image\/webp,image\/avif,image\/jpeg,image\/png"\s+required/', $imgForm)], 'form de produto tem campo de imagem');
+$msgs = $admin->submit('/admin/product/create', '/admin/product/save', ['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-up', 'name' => 'U',
+    'attributes' => ['price' => '3', 'selftest_capa' => new CURLFile("{$scratch}/a.avif", 'image/avif', 'capa.avif')]])[1];
+assertSame(['Produto criado com sucesso.'], $msgs, 'produto criado com upload de imagem pelo admin');
+$upId = (int) $productRow('selftest-up')['product_id'];
+$url = ValueService::MEDIA_URL . $productService->getValues($upId)['selftest_capa'];
+assertSame([true, 200], [str_contains($admin->request('/admin/product/edit?id=' . $upId)['body'], 'src="' . $url . '"'), $admin->request($url)['status']], 'edição mostra a imagem e ela é servida');
+assertSame('INPUT_TYPE_CHANGE_BLOCKED', $throws(static fn () => $service->update($attrId('selftest_capa'), ['label' => 'Capa', 'input_type' => 'text'])), 'atributo imagem com valores não vira texto');
+array_map('unlink', glob("{$scratch}/*"));
+rmdir($scratch);
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());

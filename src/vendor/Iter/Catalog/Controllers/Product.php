@@ -10,6 +10,7 @@ use Iter\Catalog\Model\ProductService;
 use Iter\Core\Messages;
 use Iter\Core\View\Layout;
 use Iter\Eav\Model\AttributeException;
+use Iter\Eav\Model\ValueService;
 
 class Product
 {
@@ -62,10 +63,10 @@ class Product
             'name' => trim($_POST['name'] ?? ''),
             'is_active' => !empty($_POST['is_active']) ? 1 : 0,
         ];
-        $attributes = isset($_POST['attributes']) && is_array($_POST['attributes']) ? $_POST['attributes'] : [];
         $id = !empty($_POST['product_id']) ? (int) $_POST['product_id'] : null;
 
         try {
+            $attributes = ValueService::fromRequest('attributes');
             $service = new ProductService();
             $id ? $service->update($id, $data, $attributes) : $service->create($data, $attributes);
             Messages::addSuccess($id ? 'Produto atualizado com sucesso.' : 'Produto criado com sucesso.');
@@ -75,7 +76,8 @@ class Product
                 header('Location: /admin/product/index');
                 exit;
             }
-            $_SESSION['iter_old_input'] = $data + ['attributes' => $attributes];
+            // uploads can't be kept across the redirect; only the typed values go back
+            $_SESSION['iter_old_input'] = $data + ['attributes' => is_array($_POST['attributes'] ?? null) ? $_POST['attributes'] : []];
             header('Location: ' . ($id ? '/admin/product/edit?id=' . $id : '/admin/product/create?set=' . $data['attribute_set_id']));
             exit;
         }
