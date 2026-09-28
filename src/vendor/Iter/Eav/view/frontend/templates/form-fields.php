@@ -17,7 +17,7 @@ foreach ($schema['fields'] as $field) {
             $value = ['date' => substr($value, 0, 10), 'datetime' => str_replace(' ', 'T', substr($value, 0, 16))][$f['type']] ?? $value;
         }
         $selected = array_map('strval', (array) $value);
-        $name = $e($f['name']) . ($f['multiple'] ? '[]' : '');
+        $name = $e(($name_prefix ?? '') === '' ? $f['name'] : "{$name_prefix}[{$f['name']}]") . ($f['multiple'] ? '[]' : '');
         $required = $f['required'] ? 'required' : '';
         $label = $e($f['label']) . ($f['required'] ? ' *' : '');
     ?>

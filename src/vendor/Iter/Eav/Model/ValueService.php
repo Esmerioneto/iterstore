@@ -40,8 +40,18 @@ class ValueService
     /** @param array<string, mixed> $values code => value */
     public function save(string $entityType, int $entityId, array $values): void
     {
-        $resource = (new Attribute())->getResource();
-        $attributes = array_column($resource->getByEntityType($this->entityTypeId($entityType)), null, 'code');
+        (new Attribute())->getResource()->saveValues($entityId, $this->validate($entityType, $values));
+    }
+
+    /**
+     * Throws on the first invalid value. Callers that write their own row first
+     * (a new product) call this before, so a bad value doesn't leave half a record.
+     *
+     * @return array<int, array{attribute_id: int, storage_type: string, value: string|int|null}>
+     */
+    public function validate(string $entityType, array $values): array
+    {
+        $attributes = array_column((new Attribute())->getResource()->getByEntityType($this->entityTypeId($entityType)), null, 'code');
 
         $rows = [];
         foreach ($values as $code => $value) {
@@ -52,7 +62,8 @@ class ValueService
                 'value' => $this->normalize($attribute, $value),
             ];
         }
-        $resource->saveValues($entityId, $rows);
+
+        return $rows;
     }
 
     /** call when the entity itself is deleted: value tables have no FK to entities */

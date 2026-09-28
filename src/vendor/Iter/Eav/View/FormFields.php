@@ -12,6 +12,7 @@ use Iter\Core\View\ViewComponentInterface;
  *  "attribute_set": "default", "fields": {"cpf": {"required": false}}}}
  * Only fields are rendered, so the page's own <form> can wrap them. A
  * "values" array (code => value) fills them in; defaults otherwise.
+ * "name_prefix": "attributes" posts them as attributes[code].
  */
 class FormFields implements ViewComponentInterface
 {
@@ -22,6 +23,6 @@ class FormFields implements ViewComponentInterface
 
     public function getData(): array
     {
-        return ['attribute_set' => null, 'fields' => [], 'values' => []];
+        return ['attribute_set' => null, 'fields' => [], 'values' => [], 'name_prefix' => ''];
     }
 }

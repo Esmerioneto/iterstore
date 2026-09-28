@@ -16,6 +16,7 @@ require_once FUNCTIONS . 'bootstrap.php';
 
 use Iter\Admin\Model\AdminRole;
 use Iter\Admin\Model\AdminUser;
+use Iter\Catalog\Model\ProductService;
 use Iter\Core\Config;
 use Iter\Core\Db\Connection;
 use Iter\Core\View\LayoutParser;
@@ -116,6 +117,9 @@ $server = proc_open(
 );
 
 $purge = static function () use ($pdo, $savedConfig): void {
+    foreach ($pdo->query("SELECT product_id FROM catalog_product WHERE sku LIKE 'selftest%'")->fetchAll(PDO::FETCH_COLUMN) as $productId) {
+        (new ProductService())->delete((int) $productId);
+    }
     $pdo->exec("DELETE FROM eav_attribute_set WHERE code LIKE 'selftest%'");
     $pdo->exec("UPDATE eav_attribute_set SET is_default = 1 WHERE code = 'default' AND entity_type_id NOT IN (SELECT entity_type_id FROM eav_attribute_set WHERE is_default = 1)");
     $pdo->exec("DELETE FROM eav_attribute WHERE code LIKE 'selftest%'");
@@ -461,6 +465,43 @@ assertSame([true, true, true], [str_contains($html, 'value="1990-05-01"'), str_c
 $values->deleteEntity('customer', 999001);
 assertSame([], $loaded(999001), 'remover a entidade apaga os valores');
 $service->delete($vId('size'));
+
+// --- catalog: products -------------------------------------------------------------------------
+$productRow = static fn (string $sku) => $pdo->query("SELECT * FROM catalog_product WHERE sku = '{$sku}'")->fetch(PDO::FETCH_ASSOC);
+$productValues = static fn (string $sku) => (new ProductService())->getValues((int) $productRow($sku)['product_id']);
+$defaultProductSet = (int) $setRow('default')['attribute_set_id'];
+$newProduct = $admin->request('/admin/product/create')['body'];
+assertSame([true, true], [str_contains($newProduct, 'name="attributes[price]"'), str_contains($newProduct, 'name="attributes[description]"')], 'form de produto traz os atributos do conjunto padrão');
+$saveProduct = static fn (array $fields) => $admin->submit('/admin/product/create', '/admin/product/save', $fields + [
+    'attribute_set_id' => $defaultProductSet, 'name' => 'Camiseta', 'is_active' => '1',
+])[1];
+assertSame(["'Preço' é obrigatório."], $saveProduct(['sku' => 'selftest-1', 'attributes' => ['price' => '']]), 'atributo obrigatório vazio é recusado');
+assertSame(false, $productRow('selftest-1'), 'erro nos atributos não cria o produto');
+assertSame(['Produto criado com sucesso.'], $saveProduct(['sku' => 'selftest-1', 'attributes' => ['price' => '49,90', 'description' => 'Algodão']]), 'produto criado pelo admin');
+assertSame(['price' => '49.9', 'description' => 'Algodão'], array_intersect_key($productValues('selftest-1'), ['price' => 1, 'description' => 1]), 'preço e descrição gravados como valores EAV');
+assertSame(["Já existe um produto com o SKU 'SELFTEST-1'."], $saveProduct(['sku' => 'SELFTEST-1', 'attributes' => ['price' => '1']]), 'SKU repetido (maiúsculas ou não) é recusado');
+assertSame(['SKU deve ter até 64 caracteres: letras, números, ponto, hífen e _ (começando por letra ou número).'], $saveProduct(['sku' => 'a b', 'attributes' => ['price' => '1']]), 'SKU com espaço é recusado');
+
+// a product in another set gets that set's fields only
+$setService->create(['entity_type' => 'product', 'code' => 'selftest_roupa', 'label' => 'Roupa']);
+$roupa = (int) $setRow('selftest_roupa')['attribute_set_id'];
+$service->create(['entity_type' => 'product', 'code' => 'selftest_tam', 'label' => 'Tamanho', 'input_type' => 'select', 'options' => [['value' => 'p'], ['value' => 'm']]]);
+$setService->update($roupa, ['label' => 'Roupa', 'items' => [$attrId('price') => ['in' => 1], $attrId('selftest_tam') => ['in' => 1, 'group' => 'Medidas']]]);
+$roupaForm = $admin->request('/admin/product/create?set=' . $roupa)['body'];
+assertSame([true, false], [str_contains($roupaForm, 'name="attributes[selftest_tam]"'), str_contains($roupaForm, 'name="attributes[description]"')], 'form segue o conjunto escolhido');
+$saveProduct(['sku' => 'selftest-2', 'attribute_set_id' => $roupa, 'attributes' => ['price' => '10', 'selftest_tam' => 'm', 'description' => 'fora do conjunto']]);
+assertSame(['price' => '10', 'selftest_tam' => 'm'], $productValues('selftest-2'), 'só os atributos do conjunto são gravados');
+$p2 = (int) $productRow('selftest-2')['product_id'];
+assertSame(true, str_contains($admin->request('/admin/product/edit?id=' . $p2)['body'], '<option value="m" selected>'), 'edição mostra os valores gravados');
+[, $msgs] = $admin->submit('/admin/product/edit?id=' . $p2, '/admin/product/save', ['product_id' => $p2, 'attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-2', 'name' => 'Calça', 'attributes' => ['price' => '12']]);
+assertSame([['Produto atualizado com sucesso.'], 'Calça', 0, $roupa, ['price' => '12']], [$msgs, $productRow('selftest-2')['name'], $productRow('selftest-2')['is_active'], (int) $productRow('selftest-2')['attribute_set_id'], $productValues('selftest-2')],
+    'edição salva; conjunto não muda; seleção desmarcada é apagada');
+$list = $admin->request('/admin/product/index?q=selftest')['body'];
+assertSame([2, true], [substr_count($list, '/admin/product/edit?id='), str_contains($list, 'R$ 49,90')], 'lista de produtos com preço');
+assertSame(1, substr_count($admin->request('/admin/product/index?q=selftest&is_active=0')['body'], '/admin/product/edit?id='), 'filtro de produtos inativos');
+assertSame('ATTRIBUTE_SET_IN_USE', $throws(static fn () => $setService->delete($roupa)), 'conjunto com produtos não é removido');
+[, $msgs] = $admin->submit('/admin/product/index', '/admin/product/delete', ['product_id' => $p2]);
+assertSame([['Produto removido com sucesso.'], false, []], [$msgs, $productRow('selftest-2'), $values->load('product', $p2)], 'produto removido com os seus valores');
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());
