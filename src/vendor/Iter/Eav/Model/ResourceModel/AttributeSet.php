@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Iter\Eav\Model\ResourceModel;
 
+use Iter\Core\Db\Expr;
 use Iter\Core\Model\ResourceModel\AbstractDb;
-use PDO;
 
 class AttributeSet extends AbstractDb
 {
@@ -17,13 +17,13 @@ class AttributeSet extends AbstractDb
     /** @return array<int, array<string, mixed>> sets with entity label and attribute count */
     public function getList(?string $orderBy = null): array
     {
-        return $this->getConnection()->query(
-            'SELECT s.*, et.code AS entity_type, et.label AS entity_type_label,
-                    (SELECT COUNT(*) FROM eav_attribute_set_item i WHERE i.attribute_set_id = s.attribute_set_id) AS attribute_count
-             FROM eav_attribute_set s
-             JOIN eav_entity_type et ON et.entity_type_id = s.entity_type_id
-             ORDER BY et.label, s.is_default DESC, s.label'
-        )->fetchAll(PDO::FETCH_ASSOC);
+        $db = $this->getConnection();
+
+        return $db->fetchAll($db->select()
+            ->from(['s' => 'eav_attribute_set'])
+            ->join(['et' => 'eav_entity_type'], 'et.entity_type_id = s.entity_type_id', ['entity_type' => 'code', 'entity_type_label' => 'label'])
+            ->columns(['attribute_count' => '(SELECT COUNT(*) FROM eav_attribute_set_item i WHERE i.attribute_set_id = s.attribute_set_id)'])
+            ->order('et.label, s.is_default DESC, s.label'));
     }
 
     /**
@@ -35,61 +35,44 @@ class AttributeSet extends AbstractDb
      */
     public function getItems(int $setId): array
     {
-        $stmt = $this->getConnection()->prepare(
-            'SELECT a.*, i.group_name, i.sort_order AS item_sort_order
-             FROM eav_attribute_set_item i
-             JOIN eav_attribute a ON a.attribute_id = i.attribute_id
-             WHERE i.attribute_set_id = :id
-             ORDER BY i.group_name IS NULL, MIN(i.sort_order) OVER (PARTITION BY i.group_name), i.group_name,
-                      i.sort_order, a.code'
-        );
-        $stmt->execute(['id' => $setId]);
+        $db = $this->getConnection();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $db->fetchAll($db->select()
+            ->from(['i' => 'eav_attribute_set_item'], ['group_name', 'item_sort_order' => 'sort_order'])
+            ->join(['a' => 'eav_attribute'], 'a.attribute_id = i.attribute_id', [])
+            ->columns(['a.*'])
+            ->where('i.attribute_set_id = ?', $setId)
+            ->order(new Expr('i.group_name IS NULL, MIN(i.sort_order) OVER (PARTITION BY i.group_name), i.group_name, i.sort_order, a.code')));
     }
 
     /** @param array<int, array{attribute_id: int, group_name: ?string, sort_order: int}> $items */
     public function replaceItems(int $setId, array $items): void
     {
-        $pdo = $this->getConnection();
-        $pdo->beginTransaction();
-        try {
-            $pdo->prepare('DELETE FROM eav_attribute_set_item WHERE attribute_set_id = :id')->execute(['id' => $setId]);
-            $insert = $pdo->prepare(
-                'INSERT INTO eav_attribute_set_item (attribute_set_id, attribute_id, group_name, sort_order)
-                 VALUES (:attribute_set_id, :attribute_id, :group_name, :sort_order)'
-            );
-            foreach ($items as $item) {
-                $insert->execute(['attribute_set_id' => $setId] + $item);
-            }
-            $pdo->commit();
-        } catch (\Throwable $e) {
-            $pdo->rollBack();
-            throw $e;
-        }
+        $this->getConnection()->transaction(static function ($db) use ($setId, $items): void {
+            $db->delete('eav_attribute_set_item', ['attribute_set_id = ?' => $setId]);
+            $db->insertMultiple('eav_attribute_set_item', array_map(static fn ($item) => ['attribute_set_id' => $setId] + $item, $items));
+        });
     }
 
     /** the set $code of the entity type, or its default set when $code is null */
     public function findId(string $entityType, ?string $code): ?int
     {
-        $stmt = $this->getConnection()->prepare(
-            'SELECT s.attribute_set_id FROM eav_attribute_set s JOIN eav_entity_type et USING (entity_type_id)
-             WHERE et.code = :entity_type AND ' . ($code === null ? 's.is_default = 1' : 's.code = :code')
-        );
-        $stmt->execute(['entity_type' => $entityType] + ($code === null ? [] : ['code' => $code]));
-        $id = $stmt->fetchColumn();
+        $db = $this->getConnection();
+        $select = $db->select()->from(['s' => 'eav_attribute_set'], ['attribute_set_id'])
+            ->join(['et' => 'eav_entity_type'], 'et.entity_type_id = s.entity_type_id', [])
+            ->where('et.code = ?', $entityType);
+        $code === null ? $select->where('s.is_default = 1') : $select->where('s.code = ?', $code);
+        $id = $db->fetchOne($select);
 
         return $id === false ? null : (int) $id;
     }
 
     public function codeExists(int $entityTypeId, string $code): bool
     {
-        $stmt = $this->getConnection()->prepare(
-            'SELECT 1 FROM eav_attribute_set WHERE entity_type_id = :entity_type_id AND code = :code'
-        );
-        $stmt->execute(['entity_type_id' => $entityTypeId, 'code' => $code]);
+        $db = $this->getConnection();
 
-        return (bool) $stmt->fetchColumn();
+        return (bool) $db->fetchOne($db->select()->from('eav_attribute_set', [new Expr('1')])
+            ->where('entity_type_id = ?', $entityTypeId)->where('code = ?', $code));
     }
 
     /**
@@ -98,8 +81,6 @@ class AttributeSet extends AbstractDb
      */
     public function clearDefault(int $entityTypeId): void
     {
-        $this->getConnection()
-            ->prepare('UPDATE eav_attribute_set SET is_default = 0 WHERE entity_type_id = :entity_type_id')
-            ->execute(['entity_type_id' => $entityTypeId]);
+        $this->getConnection()->update('eav_attribute_set', ['is_default' => 0], ['entity_type_id = ?' => $entityTypeId]);
     }
 }
