@@ -178,6 +178,12 @@ final class Select
         return $this;
     }
 
+    /** binds $value and returns its placeholder, to build a condition with several values */
+    public function bindValue(mixed $value): string
+    {
+        return Adapter::bindValue($value, $this->bind);
+    }
+
     /** @return array<string, mixed> the values bound so far */
     public function getBind(): array
     {

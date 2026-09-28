@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Eav\Model\ResourceModel;
 
 use Iter\Core\Model\ResourceModel\AbstractDb;
+use Iter\Eav\Model\ResourceModel\Attribute\Collection;
 use Iter\Eav\InputTypeRegistry;
 use PDO;
 
@@ -21,38 +22,23 @@ class Attribute extends AbstractDb
      */
     public function search(array $filters, int $page, int $perPage): array
     {
-        $where = [];
-        $params = [];
+        $collection = (new Collection())->setOrder('et.code', 'ASC')->setOrder('sort_order', 'ASC')->setOrder('code', 'ASC')
+            ->setPageSize($perPage)->setCurPage($page);
         if (($filters['entity_type'] ?? '') !== '') {
-            $where[] = 'et.code = :entity_type';
-            $params['entity_type'] = $filters['entity_type'];
+            $collection->addFieldToFilter('et.code', $filters['entity_type']);
         }
         if (($filters['input_type'] ?? '') !== '') {
-            $where[] = 'a.input_type = :input_type';
-            $params['input_type'] = $filters['input_type'];
+            $collection->addFieldToFilter('input_type', $filters['input_type']);
         }
         if (in_array($filters['is_system'] ?? '', ['0', '1'], true)) {
-            $where[] = 'a.is_system = :is_system';
-            $params['is_system'] = (int) $filters['is_system'];
+            $collection->addFieldToFilter('is_system', (int) $filters['is_system']);
         }
         if (($filters['q'] ?? '') !== '') {
-            $where[] = '(a.code ILIKE :q OR a.label ILIKE :q)';
-            $params['q'] = '%' . addcslashes($filters['q'], '%_\\') . '%';
+            $q = ['ilike' => '%' . addcslashes($filters['q'], '%_\\') . '%'];
+            $collection->addFieldToFilter(['code', 'label'], [$q, $q]);
         }
-        $from = 'FROM eav_attribute a JOIN eav_entity_type et ON et.entity_type_id = a.entity_type_id'
-            . ($where ? ' WHERE ' . implode(' AND ', $where) : '');
 
-        $count = $this->getConnection()->prepare("SELECT COUNT(*) {$from}");
-        $count->execute($params);
-
-        $stmt = $this->getConnection()->prepare(
-            "SELECT a.*, et.code AS entity_type, et.label AS entity_type_label {$from}
-             ORDER BY et.code, a.sort_order, a.code
-             LIMIT {$perPage} OFFSET " . (($page - 1) * $perPage)
-        );
-        $stmt->execute($params);
-
-        return ['items' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => (int) $count->fetchColumn()];
+        return ['items' => $collection->getData(), 'total' => $collection->getSize()];
     }
 
     /** @return array<string, array{entity_type_id: int, label: string}> code => row */
