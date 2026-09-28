@@ -588,3 +588,4 @@ a {
 @media (max-width: 800px) {
   .config-settings-form .config-fields { grid-template-columns: 1fr; }
 }
+.config-settings-form [data-image-preview][hidden] { display: none; }
