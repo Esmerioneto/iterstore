@@ -12,6 +12,6 @@
         "module_name": "Core",
         "controller_name": "graphql",
         "controller_action": "index",
-        "method": "POST"
+        "method": "POST|OPTIONS"
     }
 ]
