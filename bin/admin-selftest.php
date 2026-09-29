@@ -980,6 +980,22 @@ assertSame([true, false, true], [str_contains($varPage, 'Variação de <a href="
 $list = $admin->request('/admin/product/index?q=selftest-var')['body'];
 assertSame([2, true, true], [substr_count($list, '/admin/product/edit?id='), str_contains($list, '(3 variações)'), str_contains($list, 'R$ 50,00 – R$ 60,00')], 'lista mostra só os pais, com a contagem e a faixa de preço');
 assertSame(1, substr_count($admin->request('/admin/product/index?q=PRETO-M')['body'], '/admin/product/edit?id=' . $parentId . '"'), 'busca pelo SKU da variação acha o pai');
+$sourceService->create(['code' => 'selftest_var_cd', 'name' => 'CD Var', 'website_id' => $defaultWebsite, 'is_enabled' => 1]);
+assertSame('PRODUCT_IS_CONFIGURABLE', $throws(static fn () => $stock->save($parentId, ['selftest_var_cd' => ['quantity' => '1']])), 'estoque no pai com grade é recusado');
+$stock->saveGrid($parentId, 'selftest_var_cd', [$v[0]['product_id'] => '2', $v[1]['product_id'] => '3,5', $v[2]['product_id'] => '4']);
+assertSame(['2', '9.5'], [$stock->getSalable([$v[0]['product_id']])[$v[0]['product_id']], $stock->getSalable([$parentId])[$parentId]], 'grade grava as células; saldo do pai é a soma das variações');
+assertSame(['QUANTITY_INVALID', '2', 'PRODUCT_NOT_FOUND'], [
+    $throws(static fn () => $stock->saveGrid($parentId, 'selftest_var_cd', [$v[0]['product_id'] => '7', $v[1]['product_id'] => 'abc'])),
+    $stock->getSalable([$v[0]['product_id']])[$v[0]['product_id']],
+    $throws(static fn () => $stock->saveGrid($parentId, 'selftest_var_cd', [0 => '1'])),
+], 'grade com erro não grava nada; só variações do produto');
+$productService->update($v[2]['product_id'], ['sku' => $v[2]['sku'], 'is_active' => 0], ['price' => '60']);
+assertSame('5.5', $stock->getSalable([$parentId])[$parentId], 'variação inativa não conta no saldo do pai');
+$gridPage = $admin->request('/admin/product/edit?id=' . $parentId . '&source=selftest_var_cd')['body'];
+assertSame([true, true, 1, true], [str_contains($gridPage, 'Estoque por grade'), str_contains($gridPage, 'name="grid[' . $v[0]['product_id'] . ']" value="2"'), substr_count($gridPage, '<td>–</td>'), str_contains($gridPage, '<td>9,5</td>')],
+    'painel da grade: célula por variação, hífen onde não há combinação, total');
+[, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId . '&source=selftest_var_cd', '/admin/stock/grid', ['product_id' => $parentId, 'source' => 'selftest_var_cd', 'grid' => [$v[0]['product_id'] => '1']]);
+assertSame([['Estoque atualizado com sucesso.'], true], [$msgs, str_contains($admin->request('/admin/product/index?q=selftest-var')['body'], '<td>4,5</td>')], 'tela: salva a grade; lista mostra o saldo somado');
 $productService->delete($parentId);
 assertSame([false, []], [$productRow('selftest-var-az-p'), $values->load('product', $variants[0]['product_id'])], 'apagar o pai apaga as variações e os valores delas');
 

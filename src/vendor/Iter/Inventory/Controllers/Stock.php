@@ -34,4 +34,20 @@ class Stock
         header('Location: /admin/product/edit?id=' . $productId);
         exit;
     }
+
+    /** the "Estoque por grade" panel of a configurable product */
+    public function Grid(): void
+    {
+        $productId = (int) ($_POST['product_id'] ?? 0);
+        $source = (string) ($_POST['source'] ?? '');
+        try {
+            (new StockService())->saveGrid($productId, $source, is_array($_POST['grid'] ?? null) ? $_POST['grid'] : []);
+            Messages::addSuccess('Estoque atualizado com sucesso.');
+        } catch (InventoryException $e) {
+            Messages::addError($e->getMessage());
+        }
+
+        header('Location: /admin/product/edit?' . http_build_query(['id' => $productId, 'source' => $source]));
+        exit;
+    }
 }
