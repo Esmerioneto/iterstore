@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Iter\Inventory\GraphQl;
 
 use GraphQL\Deferred;
-use GraphQL\Error\UserError;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
-use Iter\Admin\Auth;
 use Iter\Catalog\Model\Product;
+use Iter\Core\GraphQl\Schema;
 use Iter\Inventory\Model\InventoryException;
 use Iter\Inventory\Model\Source;
 use Iter\Inventory\Model\StockService;
@@ -26,13 +25,7 @@ class StockSchema
     public static function fields(): array
     {
         $service = new StockService();
-        $guard = static fn (string $resource, callable $resolve) => static function (...$args) use ($resource, $resolve) {
-            if (!Auth::isAllowed($resource)) {
-                throw new UserError('Acesso negado.');
-            }
-
-            return $resolve(...$args);
-        };
+        $guard = Schema::guard(...);
 
         // salable quantities of every product in the response, in one query
         $pending = [];

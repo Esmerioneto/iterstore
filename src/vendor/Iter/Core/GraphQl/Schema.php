@@ -6,7 +6,7 @@ namespace Iter\Core\GraphQl;
 
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
-use GraphQL\Error\UserError;
+use GraphQL\Error\Error;
 use GraphQL\Type\Schema as GraphQLSchema;
 use Iter\Admin\Auth;
 use Iter\Admin\GraphQl\AdminSchema;
@@ -17,6 +17,21 @@ use Iter\Store\Model\Store as StoreModel;
 
 class Schema
 {
+    /**
+     * Wraps an admin-only resolver: without login the error code is UNAUTHENTICATED,
+     * logged in without the ACL resource it is FORBIDDEN (extensions.code, for the clients' logic)
+     */
+    public static function guard(string $resource, callable $resolve): \Closure
+    {
+        return static function (...$args) use ($resource, $resolve) {
+            if (!Auth::isAllowed($resource)) {
+                throw new Error('Acesso negado.', extensions: ['code' => Auth::user() === null ? 'UNAUTHENTICATED' : 'FORBIDDEN']);
+            }
+
+            return $resolve(...$args);
+        };
+    }
+
     /** null when no enabled module has API fields (a schema needs at least one query) */
     public static function build(): ?GraphQLSchema
     {
@@ -47,13 +62,7 @@ class Schema
 
         // ponytail: reads stay public (storefront), writes need an admin
         // session with the Loja resource
-        $guard = static fn (callable $resolve) => static function (...$args) use ($resolve) {
-            if (!Auth::isAllowed('Iter_Store::store')) {
-                throw new UserError('Acesso negado.');
-            }
-
-            return $resolve(...$args);
-        };
+        $guard = static fn (callable $resolve) => self::guard('Iter_Store::store', $resolve);
 
         $storeType = new ObjectType([
             'name' => 'Store',
