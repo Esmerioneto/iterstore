@@ -957,6 +957,29 @@ $productService->update($variants[0]['product_id'], ['sku' => 'selftest-var-az-p
 assertSame(['Camisa - Azul Marinho / p', 'selftest-var-az-p', ['selftest_vcor' => 'az', 'selftest_tam' => 'p'], '55', [$defaultWebsite, $websiteId]], [
     $varService->getVariants($parentId)[0]['name'], $varService->getVariants($parentId)[0]['sku'], $varService->getVariants($parentId)[0]['options'], $varService->getVariants($parentId)[0]['price'], $productService->getWebsiteIds($variants[0]['product_id']),
 ], 'variação editada: SKU e preço mudam; nome, websites e combinação ficam os do pai');
+assertSame([['selftest_vcor' => 'pr', 'selftest_tam' => 'm']], $varService->generate($parentId, ['selftest_vcor' => ['az', 'pr', 'xx'], 'selftest_tam' => ['p', 'm']]), 'gerar devolve só as combinações que faltam');
+$createForm = $admin->request('/admin/product/create?set=' . $roupa . '&type=configurable')['body'];
+assertSame([true, false, false], [str_contains($createForm, 'name="variant_attributes[]" value="selftest_vcor"'), str_contains($createForm, 'value="selftest_cor"'), str_contains($createForm, 'name="attributes[price]"')], 'criar com grade oferece os atributos de seleção, sem campos EAV');
+[, $msgs] = $admin->submit('/admin/product/create?set=' . $roupa . '&type=configurable', '/admin/product/save', ['attribute_set_id' => $roupa, 'type' => 'configurable', 'variant_attributes' => ['selftest_tam'], 'sku' => 'selftest-var2', 'name' => 'Meia', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]]);
+assertSame([['Produto criado com sucesso.'], 'configurable'], [$msgs, $productRow('selftest-var2')['type'] ?? null], 'tela: cria produto com grade');
+$v = $varService->getVariants($parentId);
+$post = ['product_id' => $parentId, 'attribute_set_id' => $roupa, 'sku' => 'selftest-var', 'name' => 'Camisa', 'is_active' => 1, 'website_ids' => [$defaultWebsite, $websiteId], 'category_ids' => [$baseCategory, $siteWCat],
+    'variants' => [$v[0]['product_id'] => ['sku' => $v[0]['sku'], 'price' => '56', 'is_active' => 1], $v[1]['product_id'] => ['sku' => $v[1]['sku'], 'price' => '50', 'remove' => 1], $v[2]['product_id'] => ['sku' => $v[2]['sku'], 'price' => '50', 'is_active' => 1]],
+    'grade' => ['selftest_vcor' => ['pr'], 'selftest_tam' => ['m']], 'grade_price' => '60'];
+[, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId, '/admin/product/save', $post);
+$v = $varService->getVariants($parentId);
+assertSame([['Produto atualizado com sucesso.'], ['selftest-var-az-p', 'selftest-var-PRETO-P', 'selftest-var-PRETO-M'], ['56', '50', '60']], [$msgs, array_column($v, 'sku'), array_column($v, 'price')], 'tela: edita, remove e gera variações ao salvar o pai');
+$post['name'] = 'Outro';
+$post['variants'] = [$v[0]['product_id'] => ['sku' => $v[1]['sku'], 'price' => '56']];
+[, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId, '/admin/product/save', $post);
+assertSame([["Já existe um produto com o SKU 'selftest-var-PRETO-P'."], 'Camisa'], [$msgs, $productRow('selftest-var')['name']], 'erro numa variação não salva o pai');
+$page = $admin->request('/admin/product/edit?id=' . $parentId)['body'];
+assertSame([true, false], [str_contains($page, 'name="grade[selftest_vcor][]" value="pr" checked'), str_contains($page, 'name="attributes[price]"')], 'pai mostra a grade, sem campos EAV');
+$varPage = $admin->request('/admin/product/edit?id=' . $v[0]['product_id'])['body'];
+assertSame([true, false, true], [str_contains($varPage, 'Variação de <a href="/admin/product/edit?id=' . $parentId . '"'), str_contains($varPage, 'name="attributes[selftest_vcor]"'), str_contains($varPage, 'name="attributes[price]"')], 'variação mostra o pai e os campos EAV, sem os da grade');
+$list = $admin->request('/admin/product/index?q=selftest-var')['body'];
+assertSame([2, true, true], [substr_count($list, '/admin/product/edit?id='), str_contains($list, '(3 variações)'), str_contains($list, 'R$ 50,00 – R$ 60,00')], 'lista mostra só os pais, com a contagem e a faixa de preço');
+assertSame(1, substr_count($admin->request('/admin/product/index?q=PRETO-M')['body'], '/admin/product/edit?id=' . $parentId . '"'), 'busca pelo SKU da variação acha o pai');
 $productService->delete($parentId);
 assertSame([false, []], [$productRow('selftest-var-az-p'), $values->load('product', $variants[0]['product_id'])], 'apagar o pai apaga as variações e os valores delas');
 
