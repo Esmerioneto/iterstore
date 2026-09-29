@@ -11,7 +11,7 @@ use Iter\Store\Model\Website;
 
 class ProductList implements ViewComponentInterface
 {
-    private const PER_PAGE = 20;
+    private const PER_PAGE = 8;
 
     public function getTemplate(): string
     {
