@@ -26,7 +26,7 @@
                 <td>
                     <a href="/admin/category/edit?id=<?= (int) $category['category_id'] ?>">Editar</a>
                     <a href="/admin/category/create?parent=<?= (int) $category['category_id'] ?>">+ Subcategoria</a>
-                    <form method="post" action="/admin/category/delete" style="display:inline" data-confirm="Remover esta categoria? Os produtos continuam, só saem dela.">
+                    <form method="post" action="/admin/category/delete" style="display:inline" data-confirm="Remover esta categoria?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="category_id" value="<?= (int) $category['category_id'] ?>">
                         <button type="submit">Remover</button>

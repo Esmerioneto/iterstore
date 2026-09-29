@@ -53,6 +53,9 @@ class CategoryService
         if ($model->getResource()->hasChildren($id)) {
             throw new AttributeException('CATEGORY_HAS_CHILDREN', "A categoria '{$model->getData('name')}' tem subcategorias. Remova ou mova as subcategorias antes.");
         }
+        if ($model->getResource()->hasProducts($id)) {
+            throw new AttributeException('CATEGORY_HAS_PRODUCTS', "A categoria '{$model->getData('name')}' tem produtos. Mova os produtos para outra categoria antes.");
+        }
         $model->delete();
         (new ValueService())->deleteEntity(Category::ENTITY_TYPE, $id);
     }
