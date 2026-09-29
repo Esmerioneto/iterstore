@@ -998,6 +998,25 @@ assertSame([$listTotal - $lastFrom + 1, true, true], [
     str_contains($pager, '<option value="5" selected>'),
     str_contains($pager, $lastFrom . '-' . $listTotal . ' de ' . $listTotal),
 ], 'paginação: "Mostrar linhas" muda o tamanho; página além do fim mostra a última');
+$skusOf = static fn (string $html) => preg_match_all('/<tr>\s*<td>([^<]*)<\/td>/', $html, $m) ? $m[1] : [];
+$byName = $admin->request('/admin/product/index?q=selftest-var')['body'];
+$bySkuDesc = $admin->request('/admin/product/index?q=selftest-var&sort=sku&dir=desc')['body'];
+assertSame([
+    true, true, true,
+    ['selftest-var2', 'selftest-var'],
+    true,
+], [
+    str_contains($byName, '<th class="admin-sortable is-sorted" aria-sort="ascending"><a href="/admin/product/index?q=selftest-var&amp;sort=name&amp;dir=desc">Nome ▲</a></th>'),
+    str_contains($byName, '<a href="/admin/product/index?q=selftest-var&amp;sort=stock&amp;dir=asc">Estoque</a>'),
+    str_contains($bySkuDesc, 'name="sort" value="sku"'),
+    $skusOf($bySkuDesc),
+    str_contains($bySkuDesc, 'SKU ▼'),
+], 'título da lista ordena pela coluna (clicado de novo, inverte) e fica destacado; filtros e paginação mantêm a ordem');
+$stockAsc = $skusOf($admin->request('/admin/product/index?q=selftest&sort=stock&dir=asc&limit=20')['body']);
+$stockOf = (new StockService())->getSalable(array_map(static fn ($sku) => (new \Iter\Catalog\Model\Product())->getResource()->findIdBySku($sku), $stockAsc));
+$sorted = array_values($stockOf);
+sort($sorted, SORT_NUMERIC);
+assertSame($sorted, array_values($stockOf), 'ordenar pelo Estoque (coluna do Inventory) usa o saldo vendável');
 $sourceService->create(['code' => 'selftest_var_cd', 'name' => 'CD Var', 'website_id' => $defaultWebsite, 'is_enabled' => 1]);
 assertSame('PRODUCT_IS_CONFIGURABLE', $throws(static fn () => $stock->save($parentId, ['selftest_var_cd' => ['quantity' => '1']])), 'estoque no pai com grade é recusado');
 $stock->saveGrid($parentId, 'selftest_var_cd', [$v[0]['product_id'] => '2', $v[1]['product_id'] => '3,5', $v[2]['product_id'] => '4']);

@@ -8,6 +8,7 @@ use Iter\Catalog\Model\ProductService;
 use Iter\Catalog\Model\VariantService;
 use Iter\Core\Db\Connection;
 use Iter\Core\Db\Expr;
+use Iter\Core\Db\Select;
 
 /**
  * Product quantities per source. Only the sources of the product's websites count:
@@ -105,16 +106,29 @@ class StockService
             return [];
         }
         $db = Connection::get()->adapter();
-        $salable = static fn () => $db->select()
+        $salable = static fn () => self::salableSelect();
+        $rows = $db->fetchPairs($salable()->columns(['i.product_id', new Expr('SUM(i.quantity)')])->where('i.product_id IN (?)', $ids)->group('i.product_id'))
+            + $db->fetchPairs($salable()->columns(['p.parent_id', new Expr('SUM(i.quantity)')])->where('p.parent_id IN (?)', $ids)->where('p.is_active = 1')->group('p.parent_id'));
+
+        return array_map(static fn ($id) => self::format($rows[$id] ?? '0'), array_combine($ids, $ids));
+    }
+
+    /** in-stock quantities of enabled sources in the product's websites; p = the item's product */
+    private static function salableSelect(): Select
+    {
+        return Connection::get()->adapter()->select()
             ->from(['i' => 'inventory_source_item'], [])
             ->join(['s' => 'inventory_source'], 's.source_id = i.source_id AND s.is_enabled = 1', [])
             ->join(['pw' => 'catalog_product_website'], 'pw.product_id = i.product_id AND pw.website_id = s.website_id', [])
             ->join(['p' => 'catalog_product'], 'p.product_id = i.product_id', [])
             ->where('i.status = 1');
-        $rows = $db->fetchPairs($salable()->columns(['i.product_id', new Expr('SUM(i.quantity)')])->where('i.product_id IN (?)', $ids)->group('i.product_id'))
-            + $db->fetchPairs($salable()->columns(['p.parent_id', new Expr('SUM(i.quantity)')])->where('p.parent_id IN (?)', $ids)->where('p.is_active = 1')->group('p.parent_id'));
+    }
 
-        return array_map(static fn ($id) => self::format($rows[$id] ?? '0'), array_combine($ids, $ids));
+    /** "Estoque" column sort (Catalog's columns slot): the salable quantity of main_table.product_id, as SQL */
+    public static function salableSort(): string
+    {
+        return (string) self::salableSelect()->columns([new Expr('COALESCE(SUM(i.quantity), 0)')])
+            ->where('(i.product_id = main_table.product_id OR (p.parent_id = main_table.product_id AND p.is_active = 1))');
     }
 
     /** "12.5000" -> "12.5", "3.0000" -> "3" */

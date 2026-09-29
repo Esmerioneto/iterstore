@@ -19,9 +19,9 @@ class Product extends AbstractDb
      * @param array{attribute_set_id?: string, is_active?: string, q?: string, category_id?: string, website_id?: string} $filters category_id includes its subcategories
      * @return array{items: array<int, array<string, mixed>>, total: int} rows + set_label, price
      */
-    public function search(array $filters, int $page, int $perPage): array
+    public function search(array $filters, int $page, int $perPage, string|Expr $orderBy = 'name', string $direction = 'ASC'): array
     {
-        $collection = (new Collection())->setOrder('name', 'ASC')->setOrder('product_id', 'ASC')->setPageSize($perPage)->setCurPage($page);
+        $collection = (new Collection())->setOrder($orderBy, $direction)->setOrder('product_id', $direction)->setPageSize($perPage)->setCurPage($page);
         $collection->addFieldToFilter('parent_id', ['null' => true]); // variants show under their parent
         if (($filters['attribute_set_id'] ?? '') !== '') {
             $collection->addFieldToFilter('attribute_set_id', (int) $filters['attribute_set_id']);
