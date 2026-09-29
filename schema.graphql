@@ -1,0 +1,328 @@
+type Query {
+  store(id: ID!): Store
+  stores: [Store!]!
+
+  "Dados da loja. Sem websiteId, os do escopo Padrão; website desconhecido dá null."
+  storeInfo(websiteId: ID): StoreInfo
+
+  "Por id ou por SKU (sem diferenciar maiúsculas); informe um dos dois."
+  product(id: ID, sku: String): Product
+
+  "As categorias principais; as outras vêm em children."
+  categories(
+    "Só as do website."
+    websiteId: ID
+  ): [Category!]!
+
+  "Por id ou por url_key; informe um dos dois. A url_key é única por website."
+  category(
+    id: ID
+    url_key: String
+
+    "Website da url_key; omitido = website padrão."
+    websiteId: ID
+  ): Category
+
+  products(
+    "Parte do SKU ou do nome."
+    search: String
+
+    "Só os produtos do website."
+    websiteId: ID
+
+    attributeSetId: ID
+
+    "Inclui as subcategorias."
+    categoryId: ID
+
+    "Só para o admin; fora dele a lista traz apenas produtos ativos."
+    isActive: Boolean
+
+    page: Int = 1
+
+    "Máximo 100."
+    pageSize: Int = 20
+  ): ProductList!
+  inventorySources: [InventorySource!]!
+  inventorySource(code: String!): InventorySource
+
+  "O usuário do token (ou da sessão do painel); null sem login."
+  currentAdmin: AdminUser
+}
+
+type Store {
+  id: ID!
+  store_name: String!
+  webview: String!
+  theme: String!
+  group_id: ID
+  created_at: String!
+  updated_at: String!
+}
+
+type StoreInfo {
+  name: String
+  taxId: String
+  phone: String
+  email: String
+  details: String
+  logoUrl: String
+  address: StoreAddress!
+}
+
+type StoreAddress {
+  postcode: String
+  street: String
+  number: String
+  complement: String
+  district: String
+  city: String
+  region: String
+  country: String
+}
+
+type Product {
+  id: ID!
+  type: ProductType!
+
+  "Os atributos da grade (produto com grade)."
+  variantAttributes: [VariantAttribute!]!
+
+  "As variações (produto com grade); fora do admin, só as ativas."
+  variants: [Product!]!
+
+  "A combinação da variação (ex.: Cor = Azul, Tamanho = P)."
+  variantOptions: [ProductOption!]!
+
+  "O produto com grade, numa variação."
+  parent: Product
+
+  sku: String!
+  name: String!
+  is_active: Boolean!
+  attribute_set_id: ID!
+  created_at: String!
+  updated_at: String!
+  attributes: [ProductAttribute!]!
+  websiteIds: [ID!]!
+  categories: [Category!]!
+  stock: ProductStock!
+}
+
+enum ProductType {
+  SIMPLE
+
+  "Com grade: as variações têm o estoque, o preço e as fotos."
+  CONFIGURABLE
+}
+
+type VariantAttribute {
+  code: String!
+  label: String!
+
+  "Só as opções usadas pelas variações."
+  options: [ProductOption!]!
+}
+
+type ProductOption {
+  code: String
+  value: String!
+  label: String!
+}
+
+type ProductAttribute {
+  code: String!
+
+  "Valor de atributos de valor único (Sim/Não = \"1\"/\"0\")."
+  value: String
+
+  "Valores de atributos de múltipla seleção."
+  values: [String!]
+
+  "Rótulo da opção escolhida, em atributos de opções (Seleção, Opções)."
+  option_label: String
+
+  "Rótulos das opções escolhidas, na mesma ordem de values (Múltipla seleção)."
+  option_labels: [String!]
+
+  "URL do arquivo, em atributos de arquivo (imagem)."
+  url: String
+}
+
+type Category {
+  id: ID!
+  websiteId: ID!
+  name: String!
+  url_key: String!
+  is_active: Boolean!
+  position: Int!
+
+  "0 = categoria principal."
+  level: Int!
+
+  parent_id: ID
+  children: [Category!]!
+
+  "Inclui os produtos das subcategorias."
+  products(
+    page: Int = 1
+
+    "Máximo 100."
+    pageSize: Int = 20
+  ): ProductList!
+
+  created_at: String!
+  updated_at: String!
+}
+
+type ProductList {
+  items: [Product!]!
+  total: Int!
+}
+
+type ProductStock {
+  "Soma das quantidades \"em estoque\" nas origens ativas dos websites do produto."
+  salable_quantity: Float!
+
+  is_in_stock: Boolean!
+
+  "Quantidade em cada origem dos websites do produto. Só para o admin."
+  sources: [ProductStockSource!]!
+}
+
+type ProductStockSource {
+  code: String!
+  name: String!
+  is_enabled: Boolean!
+  quantity: Float!
+
+  "1 = em estoque, 0 = fora de estoque."
+  status: Int!
+}
+
+type InventorySource {
+  id: ID!
+  websiteId: ID!
+  code: String!
+  name: String!
+  is_enabled: Boolean!
+
+  "Menor = usada primeiro."
+  priority: Int!
+
+  description: String
+  postcode: String
+  city: String
+  region: String
+  country_code: String!
+}
+
+type AdminUser {
+  id: ID!
+  username: String!
+  firstname: String
+  lastname: String
+  email: String
+
+  "Nome do perfil de acesso."
+  role: String
+}
+
+type Mutation {
+  createStore(storeName: String!, webview: String!, theme: String!, groupId: ID): Store!
+  updateStore(id: ID!, storeName: String!, webview: String!, theme: String!, groupId: ID): Store
+  deleteStore(id: ID!): Boolean!
+  createProduct(
+    sku: String!
+    name: String!
+
+    "Omitido = conjunto padrão de produto."
+    attributeSetId: ID
+
+    isActive: Boolean = true
+    attributes: [ProductAttributeInput!]
+
+    "Omitido = website padrão."
+    websiteIds: [ID!]
+
+    "Obrigatório: ao menos uma categoria dos websites do produto."
+    categoryIds: [ID!]
+
+    "Não muda depois."
+    type: ProductType = SIMPLE
+
+    "Com grade: de 1 a 3 códigos de atributos de seleção do conjunto."
+    variantAttributes: [String!]
+  ): Product!
+
+  "Só muda o que for enviado; atributos omitidos mantêm o valor. O conjunto não muda."
+  updateProduct(
+    id: ID!
+    sku: String
+    name: String
+    isActive: Boolean
+    attributes: [ProductAttributeInput!]
+
+    "Substitui os websites (ao menos um)."
+    websiteIds: [ID!]
+
+    "Substitui as categorias (ao menos uma)."
+    categoryIds: [ID!]
+  ): Product!
+
+  "A lista enviada é a lista final: variação ausente é removida, com o estoque dela."
+  saveVariants(productId: ID!, variants: [VariantInput!]!): [Product!]!
+
+  deleteProduct(id: ID!): Boolean!
+
+  "Só muda as origens enviadas; as outras mantêm o que têm."
+  setProductStock(sku: String!, sources: [ProductStockInput!]!): ProductStock!
+
+  "Login do admin pela API. Erra junto com o painel: tentativas contam para o bloqueio."
+  generateAdminToken(username: String!, password: String!): AdminToken!
+
+  "Logout: o token enviado deixa de valer. false sem token."
+  revokeAdminToken: Boolean!
+}
+
+input ProductAttributeInput {
+  code: String!
+
+  "Valor único; vazio ou null apaga."
+  value: String
+
+  "Para múltipla seleção; [] apaga."
+  values: [String!]
+}
+
+input VariantInput {
+  "Variação existente; omitido = nova."
+  id: ID
+
+  "A combinação, só na nova (ex.: [{code: \"cor\", value: \"azul\"}])."
+  options: [ProductAttributeInput!]
+
+  "Omitido = sugerido a partir do SKU do pai e das opções."
+  sku: String
+  price: String
+  isActive: Boolean = true
+}
+
+input ProductStockInput {
+  "Código da origem."
+  code: String!
+  quantity: Float!
+
+  "1 = em estoque, 0 = fora de estoque."
+  status: Int = 1
+}
+
+type AdminToken {
+  "Envie em \"Authorization: Bearer <token>\"."
+  token: String!
+
+  "Configurações → Segurança do admin → validade do token."
+  expires_at: String!
+
+  user: AdminUser!
+}
