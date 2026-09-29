@@ -49,7 +49,7 @@ trait Router{
         $method = $_SERVER['REQUEST_METHOD'];
 
         foreach (self::$routes as $path => $route) {
-            if ($uri === $path && $method === $route['method']) {
+            if ($uri === $path && in_array($method, explode('|', $route['method']), true)) {
                 $controller = $route['controller'];
                 $action = $route['action'];
 

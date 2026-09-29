@@ -5,12 +5,28 @@ declare(strict_types=1);
 namespace Iter\Core\Controllers;
 
 use Iter\Admin\Auth;
+use Iter\Core\Config;
 use Iter\Core\GraphQl\Schema;
 
 class Graphql
 {
     public function Index(): void
     {
+        // CORS for a frontend on another site; no cookies cross-origin, it logs in with the Bearer token
+        $origin = rtrim($_SERVER['HTTP_ORIGIN'] ?? '', '/');
+        $allowed = array_map(static fn ($o) => rtrim($o, '/'), preg_split('/\s+/', trim((string) Config::get('web/cors_origins')), -1, PREG_SPLIT_NO_EMPTY));
+        if ($origin !== '' && (in_array('*', $allowed, true) || in_array($origin, $allowed, true))) {
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Access-Control-Allow-Methods: POST, OPTIONS');
+            header('Access-Control-Allow-Headers: Content-Type, Authorization');
+            header('Access-Control-Max-Age: 86400');
+        }
+        header('Vary: Origin');
+        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { // preflight
+            http_response_code(204);
+            return;
+        }
+
         header('Content-Type: application/json');
 
         $input = json_decode(file_get_contents('php://input'), true) ?? [];

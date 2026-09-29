@@ -1383,6 +1383,20 @@ assertSame([true, 401], [$api('mutation { revokeAdminToken }', $token)[1]['data'
 $pdo->exec("UPDATE admin_api_token SET expires_at = NOW() - INTERVAL '1 second' WHERE user_id = {$adminId}");
 assertSame(401, $api('{ currentAdmin { username } }', $r['data']['generateAdminToken']['token'])[0], 'API: token vencido é recusado');
 
+$cors = static function (string $origin, string $method = 'OPTIONS') use ($base): array {
+    $ch = curl_init($base . '/core/graphql/index');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true, CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => ["Origin: {$origin}"]]);
+    $response = (string) curl_exec($ch);
+    preg_match('/^Access-Control-Allow-Origin: (.*)$/mi', $response, $m);
+
+    return [curl_getinfo($ch, CURLINFO_RESPONSE_CODE), trim($m[1] ?? '')];
+};
+$pdo->exec("DELETE FROM core_config_data WHERE path = 'web/cors_origins'");
+$pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'web/cors_origins', 'https://front.selftest/')");
+assertSame([[204, 'https://front.selftest'], [204, ''], [200, 'https://front.selftest']], [$cors('https://front.selftest'), $cors('https://outro.selftest'), $cors('https://front.selftest', 'POST')], 'CORS: só as origens configuradas');
+$pdo->exec("UPDATE core_config_data SET value = '*' WHERE path = 'web/cors_origins'");
+assertSame([204, 'https://outro.selftest'], $cors('https://outro.selftest'), 'CORS: * libera qualquer origem');
+
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());
 assertSame(true, abs($dbNow - time()) < 5, 'banco e PHP usam o mesmo fuso (' . date_default_timezone_get() . ')');
