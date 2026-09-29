@@ -8,9 +8,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Cormorant+Garamond:wght@400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/assets/vendor/sweetalert2/sweetalert2.min.css">
-    <link rel="stylesheet" href="/assets/admin/theme.css">
+    <link rel="stylesheet" href="/assets/admin/theme.css?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/admin/theme.css') ?>">
     <script src="/assets/vendor/sweetalert2/sweetalert2.min.js" defer></script>
-    <script src="/assets/admin/admin.js" defer></script>
+    <script src="/assets/admin/admin.js?v=<?= (int) @filemtime($_SERVER['DOCUMENT_ROOT'] . '/assets/admin/admin.js') ?>" defer></script>
 </head>
 <body>
 <div class="admin-shell">
