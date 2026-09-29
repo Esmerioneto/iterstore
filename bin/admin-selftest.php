@@ -1385,6 +1385,13 @@ assertSame([true, 401], [$api('mutation { revokeAdminToken }', $token)[1]['data'
 $pdo->exec("UPDATE admin_api_token SET expires_at = NOW() - INTERVAL '1 second' WHERE user_id = {$adminId}");
 assertSame(401, $api('{ currentAdmin { username } }', $r['data']['generateAdminToken']['token'])[0], 'API: token vencido é recusado');
 
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'admin_login:%'");
+$pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'admin/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");
+$codes = array_map(static fn () => $login('errada1234'), [1, 2, 3]);
+assertSame([[200, 'INVALID_CREDENTIALS'], [200, 'INVALID_CREDENTIALS'], [429, 'TOO_MANY_REQUESTS']], array_map(static fn ($r) => [$r[0], $r[1]['errors'][0]['extensions']['code'] ?? null], $codes), 'API: login passa do limite por IP e recebe 429');
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'admin_login:%'");
+$pdo->exec("UPDATE admin_user SET failures_num = 0, lock_expires = NULL WHERE user_id = {$adminId}");
+
 $cors = static function (string $origin, string $method = 'OPTIONS') use ($base): array {
     $ch = curl_init($base . '/core/graphql/index');
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true, CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => ["Origin: {$origin}"]]);
