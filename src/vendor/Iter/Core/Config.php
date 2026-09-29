@@ -20,6 +20,14 @@ class Config
     public const IMAGE_TYPES = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp'];
     public const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 
+    /** the largest upload PHP accepts (upload_max_filesize, capped by post_max_size); admin.js shrinks bigger images */
+    public static function uploadMaxBytes(): int
+    {
+        $limits = array_filter([ini_parse_quantity((string) ini_get('upload_max_filesize')), ini_parse_quantity((string) ini_get('post_max_size'))]); // 0 = no limit
+
+        return $limits ? min($limits) : PHP_INT_MAX;
+    }
+
     /** @var array<string, array<string, string>>|null "scope:id" => path => value */
     private static ?array $values = null;
     private static ?array $fields = null;

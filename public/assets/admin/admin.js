@@ -330,6 +330,66 @@ document.addEventListener('input', function (event) {
   }
 });
 
+// An image over data-max-bytes is scaled down in the browser before it's posted:
+// PHP drops an upload over upload_max_filesize before the system sees it.
+// Output is WebP when the field accepts it (keeps transparency), else JPEG.
+// ponytail: saving during the second it takes posts the original, which the server refuses with its size message.
+function shrinkImage(file, maxBytes, type) {
+  return createImageBitmap(file).then(function (bitmap) {
+    var scale = Math.min(1, Math.sqrt(maxBytes / file.size) * 1.5);
+    var attempt = function () {
+      var canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      var context = canvas.getContext('2d');
+      if (type === 'image/jpeg') {
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      return new Promise(function (resolve) { canvas.toBlob(resolve, type, 0.85); }).then(function (blob) {
+        if (blob.size <= maxBytes) {
+          return blob;
+        }
+        scale *= 0.8;
+        return attempt();
+      });
+    };
+    return attempt();
+  });
+}
+
+document.addEventListener('change', function (event) {
+  var input = event.target;
+  var file = input.files && input.files[0];
+  var maxBytes = Number(input.dataset.maxBytes);
+  if (!input.matches('input[data-image-input]') || !file || !maxBytes || file.size <= maxBytes || event.detail === 'shrunk') {
+    return;
+  }
+  event.stopImmediatePropagation(); // the preview below waits for the smaller file
+  var webp = input.accept.indexOf('image/webp') !== -1
+    && document.createElement('canvas').toDataURL('image/webp').indexOf('data:image/webp') === 0;
+  var type = webp ? 'image/webp' : 'image/jpeg';
+  var mb = function (bytes) { return (bytes / 1048576).toFixed(1).replace('.', ',') + ' MB'; };
+  shrinkImage(file, maxBytes, type).then(function (blob) {
+    var files = new DataTransfer();
+    files.items.add(new File([blob], file.name.replace(/\.[^.]*$/, '') + (webp ? '.webp' : '.jpg'), { type: type }));
+    input.files = files.files;
+    if (typeof Swal !== 'undefined') {
+      Swal.fire({
+        toast: true, position: 'top-end', icon: 'info', iconColor: inkColor(), showConfirmButton: false, showCloseButton: true,
+        timer: 6000, timerProgressBar: true, customClass: { popup: 'admin-swal admin-swal-toast' },
+        title: 'Imagem reduzida',
+        text: file.name + ' tinha ' + mb(file.size) + ' (limite ' + mb(maxBytes) + '); foi reduzida para ' + mb(blob.size) + '.'
+      });
+    }
+  }).catch(function () {
+    // not decodable here (e.g. AVIF in an older browser): it goes as is and the server explains the limit
+  }).then(function () {
+    input.dispatchEvent(new CustomEvent('change', { bubbles: true, detail: 'shrunk' }));
+  });
+});
+
 // Image settings and EAV image fields: show the chosen file right away (it's only uploaded on "Salvar")
 document.addEventListener('change', function (event) {
   if (!event.target.matches('input[data-image-input]')) {

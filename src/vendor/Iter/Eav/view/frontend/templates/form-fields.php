@@ -38,7 +38,7 @@ foreach ($schema['fields'] as $field) {
         <img class="eav-file-preview" alt="Imagem escolhida (salve para gravar)" title="Imagem escolhida (salve para gravar)" data-image-preview hidden>
                 <?php endif; ?>
             <?php endif; ?>
-        <input<?= $formAttr ?> type="file" name="<?= $name ?>" accept="<?= $e(implode(',', $f['accept'])) ?>" <?= $file === '' ? $required : '' ?> data-image-input>
+        <input<?= $formAttr ?> type="file" name="<?= $name ?>" accept="<?= $e(implode(',', $f['accept'])) ?>" <?= $file === '' ? $required : '' ?> data-image-input data-max-bytes="<?= \Iter\Core\Config::uploadMaxBytes() ?>">
     </label>
             <?php if ($file !== '' && !$f['required']): ?>
         <label><input<?= $formAttr ?> type="checkbox" name="<?= $name ?>[remove]" value="1"> Remover</label>

@@ -40,7 +40,7 @@
                 <a href="<?= $e(\Iter\Core\Config::mediaUrl($field['value'])) ?>" target="_blank" data-image-popup="<?= $e($field['label']) ?>"><img class="eav-file-preview" src="<?= $e(\Iter\Core\Config::mediaUrl($field['value'])) ?>" alt="<?= $e($field['label']) ?>"></a>
                 <?php endif; ?>
                 <img class="eav-file-preview" alt="Imagem escolhida (salve para gravar)" title="Imagem escolhida (salve para gravar)" data-image-preview hidden>
-                <br><input type="file" id="<?= $e($id) ?>" name="<?= $name ?>" accept="<?= $e(implode(',', array_keys(\Iter\Core\Config::IMAGE_TYPES))) ?>" data-image-input>
+                <br><input type="file" id="<?= $e($id) ?>" name="<?= $name ?>" accept="<?= $e(implode(',', array_keys(\Iter\Core\Config::IMAGE_TYPES))) ?>" data-image-input data-max-bytes="<?= min(\Iter\Core\Config::IMAGE_MAX_BYTES, \Iter\Core\Config::uploadMaxBytes()) ?>">
             <?php else: ?>
                 <label><?= $e($field['label']) ?><br>
             <?php if ($type === 'boolean' || $type === 'select'): ?>
