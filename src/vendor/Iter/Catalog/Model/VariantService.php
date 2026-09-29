@@ -22,12 +22,13 @@ class VariantService
 {
     public const MAX_ATTRIBUTES = 3;
 
-    /** @return array<int, array<string, mixed>> the set's select fields (FormSchemaGenerator fields) */
+    /** @return array<int, array<string, mixed>> the set's select fields marked "Usar na grade" (FormSchemaGenerator fields) */
     public function candidates(string $setCode): array
     {
         $fields = (new FormSchemaGenerator())->generate(Product::ENTITY_TYPE, $setCode)['fields'];
+        $marked = array_column(array_filter($this->attributeRows(), static fn ($a) => (int) $a['is_variant'] === 1), 'code');
 
-        return array_values(array_filter($fields, static fn ($f) => $f['type'] === 'select'));
+        return array_values(array_filter($fields, static fn ($f) => $f['type'] === 'select' && in_array($f['name'], $marked, true)));
     }
 
     /**
@@ -39,7 +40,7 @@ class VariantService
         $codes = array_values(array_unique(array_filter(array_map('strval', (array) $codes), 'strlen')));
         $allowed = array_column($this->candidates($setCode), 'name');
         if (!$codes || count($codes) > self::MAX_ATTRIBUTES || array_diff($codes, $allowed)) {
-            throw new AttributeException('VARIANT_ATTRIBUTE_INVALID', 'Escolha de 1 a ' . self::MAX_ATTRIBUTES . ' atributos de seleção do conjunto para formar a grade.');
+            throw new AttributeException('VARIANT_ATTRIBUTE_INVALID', 'Escolha de 1 a ' . self::MAX_ATTRIBUTES . ' atributos do conjunto marcados "Usar na grade".');
         }
         $ids = array_column($this->attributeRows(), 'attribute_id', 'code');
 

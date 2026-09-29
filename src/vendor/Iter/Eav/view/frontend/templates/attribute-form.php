@@ -87,6 +87,10 @@ $locked = static fn (string $field) => $is_system && !in_array($field, ['label',
                 </tbody>
             </table>
             <button type="button" data-add-row="attribute-option-rows">+ Adicionar opção</button>
+            <p>
+                <label><input type="checkbox" name="is_variant" value="1" <?= $values['is_variant'] ? 'checked' : '' ?> <?= $locked('is_variant') ?>> Usar na grade</label><br>
+                <small>Só no tipo Seleção: o atributo pode formar as variações de um produto com grade (ex.: Cor, Tamanho, Voltagem).</small>
+            </p>
         </fieldset>
         <p>
             <label>Posição<br>
