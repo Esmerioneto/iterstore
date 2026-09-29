@@ -849,9 +849,11 @@ assertSame([[['id' => (string) $ocultaId], ['id' => (string) $camisetasId]], 'CA
 ], 'GraphQL: categoryIds omitido mantém, [] e id inexistente são recusados');
 assertSame('CATEGORY_REQUIRED', $gql($admin, 'mutation { createProduct(sku: "selftest-semcat", name: "S", attributeSetId: "' . $defaultProductSet . '", attributes: [{code: "price", value: "1"}]) { id } }')['errors'][0]['extensions']['code'] ?? null, 'GraphQL: criar produto sem categoria é recusado');
 $setCats(', categoryIds: ["' . $camisetasId . '"]');
+[, $msgs] = $admin->submit('/admin/category/index', '/admin/category/delete', ['category_id' => $camisetasId]);
+assertSame([["A categoria 'Camisetas' tem produtos. Mova os produtos para outra categoria antes."], true], [$msgs, (bool) $categoryRow('selftest-camisetas')], 'categoria com produtos não é removida');
+$setCats(', categoryIds: ["' . $roupasId . '"]');
 $admin->submit('/admin/category/index', '/admin/category/delete', ['category_id' => $camisetasId]);
-assertSame([false, true, []], [$categoryRow('selftest-camisetas'), (bool) $productRow('selftest-cat'), (new ProductService())->getCategoryIds($catProduct)], 'remover a categoria mantém o produto e tira o vínculo');
-$pdo->exec("INSERT INTO catalog_category_product (category_id, product_id) VALUES ({$roupasId}, {$catProduct})");
+assertSame([false, [$roupasId]], [$categoryRow('selftest-camisetas'), (new ProductService())->getCategoryIds($catProduct)], 'categoria sem produtos é removida');
 (new ProductService())->delete($catProduct);
 assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM catalog_category_product WHERE product_id = {$catProduct}")->fetchColumn(), 'remover o produto apaga os vínculos');
 

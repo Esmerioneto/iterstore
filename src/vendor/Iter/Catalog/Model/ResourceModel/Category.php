@@ -57,6 +57,13 @@ class Category extends AbstractDb
         return (bool) $db->fetchOne($db->select()->from('catalog_category', [new Expr('1')])->where('parent_id = ?', $id)->limit(1));
     }
 
+    public function hasProducts(int $id): bool
+    {
+        $db = $this->getConnection();
+
+        return (bool) $db->fetchOne($db->select()->from('catalog_category_product', [new Expr('1')])->where('category_id = ?', $id)->limit(1));
+    }
+
     public function findIdByUrlKey(string $urlKey): ?int
     {
         $db = $this->getConnection();
