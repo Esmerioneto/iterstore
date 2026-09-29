@@ -1359,6 +1359,8 @@ assertSame('7', (new StockService())->getSalable([$estId])[$estId], 'Inventory r
 assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
 assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Configurações não chega aos módulos');
 
+assertSame(file_get_contents(__DIR__ . '/../schema.graphql'), GraphQL\Utils\SchemaPrinter::doPrint(Iter\Core\GraphQl\Schema::build()), 'schema.graphql em dia com a API (rode php bin/schema-dump.php)');
+
 // --- GraphQL: admin login by token ------------------------------------------------------------
 $api = static function (string $query, ?string $token = null) use ($base): array { // no cookies: a separate app
     $ch = curl_init($base . '/core/graphql/index');
