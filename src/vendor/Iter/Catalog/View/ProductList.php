@@ -26,6 +26,9 @@ class ProductList implements ViewComponentInterface
         }
         $page = max(1, (int) ($_GET['page'] ?? 1));
         $result = (new Product())->getResource()->search($filters, $page, self::PER_PAGE);
+        $categoryResource = (new Category())->getResource();
+        $tree = $categoryResource->getTree();
+        $productCategories = $categoryResource->getProductsCategoryIds(array_map('intval', array_column($result['items'], 'product_id')));
 
         return [
             'products' => $result['items'],
@@ -35,7 +38,12 @@ class ProductList implements ViewComponentInterface
             'total_pages' => max(1, (int) ceil($result['total'] / self::PER_PAGE)),
             'sets' => ProductForm::productSets(),
             'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
-            'categories' => (new Category())->getResource()->getTree(),
+            'categories' => $tree,
+            // product id => its category names, in tree order
+            'product_categories' => array_map(
+                static fn (array $ids) => array_column(array_filter($tree, static fn ($c) => in_array((int) $c['category_id'], $ids, true)), 'name'),
+                $productCategories
+            ),
         ];
     }
 

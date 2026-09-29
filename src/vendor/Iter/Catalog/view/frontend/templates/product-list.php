@@ -37,6 +37,7 @@
                 <th>SKU</th>
                 <th>Nome</th>
                 <th>Conjunto</th>
+                <th>Categorias</th>
                 <th>Preço</th>
                 <th>Status</th>
 <?php foreach ($extra as $column): ?>
@@ -47,13 +48,14 @@
         </thead>
         <tbody>
 <?php if (empty($products)): ?>
-            <tr><td colspan="<?= 6 + count($extra) ?>">Nenhum produto encontrado.</td></tr>
+            <tr><td colspan="<?= 7 + count($extra) ?>">Nenhum produto encontrado.</td></tr>
 <?php else: ?>
     <?php foreach ($products as $product): ?>
             <tr>
                 <td><?= htmlspecialchars((string) $product['sku']) ?></td>
                 <td><?= htmlspecialchars((string) $product['name']) ?></td>
                 <td><?= htmlspecialchars((string) $product['set_label']) ?></td>
+                <td><?= htmlspecialchars(implode(', ', $product_categories[(int) $product['product_id']] ?? [])) ?></td>
                 <td><?= $product['price'] === null ? '' : 'R$ ' . number_format((float) $product['price'], 2, ',', '.') ?></td>
                 <td><?= $product['is_active'] ? 'Ativo' : 'Inativo' ?></td>
         <?php foreach ($extra as $column): ?>
