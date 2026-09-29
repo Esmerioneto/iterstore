@@ -261,13 +261,33 @@ function syncRequiredGroup(box) {
   var checked = Array.prototype.some.call(boxes, function (b) { return b.checked; });
   boxes.forEach(function (b) { b.required = !checked; });
 }
+// Category tree (data-category-parent): checking a category checks its parents,
+// unchecking it unchecks its subcategories
+function cascadeCategory(box) {
+  var group = 'input[data-category-parent][name="' + box.name + '"]';
+  var byId = function (id) { return document.querySelector(group + '[value="' + id + '"]'); };
+  if (box.checked) {
+    for (var parent = byId(box.dataset.categoryParent); parent; parent = byId(parent.dataset.categoryParent)) {
+      parent.checked = true;
+    }
+  } else {
+    document.querySelectorAll(group + '[data-category-parent="' + box.value + '"]').forEach(function (child) {
+      child.checked = false;
+      cascadeCategory(child);
+    });
+  }
+}
 document.addEventListener('change', function (event) {
+  if (event.target.matches('input[data-category-parent]')) {
+    cascadeCategory(event.target);
+  }
   if (event.target.matches('input[data-required-group]')) {
     syncRequiredGroup(event.target);
   }
 });
 document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('input[data-required-group]').forEach(syncRequiredGroup);
+  document.querySelectorAll('input[data-category-parent]:checked').forEach(cascadeCategory);
 });
 
 // <select data-autosubmit>: choosing an option submits its form (e.g. the scope of Configurações)

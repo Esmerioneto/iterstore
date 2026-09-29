@@ -828,8 +828,8 @@ assertSame(["A categoria 'Selftest Roupas' tem subcategorias. Remova ou mova as 
 // products in categories
 assertSame(['Produto criado com sucesso.'], $saveProduct(['sku' => 'selftest-cat', 'category_ids' => [$camisetasId, $ocultaId], 'attributes' => ['price' => '5']]), 'produto criado com categorias pelo admin');
 $catProduct = (int) $productRow('selftest-cat')['product_id'];
-assertSame([$camisetasId, $ocultaId], (new ProductService())->getCategoryIds($catProduct), 'categorias do produto gravadas');
-assertSame(true, str_contains($admin->request('/admin/product/edit?id=' . $catProduct)['body'], 'name="category_ids[]" data-required-group value="' . $camisetasId . '" checked'), 'edição marca as categorias do produto');
+assertSame([$roupasId, $camisetasId, $ocultaId], (new ProductService())->getCategoryIds($catProduct), 'categorias do produto gravadas, com a categoria pai das subcategorias');
+assertSame(true, str_contains($admin->request('/admin/product/edit?id=' . $catProduct)['body'], 'name="category_ids[]" data-required-group data-category-parent="' . $roupasId . '" value="' . $camisetasId . '" checked'), 'edição marca as categorias do produto');
 assertSame([1, 0], [
     substr_count($admin->request('/admin/product/index?category_id=' . $roupasId)['body'], '/admin/product/edit?id='),
     substr_count($admin->request('/admin/product/index?q=selftest-est&category_id=' . $roupasId)['body'], '/admin/product/edit?id='),
@@ -838,14 +838,14 @@ assertSame(['Categoria não encontrada: 999999.'], $saveProduct(['sku' => 'selft
 
 $catRead = 'query ($key: String) { category(url_key: $key) { name children { url_key } products { total items { sku categories { url_key } } } } }';
 $r = $gql($guest, $catRead, ['key' => 'selftest-roupas'])['data']['category'] ?? null;
-assertSame(['name' => 'Selftest Roupas', 'children' => [['url_key' => 'selftest-camisetas']], 'products' => ['total' => 1, 'items' => [['sku' => 'selftest-cat', 'categories' => [['url_key' => 'selftest-camisetas']]]]]], $r, 'GraphQL: visitante vê a árvore e os produtos, sem as inativas');
+assertSame(['name' => 'Selftest Roupas', 'children' => [['url_key' => 'selftest-camisetas']], 'products' => ['total' => 1, 'items' => [['sku' => 'selftest-cat', 'categories' => [['url_key' => 'selftest-roupas'], ['url_key' => 'selftest-camisetas']]]]]], $r, 'GraphQL: visitante vê a árvore e os produtos, sem as inativas');
 assertSame([['category' => null], 'selftest-oculta'], [
     $gql($guest, $catRead, ['key' => 'selftest-oculta'])['data'] ?? null,
     $gql($admin, '{ category(id: "' . $ocultaId . '") { url_key } }')['data']['category']['url_key'] ?? null,
 ], 'GraphQL: categoria inativa só para o admin');
 assertSame(true, in_array('selftest-roupas', array_column($gql($guest, '{ categories { url_key } }')['data']['categories'] ?? [], 'url_key'), true), 'GraphQL: categorias principais');
 $setCats = static fn (string $args) => $gql($admin, 'mutation { updateProduct(id: "' . $catProduct . '"' . $args . ') { categories { id } } }');
-assertSame([[['id' => (string) $ocultaId], ['id' => (string) $camisetasId]], 'CATEGORY_REQUIRED', 'CATEGORY_NOT_FOUND'], [
+assertSame([[['id' => (string) $roupasId], ['id' => (string) $ocultaId], ['id' => (string) $camisetasId]], 'CATEGORY_REQUIRED', 'CATEGORY_NOT_FOUND'], [
     $setCats(', name: "Com categorias"')['data']['updateProduct']['categories'] ?? null,
     $setCats(', categoryIds: []')['errors'][0]['extensions']['code'] ?? null,
     $setCats(', categoryIds: ["999999"]')['errors'][0]['extensions']['code'] ?? null,

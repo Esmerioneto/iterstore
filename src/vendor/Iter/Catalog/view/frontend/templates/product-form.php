@@ -48,7 +48,7 @@ ob_start(); ?>
     <?php endif; ?>
     <?php foreach ($categories as $category): ?>
     <label style="display:block; margin-left: <?= (int) $category['level'] * 1.5 ?>em">
-        <input form="product-form" type="checkbox" name="category_ids[]" data-required-group value="<?= (int) $category['category_id'] ?>" <?= in_array((int) $category['category_id'], $category_ids, true) ? 'checked' : '' ?>>
+        <input form="product-form" type="checkbox" name="category_ids[]" data-required-group data-category-parent="<?= (int) $category['parent_id'] ?>" value="<?= (int) $category['category_id'] ?>" <?= in_array((int) $category['category_id'], $category_ids, true) ? 'checked' : '' ?>>
         <?= $e($category['name']) ?><?= $category['is_active'] ? '' : ' <small>(inativa)</small>' ?><?= !$category['level'] && count($websites) > 1 ? ' <small>(' . $e($websites[$category['website_id']] ?? '') . ')</small>' : '' ?>
     </label>
     <?php endforeach; ?>
