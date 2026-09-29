@@ -33,7 +33,8 @@ class LayoutRenderer
         $component = $this->resolver->resolve($node->getComponent());
         $templateId = $node->getTemplate() ?? $component->getTemplate();
         $templatePath = $this->resolver->resolveTemplate($templateId);
-        $data = array_merge($component->getData(), $node->getData());
+        // a component may declare getData(array $layoutData = []) to read its node's "data" (PHP ignores the extra argument otherwise)
+        $data = array_merge($component->getData($node->getData()), $node->getData());
 
         return $this->renderTemplate($templatePath, $data, $childrenHtml);
     }

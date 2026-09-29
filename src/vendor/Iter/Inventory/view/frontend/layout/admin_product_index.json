@@ -5,7 +5,7 @@
                 "component": "catalog/product-list",
                 "data": {
                     "columns": {
-                        "stock": { "label": "Estoque", "provider": "Iter\\Inventory\\Model\\StockService::salableColumn" }
+                        "stock": { "label": "Estoque", "provider": "Iter\\Inventory\\Model\\StockService::salableColumn", "sort": "Iter\\Inventory\\Model\\StockService::salableSort" }
                     }
                 }
             }

@@ -1,4 +1,19 @@
-<?php $extra = \Iter\Catalog\View\ProductList::columns($columns ?? [], $products); ?>
+<?php
+$extra = \Iter\Catalog\View\ProductList::columns($columns ?? [], $products);
+usort($extra, static fn ($a, $b) => $b['sortable'] <=> $a['sortable']); // header order: sortable ones next to the list's own
+// what every link and form of the list carries: filters, page size and sort (defaults left out)
+$query = array_filter($filters, 'strlen')
+    + ($limit === \Iter\Catalog\View\ProductList::PAGE_SIZES[0] ? [] : ['limit' => $limit])
+    + ($sort === 'name' && $dir === 'asc' ? [] : ['sort' => $sort, 'dir' => $dir]);
+// a title sorts by its column; clicked again, it flips the direction (back to page 1)
+$sortHeader = static function (string $key, string $label) use ($query, $sort, $dir): string {
+    $active = $key === $sort;
+    $next = $active && $dir === 'asc' ? 'desc' : 'asc';
+    $href = '/admin/product/index?' . http_build_query(array_diff_key($query, ['sort' => 1, 'dir' => 1]) + ['sort' => $key, 'dir' => $next]);
+    return '<th class="admin-sortable' . ($active ? ' is-sorted' : '') . '"' . ($active ? ' aria-sort="' . ($dir === 'asc' ? 'ascending' : 'descending') . '"' : '') . '>'
+        . '<a href="' . htmlspecialchars($href) . '">' . htmlspecialchars($label) . ($active ? ($dir === 'asc' ? ' ▲' : ' ▼') : '') . '</a></th>';
+};
+?>
 <section class="catalog-product-list">
     <h2>Produtos</h2>
     <p><a href="/admin/product/create">+ Novo produto</a></p>
@@ -29,18 +44,18 @@
             <option value="0" <?= $filters['is_active'] === '0' ? 'selected' : '' ?>>Só inativos</option>
         </select>
         <input type="search" name="q" placeholder="SKU ou nome" value="<?= htmlspecialchars($filters['q']) ?>">
+<?php foreach (array_diff_key($query, $filters) as $name => $value): ?>
+        <input type="hidden" name="<?= htmlspecialchars($name) ?>" value="<?= htmlspecialchars((string) $value) ?>">
+<?php endforeach; ?>
         <button type="submit">Filtrar</button>
     </form>
     <table>
         <thead>
             <tr>
-                <th>SKU</th>
-                <th>Nome</th>
-                <th>Conjunto</th>
-                <th>Categorias</th>
-                <th>Preço</th>
-                <th>Status</th>
-<?php foreach ($extra as $column): ?>
+<?php foreach (['sku' => 'SKU', 'name' => 'Nome', 'set' => 'Conjunto', 'categories' => 'Categorias', 'price' => 'Preço', 'is_active' => 'Status'] + array_column(array_filter($extra, static fn ($c) => $c['sortable']), 'label', 'key') as $key => $label): ?>
+                <?= $sortHeader($key, $label) ?>
+<?php endforeach; ?>
+<?php foreach (array_filter($extra, static fn ($c) => !$c['sortable']) as $column): ?>
                 <th><?= htmlspecialchars($column['label']) ?></th>
 <?php endforeach; ?>
                 <th></th>
@@ -75,11 +90,10 @@
         </tbody>
     </table>
 <?php
-$query = array_filter($filters, 'strlen') + ($limit === \Iter\Catalog\View\ProductList::PAGE_SIZES[0] ? [] : ['limit' => $limit]);
 $pageUrl = static fn (int $p) => '/admin/product/index?' . htmlspecialchars(http_build_query($query + ['page' => $p]));
 ?>
     <form method="get" action="/admin/product/index" class="admin-pager">
-    <?php foreach (array_filter($filters, 'strlen') as $name => $value): ?>
+    <?php foreach (array_diff_key($query, ['limit' => 1]) as $name => $value): ?>
         <input type="hidden" name="<?= htmlspecialchars($name) ?>" value="<?= htmlspecialchars($value) ?>">
     <?php endforeach; ?>
         <label>Ir para a página: <input type="number" name="page" value="<?= (int) $page ?>" min="1" max="<?= (int) $total_pages ?>"></label>
