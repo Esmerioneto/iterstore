@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Catalog\GraphQl;
 
-use GraphQL\Error\UserError;
+use GraphQL\Error\Error;
 use GraphQL\Type\Definition\EnumType;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
@@ -14,6 +14,7 @@ use Iter\Catalog\Model\Category;
 use Iter\Catalog\Model\Product;
 use Iter\Catalog\Model\ProductService;
 use Iter\Catalog\Model\VariantService;
+use Iter\Core\GraphQl\Schema;
 use Iter\Eav\Form\FormSchemaGenerator;
 use Iter\Eav\InputTypeRegistry;
 use Iter\Eav\Model\Attribute;
@@ -44,13 +45,7 @@ class ProductSchema
     {
         $service = new ProductService();
         $isAdmin = static fn (): bool => Auth::isAllowed('Iter_Catalog::product');
-        $guard = static fn (callable $resolve) => static function (...$args) use ($resolve, $isAdmin) {
-            if (!$isAdmin()) {
-                throw new UserError('Acesso negado.');
-            }
-
-            return $resolve(...$args);
-        };
+        $guard = static fn (callable $resolve) => Schema::guard('Iter_Catalog::product', $resolve);
 
         // input type and options by attribute code, loaded once per request
         $attributeRows = null;
@@ -289,7 +284,7 @@ class ProductSchema
                     'args' => ['id' => Type::id(), 'sku' => Type::string()],
                     'resolve' => static function ($root, array $args) use ($load): ?array {
                         if (isset($args['id']) === isset($args['sku'])) {
-                            throw new UserError('Informe id ou sku.');
+                            throw new Error('Informe id ou sku.', extensions: ['code' => 'INVALID_ARGUMENT']);
                         }
                         $id = isset($args['id']) ? (int) $args['id'] : (new Product())->getResource()->findIdBySku($args['sku']);
 
@@ -309,7 +304,7 @@ class ProductSchema
                     'args' => ['id' => Type::id(), 'url_key' => Type::string(), 'websiteId' => ['type' => Type::id(), 'description' => 'Website da url_key; omitido = website padrão.']],
                     'resolve' => static function ($root, array $args) use ($categories): ?array {
                         if (isset($args['id']) === isset($args['url_key'])) {
-                            throw new UserError('Informe id ou url_key.');
+                            throw new Error('Informe id ou url_key.', extensions: ['code' => 'INVALID_ARGUMENT']);
                         }
                         $id = isset($args['id']) ? (int) $args['id'] : (new Category())->getResource()->findIdByUrlKey($args['url_key'], (int) ($args['websiteId'] ?? (new Website())->getResource()->getDefaultId()));
 

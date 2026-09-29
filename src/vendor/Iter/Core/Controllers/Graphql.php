@@ -6,6 +6,10 @@ namespace Iter\Core\Controllers;
 
 use Iter\Admin\Auth;
 use Iter\Core\Config;
+use GraphQL\Validator\DocumentValidator;
+use GraphQL\Validator\Rules\DisableIntrospection;
+use GraphQL\Validator\Rules\QueryComplexity;
+use GraphQL\Validator\Rules\QueryDepth;
 use Iter\Core\GraphQl\Schema;
 
 class Graphql
@@ -46,7 +50,14 @@ class Graphql
             echo json_encode(['errors' => [['message' => 'Nenhum módulo com API está ativo.']]]);
             return;
         }
-        $result = \GraphQL\GraphQL::executeQuery($schema, $query, null, null, $variables);
+        // a huge or deeply nested query is refused before running (0 = no limit)
+        $rules = DocumentValidator::allRules();
+        $rules[] = new QueryDepth((int) Config::get('system/api/max_depth'));
+        $rules[] = new QueryComplexity((int) Config::get('system/api/max_complexity'));
+        if (!Config::get('system/api/introspection')) {
+            $rules[] = new DisableIntrospection(DisableIntrospection::ENABLED);
+        }
+        $result = \GraphQL\GraphQL::executeQuery($schema, $query, null, null, $variables, null, null, $rules);
 
         echo json_encode($result->toArray());
     }

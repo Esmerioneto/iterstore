@@ -1,6 +1,9 @@
 [
     { "path": "web/base_url", "group": "Geral", "label": "Endereço do site (usado nos links enviados por e-mail)", "type": "url", "default": "http://localhost:8080", "scope": "website" },
     { "path": "web/cors_origins", "group": "Geral", "label": "Sites que podem usar a API pelo navegador (CORS), um por linha, ex.: https://loja.com.br (* = qualquer; vazio = só este site)", "type": "textarea", "required": false },
+    { "path": "system/api/max_depth", "group": "API", "label": "Profundidade máxima de uma consulta GraphQL (0 = sem limite)", "type": "number", "default": 15, "min": 0, "max": 100 },
+    { "path": "system/api/max_complexity", "group": "API", "label": "Complexidade máxima de uma consulta GraphQL, em campos (0 = sem limite)", "type": "number", "default": 500, "min": 0, "max": 100000 },
+    { "path": "system/api/introspection", "group": "API", "label": "Permitir introspecção (o schema pela própria API; desligue em produção se o frontend usa o schema.graphql)", "type": "boolean", "default": 1 },
     { "path": "system/log/enabled", "group": "Log do sistema", "label": "Gerar log do sistema (var/log/iter-AAAA-MM-DD.log)", "type": "boolean", "default": 1 },
     { "path": "system/log/retention_days", "group": "Log do sistema", "label": "Dias para manter os arquivos de log (0 ou vazio = nunca apagar)", "type": "number", "default": 30, "min": 0, "max": 3650, "required": false }
 ]

@@ -592,6 +592,13 @@ assertSame([['Produto removido com sucesso.'], false, []], [$msgs, $productRow('
 $gql = static function (Browser $b, string $query, array $variables = []): array {
     return json_decode($b->request('/core/graphql/index', null, json_encode(['query' => $query, 'variables' => $variables ?: null]))['body'], true);
 };
+$deleteGql = 'mutation { deleteProduct(id: "0") }';
+assertSame(['UNAUTHENTICATED', 'FORBIDDEN'], [$gql($guest, $deleteGql)['errors'][0]['extensions']['code'] ?? null, $gql($dash, $deleteGql)['errors'][0]['extensions']['code'] ?? null], 'GraphQL: sem login dá UNAUTHENTICATED, sem permissão dá FORBIDDEN');
+$deep = '{ categories { ' . str_repeat('children { ', 20) . 'id' . str_repeat(' }', 22);
+assertSame(true, str_starts_with($gql($guest, $deep)['errors'][0]['message'] ?? '', 'Max query depth should be 15'), 'GraphQL: consulta profunda demais é recusada');
+$pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'system/api/introspection', '0') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '0'");
+assertSame([true, true], [str_contains($gql($guest, '{ __schema { queryType { name } } }')['errors'][0]['message'] ?? '', 'introspection'), isset($gql($guest, '{ categories { id } }')['data'])], 'GraphQL: introspecção desligada nas Configurações');
+$pdo->exec("DELETE FROM core_config_data WHERE path = 'system/api/introspection'");
 $service->create(['entity_type' => 'product', 'code' => 'selftest_novo', 'label' => 'Novo', 'input_type' => 'checkbox']);
 $service->create(['entity_type' => 'product', 'code' => 'selftest_cor', 'label' => 'Cor', 'input_type' => 'multiselect', 'options' => [['value' => 'az', 'label' => 'Azul'], ['value' => 'vm', 'label' => 'Vermelho']]]);
 $service->create(['entity_type' => 'product', 'code' => 'selftest_marca', 'label' => 'Marca', 'input_type' => 'select', 'options' => [['value' => 'acme', 'label' => 'ACME Ltda']]]);
