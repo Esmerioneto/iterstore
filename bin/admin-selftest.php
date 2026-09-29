@@ -812,7 +812,7 @@ $saveCategory = static fn (array $fields) => $admin->submit('/admin/category/cre
 assertSame(['Categoria criada com sucesso.'], $saveCategory(['name' => 'Selftest Roupas']), 'categoria criada pelo admin');
 $roupasId = (int) ($categoryRow('selftest-roupas')['category_id'] ?? 0);
 assertSame(['selftest-roupas', 'higiene-cosmeticos'], [$categoryRow('selftest-roupas')['url_key'] ?? null, CategoryService::slug('Higiene & Cosméticos')], 'chave de URL gerada a partir do nome');
-assertSame(["Já existe uma categoria com a chave de URL 'selftest-roupas'."], $saveCategory(['name' => 'Outra', 'url_key' => 'Selftest Roupas']), 'chave de URL duplicada é recusada');
+assertSame(["Já existe uma categoria com a chave de URL 'selftest-roupas' neste website."], $saveCategory(['name' => 'Outra', 'url_key' => 'Selftest Roupas']), 'chave de URL duplicada é recusada');
 $saveCategory(['name' => 'Camisetas', 'url_key' => 'selftest-camisetas', 'parent_id' => $roupasId, 'position' => '2']);
 $saveCategory(['name' => 'Oculta', 'url_key' => 'selftest-oculta', 'parent_id' => $roupasId, 'position' => '1', 'is_active' => '']);
 $camisetasId = (int) $categoryRow('selftest-camisetas')['category_id'];
@@ -867,6 +867,12 @@ $siteWCat = (int) $categoryRow('selftest-site-w')['category_id'];
 $saveCategory(['name' => 'Sub W', 'url_key' => 'selftest-sub-w', 'parent_id' => $siteWCat, 'website_id' => $defaultWebsite]);
 assertSame([$websiteId, $defaultWebsite], [(int) $categoryRow('selftest-sub-w')['website_id'], (int) $categoryRow('selftest-base')['website_id']], 'subcategoria fica no website da categoria pai');
 assertSame('CATEGORY_WEBSITE_MISMATCH', $throws(static fn () => (new CategoryService())->update($baseCategory, ['name' => 'Selftest Base', 'url_key' => 'selftest-base', 'parent_id' => $siteWCat])), 'categoria não vai para dentro de uma de outro website');
+assertSame([['Categoria criada com sucesso.'], ["Já existe uma categoria com a chave de URL 'selftest-site-w' neste website."]], [
+    $saveCategory(['name' => 'Site W', 'url_key' => 'selftest-site-w']),
+    $saveCategory(['name' => 'Outra', 'url_key' => 'selftest-site-w', 'website_id' => $websiteId]),
+], 'chave de URL repetida pode em outro website, não no mesmo');
+$byKey = static fn (string $args) => $gql($guest, '{ category(url_key: "selftest-site-w"' . $args . ') { websiteId } }')['data']['category']['websiteId'] ?? null;
+assertSame([(string) $defaultWebsite, (string) $websiteId], [$byKey(''), $byKey(', websiteId: "' . $websiteId . '"')], 'GraphQL: category por url_key usa o website padrão, ou o informado');
 $webData = ['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-web', 'name' => 'Web'];
 assertSame(['WEBSITE_INVALID', 'CATEGORY_WEBSITE_MISMATCH'], [
     $throws(static fn () => $productService->create($webData + ['website_ids' => [], 'category_ids' => [$baseCategory]], ['price' => '1'])),

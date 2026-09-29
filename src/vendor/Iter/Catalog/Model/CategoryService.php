@@ -130,9 +130,6 @@ class CategoryService
             throw new AttributeException('URL_KEY_INVALID', 'Chave de URL inválida: use letras, números e hífen.');
         }
         $resource = (new Category())->getResource();
-        if ($resource->urlKeyExists($urlKey, $id)) {
-            throw new AttributeException('URL_KEY_DUPLICATE', "Já existe uma categoria com a chave de URL '{$urlKey}'.");
-        }
         $parentId = empty($data['parent_id']) ? null : (int) $data['parent_id'];
         $websiteId = $id !== null ? (int) $this->get($id)->getData('website_id') : null; // fixed once created
         if ($parentId !== null) {
@@ -148,6 +145,9 @@ class CategoryService
         $websiteId ??= (int) ($data['website_id'] ?? 0);
         if ($websiteId <= 0 || !(new Website())->load($websiteId)->getId()) {
             throw new AttributeException('WEBSITE_INVALID', 'Selecione um website.');
+        }
+        if ($resource->urlKeyExists($urlKey, $websiteId, $id)) {
+            throw new AttributeException('URL_KEY_DUPLICATE', "Já existe uma categoria com a chave de URL '{$urlKey}' neste website.");
         }
 
         return [
