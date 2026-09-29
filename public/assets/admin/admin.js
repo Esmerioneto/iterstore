@@ -288,16 +288,23 @@ document.addEventListener('input', function (event) {
   }
 });
 
-// Image settings: show the chosen file right away (it's only uploaded on "Salvar")
+// Image settings and EAV image fields: show the chosen file right away (it's only uploaded on "Salvar")
 document.addEventListener('change', function (event) {
   if (!event.target.matches('input[data-image-input]')) {
     return;
   }
   var preview = event.target.closest('p').querySelector('[data-image-preview]');
   var file = event.target.files[0];
-  preview.hidden = !file;
+  if (!preview) {
+    return;
+  }
+  var placeholder = preview.getAttribute('data-placeholder');
+  preview.hidden = !file && !placeholder;
+  preview.classList.toggle('eav-file-placeholder', !file && !!placeholder);
   if (file) {
     preview.src = URL.createObjectURL(file);
+  } else if (placeholder) {
+    preview.src = placeholder;
   }
 });
 

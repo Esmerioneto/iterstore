@@ -676,6 +676,7 @@ assertSame(false, is_file($capa), 'remover o produto apaga as imagens');
 // through the admin form (real multipart upload)
 $imgForm = $admin->request('/admin/product/create?set=' . $fotoSet->getId())['body'];
 assertSame([true, true], [str_contains($imgForm, 'enctype="multipart/form-data"'), (bool) preg_match('/type="file" name="attributes\[selftest_capa\]" accept="image\/webp,image\/avif,image\/jpeg,image\/png"\s+required/', $imgForm)], 'form de produto tem campo de imagem');
+assertSame(2, substr_count($imgForm, 'class="eav-file-preview eav-file-placeholder" src="/imagem/logo.png"'), 'campo de imagem vazio mostra o logo em cinza');
 $msgs = $admin->submit('/admin/product/create', '/admin/product/save', ['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-up', 'name' => 'U', 'category_ids' => [$baseCategory],
     'attributes' => ['price' => '3', 'selftest_capa' => new CURLFile("{$scratch}/a.avif", 'image/avif', 'capa.avif')]])[1];
 assertSame(['Produto criado com sucesso.'], $msgs, 'produto criado com upload de imagem pelo admin');
