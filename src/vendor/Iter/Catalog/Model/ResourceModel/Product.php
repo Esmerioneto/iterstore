@@ -22,6 +22,7 @@ class Product extends AbstractDb
     public function search(array $filters, int $page, int $perPage): array
     {
         $collection = (new Collection())->setOrder('name', 'ASC')->setOrder('product_id', 'ASC')->setPageSize($perPage)->setCurPage($page);
+        $collection->addFieldToFilter('parent_id', ['null' => true]); // variants show under their parent
         if (($filters['attribute_set_id'] ?? '') !== '') {
             $collection->addFieldToFilter('attribute_set_id', (int) $filters['attribute_set_id']);
         }
@@ -34,9 +35,10 @@ class Product extends AbstractDb
         if (($filters['category_id'] ?? '') !== '') {
             $collection->addCategoryFilter((int) $filters['category_id']);
         }
-        if (($filters['q'] ?? '') !== '') {
+        if (($filters['q'] ?? '') !== '') { // a variant's SKU finds its parent
             $q = ['ilike' => '%' . addcslashes($filters['q'], '%_\\') . '%'];
-            $collection->addFieldToFilter(['sku', 'name'], [$q, $q]);
+            $variantSkus = new Expr("(SELECT string_agg(sku, ' ') FROM catalog_product c WHERE c.parent_id = main_table.product_id)");
+            $collection->addFieldToFilter(['sku', 'name', $variantSkus], [$q, $q, $q]);
         }
 
         return ['items' => $collection->getData(), 'total' => $collection->getSize()];

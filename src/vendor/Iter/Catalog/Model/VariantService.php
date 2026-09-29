@@ -88,6 +88,30 @@ class VariantService
         return $variants;
     }
 
+    /**
+     * The combinations of the chosen options that the parent doesn't have yet, without saving
+     *
+     * @param array<string, string[]> $chosen code => option values
+     * @return array<int, array<string, string>> code => value, in grid order
+     */
+    public function generate(int $parentId, array $chosen): array
+    {
+        $combinations = [[]];
+        foreach ($this->getAttributes($parentId) as $attribute) {
+            $values = array_intersect(array_column($attribute['options'], 'value'), array_map('strval', (array) ($chosen[$attribute['code']] ?? [])));
+            $next = [];
+            foreach ($combinations as $combination) {
+                foreach ($values as $value) {
+                    $next[] = $combination + [$attribute['code'] => $value];
+                }
+            }
+            $combinations = $next;
+        }
+        $existing = array_column($this->getVariants($parentId), 'options');
+
+        return array_values(array_filter($combinations, static fn ($c) => !in_array($c, $existing, true)));
+    }
+
     /** "BLUSA-001" + ["Azul Marinho", "P"] -> "BLUSA-001-AZUL-MARINHO-P" */
     public static function suggestSku(string $parentSku, array $optionLabels): string
     {

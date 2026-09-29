@@ -9,7 +9,7 @@ use Iter\Catalog\Model\ResourceModel\Product as ProductResource;
 use Iter\Core\Db\Expr;
 use Iter\Core\Model\ResourceModel\AbstractCollection;
 
-/** @extends AbstractCollection<Product> rows + set_label, price */
+/** @extends AbstractCollection<Product> rows + set_label, price, and a configurable product's price_min/max and variant_count */
 class Collection extends AbstractCollection
 {
     protected function _construct(): void
@@ -19,12 +19,17 @@ class Collection extends AbstractCollection
 
     protected function _initSelect(): void
     {
-        // price is the system EAV attribute created along with the table
+        // price is the system EAV attribute created along with the table; a configurable product's comes from its variants
+        $price = "SELECT %s FROM eav_value_decimal v JOIN eav_attribute pa ON pa.attribute_id = v.attribute_id
+            WHERE pa.entity_type_id = s.entity_type_id AND pa.code = 'price' AND v.entity_id %s";
+        $variants = 'IN (SELECT product_id FROM catalog_product c WHERE c.parent_id = main_table.product_id)';
         $this->select
             ->join(['s' => 'eav_attribute_set'], 's.attribute_set_id = main_table.attribute_set_id', [
                 'set_label' => 'label',
-                'price' => new Expr("(SELECT v.value FROM eav_value_decimal v JOIN eav_attribute pa ON pa.attribute_id = v.attribute_id
-                    WHERE pa.entity_type_id = s.entity_type_id AND pa.code = 'price' AND v.entity_id = main_table.product_id)"),
+                'price' => new Expr('(' . sprintf($price, 'v.value', '= main_table.product_id') . ')'),
+                'price_min' => new Expr('(' . sprintf($price, 'MIN(v.value)', $variants) . ')'),
+                'price_max' => new Expr('(' . sprintf($price, 'MAX(v.value)', $variants) . ')'),
+                'variant_count' => new Expr('(SELECT COUNT(*) FROM catalog_product c WHERE c.parent_id = main_table.product_id)'),
             ]);
     }
 

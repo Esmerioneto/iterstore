@@ -53,10 +53,10 @@
     <?php foreach ($products as $product): ?>
             <tr>
                 <td><?= htmlspecialchars((string) $product['sku']) ?></td>
-                <td><?= htmlspecialchars((string) $product['name']) ?></td>
+                <td><?= htmlspecialchars((string) $product['name']) ?><?= $product['type'] === 'configurable' ? ' <small>(' . (int) $product['variant_count'] . ' variações)</small>' : '' ?></td>
                 <td><?= htmlspecialchars((string) $product['set_label']) ?></td>
                 <td><?= htmlspecialchars(implode(', ', $product_categories[(int) $product['product_id']] ?? [])) ?></td>
-                <td><?= $product['price'] === null ? '' : 'R$ ' . number_format((float) $product['price'], 2, ',', '.') ?></td>
+                <td><?= implode(' – ', array_map(static fn ($p) => 'R$ ' . number_format((float) $p, 2, ',', '.'), array_unique(array_filter($product['type'] === 'configurable' ? [$product['price_min'], $product['price_max']] : [$product['price']], static fn ($p) => $p !== null)))) ?></td>
                 <td><?= $product['is_active'] ? 'Ativo' : 'Inativo' ?></td>
         <?php foreach ($extra as $column): ?>
                 <td><?= htmlspecialchars((string) ($column['values'][(int) $product['product_id']] ?? '')) ?></td>
