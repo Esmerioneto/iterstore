@@ -38,9 +38,8 @@ class AttributeForm implements ViewComponentInterface
             ? array_filter($old['options'], static fn (array $o) => trim($o['value'] ?? '') !== '' || trim($o['label'] ?? '') !== '')
             : ($attribute ? (new AttributeService())->getOptions($id) : []);
         unset($old['options']);
-        // ponytail: spare blank rows instead of an "add row" script; save again for more
-        $blank = ['value' => '', 'label' => '', 'sort_order' => '', 'is_default' => 0];
-        $options = array_merge($options, array_fill(0, 3, $blank));
+        // one blank row; "+ Adicionar opção" (admin.js data-add-row) copies it for more
+        $options[] = ['value' => '', 'label' => '', 'sort_order' => '', 'is_default' => 0];
 
         return [
             'is_edit' => $attribute !== null,

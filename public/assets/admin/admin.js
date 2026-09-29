@@ -290,6 +290,28 @@ document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('input[data-category-parent]:checked').forEach(cascadeCategory);
 });
 
+// <button data-add-row="tbody id">: appends a blank copy of the tbody's last row, with the
+// next index in names like options[3][value]
+document.addEventListener('click', function (event) {
+  var button = event.target.closest('[data-add-row]');
+  if (!button) {
+    return;
+  }
+  var rows = document.getElementById(button.dataset.addRow);
+  var row = rows.lastElementChild.cloneNode(true);
+  var index = rows.children.length;
+  row.querySelectorAll('input').forEach(function (input) {
+    input.name = input.name.replace(/\[\d+\]/, '[' + index + ']');
+    if (input.type === 'checkbox') {
+      input.checked = false;
+    } else {
+      input.value = '';
+    }
+  });
+  rows.appendChild(row);
+  row.querySelector('input').focus();
+});
+
 // <select data-autosubmit>: choosing an option submits its form (e.g. the scope of Configurações)
 document.addEventListener('change', function (event) {
   if (event.target.matches('select[data-autosubmit]')) {

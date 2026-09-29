@@ -373,7 +373,12 @@ $service->update($sysId, ['label' => 'Sys novo', 'is_required' => 1]);
 assertSame(['Sys novo', 0], [$attributeRow('selftest_sys')['label'], $attributeRow('selftest_sys')['is_required']], 'sistema: nome muda, obrigatório não');
 $sysForm = $admin->request('/admin/attribute/edit?id=' . $sysId)['body'];
 assertSame([true, true], [str_contains($sysForm, 'Atributo do sistema'), (bool) preg_match('/name="input_type"[^>]* disabled/', $sysForm)], 'form de atributo do sistema trava o tipo');
-assertSame(200, $admin->request('/admin/attribute/create')['status'], 'form de novo atributo abre');
+$newAttributeForm = $admin->request('/admin/attribute/create');
+assertSame([200, 1, true], [
+    $newAttributeForm['status'],
+    substr_count($newAttributeForm['body'], '][value]"'),
+    str_contains($newAttributeForm['body'], 'data-add-row="attribute-option-rows"'),
+], 'form de novo atributo abre com uma linha de opção e o botão de adicionar');
 $colorId = (int) $attributeRow('selftest_color')['attribute_id'];
 $service->update($colorId, ['label' => 'C', 'input_type' => 'radio']);
 assertSame('radio', $attributeRow('selftest_color')['input_type'], 'troca para tipo com o mesmo armazenamento é aceita');
