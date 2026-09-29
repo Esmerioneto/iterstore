@@ -834,6 +834,7 @@ assertSame([1, 0], [
     substr_count($admin->request('/admin/product/index?category_id=' . $roupasId)['body'], '/admin/product/edit?id='),
     substr_count($admin->request('/admin/product/index?q=selftest-est&category_id=' . $roupasId)['body'], '/admin/product/edit?id='),
 ], 'filtro por categoria inclui as subcategorias');
+assertSame(true, str_contains($admin->request('/admin/product/index?q=selftest-cat')['body'], '<td>Selftest Roupas, Oculta, Camisetas</td>'), 'lista de produtos mostra as categorias em ordem de árvore');
 assertSame(['Categoria não encontrada: 999999.'], $saveProduct(['sku' => 'selftest-cat2', 'category_ids' => [999999], 'attributes' => ['price' => '5']]), 'categoria inexistente é recusada');
 
 $catRead = 'query ($key: String) { category(url_key: $key) { name children { url_key } products { total items { sku categories { url_key } } } } }';

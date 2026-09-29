@@ -94,6 +94,24 @@ class Category extends AbstractDb
             ->where('product_id = ?', $productId)->order('category_id')));
     }
 
+    /**
+     * @param int[] $productIds
+     * @return array<int, int[]> product id => its category ids
+     */
+    public function getProductsCategoryIds(array $productIds): array
+    {
+        if (!$productIds) {
+            return [];
+        }
+        $db = $this->getConnection();
+        $map = [];
+        foreach ($db->fetchAll($db->select()->from('catalog_category_product', ['product_id', 'category_id'])->where('product_id IN (?)', $productIds)) as $row) {
+            $map[(int) $row['product_id']][] = (int) $row['category_id'];
+        }
+
+        return $map;
+    }
+
     /** @param int[] $categoryIds replaces the product's categories */
     public function setProductCategories(int $productId, array $categoryIds): void
     {
