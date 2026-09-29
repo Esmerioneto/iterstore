@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Catalog\GraphQl;
 
 use GraphQL\Error\UserError;
+use GraphQL\Type\Definition\EnumType;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
@@ -12,6 +13,7 @@ use Iter\Admin\Auth;
 use Iter\Catalog\Model\Category;
 use Iter\Catalog\Model\Product;
 use Iter\Catalog\Model\ProductService;
+use Iter\Catalog\Model\VariantService;
 use Iter\Eav\Form\FormSchemaGenerator;
 use Iter\Eav\InputTypeRegistry;
 use Iter\Eav\Model\Attribute;
@@ -133,10 +135,57 @@ class ProductSchema
                 'url' => ['type' => Type::string(), 'description' => 'URL do arquivo, em atributos de arquivo (imagem).'],
             ],
         ]);
+        $typeEnum = new EnumType([
+            'name' => 'ProductType',
+            'values' => ['SIMPLE' => ['value' => 'simple'], 'CONFIGURABLE' => ['value' => 'configurable', 'description' => 'Com grade: as variações têm o estoque, o preço e as fotos.']],
+        ]);
+        $optionType = new ObjectType([
+            'name' => 'ProductOption',
+            'fields' => ['code' => Type::string(), 'value' => Type::nonNull(Type::string()), 'label' => Type::nonNull(Type::string())],
+        ]);
+        $variantAttributeType = new ObjectType([
+            'name' => 'VariantAttribute',
+            'fields' => [
+                'code' => Type::nonNull(Type::string()),
+                'label' => Type::nonNull(Type::string()),
+                'options' => ['type' => Type::nonNull(Type::listOf(Type::nonNull($optionType))), 'description' => 'Só as opções usadas pelas variações.'],
+            ],
+        ]);
+        $variants = new VariantService();
         $productType = new ObjectType([
             'name' => 'Product',
-            'fields' => [
+            // a closure: variants and parent are Products too, and $load is set below
+            'fields' => static function () use (&$productType, &$load, $productFields, $service, $variants, $isAdmin, $typeEnum, $variantAttributeType, $optionType, $attributeType, $typeOf, $optionsOf, $categories, $categoryType): array {
+                return [
                 'id' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($p) => $p['product_id']],
+                'type' => ['type' => Type::nonNull($typeEnum), 'resolve' => fn ($p) => $p['type']],
+                'variantAttributes' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($variantAttributeType))),
+                    'description' => 'Os atributos da grade (produto com grade).',
+                    'resolve' => static function ($p) use ($variants): array {
+                        $used = array_column($variants->getVariants((int) $p['product_id']), 'options');
+                        return array_map(static fn ($a) => ['options' => array_values(array_filter($a['options'], static fn ($o) => in_array($o['value'], array_column($used, $a['code']), true)))] + $a,
+                            $variants->getAttributes((int) $p['product_id']));
+                    },
+                ],
+                'variants' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($productType))),
+                    'description' => 'As variações (produto com grade); fora do admin, só as ativas.',
+                    'resolve' => static fn ($p) => array_values(array_filter((new Product())->getResource()->getVariantRows((int) $p['product_id']), static fn ($v) => $v['is_active'] || $isAdmin())),
+                ],
+                'variantOptions' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($optionType))),
+                    'description' => 'A combinação da variação (ex.: Cor = Azul, Tamanho = P).',
+                    'resolve' => static function ($p) use ($variants, $service): array {
+                        if (empty($p['parent_id'])) {
+                            return [];
+                        }
+                        $values = $service->getValues((int) $p['product_id']);
+                        return array_map(static fn ($a) => ['code' => $a['code'], 'value' => (string) ($values[$a['code']] ?? ''), 'label' => array_column($a['options'], 'label', 'value')[$values[$a['code']] ?? ''] ?? ''],
+                            $variants->getAttributes((int) $p['parent_id']));
+                    },
+                ],
+                'parent' => ['type' => $productType, 'description' => 'O produto com grade, numa variação.', 'resolve' => static fn ($p) => empty($p['parent_id']) ? null : $load((int) $p['parent_id'])],
                 'sku' => Type::nonNull(Type::string()),
                 'name' => Type::nonNull(Type::string()),
                 'is_active' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => fn ($p) => (bool) $p['is_active']],
@@ -174,7 +223,8 @@ class ProductSchema
                     // ponytail: one query per product (N+1), capped by pageSize
                     'resolve' => static fn ($p) => array_values(array_intersect_key($categories(), array_flip($service->getCategoryIds((int) $p['product_id'])))),
                 ],
-            ] + $productFields,
+            ] + $productFields;
+            },
         ]);
         $productList = new ObjectType([
             'name' => 'ProductList',
@@ -189,6 +239,16 @@ class ProductSchema
                 'code' => Type::nonNull(Type::string()),
                 'value' => ['type' => Type::string(), 'description' => 'Valor único; vazio ou null apaga.'],
                 'values' => ['type' => Type::listOf(Type::nonNull(Type::string())), 'description' => 'Para múltipla seleção; [] apaga.'],
+            ],
+        ]);
+        $variantInput = new InputObjectType([
+            'name' => 'VariantInput',
+            'fields' => [
+                'id' => ['type' => Type::id(), 'description' => 'Variação existente; omitido = nova.'],
+                'options' => ['type' => Type::listOf(Type::nonNull($attributeInput)), 'description' => 'A combinação, só na nova (ex.: [{code: "cor", value: "azul"}]).'],
+                'sku' => ['type' => Type::string(), 'description' => 'Omitido = sugerido a partir do SKU do pai e das opções.'],
+                'price' => Type::string(),
+                'isActive' => ['type' => Type::boolean(), 'defaultValue' => true],
             ],
         ]);
 
@@ -290,11 +350,13 @@ class ProductSchema
                         'attributes' => Type::listOf(Type::nonNull($attributeInput)),
                         'websiteIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Omitido = website padrão.'],
                         'categoryIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Obrigatório: ao menos uma categoria dos websites do produto.'],
+                        'type' => ['type' => $typeEnum, 'defaultValue' => 'simple', 'description' => 'Não muda depois.'],
+                        'variantAttributes' => ['type' => Type::listOf(Type::nonNull(Type::string())), 'description' => 'Com grade: de 1 a 3 códigos de atributos de seleção do conjunto.'],
                     ],
                     'resolve' => $guard(static function ($root, array $args) use ($service, $data, $attributes): array {
                         $setId = (int) ($args['attributeSetId'] ?? (new AttributeSet())->getResource()->findId(Product::ENTITY_TYPE, null));
                         $args['websiteIds'] ??= [(new Website())->getResource()->getDefaultId()];
-                        return $service->create($data($args) + ['attribute_set_id' => $setId], $attributes($args, $setId))->getData();
+                        return $service->create($data($args) + ['attribute_set_id' => $setId, 'type' => $args['type'], 'variant_attributes' => $args['variantAttributes'] ?? []], $attributes($args, $setId))->getData();
                     }),
                 ],
                 'updateProduct' => [
@@ -323,6 +385,21 @@ class ProductSchema
                         }
 
                         return $service->update($id, $data($args, $current), $attributes($args, (int) $current['attribute_set_id']) + $stored)->getData();
+                    }),
+                ],
+                'saveVariants' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($productType))),
+                    'description' => 'A lista enviada é a lista final: variação ausente é removida, com o estoque dela.',
+                    'args' => ['productId' => Type::nonNull(Type::id()), 'variants' => Type::nonNull(Type::listOf(Type::nonNull($variantInput)))],
+                    'resolve' => $guard(static function ($root, array $args) use ($variants): array {
+                        $variants->save((int) $args['productId'], array_map(static fn ($v) => array_filter([
+                            'product_id' => (int) ($v['id'] ?? 0),
+                            'options' => array_column($v['options'] ?? [], 'value', 'code'),
+                            'sku' => $v['sku'] ?? null,
+                            'price' => $v['price'] ?? null,
+                        ], static fn ($x) => $x !== null) + ['is_active' => $v['isActive'] ? 1 : 0], $args['variants']));
+
+                        return (new Product())->getResource()->getVariantRows((int) $args['productId']);
                     }),
                 ],
                 'deleteProduct' => [

@@ -151,7 +151,7 @@ class VariantService
             }
             $keys[$key] = true;
 
-            $sku = trim((string) ($variant['sku'] ?? '')) ?: self::suggestSku((string) $parent->getData('sku'), $labels);
+            $sku = trim((string) ($variant['sku'] ?? '')) ?: ($id ? $current[$id]['sku'] : self::suggestSku((string) $parent->getData('sku'), $labels)); // never renamed by itself
             ProductService::checkSku($sku, $id ?: null);
             if (isset($skus[strtolower($sku)])) {
                 throw new AttributeException('SKU_DUPLICATE', "O SKU '{$sku}' aparece em mais de uma variação.");
