@@ -6,6 +6,9 @@ namespace Iter\Core\Controllers;
 
 use Iter\Admin\Auth;
 use Iter\Core\Config;
+use GraphQL\Error\Error;
+use GraphQL\Error\FormattedError;
+use GraphQL\Error\SyntaxError;
 use GraphQL\Validator\DocumentValidator;
 use GraphQL\Validator\Rules\DisableIntrospection;
 use GraphQL\Validator\Rules\QueryComplexity;
@@ -59,6 +62,19 @@ class Graphql
         }
         $result = \GraphQL\GraphQL::executeQuery($schema, $query, null, null, $variables, null, null, $rules);
 
+        // every error carries extensions.code, so the clients branch on it instead of the message
+        $result->setErrorFormatter(static function (Error $e): array {
+            $formatted = FormattedError::createFromException($e);
+            $formatted['extensions']['code'] ??= match (true) {
+                $e->getPrevious() instanceof SyntaxError || $e instanceof SyntaxError => 'GRAPHQL_PARSE_FAILED',
+                !$e->isClientSafe() => 'INTERNAL_ERROR',
+                str_starts_with($e->getMessage(), 'Max query') => 'QUERY_LIMIT_EXCEEDED',
+                $e->getPath() === null => 'GRAPHQL_VALIDATION_FAILED', // unknown field, wrong argument/variable, introspection off
+                default => 'BAD_REQUEST',
+            };
+
+            return $formatted;
+        });
         echo json_encode($result->toArray());
     }
 }
