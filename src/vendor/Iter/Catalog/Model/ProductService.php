@@ -19,27 +19,33 @@ use Iter\Store\Model\Website;
  * everything else in EAV values. Only the attributes of the product's set are saved, and a set's
  * field missing from $attributes is saved empty (unchecked multiselect posts
  * nothing). Errors reuse AttributeException, as ValueService throws it too.
+ *
+ * A configurable product (type, chosen on creation) has no EAV values: its variants
+ * (VariantService) have them, and get its name, websites and categories on each save.
  */
 class ProductService
 {
     /**
-     * @param array{attribute_set_id: int, sku: string, name: string, is_active?: int, website_ids?: int[], category_ids?: int[]} $data
+     * @param array{attribute_set_id: int, sku: string, name: string, is_active?: int, website_ids?: int[], category_ids?: int[], type?: string, variant_attributes?: string[]} $data
      * @param array<string, mixed> $attributes code => value
      */
     public function create(array $data, array $attributes = []): Product
     {
         $set = $this->set((int) ($data['attribute_set_id'] ?? 0));
         $fields = $this->fields($data);
+        $configurable = ($data['type'] ?? 'simple') === 'configurable';
+        $variantAttributeIds = $configurable ? (new VariantService())->attributeIds((string) $set->getData('code'), $data['variant_attributes'] ?? []) : [];
         $values = new ValueService();
-        $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($set, $attributes));
+        $rows = $configurable ? [] : $values->validate(Product::ENTITY_TYPE, $this->setValues($set, $attributes));
         $websiteIds = $this->websiteIds($data, true);
         $categoryIds = $this->categoryIds($data, true, $websiteIds);
         $this->checkCategoryPerWebsite($websiteIds, $categoryIds);
 
         // one transaction; values last, as write() deletes the files they replaced
-        return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $websiteIds, $categoryIds): Product {
-            $model = (new Product())->addData($fields + ['attribute_set_id' => (int) $set->getId()])->save();
+        return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $websiteIds, $categoryIds, $configurable, $variantAttributeIds): Product {
+            $model = (new Product())->addData($fields + ['attribute_set_id' => (int) $set->getId(), 'type' => $configurable ? 'configurable' : 'simple'])->save();
             $model->getResource()->setWebsites((int) $model->getId(), $websiteIds);
+            $model->getResource()->setVariantAttributes((int) $model->getId(), $variantAttributeIds);
             $this->saveCategories((int) $model->getId(), $categoryIds);
             $values->write((int) $model->getId(), $rows);
 
@@ -51,9 +57,16 @@ class ProductService
     public function update(int $id, array $data, array $attributes = []): Product
     {
         $model = $this->get($id);
+        $parentId = $model->getData('parent_id');
+        if ($parentId !== null) { // a variant: name, websites and categories are the parent's; the combination is fixed
+            $data = ['name' => $model->getData('name')] + array_diff_key($data, array_flip(['name', 'website_ids', 'category_ids']));
+            $gridCodes = array_column((new VariantService())->getAttributes((int) $parentId), 'code');
+            $attributes = array_intersect_key($this->getValues($id), array_flip($gridCodes)) + $attributes;
+        }
+        $configurable = $model->getData('type') === 'configurable';
         $fields = $this->fields($data, $id);
         $values = new ValueService();
-        $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes), $id);
+        $rows = $configurable ? [] : $values->validate(Product::ENTITY_TYPE, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes), $id);
         $websiteIds = $this->websiteIds($data, false);
         $categoryIds = $this->categoryIds($data, false, $websiteIds ?? $this->getWebsiteIds($id));
         if ($categoryIds === null && $websiteIds !== null) {
@@ -63,13 +76,16 @@ class ProductService
             $this->checkCategoryPerWebsite($websiteIds ?? $this->getWebsiteIds($id), $categoryIds ?? $this->getCategoryIds($id));
         }
 
-        return Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $websiteIds, $categoryIds): Product {
+        return Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $websiteIds, $categoryIds, $configurable): Product {
             $model->addData($fields)->save();
             if ($websiteIds !== null) {
                 $model->getResource()->setWebsites($id, $websiteIds);
             }
             $this->saveCategories($id, $categoryIds);
             $values->write($id, $rows);
+            if ($configurable) {
+                (new VariantService())->syncFromParent($id, $fields['name'], $this->getWebsiteIds($id), $this->getCategoryIds($id));
+            }
 
             return $model;
         });
@@ -173,10 +189,13 @@ class ProductService
     public function delete(int $id): void
     {
         $model = $this->get($id);
+        $variantIds = array_map('intval', array_column($model->getResource()->getVariantRows($id), 'product_id')); // rows go by FK CASCADE
         // values after the product: deleteEntity() deletes their files
-        Connection::get()->adapter()->transaction(static function () use ($model, $id): void {
+        Connection::get()->adapter()->transaction(static function () use ($model, $id, $variantIds): void {
             $model->delete();
-            (new ValueService())->deleteEntity(Product::ENTITY_TYPE, $id);
+            foreach ([$id, ...$variantIds] as $entityId) {
+                (new ValueService())->deleteEntity(Product::ENTITY_TYPE, $entityId);
+            }
         });
     }
 
@@ -213,15 +232,21 @@ class ProductService
         return $values;
     }
 
-    private function fields(array $data, ?int $id = null): array
+    /** format and uniqueness; $id = the product itself, when it already exists */
+    public static function checkSku(string $sku, ?int $id = null): void
     {
-        $sku = trim((string) ($data['sku'] ?? ''));
         if (!preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/', $sku)) {
             throw new AttributeException('SKU_INVALID', 'SKU deve ter até 64 caracteres: letras, números, ponto, hífen e _ (começando por letra ou número).');
         }
         if ((new Product())->getResource()->skuExists($sku, $id)) {
             throw new AttributeException('SKU_DUPLICATE', "Já existe um produto com o SKU '{$sku}'.");
         }
+    }
+
+    private function fields(array $data, ?int $id = null): array
+    {
+        $sku = trim((string) ($data['sku'] ?? ''));
+        self::checkSku($sku, $id);
         $name = trim((string) ($data['name'] ?? ''));
         if ($name === '' || mb_strlen($name) > 255) {
             throw new AttributeException('NAME_REQUIRED', 'Nome é obrigatório (máx. 255 caracteres).');

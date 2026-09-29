@@ -18,6 +18,7 @@ use Iter\Admin\Model\AdminRole;
 use Iter\Admin\Model\AdminUser;
 use Iter\Catalog\Model\CategoryService;
 use Iter\Catalog\Model\ProductService;
+use Iter\Catalog\Model\VariantService;
 use Iter\Core\Config;
 use Iter\Core\Db\Connection;
 use Iter\Core\Log;
@@ -148,7 +149,7 @@ $purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTempla
         (new CustomerService())->delete((int) $customerId);
     }
     $pdo->exec("DELETE FROM customer_group WHERE code LIKE 'selftest%'");
-    foreach ($pdo->query("SELECT product_id FROM catalog_product WHERE sku LIKE 'selftest%'")->fetchAll(PDO::FETCH_COLUMN) as $productId) {
+    foreach ($pdo->query("SELECT product_id FROM catalog_product WHERE sku LIKE 'selftest%' AND parent_id IS NULL")->fetchAll(PDO::FETCH_COLUMN) as $productId) {
         (new ProductService())->delete((int) $productId);
     }
     // leaves first: a category with children isn't deleted
@@ -910,6 +911,54 @@ $stock->save($webId, ['selftest_w_cd' => ['quantity' => '3']]);
 $productService->update($webId, $webData + ['website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '1']);
 assertSame(['0', false], [$stock->getSalable([$webId])[$webId], in_array('selftest_w_cd', array_column($stock->getItems($webId), 'code'), true)], 'estoque de origem de website que o produto deixou não entra no saldo');
 $productService->delete($webId);
+
+// --- variações (produto com grade) -------------------------------------------------------------
+$service->create(['entity_type' => 'product', 'code' => 'selftest_vcor', 'label' => 'Cor', 'input_type' => 'select', 'options' => [['value' => 'az', 'label' => 'Azul Marinho'], ['value' => 'pr', 'label' => 'Preto']]]);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_tec', 'label' => 'Tecido', 'input_type' => 'select', 'options' => [['value' => 'al', 'label' => 'Algodão']]]);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_gola', 'label' => 'Gola', 'input_type' => 'select', 'options' => [['value' => 'v', 'label' => 'V']]]);
+$setService->update($roupa, ['label' => 'Roupa', 'items' => [$attrId('price') => ['in' => 1], $attrId('selftest_tam') => ['in' => 1], $attrId('selftest_vcor') => ['in' => 1], $attrId('selftest_tec') => ['in' => 1], $attrId('selftest_gola') => ['in' => 1], $attrId('selftest_cor') => ['in' => 1]]]);
+$varService = new VariantService();
+$parentData = ['attribute_set_id' => $roupa, 'sku' => 'selftest-var', 'name' => 'Blusa', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory], 'type' => 'configurable'];
+assertSame(['VARIANT_ATTRIBUTE_INVALID', 'VARIANT_ATTRIBUTE_INVALID', 'VARIANT_ATTRIBUTE_INVALID'], [
+    $throws(static fn () => $productService->create($parentData + ['variant_attributes' => []])),
+    $throws(static fn () => $productService->create($parentData + ['variant_attributes' => ['selftest_vcor', 'selftest_tam', 'selftest_tec', 'selftest_gola']])),
+    $throws(static fn () => $productService->create($parentData + ['variant_attributes' => ['selftest_cor']])),
+], 'grade pede de 1 a 3 atributos de seleção do conjunto');
+$parentId = (int) $productService->create($parentData + ['variant_attributes' => ['selftest_vcor', 'selftest_tam']], ['price' => '99'])->getId();
+assertSame([[], ['selftest_vcor', 'selftest_tam']], [$productService->getValues($parentId), array_column($varService->getAttributes($parentId), 'code')], 'pai com grade não grava valores EAV; atributos da grade em ordem');
+$combos = [];
+foreach (['az', 'pr'] as $cor) {
+    foreach (['p', 'm'] as $tam) {
+        $combos[] = ['options' => ['selftest_vcor' => $cor, 'selftest_tam' => $tam], 'price' => '50', 'is_active' => 1];
+    }
+}
+$varService->save($parentId, $combos);
+$variants = $varService->getVariants($parentId);
+assertSame([
+    ['selftest-var-AZUL-MARINHO-P', 'selftest-var-AZUL-MARINHO-M', 'selftest-var-PRETO-P', 'selftest-var-PRETO-M'],
+    'Blusa - Azul Marinho / p',
+    [$defaultWebsite],
+    [$baseCategory],
+    ['selftest_vcor' => 'az', 'selftest_tam' => 'p'],
+], [array_column($variants, 'sku'), $variants[0]['name'], $productService->getWebsiteIds($variants[0]['product_id']), $productService->getCategoryIds($variants[0]['product_id']), $variants[0]['options']], 'variações: SKU sugerido, nome, websites e categorias do pai');
+$keep = array_map(static fn ($v) => ['product_id' => $v['product_id'], 'sku' => $v['sku'], 'is_active' => 1], $variants);
+assertSame(['VARIANT_DUPLICATE', 'SKU_DUPLICATE', 'VARIANT_OPTION_INVALID', 'SKU_DUPLICATE', 'VARIANT_PARENT_INVALID'], [
+    $throws(static fn () => $varService->save($parentId, [...$keep, $combos[0]])),
+    $throws(static fn () => $varService->save($parentId, [$keep[0], ['product_id' => $keep[1]['product_id'], 'sku' => $keep[0]['sku']]])),
+    $throws(static fn () => $varService->save($parentId, [['options' => ['selftest_vcor' => 'xx', 'selftest_tam' => 'p']]])),
+    $throws(static fn () => $varService->save($parentId, [['options' => ['selftest_vcor' => 'az', 'selftest_tam' => 'p'], 'sku' => 'selftest-var']])),
+    $throws(static fn () => $varService->save($variants[0]['product_id'], [])),
+], 'combinação repetida, SKU repetido, opção inválida e variação de produto simples são recusados');
+$varService->save($parentId, array_slice($keep, 0, 3));
+assertSame([3, false], [count($varService->getVariants($parentId)), (bool) (new ProductService())->getValues($variants[3]['product_id'])], 'variação fora da lista é removida com os valores');
+$productService->update($parentId, ['sku' => 'selftest-var', 'name' => 'Camisa', 'is_active' => 1, 'website_ids' => [$defaultWebsite, $websiteId], 'category_ids' => [$baseCategory, $siteWCat]]);
+assertSame(['Camisa - Azul Marinho / p', [$defaultWebsite, $websiteId]], [$varService->getVariants($parentId)[0]['name'], $productService->getWebsiteIds($variants[0]['product_id'])], 'pai renomeado leva nome e websites às variações');
+$productService->update($variants[0]['product_id'], ['sku' => 'selftest-var-az-p', 'name' => 'Outro', 'is_active' => 1, 'website_ids' => [$defaultWebsite]], ['price' => '55', 'selftest_vcor' => 'pr']);
+assertSame(['Camisa - Azul Marinho / p', 'selftest-var-az-p', ['selftest_vcor' => 'az', 'selftest_tam' => 'p'], '55', [$defaultWebsite, $websiteId]], [
+    $varService->getVariants($parentId)[0]['name'], $varService->getVariants($parentId)[0]['sku'], $varService->getVariants($parentId)[0]['options'], $varService->getVariants($parentId)[0]['price'], $productService->getWebsiteIds($variants[0]['product_id']),
+], 'variação editada: SKU e preço mudam; nome, websites e combinação ficam os do pai');
+$productService->delete($parentId);
+assertSame([false, []], [$productRow('selftest-var-az-p'), $values->load('product', $variants[0]['product_id'])], 'apagar o pai apaga as variações e os valores delas');
 
 // --- e-mail -------------------------------------------------------------------------------------------
 $mail = new MailService();
