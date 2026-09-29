@@ -27,19 +27,20 @@ ob_start(); ?>
 </fieldset>
 <?php $blocks['base'] = ['title' => 'Dados do produto', 'html' => ob_get_clean()];
 
-if ($categories) {
-    ob_start(); ?>
+ob_start(); ?>
 <fieldset>
-    <legend>Categorias</legend>
+    <legend>Categorias <span aria-hidden="true">*</span></legend>
+    <?php if (!$categories): ?>
+    <p>Nenhuma categoria cadastrada. <a href="/admin/category/index">Cadastre uma categoria</a> antes de salvar o produto.</p>
+    <?php endif; ?>
     <?php foreach ($categories as $category): ?>
     <label style="display:block; margin-left: <?= (int) $category['level'] * 1.5 ?>em">
-        <input form="product-form" type="checkbox" name="category_ids[]" value="<?= (int) $category['category_id'] ?>" <?= in_array((int) $category['category_id'], $category_ids, true) ? 'checked' : '' ?>>
+        <input form="product-form" type="checkbox" name="category_ids[]" data-required-group value="<?= (int) $category['category_id'] ?>" <?= in_array((int) $category['category_id'], $category_ids, true) ? 'checked' : '' ?>>
         <?= $e($category['name']) ?><?= $category['is_active'] ? '' : ' <small>(inativa)</small>' ?>
     </label>
     <?php endforeach; ?>
 </fieldset>
-    <?php $blocks['categories'] = ['title' => 'Categorias', 'html' => ob_get_clean()];
-}
+<?php $blocks['categories'] = ['title' => 'Categorias', 'html' => ob_get_clean()];
 
 // one block per EAV group, rendered by the eav module's template (so a module override of it applies here too)
 $groups = [];

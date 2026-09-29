@@ -254,6 +254,22 @@ document.addEventListener('click', function (event) {
   });
 });
 
+// Checkboxes with data-required-group: at least one of the same name must be checked
+// (native "required" on every box while none is, so the browser blocks the submit)
+function syncRequiredGroup(box) {
+  var boxes = document.querySelectorAll('input[data-required-group][name="' + box.name + '"]');
+  var checked = Array.prototype.some.call(boxes, function (b) { return b.checked; });
+  boxes.forEach(function (b) { b.required = !checked; });
+}
+document.addEventListener('change', function (event) {
+  if (event.target.matches('input[data-required-group]')) {
+    syncRequiredGroup(event.target);
+  }
+});
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('input[data-required-group]').forEach(syncRequiredGroup);
+});
+
 // <select data-autosubmit>: choosing an option submits its form (e.g. the scope of Configurações)
 document.addEventListener('change', function (event) {
   if (event.target.matches('select[data-autosubmit]')) {
