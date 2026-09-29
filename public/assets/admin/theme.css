@@ -46,9 +46,10 @@ a {
   text-decoration: none;
 }
 
+/* the page itself doesn't scroll: the content column and the menu scroll on their own */
 .admin-shell {
   display: grid;
-  min-height: 100vh;
+  height: 100vh;
   grid-template-columns: var(--sidebar-width) 1fr;
   grid-template-rows: auto auto auto 1fr auto;
   grid-template-areas:
@@ -93,6 +94,7 @@ a {
 /* Sidebar menu — ghost text-links, uppercase, tracked */
 .admin-menu {
   grid-area: menu;
+  overflow-y: auto;
   background: var(--color-atelier-white);
   padding: var(--spacing-32) var(--spacing-20);
 }
@@ -202,6 +204,8 @@ a {
 /* Dashboard — main content column */
 .admin-dashboard {
   grid-area: main;
+  min-height: 0;
+  overflow-y: auto;
   padding: var(--spacing-32);
 }
 
@@ -599,4 +603,5 @@ a {
 .config-settings-form .eav-file-preview { display: inline-block; vertical-align: top; margin-right: 8px; }
 @media (max-width: 800px) {
   .config-settings-form .config-fields { grid-template-columns: 1fr; }
+  .admin-shell { height: auto; min-height: 100vh; }
 }
