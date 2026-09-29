@@ -4,6 +4,9 @@
     <table>
         <thead>
             <tr>
+<?php if (count($websites) > 1): ?>
+                <th>Website</th>
+<?php endif; ?>
                 <th>Código</th>
                 <th>Nome</th>
                 <th>Cidade</th>
@@ -16,6 +19,9 @@
         <tbody>
 <?php foreach ($sources as $source): ?>
             <tr>
+<?php if (count($websites) > 1): ?>
+                <td><?= htmlspecialchars((string) ($websites[$source['website_id']] ?? '')) ?></td>
+<?php endif; ?>
                 <td><?= htmlspecialchars((string) $source['code']) ?></td>
                 <td><?= htmlspecialchars((string) $source['name']) ?></td>
                 <td><?= htmlspecialchars(implode(' / ', array_filter([(string) $source['city'], (string) $source['region']]))) ?></td>

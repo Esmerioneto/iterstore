@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Inventory\View;
 
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Store\Model\Website;
 use Iter\Inventory\Model\Source;
 
 class SourceForm implements ViewComponentInterface
@@ -24,12 +25,13 @@ class SourceForm implements ViewComponentInterface
         unset($_SESSION['iter_old_input']);
 
         $values = array_merge(
-            ['code' => '', 'name' => '', 'is_enabled' => 1, 'description' => '', 'postcode' => '', 'city' => '', 'region' => '', 'country_code' => 'BR', 'priority' => 0],
+            ['website_id' => (new Website())->getResource()->getDefaultId(), 'code' => '', 'name' => '', 'is_enabled' => 1, 'description' => '', 'postcode' => '', 'city' => '', 'region' => '', 'country_code' => 'BR', 'priority' => 0],
             $source ?? [],
             $old ?? []
         );
         if ($source) {
             $values['code'] = $source['code']; // immutable, whatever was posted
+            $values['website_id'] = $source['website_id'];
         }
 
         return [
@@ -37,6 +39,7 @@ class SourceForm implements ViewComponentInterface
             'source_id' => $id,
             'is_default' => ($source['code'] ?? '') === Source::DEFAULT_CODE,
             'values' => $values,
+            'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
         ];
     }
 }

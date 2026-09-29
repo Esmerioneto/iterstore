@@ -7,17 +7,19 @@ namespace Iter\Catalog\Model;
 use Iter\Eav\Form\FormSchemaGenerator;
 use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\ValueService;
+use Iter\Store\Model\Website;
 
 /**
  * Categories: a tree of name/url_key/is_active/position rows plus EAV values from
  * the category entity's default set (same rules as products: a set field missing
  * from $attributes is saved empty). A category with children isn't deleted, and
- * can't be moved under itself or its own children.
+ * can't be moved under itself or its own children. The website is chosen on
+ * creation and doesn't change; a subcategory is in its parent's website.
  */
 class CategoryService
 {
     /**
-     * @param array{parent_id?: ?int, name: string, url_key?: string, is_active?: int, position?: int} $data
+     * @param array{website_id?: int, parent_id?: ?int, name: string, url_key?: string, is_active?: int, position?: int} $data
      * @param array<string, mixed> $attributes code => value
      */
     public function create(array $data, array $attributes = []): Category
@@ -78,15 +80,21 @@ class CategoryService
 
     /**
      * @param mixed $ids posted/API ids
+     * @param ?int[] $websiteIds when given, every category must be in one of them
      * @return int[] existing category ids
      */
-    public function validIds(mixed $ids): array
+    public function validIds(mixed $ids, ?array $websiteIds = null): array
     {
         $ids = array_values(array_unique(array_map('intval', array_filter((array) $ids, static fn ($v) => $v !== '' && $v !== null))));
-        $known = array_column((new Category())->getResource()->getTree(), 'category_id');
-        $unknown = array_diff($ids, array_map('intval', $known));
+        $known = array_column((new Category())->getResource()->getTree(), null, 'category_id');
+        $unknown = array_diff($ids, array_keys($known));
         if ($unknown) {
             throw new AttributeException('CATEGORY_NOT_FOUND', 'Categoria não encontrada: ' . implode(', ', $unknown) . '.');
+        }
+        foreach ($websiteIds === null ? [] : $ids as $id) {
+            if (!in_array((int) $known[$id]['website_id'], $websiteIds, true)) {
+                throw new AttributeException('CATEGORY_WEBSITE_MISMATCH', "A categoria '{$known[$id]['name']}' é de um website em que o produto não está.");
+            }
         }
 
         return $ids;
@@ -126,14 +134,24 @@ class CategoryService
             throw new AttributeException('URL_KEY_DUPLICATE', "Já existe uma categoria com a chave de URL '{$urlKey}'.");
         }
         $parentId = empty($data['parent_id']) ? null : (int) $data['parent_id'];
+        $websiteId = $id !== null ? (int) $this->get($id)->getData('website_id') : null; // fixed once created
         if ($parentId !== null) {
-            $this->get($parentId); // CATEGORY_NOT_FOUND
+            $parentWebsite = (int) $this->get($parentId)->getData('website_id'); // CATEGORY_NOT_FOUND
             if ($id !== null && in_array($parentId, $resource->getSubtreeIds($id), true)) {
                 throw new AttributeException('CATEGORY_PARENT_INVALID', 'Uma categoria não pode ficar dentro dela mesma nem de uma subcategoria sua.');
             }
+            if ($websiteId !== null && $parentWebsite !== $websiteId) {
+                throw new AttributeException('CATEGORY_WEBSITE_MISMATCH', 'A categoria pai é de outro website.');
+            }
+            $websiteId = $parentWebsite;
+        }
+        $websiteId ??= (int) ($data['website_id'] ?? 0);
+        if ($websiteId <= 0 || !(new Website())->load($websiteId)->getId()) {
+            throw new AttributeException('WEBSITE_INVALID', 'Selecione um website.');
         }
 
         return [
+            'website_id' => $websiteId,
             'parent_id' => $parentId,
             'name' => $name,
             'url_key' => $urlKey,

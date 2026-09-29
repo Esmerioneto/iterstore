@@ -18,6 +18,7 @@ use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\AttributeSet;
 use Iter\Eav\Model\ValueService;
+use Iter\Store\Model\Website;
 
 /**
  * Product fields for Iter\Core\GraphQl\Schema. EAV values go as a list of
@@ -93,6 +94,7 @@ class ProductSchema
             'fields' => static function () use (&$categoryType, &$productList, $categories, $isAdmin): array {
                 return [
                     'id' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($c) => $c['category_id']],
+                    'websiteId' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($c) => $c['website_id']],
                     'name' => Type::nonNull(Type::string()),
                     'url_key' => Type::nonNull(Type::string()),
                     'is_active' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => fn ($c) => (bool) $c['is_active']],
@@ -163,6 +165,10 @@ class ProductSchema
                         return $rows;
                     },
                 ],
+                'websiteIds' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull(Type::id()))),
+                    'resolve' => static fn ($p) => array_map('strval', $service->getWebsiteIds((int) $p['product_id'])),
+                ],
                 'categories' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($categoryType))),
                     // ponytail: one query per product (N+1), capped by pageSize
@@ -212,7 +218,8 @@ class ProductSchema
             'sku' => $args['sku'] ?? $current['sku'] ?? '',
             'name' => $args['name'] ?? $current['name'] ?? '',
             'is_active' => $args['isActive'] ?? $current['is_active'] ?? true,
-        ] + (isset($args['categoryIds']) ? ['category_ids' => $args['categoryIds']] : []); // omitted = categories unchanged
+        ] + (isset($args['websiteIds']) ? ['website_ids' => $args['websiteIds']] : []) // omitted = websites unchanged
+          + (isset($args['categoryIds']) ? ['category_ids' => $args['categoryIds']] : []); // and categories
 
         return [
             'query' => [
@@ -232,7 +239,9 @@ class ProductSchema
                 'categories' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($categoryType))),
                     'description' => 'As categorias principais; as outras vêm em children.',
-                    'resolve' => static fn () => array_values(array_filter($categories(), static fn ($c) => $c['parent_id'] === null)),
+                    'args' => ['websiteId' => ['type' => Type::id(), 'description' => 'Só as do website.']],
+                    'resolve' => static fn ($root, array $args) => array_values(array_filter($categories(), static fn ($c) => $c['parent_id'] === null
+                        && (!isset($args['websiteId']) || (string) $c['website_id'] === (string) $args['websiteId']))),
                 ],
                 'category' => [
                     'type' => $categoryType,
@@ -251,6 +260,7 @@ class ProductSchema
                     'type' => Type::nonNull($productList),
                     'args' => [
                         'search' => ['type' => Type::string(), 'description' => 'Parte do SKU ou do nome.'],
+                        'websiteId' => ['type' => Type::id(), 'description' => 'Só os produtos do website.'],
                         'attributeSetId' => Type::id(),
                         'categoryId' => ['type' => Type::id(), 'description' => 'Inclui as subcategorias.'],
                         'isActive' => ['type' => Type::boolean(), 'description' => 'Só para o admin; fora dele a lista traz apenas produtos ativos.'],
@@ -263,6 +273,7 @@ class ProductSchema
                             'q' => (string) ($args['search'] ?? ''),
                             'attribute_set_id' => (string) ($args['attributeSetId'] ?? ''),
                             'category_id' => (string) ($args['categoryId'] ?? ''),
+                            'website_id' => (string) ($args['websiteId'] ?? ''),
                             'is_active' => $active === null ? '' : ($active ? '1' : '0'),
                         ], max(1, $args['page']), min(100, max(1, $args['pageSize'])));
                     },
@@ -277,10 +288,12 @@ class ProductSchema
                         'attributeSetId' => ['type' => Type::id(), 'description' => 'Omitido = conjunto padrão de produto.'],
                         'isActive' => ['type' => Type::boolean(), 'defaultValue' => true],
                         'attributes' => Type::listOf(Type::nonNull($attributeInput)),
-                        'categoryIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Obrigatório: ao menos uma categoria.'],
+                        'websiteIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Omitido = website padrão.'],
+                        'categoryIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Obrigatório: ao menos uma categoria dos websites do produto.'],
                     ],
                     'resolve' => $guard(static function ($root, array $args) use ($service, $data, $attributes): array {
                         $setId = (int) ($args['attributeSetId'] ?? (new AttributeSet())->getResource()->findId(Product::ENTITY_TYPE, null));
+                        $args['websiteIds'] ??= [(new Website())->getResource()->getDefaultId()];
                         return $service->create($data($args) + ['attribute_set_id' => $setId], $attributes($args, $setId))->getData();
                     }),
                 ],
@@ -293,6 +306,7 @@ class ProductSchema
                         'name' => Type::string(),
                         'isActive' => Type::boolean(),
                         'attributes' => Type::listOf(Type::nonNull($attributeInput)),
+                        'websiteIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Substitui os websites (ao menos um).'],
                         'categoryIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Substitui as categorias (ao menos uma).'],
                     ],
                     'resolve' => $guard(static function ($root, array $args) use ($service, $data, $attributes, $optionsOf): array {

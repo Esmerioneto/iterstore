@@ -6,11 +6,25 @@
         <input type="hidden" name="category_id" value="<?= (int) $category_id ?>">
 <?php endif; ?>
         <p>
+            <label>Website *<br>
+<?php if ($is_edit): ?>
+                <input type="text" value="<?= htmlspecialchars((string) ($websites[$values['website_id']] ?? '')) ?>" readonly>
+<?php else: ?>
+                <select name="website_id" required>
+    <?php foreach ($websites as $websiteId => $websiteName): ?>
+                    <option value="<?= (int) $websiteId ?>" <?= (string) $values['website_id'] === (string) $websiteId ? 'selected' : '' ?>><?= htmlspecialchars((string) $websiteName) ?></option>
+    <?php endforeach; ?>
+                </select>
+<?php endif; ?>
+            </label>
+            <small><?= $is_edit ? 'O website não muda depois de criada.' : 'Uma subcategoria fica no website da categoria pai.' ?></small>
+        </p>
+        <p>
             <label>Categoria pai<br>
                 <select name="parent_id">
                     <option value="0">(nenhuma: categoria principal)</option>
 <?php foreach ($parents as $parent): ?>
-                    <option value="<?= (int) $parent['category_id'] ?>" <?= (int) $values['parent_id'] === (int) $parent['category_id'] ? 'selected' : '' ?>><?= str_repeat('— ', (int) $parent['level']) . htmlspecialchars((string) $parent['name']) ?></option>
+                    <option value="<?= (int) $parent['category_id'] ?>" <?= (int) $values['parent_id'] === (int) $parent['category_id'] ? 'selected' : '' ?>><?= str_repeat('— ', (int) $parent['level']) . htmlspecialchars((string) $parent['name']) ?><?= !$is_edit && !$parent['level'] && count($websites) > 1 ? ' (' . htmlspecialchars((string) ($websites[$parent['website_id']] ?? '')) . ')' : '' ?></option>
 <?php endforeach; ?>
                 </select>
             </label>

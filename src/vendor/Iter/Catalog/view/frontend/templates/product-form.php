@@ -29,6 +29,19 @@ ob_start(); ?>
 
 ob_start(); ?>
 <fieldset>
+    <legend>Websites <span aria-hidden="true">*</span></legend>
+    <?php foreach ($websites as $websiteId => $websiteName): ?>
+    <label style="display:block">
+        <input form="product-form" type="checkbox" name="website_ids[]" data-required-group value="<?= (int) $websiteId ?>" <?= in_array((int) $websiteId, $website_ids, true) ? 'checked' : '' ?>>
+        <?= $e($websiteName) ?>
+    </label>
+    <?php endforeach; ?>
+    <small>As categorias do produto precisam ser dos websites marcados.</small>
+</fieldset>
+<?php $blocks['websites'] = ['title' => 'Websites', 'html' => ob_get_clean()];
+
+ob_start(); ?>
+<fieldset>
     <legend>Categorias <span aria-hidden="true">*</span></legend>
     <?php if (!$categories): ?>
     <p>Nenhuma categoria cadastrada. <a href="/admin/category/index">Cadastre uma categoria</a> antes de salvar o produto.</p>
@@ -36,7 +49,7 @@ ob_start(); ?>
     <?php foreach ($categories as $category): ?>
     <label style="display:block; margin-left: <?= (int) $category['level'] * 1.5 ?>em">
         <input form="product-form" type="checkbox" name="category_ids[]" data-required-group value="<?= (int) $category['category_id'] ?>" <?= in_array((int) $category['category_id'], $category_ids, true) ? 'checked' : '' ?>>
-        <?= $e($category['name']) ?><?= $category['is_active'] ? '' : ' <small>(inativa)</small>' ?>
+        <?= $e($category['name']) ?><?= $category['is_active'] ? '' : ' <small>(inativa)</small>' ?><?= !$category['level'] && count($websites) > 1 ? ' <small>(' . $e($websites[$category['website_id']] ?? '') . ')</small>' : '' ?>
     </label>
     <?php endforeach; ?>
 </fieldset>

@@ -57,7 +57,7 @@ class Source
     public function Save(): void
     {
         $data = [];
-        foreach (['code', 'name', 'description', 'postcode', 'city', 'region', 'country_code', 'priority'] as $key) {
+        foreach (['website_id', 'code', 'name', 'description', 'postcode', 'city', 'region', 'country_code', 'priority'] as $key) {
             $data[$key] = trim((string) ($_POST[$key] ?? ''));
         }
         $data['is_enabled'] = !empty($_POST['is_enabled']) ? 1 : 0;

@@ -6,6 +6,7 @@ namespace Iter\Catalog\View;
 
 use Iter\Catalog\Model\Category;
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Store\Model\Website;
 
 class CategoryList implements ViewComponentInterface
 {
@@ -18,6 +19,7 @@ class CategoryList implements ViewComponentInterface
     {
         return [
             'categories' => (new Category())->getResource()->getTree(),
+            'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
         ];
     }
 }

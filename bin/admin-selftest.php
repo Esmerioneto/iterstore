@@ -35,6 +35,7 @@ use Iter\Inventory\Model\SourceService;
 use Iter\Inventory\Model\StockService;
 use Iter\Mail\Model\MailException;
 use Iter\Mail\Model\MailService;
+use Iter\Store\Model\Website;
 
 const PASSWORD = 'Selftest123';
 
@@ -323,7 +324,7 @@ $groupId = (int) $pdo->query("SELECT group_id FROM store_group WHERE code = 'sel
 [, $msgs] = $admin->submit('/admin/store/create', '/admin/store/save', ['store_name' => 'selftest loja', 'webview' => 'v', 'theme' => 't', 'group_id' => $groupId]);
 assertSame(['Loja criada com sucesso.'], $msgs, 'loja criada dentro do grupo');
 [, $msgs] = $admin->submit('/admin/website/index', '/admin/website/delete', ['website_id' => $websiteId]);
-assertSame(['Não é possível remover: há lojas vinculadas aos grupos deste website.'], $msgs, 'website com lojas não pode ser removido');
+assertSame(['Não é possível remover: há lojas, clientes, produtos, categorias ou origens de estoque vinculados a este website.'], $msgs, 'website com lojas não pode ser removido');
 
 $graphql = static fn (Browser $b) => json_decode($b->request('/core/graphql/index', null, json_encode([
     'query' => 'mutation { createStore(storeName: "selftest gql", webview: "v", theme: "t") { id } }',
@@ -546,9 +547,10 @@ $defaultProductSet = (int) $setRow('selftest_basico')['attribute_set_id'];
 $setService->update($defaultProductSet, ['label' => 'Básico', 'items' => [$attrId('price') => ['in' => 1], $attrId('description') => ['in' => 1]]]);
 $newProduct = $admin->request('/admin/product/create?set=' . $defaultProductSet)['body'];
 assertSame([true, true], [str_contains($newProduct, 'name="attributes[price]"'), str_contains($newProduct, 'name="attributes[description]"')], 'form de produto traz os atributos do conjunto');
-$baseCategory = (int) (new CategoryService())->create(['name' => 'Selftest Base', 'url_key' => 'selftest-base'])->getId(); // a product needs a category
+$defaultWebsite = (new Website())->getResource()->getDefaultId();
+$baseCategory = (int) (new CategoryService())->create(['website_id' => $defaultWebsite, 'name' => 'Selftest Base', 'url_key' => 'selftest-base'])->getId(); // a product needs a category
 $saveProduct = static fn (array $fields) => $admin->submit('/admin/product/create', '/admin/product/save', $fields + [
-    'attribute_set_id' => $defaultProductSet, 'name' => 'Camiseta', 'is_active' => '1', 'category_ids' => [$baseCategory],
+    'attribute_set_id' => $defaultProductSet, 'name' => 'Camiseta', 'is_active' => '1', 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory],
 ])[1];
 assertSame(['Escolha ao menos uma categoria para o produto.'], $saveProduct(['sku' => 'selftest-1', 'category_ids' => [], 'attributes' => ['price' => '1']]), 'produto sem categoria é recusado');
 assertSame(["'Preço' é obrigatório."], $saveProduct(['sku' => 'selftest-1', 'attributes' => ['price' => '']]), 'atributo obrigatório vazio é recusado');
@@ -569,7 +571,7 @@ $saveProduct(['sku' => 'selftest-2', 'attribute_set_id' => $roupa, 'attributes' 
 assertSame(['price' => '10', 'selftest_tam' => 'm'], $productValues('selftest-2'), 'só os atributos do conjunto são gravados');
 $p2 = (int) $productRow('selftest-2')['product_id'];
 assertSame(true, str_contains($admin->request('/admin/product/edit?id=' . $p2)['body'], '<option value="m" selected>'), 'edição mostra os valores gravados');
-[, $msgs] = $admin->submit('/admin/product/edit?id=' . $p2, '/admin/product/save', ['product_id' => $p2, 'attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-2', 'name' => 'Calça', 'category_ids' => [$baseCategory], 'attributes' => ['price' => '12']]);
+[, $msgs] = $admin->submit('/admin/product/edit?id=' . $p2, '/admin/product/save', ['product_id' => $p2, 'attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-2', 'name' => 'Calça', 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory], 'attributes' => ['price' => '12']]);
 assertSame([['Produto atualizado com sucesso.'], 'Calça', 0, $roupa, ['price' => '12']], [$msgs, $productRow('selftest-2')['name'], $productRow('selftest-2')['is_active'], (int) $productRow('selftest-2')['attribute_set_id'], $productValues('selftest-2')],
     'edição salva; conjunto não muda; seleção desmarcada é apagada');
 $list = $admin->request('/admin/product/index?q=selftest')['body'];
@@ -647,13 +649,13 @@ $schemaFoto = array_column($generator->generate('product', 'selftest_fotos')['fi
 assertSame(['image/webp', 'image/avif', 'image/jpeg', 'image/png'], $schemaFoto['selftest_foto']['accept'], 'schema do campo imagem traz os formatos aceitos');
 $upload = static fn (string $file) => ['path' => "{$scratch}/{$file}", 'name' => $file];
 $productService = new ProductService();
-$fileError = static fn (array $attributes) => $throws(static fn () => $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-img', 'name' => 'I', 'category_ids' => [$baseCategory]], $attributes + ['price' => '1']));
+$fileError = static fn (array $attributes) => $throws(static fn () => $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-img', 'name' => 'I', 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], $attributes + ['price' => '1']));
 assertSame(['VALUE_REQUIRED', 'FILE_TYPE_INVALID', 'FILE_TYPE_INVALID'], [$fileError([]), $fileError(['selftest_capa' => $upload('a.gif')]), $fileError(['selftest_capa' => $upload('fake.png')])],
     'imagem obrigatória, GIF e arquivo que só finge ser PNG são recusados');
 assertSame(false, $productRow('selftest-img'), 'imagem recusada não cria o produto');
 $media = static fn (string $sku, string $code) => ValueService::mediaDir() . ($productService->getValues((int) $productRow($sku)['product_id'])[$code] ?? 'nada');
 foreach (['a.webp' => 'webp', 'a.avif' => 'avif', 'a.jpg' => 'jpg', 'a.png' => 'png'] as $file => $ext) {
-    $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => "selftest-img-{$ext}", 'name' => 'I', 'category_ids' => [$baseCategory]], ['price' => '1', 'selftest_capa' => $upload($file), 'selftest_foto' => 'qualquer/caminho.png']);
+    $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => "selftest-img-{$ext}", 'name' => 'I', 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '1', 'selftest_capa' => $upload($file), 'selftest_foto' => 'qualquer/caminho.png']);
     $stored = $media("selftest-img-{$ext}", 'selftest_capa');
     assertSame([true, $ext, false], [is_file($stored), pathinfo($stored, PATHINFO_EXTENSION), isset($productService->getValues((int) $productRow("selftest-img-{$ext}")['product_id'])['selftest_foto'])],
         "imagem {$ext} gravada com o formato detectado; texto postado não vira caminho");
@@ -677,7 +679,7 @@ assertSame(false, is_file($capa), 'remover o produto apaga as imagens');
 $imgForm = $admin->request('/admin/product/create?set=' . $fotoSet->getId())['body'];
 assertSame([true, true], [str_contains($imgForm, 'enctype="multipart/form-data"'), (bool) preg_match('/type="file" name="attributes\[selftest_capa\]" accept="image\/webp,image\/avif,image\/jpeg,image\/png"\s+required/', $imgForm)], 'form de produto tem campo de imagem');
 assertSame(2, substr_count($imgForm, 'class="eav-file-preview eav-file-placeholder" src="/imagem/logo.png"'), 'campo de imagem vazio mostra o logo em cinza');
-$msgs = $admin->submit('/admin/product/create', '/admin/product/save', ['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-up', 'name' => 'U', 'category_ids' => [$baseCategory],
+$msgs = $admin->submit('/admin/product/create', '/admin/product/save', ['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-up', 'name' => 'U', 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory],
     'attributes' => ['price' => '3', 'selftest_capa' => new CURLFile("{$scratch}/a.avif", 'image/avif', 'capa.avif')]])[1];
 assertSame(['Produto criado com sucesso.'], $msgs, 'produto criado com upload de imagem pelo admin');
 $upId = (int) $productRow('selftest-up')['product_id'];
@@ -695,7 +697,7 @@ rmdir($scratch);
 // --- inventory: sources ---------------------------------------------------------------------------
 $sourceService = new SourceService();
 $sourceRow = static fn (string $code) => $pdo->query("SELECT * FROM inventory_source WHERE code = '{$code}'")->fetch(PDO::FETCH_ASSOC);
-$saveSource = static fn (array $fields) => $admin->submit('/admin/source/create', '/admin/source/save', $fields + ['name' => 'Depósito', 'is_enabled' => '1'])[1];
+$saveSource = static fn (array $fields) => $admin->submit('/admin/source/create', '/admin/source/save', $fields + ['website_id' => $defaultWebsite, 'name' => 'Depósito', 'is_enabled' => '1'])[1];
 assertSame(['Origem criada com sucesso.'], $saveSource(['code' => 'selftest_cd', 'name' => 'CD Recife', 'city' => 'Recife', 'country_code' => 'br']), 'origem criada pelo admin');
 assertSame(['Recife', 'BR'], [$sourceRow('selftest_cd')['city'], $sourceRow('selftest_cd')['country_code']], 'origem grava endereço; país em maiúsculas');
 assertSame(["Já existe uma origem com o código 'selftest_cd'."], $saveSource(['code' => 'selftest_cd']), 'código de origem duplicado é recusado');
@@ -715,7 +717,7 @@ assertSame([true, true], [str_contains($sourceList, 'CD Recife'), str_contains($
 
 // --- inventory: stock --------------------------------------------------------------------------------
 $stock = new StockService();
-$estId = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-est', 'name' => 'Estoque', 'is_active' => 1, 'category_ids' => [$baseCategory]], ['price' => '1'])->getId();
+$estId = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-est', 'name' => 'Estoque', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '1'])->getId();
 $estPage = $admin->request('/admin/product/edit?id=' . $estId)['body'];
 assertSame([true, true, false], [str_contains($estPage, 'action="/admin/stock/save"'), str_contains($estPage, 'name="stock[selftest_cd][quantity]"'), str_contains($admin->request('/admin/product/create')['body'], '/admin/stock/save')],
     'painel de estoque na edição do produto (não na criação)');
@@ -759,7 +761,7 @@ assertSame(4.25, array_column(array_map(static fn ($p) => ['sku' => $p['sku'], '
 assertSame(true, in_array('default', array_column($gql($admin, '{ inventorySources { code } }')['data']['inventorySources'] ?? [], 'code'), true), 'GraphQL: admin lista as origens');
 $productService->delete($estId);
 assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM inventory_source_item WHERE product_id = {$estId}")->fetchColumn(), 'remover o produto apaga o estoque dele');
-$estId = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-est', 'name' => 'Estoque', 'is_active' => 1, 'category_ids' => [$baseCategory]], ['price' => '1'])->getId();
+$estId = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-est', 'name' => 'Estoque', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '1'])->getId();
 $stock->save($estId, ['selftest_loja' => ['quantity' => '7']]);
 
 // --- catalog: product form layout ("Organizar tela") -----------------------------------------------
@@ -779,7 +781,7 @@ assertSame([true, true, true], [str_contains($estPage, '<form id="product-form"'
 $layout = ['blocks' => [['id' => 'stock', 'wide' => false], ['id' => 'group:', 'wide' => true], ['id' => 'group:Medidas', 'wide' => false]], 'fields' => ['group:' => ['description', 'price']], 'columns' => 3];
 assertSame([200, 'Layout salvo.'], $layoutPost($admin, '/admin/productlayout/save', ['layout' => json_encode($layout)]), 'layout salvo pelo admin');
 $estPage = $admin->request('/admin/product/edit?id=' . $estId)['body'];
-assertSame(['stock', 'group: (largura total)', 'base', 'categories'], array_slice($blocksOf($estPage), 0, 4), 'form segue o layout salvo; blocos fora dele vão para o fim; grupo de outro conjunto é ignorado');
+assertSame(['stock', 'group: (largura total)', 'base', 'websites', 'categories'], array_slice($blocksOf($estPage), 0, 5), 'form segue o layout salvo; blocos fora dele vão para o fim; grupo de outro conjunto é ignorado');
 assertSame(true, strpos($estPage, 'data-field="description"') < strpos($estPage, 'data-field="price"'), 'ordem dos campos dentro do grupo segue o layout');
 assertSame([true, true], [str_contains($estPage, 'class="product-layout has-columns" style="--layout-columns: 3"'), str_contains($estPage, '<option value="3" selected>')], 'grade usa o número de colunas salvo');
 assertSame(['price', 'description'], array_values(array_intersect(array_column((new FormSchemaGenerator())->generate('product', 'selftest_basico')['fields'], 'name'), ['price', 'description'])), 'layout não muda a ordem do conjunto');
@@ -806,7 +808,7 @@ assertSame([403, 403], [$layoutPost($editor, '/admin/productlayout/save', ['layo
 
 // --- catalog: categories -----------------------------------------------------------------------------
 $categoryRow = static fn (string $urlKey) => $pdo->query("SELECT * FROM catalog_category WHERE url_key = '{$urlKey}'")->fetch(PDO::FETCH_ASSOC);
-$saveCategory = static fn (array $fields) => $admin->submit('/admin/category/create', '/admin/category/save', $fields + ['is_active' => '1'])[1];
+$saveCategory = static fn (array $fields) => $admin->submit('/admin/category/create', '/admin/category/save', $fields + ['website_id' => $defaultWebsite, 'is_active' => '1'])[1];
 assertSame(['Categoria criada com sucesso.'], $saveCategory(['name' => 'Selftest Roupas']), 'categoria criada pelo admin');
 $roupasId = (int) ($categoryRow('selftest-roupas')['category_id'] ?? 0);
 assertSame(['selftest-roupas', 'higiene-cosmeticos'], [$categoryRow('selftest-roupas')['url_key'] ?? null, CategoryService::slug('Higiene & Cosméticos')], 'chave de URL gerada a partir do nome');
@@ -857,6 +859,36 @@ $admin->submit('/admin/category/index', '/admin/category/delete', ['category_id'
 assertSame([false, [$roupasId]], [$categoryRow('selftest-camisetas'), (new ProductService())->getCategoryIds($catProduct)], 'categoria sem produtos é removida');
 (new ProductService())->delete($catProduct);
 assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM catalog_category_product WHERE product_id = {$catProduct}")->fetchColumn(), 'remover o produto apaga os vínculos');
+
+// --- websites: categories, products and stock sources belong to them -------------------------------
+assertSame(['Selecione um website.'], $saveCategory(['name' => 'Sem site', 'url_key' => 'selftest-semsite', 'website_id' => '']), 'categoria sem website é recusada');
+$saveCategory(['name' => 'Site W', 'url_key' => 'selftest-site-w', 'website_id' => $websiteId]);
+$siteWCat = (int) $categoryRow('selftest-site-w')['category_id'];
+$saveCategory(['name' => 'Sub W', 'url_key' => 'selftest-sub-w', 'parent_id' => $siteWCat, 'website_id' => $defaultWebsite]);
+assertSame([$websiteId, $defaultWebsite], [(int) $categoryRow('selftest-sub-w')['website_id'], (int) $categoryRow('selftest-base')['website_id']], 'subcategoria fica no website da categoria pai');
+assertSame('CATEGORY_WEBSITE_MISMATCH', $throws(static fn () => (new CategoryService())->update($baseCategory, ['name' => 'Selftest Base', 'url_key' => 'selftest-base', 'parent_id' => $siteWCat])), 'categoria não vai para dentro de uma de outro website');
+$webData = ['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-web', 'name' => 'Web'];
+assertSame(['WEBSITE_INVALID', 'CATEGORY_WEBSITE_MISMATCH'], [
+    $throws(static fn () => $productService->create($webData + ['website_ids' => [], 'category_ids' => [$baseCategory]], ['price' => '1'])),
+    $throws(static fn () => $productService->create($webData + ['website_ids' => [$defaultWebsite], 'category_ids' => [$siteWCat]], ['price' => '1'])),
+], 'produto sem website e categoria de website em que o produto não está são recusados');
+$webId = (int) $productService->create($webData + ['website_ids' => [$defaultWebsite, $websiteId], 'category_ids' => [$baseCategory, $siteWCat]], ['price' => '1'])->getId();
+assertSame('CATEGORY_WEBSITE_MISMATCH', $throws(static fn () => $productService->update($webId, $webData + ['website_ids' => [$defaultWebsite]], ['price' => '1'])), 'tirar o website de uma categoria mantida é recusado');
+$productService->update($webId, $webData + ['website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '1']);
+$inW = static fn () => array_column($gql($admin, '{ products(websiteId: "' . $websiteId . '", search: "selftest-web") { items { sku websiteIds } } }')['data']['products']['items'] ?? [], 'sku');
+assertSame([[(string) $defaultWebsite], []], [$gql($admin, '{ product(sku: "selftest-web") { websiteIds } }')['data']['product']['websiteIds'] ?? null, $inW()], 'GraphQL: websiteIds do produto e filtro por website');
+assertSame([[(string) $websiteId]], [array_column($gql($guest, '{ categories(websiteId: "' . $websiteId . '") { websiteId } }')['data']['categories'] ?? [], 'websiteId')], 'GraphQL: categorias do website');
+$sourceService->create(['code' => 'selftest_w_cd', 'name' => 'CD W', 'website_id' => $websiteId]);
+assertSame(['WEBSITE_INVALID', 'SOURCE_WEBSITE_MISMATCH', false], [
+    $throws(static fn () => $sourceService->create(['code' => 'selftest_semsite', 'name' => 'S'])),
+    $throws(static fn () => $stock->save($webId, ['selftest_w_cd' => ['quantity' => '3']])),
+    in_array('selftest_w_cd', array_column($stock->getItems($webId), 'code'), true),
+], 'origem sem website é recusada; produto só tem estoque nas origens dos websites dele');
+$productService->update($webId, $webData + ['website_ids' => [$defaultWebsite, $websiteId]], ['price' => '1']);
+$stock->save($webId, ['selftest_w_cd' => ['quantity' => '3']]);
+$productService->update($webId, $webData + ['website_ids' => [$defaultWebsite]], ['price' => '1']);
+assertSame(['0', false], [$stock->getSalable([$webId])[$webId], in_array('selftest_w_cd', array_column($stock->getItems($webId), 'code'), true)], 'estoque de origem de website que o produto deixou não entra no saldo');
+$productService->delete($webId);
 
 // --- e-mail -------------------------------------------------------------------------------------------
 $mail = new MailService();

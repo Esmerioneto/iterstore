@@ -31,7 +31,7 @@ class Category extends AbstractDb
                 SELECT c.*, t.level + 1, t.sort || (LPAD(c.position::text, 11, '0') || c.name || c.category_id)
                 FROM catalog_category c JOIN tree t ON c.parent_id = t.category_id
             )
-            SELECT t.category_id, t.parent_id, t.name, t.url_key, t.is_active, t.position, t.created_at, t.updated_at, t.level,
+            SELECT t.category_id, t.website_id, t.parent_id, t.name, t.url_key, t.is_active, t.position, t.created_at, t.updated_at, t.level,
                    (SELECT COUNT(*) FROM catalog_category_product cp WHERE cp.category_id = t.category_id) AS products
             FROM tree t ORDER BY t.sort"
         );

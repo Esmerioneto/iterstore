@@ -9,13 +9,14 @@ use Iter\Core\Db\Connection;
 use Iter\Core\Db\Expr;
 
 /**
- * Product quantities per source. Salable quantity = sum of the quantities marked
- * "in stock" (status 1) in enabled sources; it's computed on read, never stored.
+ * Product quantities per source. Only the sources of the product's websites count:
+ * salable quantity = sum of the quantities marked "in stock" (status 1) in their
+ * enabled sources; it's computed on read, never stored.
  * A zero quantity in stock isn't stored either: no row means 0, in stock.
  */
 class StockService
 {
-    /** @return array<int, array{source_id: int, code: string, name: string, is_enabled: int, quantity: string, status: int}> every source, by priority */
+    /** @return array<int, array{source_id: int, code: string, name: string, is_enabled: int, quantity: string, status: int}> the sources of the product's websites, by priority */
     public function getItems(int $productId): array
     {
         $db = Connection::get()->adapter();
@@ -23,7 +24,8 @@ class StockService
         $select->joinLeft(['i' => 'inventory_source_item'], 'i.source_id = s.source_id AND i.product_id = ' . $select->bindValue($productId), [
             'quantity' => 'COALESCE(i.quantity, 0)',
             'status' => 'COALESCE(i.status, 1)',
-        ])->order('s.priority, s.source_id');
+        ])->where('s.website_id IN (SELECT website_id FROM catalog_product_website WHERE product_id = ?)', $productId)
+            ->order('s.priority, s.source_id');
 
         return array_map(static fn ($row) => ['quantity' => self::format($row['quantity'])] + $row, $db->fetchAll($select));
     }
@@ -38,10 +40,14 @@ class StockService
     {
         (new ProductService())->get($productId); // PRODUCT_NOT_FOUND
         $sources = array_column((new Source())->getResource()->getList(), null, 'code');
+        $websiteIds = (new ProductService())->getWebsiteIds($productId);
 
         $rows = [];
         foreach ($items as $code => $item) {
             $source = $sources[$code] ?? throw new InventoryException('SOURCE_NOT_FOUND', "Origem '{$code}' não encontrada.");
+            if (!in_array((int) $source['website_id'], $websiteIds, true)) {
+                throw new InventoryException('SOURCE_WEBSITE_MISMATCH', "A origem '{$source['name']}' é de um website em que o produto não está.");
+            }
             // pt-BR "1,5"; empty = 0
             $quantity = str_replace(',', '.', trim((string) ($item['quantity'] ?? ''))) ?: '0';
             if (!preg_match('/^\d{1,8}(\.\d{1,4})?$/', $quantity)) {
@@ -79,6 +85,7 @@ class StockService
         $rows = $db->fetchPairs($db->select()
             ->from(['i' => 'inventory_source_item'], ['product_id', 'SUM(i.quantity)'])
             ->join(['s' => 'inventory_source'], 's.source_id = i.source_id AND s.is_enabled = 1', [])
+            ->join(['pw' => 'catalog_product_website'], 'pw.product_id = i.product_id AND pw.website_id = s.website_id', [])
             ->where('i.status = 1')
             ->where('i.product_id IN (?)', $ids)
             ->group('i.product_id'));
