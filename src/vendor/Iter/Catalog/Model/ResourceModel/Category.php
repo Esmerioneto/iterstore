@@ -64,20 +64,24 @@ class Category extends AbstractDb
         return (bool) $db->fetchOne($db->select()->from('catalog_category_product', [new Expr('1')])->where('category_id = ?', $id)->limit(1));
     }
 
-    public function findIdByUrlKey(string $urlKey): ?int
+    /** the URL key is unique per website */
+    public function findIdByUrlKey(string $urlKey, int $websiteId): ?int
     {
         $db = $this->getConnection();
-        $id = $db->fetchOne($db->select()->from('catalog_category', ['category_id'])->where('url_key = ?', strtolower(trim($urlKey))));
+        $id = $db->fetchOne($db->select()->from('catalog_category', ['category_id'])
+            ->where('url_key = ?', strtolower(trim($urlKey)))
+            ->where('website_id = ?', $websiteId));
 
         return $id === false ? null : (int) $id;
     }
 
-    public function urlKeyExists(string $urlKey, ?int $exceptId = null): bool
+    public function urlKeyExists(string $urlKey, int $websiteId, ?int $exceptId = null): bool
     {
         $db = $this->getConnection();
 
         return (bool) $db->fetchOne($db->select()->from('catalog_category', [new Expr('1')])
             ->where('url_key = ?', $urlKey)
+            ->where('website_id = ?', $websiteId)
             ->where('category_id <> ?', $exceptId ?? 0));
     }
 

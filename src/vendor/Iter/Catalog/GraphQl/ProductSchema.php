@@ -245,13 +245,13 @@ class ProductSchema
                 ],
                 'category' => [
                     'type' => $categoryType,
-                    'description' => 'Por id ou por url_key; informe um dos dois.',
-                    'args' => ['id' => Type::id(), 'url_key' => Type::string()],
+                    'description' => 'Por id ou por url_key; informe um dos dois. A url_key é única por website.',
+                    'args' => ['id' => Type::id(), 'url_key' => Type::string(), 'websiteId' => ['type' => Type::id(), 'description' => 'Website da url_key; omitido = website padrão.']],
                     'resolve' => static function ($root, array $args) use ($categories): ?array {
                         if (isset($args['id']) === isset($args['url_key'])) {
                             throw new UserError('Informe id ou url_key.');
                         }
-                        $id = isset($args['id']) ? (int) $args['id'] : (new Category())->getResource()->findIdByUrlKey($args['url_key']);
+                        $id = isset($args['id']) ? (int) $args['id'] : (new Category())->getResource()->findIdByUrlKey($args['url_key'], (int) ($args['websiteId'] ?? (new Website())->getResource()->getDefaultId()));
 
                         return $categories()[$id] ?? null;
                     },

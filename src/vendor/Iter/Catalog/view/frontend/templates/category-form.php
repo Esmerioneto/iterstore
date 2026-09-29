@@ -38,7 +38,7 @@
             <label>Chave de URL<br>
                 <input type="text" name="url_key" maxlength="255" value="<?= htmlspecialchars((string) $values['url_key']) ?>">
             </label>
-            <small>Vazia = gerada a partir do nome (ex.: "Higiene Pessoal" vira "higiene-pessoal"). Única no catálogo.</small>
+            <small>Vazia = gerada a partir do nome (ex.: "Higiene Pessoal" vira "higiene-pessoal"). Única no website.</small>
         </p>
         <p>
             <label>Posição<br>
