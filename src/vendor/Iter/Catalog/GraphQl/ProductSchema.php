@@ -277,7 +277,7 @@ class ProductSchema
                         'attributeSetId' => ['type' => Type::id(), 'description' => 'Omitido = conjunto padrão de produto.'],
                         'isActive' => ['type' => Type::boolean(), 'defaultValue' => true],
                         'attributes' => Type::listOf(Type::nonNull($attributeInput)),
-                        'categoryIds' => Type::listOf(Type::nonNull(Type::id())),
+                        'categoryIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Obrigatório: ao menos uma categoria.'],
                     ],
                     'resolve' => $guard(static function ($root, array $args) use ($service, $data, $attributes): array {
                         $setId = (int) ($args['attributeSetId'] ?? (new AttributeSet())->getResource()->findId(Product::ENTITY_TYPE, null));
@@ -293,7 +293,7 @@ class ProductSchema
                         'name' => Type::string(),
                         'isActive' => Type::boolean(),
                         'attributes' => Type::listOf(Type::nonNull($attributeInput)),
-                        'categoryIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Substitui as categorias; [] tira de todas.'],
+                        'categoryIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Substitui as categorias (ao menos uma).'],
                     ],
                     'resolve' => $guard(static function ($root, array $args) use ($service, $data, $attributes, $optionsOf): array {
                         $id = (int) $args['id'];

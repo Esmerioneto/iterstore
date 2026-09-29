@@ -13,7 +13,7 @@ use Iter\Eav\Model\ValueService;
 
 /**
  * Products: sku/name/is_active live in catalog_product, categories in
- * catalog_category_product (only touched when $data has category_ids),
+ * catalog_category_product (at least one; on update only touched when $data has category_ids),
  * everything else in EAV values. Only the attributes of the product's set are saved, and a set's
  * field missing from $attributes is saved empty (unchecked multiselect posts
  * nothing). Errors reuse AttributeException, as ValueService throws it too.
@@ -30,7 +30,7 @@ class ProductService
         $fields = $this->fields($data);
         $values = new ValueService();
         $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($set, $attributes));
-        $categoryIds = $this->categoryIds($data);
+        $categoryIds = $this->categoryIds($data, true);
 
         // one transaction; values last, as write() deletes the files they replaced
         return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $categoryIds): Product {
@@ -49,7 +49,7 @@ class ProductService
         $fields = $this->fields($data, $id);
         $values = new ValueService();
         $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes), $id);
-        $categoryIds = $this->categoryIds($data);
+        $categoryIds = $this->categoryIds($data, false);
 
         return Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $categoryIds): Product {
             $model->addData($fields)->save();
@@ -72,10 +72,19 @@ class ProductService
         return (new Category())->getResource()->getProductCategoryIds($id);
     }
 
-    /** @return ?int[] null = keep the current categories */
-    private function categoryIds(array $data): ?array
+    /**
+     * A new product needs a category; on update, omitted = unchanged, but never none
+     *
+     * @return ?int[] null = keep the current categories
+     */
+    private function categoryIds(array $data, bool $isNew): ?array
     {
-        return array_key_exists('category_ids', $data) ? (new CategoryService())->validIds($data['category_ids']) : null;
+        if (!$isNew && !array_key_exists('category_ids', $data)) {
+            return null;
+        }
+
+        return (new CategoryService())->validIds($data['category_ids'] ?? [])
+            ?: throw new AttributeException('CATEGORY_REQUIRED', 'Escolha ao menos uma categoria para o produto.');
     }
 
     private function saveCategories(int $id, ?array $categoryIds): void

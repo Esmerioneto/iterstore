@@ -546,9 +546,11 @@ $defaultProductSet = (int) $setRow('selftest_basico')['attribute_set_id'];
 $setService->update($defaultProductSet, ['label' => 'Básico', 'items' => [$attrId('price') => ['in' => 1], $attrId('description') => ['in' => 1]]]);
 $newProduct = $admin->request('/admin/product/create?set=' . $defaultProductSet)['body'];
 assertSame([true, true], [str_contains($newProduct, 'name="attributes[price]"'), str_contains($newProduct, 'name="attributes[description]"')], 'form de produto traz os atributos do conjunto');
+$baseCategory = (int) (new CategoryService())->create(['name' => 'Selftest Base', 'url_key' => 'selftest-base'])->getId(); // a product needs a category
 $saveProduct = static fn (array $fields) => $admin->submit('/admin/product/create', '/admin/product/save', $fields + [
-    'attribute_set_id' => $defaultProductSet, 'name' => 'Camiseta', 'is_active' => '1',
+    'attribute_set_id' => $defaultProductSet, 'name' => 'Camiseta', 'is_active' => '1', 'category_ids' => [$baseCategory],
 ])[1];
+assertSame(['Escolha ao menos uma categoria para o produto.'], $saveProduct(['sku' => 'selftest-1', 'category_ids' => [], 'attributes' => ['price' => '1']]), 'produto sem categoria é recusado');
 assertSame(["'Preço' é obrigatório."], $saveProduct(['sku' => 'selftest-1', 'attributes' => ['price' => '']]), 'atributo obrigatório vazio é recusado');
 assertSame(false, $productRow('selftest-1'), 'erro nos atributos não cria o produto');
 assertSame(['Produto criado com sucesso.'], $saveProduct(['sku' => 'selftest-1', 'attributes' => ['price' => '49,90', 'description' => 'Algodão']]), 'produto criado pelo admin');
@@ -567,7 +569,7 @@ $saveProduct(['sku' => 'selftest-2', 'attribute_set_id' => $roupa, 'attributes' 
 assertSame(['price' => '10', 'selftest_tam' => 'm'], $productValues('selftest-2'), 'só os atributos do conjunto são gravados');
 $p2 = (int) $productRow('selftest-2')['product_id'];
 assertSame(true, str_contains($admin->request('/admin/product/edit?id=' . $p2)['body'], '<option value="m" selected>'), 'edição mostra os valores gravados');
-[, $msgs] = $admin->submit('/admin/product/edit?id=' . $p2, '/admin/product/save', ['product_id' => $p2, 'attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-2', 'name' => 'Calça', 'attributes' => ['price' => '12']]);
+[, $msgs] = $admin->submit('/admin/product/edit?id=' . $p2, '/admin/product/save', ['product_id' => $p2, 'attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-2', 'name' => 'Calça', 'category_ids' => [$baseCategory], 'attributes' => ['price' => '12']]);
 assertSame([['Produto atualizado com sucesso.'], 'Calça', 0, $roupa, ['price' => '12']], [$msgs, $productRow('selftest-2')['name'], $productRow('selftest-2')['is_active'], (int) $productRow('selftest-2')['attribute_set_id'], $productValues('selftest-2')],
     'edição salva; conjunto não muda; seleção desmarcada é apagada');
 $list = $admin->request('/admin/product/index?q=selftest')['body'];
@@ -586,7 +588,7 @@ $service->create(['entity_type' => 'product', 'code' => 'selftest_cor', 'label' 
 $service->create(['entity_type' => 'product', 'code' => 'selftest_marca', 'label' => 'Marca', 'input_type' => 'select', 'options' => [['value' => 'acme', 'label' => 'ACME Ltda']]]);
 $setService->update($defaultProductSet, ['label' => 'Básico', 'items' => [$attrId('price') => ['in' => 1], $attrId('description') => ['in' => 1], $attrId('selftest_novo') => ['in' => 1],
     $attrId('selftest_cor') => ['in' => 1], $attrId('selftest_marca') => ['in' => 1]]]);
-$createGql = 'mutation ($sku: String!, $attrs: [ProductAttributeInput!]) { createProduct(sku: $sku, name: "Boné", attributeSetId: "' . $defaultProductSet . '", attributes: $attrs) { id sku is_active attributes { code value values url } } }';
+$createGql = 'mutation ($sku: String!, $attrs: [ProductAttributeInput!]) { createProduct(sku: $sku, name: "Boné", attributeSetId: "' . $defaultProductSet . '", categoryIds: ["' . $baseCategory . '"], attributes: $attrs) { id sku is_active attributes { code value values url } } }';
 $attrsOf = static function (array $product): array {
     $attrs = array_column($product['attributes'], 'value', 'code');
     ksort($attrs);
@@ -645,13 +647,13 @@ $schemaFoto = array_column($generator->generate('product', 'selftest_fotos')['fi
 assertSame(['image/webp', 'image/avif', 'image/jpeg', 'image/png'], $schemaFoto['selftest_foto']['accept'], 'schema do campo imagem traz os formatos aceitos');
 $upload = static fn (string $file) => ['path' => "{$scratch}/{$file}", 'name' => $file];
 $productService = new ProductService();
-$fileError = static fn (array $attributes) => $throws(static fn () => $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-img', 'name' => 'I'], $attributes + ['price' => '1']));
+$fileError = static fn (array $attributes) => $throws(static fn () => $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-img', 'name' => 'I', 'category_ids' => [$baseCategory]], $attributes + ['price' => '1']));
 assertSame(['VALUE_REQUIRED', 'FILE_TYPE_INVALID', 'FILE_TYPE_INVALID'], [$fileError([]), $fileError(['selftest_capa' => $upload('a.gif')]), $fileError(['selftest_capa' => $upload('fake.png')])],
     'imagem obrigatória, GIF e arquivo que só finge ser PNG são recusados');
 assertSame(false, $productRow('selftest-img'), 'imagem recusada não cria o produto');
 $media = static fn (string $sku, string $code) => ValueService::mediaDir() . ($productService->getValues((int) $productRow($sku)['product_id'])[$code] ?? 'nada');
 foreach (['a.webp' => 'webp', 'a.avif' => 'avif', 'a.jpg' => 'jpg', 'a.png' => 'png'] as $file => $ext) {
-    $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => "selftest-img-{$ext}", 'name' => 'I'], ['price' => '1', 'selftest_capa' => $upload($file), 'selftest_foto' => 'qualquer/caminho.png']);
+    $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => "selftest-img-{$ext}", 'name' => 'I', 'category_ids' => [$baseCategory]], ['price' => '1', 'selftest_capa' => $upload($file), 'selftest_foto' => 'qualquer/caminho.png']);
     $stored = $media("selftest-img-{$ext}", 'selftest_capa');
     assertSame([true, $ext, false], [is_file($stored), pathinfo($stored, PATHINFO_EXTENSION), isset($productService->getValues((int) $productRow("selftest-img-{$ext}")['product_id'])['selftest_foto'])],
         "imagem {$ext} gravada com o formato detectado; texto postado não vira caminho");
@@ -674,7 +676,7 @@ assertSame(false, is_file($capa), 'remover o produto apaga as imagens');
 // through the admin form (real multipart upload)
 $imgForm = $admin->request('/admin/product/create?set=' . $fotoSet->getId())['body'];
 assertSame([true, true], [str_contains($imgForm, 'enctype="multipart/form-data"'), (bool) preg_match('/type="file" name="attributes\[selftest_capa\]" accept="image\/webp,image\/avif,image\/jpeg,image\/png"\s+required/', $imgForm)], 'form de produto tem campo de imagem');
-$msgs = $admin->submit('/admin/product/create', '/admin/product/save', ['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-up', 'name' => 'U',
+$msgs = $admin->submit('/admin/product/create', '/admin/product/save', ['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-up', 'name' => 'U', 'category_ids' => [$baseCategory],
     'attributes' => ['price' => '3', 'selftest_capa' => new CURLFile("{$scratch}/a.avif", 'image/avif', 'capa.avif')]])[1];
 assertSame(['Produto criado com sucesso.'], $msgs, 'produto criado com upload de imagem pelo admin');
 $upId = (int) $productRow('selftest-up')['product_id'];
@@ -712,7 +714,7 @@ assertSame([true, true], [str_contains($sourceList, 'CD Recife'), str_contains($
 
 // --- inventory: stock --------------------------------------------------------------------------------
 $stock = new StockService();
-$estId = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-est', 'name' => 'Estoque', 'is_active' => 1], ['price' => '1'])->getId();
+$estId = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-est', 'name' => 'Estoque', 'is_active' => 1, 'category_ids' => [$baseCategory]], ['price' => '1'])->getId();
 $estPage = $admin->request('/admin/product/edit?id=' . $estId)['body'];
 assertSame([true, true, false], [str_contains($estPage, 'action="/admin/stock/save"'), str_contains($estPage, 'name="stock[selftest_cd][quantity]"'), str_contains($admin->request('/admin/product/create')['body'], '/admin/stock/save')],
     'painel de estoque na edição do produto (não na criação)');
@@ -756,7 +758,7 @@ assertSame(4.25, array_column(array_map(static fn ($p) => ['sku' => $p['sku'], '
 assertSame(true, in_array('default', array_column($gql($admin, '{ inventorySources { code } }')['data']['inventorySources'] ?? [], 'code'), true), 'GraphQL: admin lista as origens');
 $productService->delete($estId);
 assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM inventory_source_item WHERE product_id = {$estId}")->fetchColumn(), 'remover o produto apaga o estoque dele');
-$estId = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-est', 'name' => 'Estoque', 'is_active' => 1], ['price' => '1'])->getId();
+$estId = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-est', 'name' => 'Estoque', 'is_active' => 1, 'category_ids' => [$baseCategory]], ['price' => '1'])->getId();
 $stock->save($estId, ['selftest_loja' => ['quantity' => '7']]);
 
 // --- catalog: product form layout ("Organizar tela") -----------------------------------------------
@@ -824,7 +826,7 @@ assertSame(["A categoria 'Selftest Roupas' tem subcategorias. Remova ou mova as 
 assertSame(['Produto criado com sucesso.'], $saveProduct(['sku' => 'selftest-cat', 'category_ids' => [$camisetasId, $ocultaId], 'attributes' => ['price' => '5']]), 'produto criado com categorias pelo admin');
 $catProduct = (int) $productRow('selftest-cat')['product_id'];
 assertSame([$camisetasId, $ocultaId], (new ProductService())->getCategoryIds($catProduct), 'categorias do produto gravadas');
-assertSame(true, str_contains($admin->request('/admin/product/edit?id=' . $catProduct)['body'], 'name="category_ids[]" value="' . $camisetasId . '" checked'), 'edição marca as categorias do produto');
+assertSame(true, str_contains($admin->request('/admin/product/edit?id=' . $catProduct)['body'], 'name="category_ids[]" data-required-group value="' . $camisetasId . '" checked'), 'edição marca as categorias do produto');
 assertSame([1, 0], [
     substr_count($admin->request('/admin/product/index?category_id=' . $roupasId)['body'], '/admin/product/edit?id='),
     substr_count($admin->request('/admin/product/index?q=selftest-est&category_id=' . $roupasId)['body'], '/admin/product/edit?id='),
@@ -840,11 +842,12 @@ assertSame([['category' => null], 'selftest-oculta'], [
 ], 'GraphQL: categoria inativa só para o admin');
 assertSame(true, in_array('selftest-roupas', array_column($gql($guest, '{ categories { url_key } }')['data']['categories'] ?? [], 'url_key'), true), 'GraphQL: categorias principais');
 $setCats = static fn (string $args) => $gql($admin, 'mutation { updateProduct(id: "' . $catProduct . '"' . $args . ') { categories { id } } }');
-assertSame([[['id' => (string) $ocultaId], ['id' => (string) $camisetasId]], [], 'CATEGORY_NOT_FOUND'], [
+assertSame([[['id' => (string) $ocultaId], ['id' => (string) $camisetasId]], 'CATEGORY_REQUIRED', 'CATEGORY_NOT_FOUND'], [
     $setCats(', name: "Com categorias"')['data']['updateProduct']['categories'] ?? null,
-    $setCats(', categoryIds: []')['data']['updateProduct']['categories'] ?? null,
+    $setCats(', categoryIds: []')['errors'][0]['extensions']['code'] ?? null,
     $setCats(', categoryIds: ["999999"]')['errors'][0]['extensions']['code'] ?? null,
-], 'GraphQL: categoryIds omitido mantém, [] tira de todas, id inexistente é recusado');
+], 'GraphQL: categoryIds omitido mantém, [] e id inexistente são recusados');
+assertSame('CATEGORY_REQUIRED', $gql($admin, 'mutation { createProduct(sku: "selftest-semcat", name: "S", attributeSetId: "' . $defaultProductSet . '", attributes: [{code: "price", value: "1"}]) { id } }')['errors'][0]['extensions']['code'] ?? null, 'GraphQL: criar produto sem categoria é recusado');
 $setCats(', categoryIds: ["' . $camisetasId . '"]');
 $admin->submit('/admin/category/index', '/admin/category/delete', ['category_id' => $camisetasId]);
 assertSame([false, true, []], [$categoryRow('selftest-camisetas'), (bool) $productRow('selftest-cat'), (new ProductService())->getCategoryIds($catProduct)], 'remover a categoria mantém o produto e tira o vínculo');
