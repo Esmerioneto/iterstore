@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Inventory\Model;
 
 use Iter\Catalog\Model\ProductService;
+use Iter\Catalog\Model\VariantService;
 use Iter\Core\Db\Connection;
 use Iter\Core\Db\Expr;
 
@@ -13,6 +14,7 @@ use Iter\Core\Db\Expr;
  * salable quantity = sum of the quantities marked "in stock" (status 1) in their
  * enabled sources; it's computed on read, never stored.
  * A zero quantity in stock isn't stored either: no row means 0, in stock.
+ * A configurable product has no stock of its own: its salable quantity is its active variants' sum.
  */
 class StockService
 {
@@ -38,7 +40,9 @@ class StockService
      */
     public function save(int $productId, array $items): void
     {
-        (new ProductService())->get($productId); // PRODUCT_NOT_FOUND
+        if ((new ProductService())->get($productId)->getData('type') === 'configurable') { // get(): PRODUCT_NOT_FOUND
+            throw new InventoryException('PRODUCT_IS_CONFIGURABLE', 'O estoque de um produto com grade é lançado nas variações.');
+        }
         $sources = array_column((new Source())->getResource()->getList(), null, 'code');
         $websiteIds = (new ProductService())->getWebsiteIds($productId);
 
@@ -70,7 +74,26 @@ class StockService
     }
 
     /**
-     * One query for many products.
+     * The "Estoque por grade" panel: one source, a quantity per variant; each keeps its status
+     *
+     * @param array<int, mixed> $quantities variant id => quantity
+     */
+    public function saveGrid(int $parentId, string $sourceCode, array $quantities): void
+    {
+        $variantIds = array_column((new VariantService())->getVariants($parentId), 'product_id');
+        Connection::get()->adapter()->transaction(function () use ($variantIds, $sourceCode, $quantities): void {
+            foreach ($quantities as $variantId => $quantity) {
+                if (!in_array((int) $variantId, $variantIds, true)) {
+                    throw new InventoryException('PRODUCT_NOT_FOUND', 'A variação não é deste produto.');
+                }
+                $status = array_column($this->getItems((int) $variantId), 'status', 'code')[$sourceCode] ?? 1;
+                $this->save((int) $variantId, [$sourceCode => ['quantity' => $quantity, 'status' => $status]]);
+            }
+        });
+    }
+
+    /**
+     * One query for many products (and one more for configurable ones).
      *
      * @param int[] $productIds
      * @return array<int, string> product id => salable quantity (every id, 0 when there's none)
@@ -82,13 +105,14 @@ class StockService
             return [];
         }
         $db = Connection::get()->adapter();
-        $rows = $db->fetchPairs($db->select()
-            ->from(['i' => 'inventory_source_item'], ['product_id', 'SUM(i.quantity)'])
+        $salable = static fn () => $db->select()
+            ->from(['i' => 'inventory_source_item'], [])
             ->join(['s' => 'inventory_source'], 's.source_id = i.source_id AND s.is_enabled = 1', [])
             ->join(['pw' => 'catalog_product_website'], 'pw.product_id = i.product_id AND pw.website_id = s.website_id', [])
-            ->where('i.status = 1')
-            ->where('i.product_id IN (?)', $ids)
-            ->group('i.product_id'));
+            ->join(['p' => 'catalog_product'], 'p.product_id = i.product_id', [])
+            ->where('i.status = 1');
+        $rows = $db->fetchPairs($salable()->columns(['i.product_id', new Expr('SUM(i.quantity)')])->where('i.product_id IN (?)', $ids)->group('i.product_id'))
+            + $db->fetchPairs($salable()->columns(['p.parent_id', new Expr('SUM(i.quantity)')])->where('p.parent_id IN (?)', $ids)->where('p.is_active = 1')->group('p.parent_id'));
 
         return array_map(static fn ($id) => self::format($rows[$id] ?? '0'), array_combine($ids, $ids));
     }

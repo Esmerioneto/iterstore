@@ -20,7 +20,7 @@
         "vendor": "Iter",
         "module_name": "Inventory",
         "controller_name": "stock",
-        "controller_action": "save",
+        "controller_action": "save,grid",
         "method": "POST"
     }
 ]
