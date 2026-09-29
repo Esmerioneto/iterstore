@@ -75,7 +75,7 @@ $locked = static fn (string $field) => $is_system && !in_array($field, ['label',
                 <thead>
                     <tr><th>Valor</th><th>Nome</th><th>Posição</th><th>Padrão</th></tr>
                 </thead>
-                <tbody>
+                <tbody id="attribute-option-rows">
 <?php foreach (array_values($options) as $i => $option): ?>
                     <tr>
                         <td><input type="text" name="options[<?= $i ?>][value]" maxlength="255" value="<?= htmlspecialchars((string) $option['value']) ?>" aria-label="Valor"></td>
@@ -86,6 +86,7 @@ $locked = static fn (string $field) => $is_system && !in_array($field, ['label',
 <?php endforeach; ?>
                 </tbody>
             </table>
+            <button type="button" data-add-row="attribute-option-rows">+ Adicionar opção</button>
         </fieldset>
         <p>
             <label>Posição<br>
