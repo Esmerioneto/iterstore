@@ -459,6 +459,7 @@ a {
   letter-spacing: 0.8px;
   text-transform: uppercase;
   color: var(--color-stone);
+  text-align: center;
 }
 
 /* SweetAlert2 dialogs — same look as the login card, ghost buttons */
