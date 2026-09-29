@@ -36,7 +36,7 @@ ob_start(); ?>
         <?= $e($websiteName) ?>
     </label>
     <?php endforeach; ?>
-    <small>As categorias do produto precisam ser dos websites marcados.</small>
+    <small>Cada website marcado precisa de ao menos uma categoria dele.</small>
 </fieldset>
 <?php $blocks['websites'] = ['title' => 'Websites', 'html' => ob_get_clean()];
 

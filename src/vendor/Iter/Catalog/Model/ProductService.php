@@ -15,7 +15,7 @@ use Iter\Store\Model\Website;
 /**
  * Products: sku/name/is_active live in catalog_product, websites and categories in
  * catalog_product_website and catalog_category_product (at least one of each, the categories
- * from the product's websites; on update only touched when $data has website_ids/category_ids),
+ * from the product's websites, and each website with one of them; on update only touched when $data has website_ids/category_ids),
  * everything else in EAV values. Only the attributes of the product's set are saved, and a set's
  * field missing from $attributes is saved empty (unchecked multiselect posts
  * nothing). Errors reuse AttributeException, as ValueService throws it too.
@@ -34,6 +34,7 @@ class ProductService
         $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($set, $attributes));
         $websiteIds = $this->websiteIds($data, true);
         $categoryIds = $this->categoryIds($data, true, $websiteIds);
+        $this->checkCategoryPerWebsite($websiteIds, $categoryIds);
 
         // one transaction; values last, as write() deletes the files they replaced
         return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $websiteIds, $categoryIds): Product {
@@ -57,6 +58,9 @@ class ProductService
         $categoryIds = $this->categoryIds($data, false, $websiteIds ?? $this->getWebsiteIds($id));
         if ($categoryIds === null && $websiteIds !== null) {
             (new CategoryService())->validIds($this->getCategoryIds($id), $websiteIds); // the kept categories must fit the new websites
+        }
+        if ($websiteIds !== null || $categoryIds !== null) {
+            $this->checkCategoryPerWebsite($websiteIds ?? $this->getWebsiteIds($id), $categoryIds ?? $this->getCategoryIds($id));
         }
 
         return Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $websiteIds, $categoryIds): Product {
@@ -122,6 +126,31 @@ class ProductService
 
         return (new CategoryService())->validIds($data['category_ids'] ?? [], $websiteIds)
             ?: throw new AttributeException('CATEGORY_REQUIRED', 'Escolha ao menos uma categoria para o produto.');
+    }
+
+    /**
+     * Every website of the product needs one of its categories, or the product
+     * would be in a website where no category shows it.
+     *
+     * @param int[] $websiteIds
+     * @param int[] $categoryIds already checked to be of these websites
+     */
+    private function checkCategoryPerWebsite(array $websiteIds, array $categoryIds): void
+    {
+        $categoryWebsites = array_column((new Category())->getResource()->getTree(), 'website_id', 'category_id');
+        $covered = array_map(static fn ($id) => (int) $categoryWebsites[$id], $categoryIds);
+        $missing = array_diff($websiteIds, $covered);
+        if (!$missing) {
+            return;
+        }
+        $names = array_column((new Website())->getList(), 'name', 'website_id');
+        $hasCategories = array_intersect($missing, array_map('intval', $categoryWebsites));
+        $list = "'" . implode("', '", array_map(static fn ($id) => $names[$id] ?? $id, $missing)) . "'";
+        throw new AttributeException('CATEGORY_WEBSITE_MISSING', count($missing) > 1
+            ? "O produto não tem categoria nos websites {$list}. Escolha uma categoria de cada um (ou cadastre em Catálogo → Categorias), ou desmarque esses websites."
+            : "O produto não tem categoria no website {$list}. " . ($hasCategories
+                ? 'Escolha uma categoria desse website ou desmarque o website.'
+                : 'Esse website ainda não tem categorias: cadastre uma em Catálogo → Categorias ou desmarque o website.'));
     }
 
     private function saveCategories(int $id, ?array $categoryIds): void
