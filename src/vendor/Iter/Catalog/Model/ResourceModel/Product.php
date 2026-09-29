@@ -102,6 +102,22 @@ class Product extends AbstractDb
         ));
     }
 
+    /** @param array<string, string> $options code => option value; locks those options (FK RESTRICT) */
+    public function setVariantOptions(int $productId, array $options): void
+    {
+        $db = $this->getConnection();
+        foreach ($options as $code => $value) {
+            $db->insertOnConflict('catalog_product_variant_option', [
+                'product_id' => $productId,
+                'option_id' => (int) $db->fetchOne($db->select()->from(['o' => 'eav_attribute_option'], ['option_id'])
+                    ->join(['va' => 'catalog_product_variant_attribute'], 'va.attribute_id = o.attribute_id', [])
+                    ->join(['a' => 'eav_attribute'], 'a.attribute_id = o.attribute_id', [])
+                    ->join(['p' => 'catalog_product'], 'p.parent_id = va.product_id', [])
+                    ->where('p.product_id = ?', $productId)->where('a.code = ?', $code)->where('o.value = ?', $value)),
+            ], ['product_id', 'option_id'], ['option_id']);
+        }
+    }
+
     /** @return array<int, array<string, mixed>> the variants' catalog_product rows */
     public function getVariantRows(int $parentId): array
     {

@@ -1019,8 +1019,18 @@ assertSame(['selftest-var-az-p', 'selftest-var-PRETO-P', 'selftest-var-PRETO-M',
     'GraphQL: saveVariants mantém os SKUs e cria a nova com o SKU sugerido');
 assertSame('CONFIGURABLE', $gql($admin, 'mutation { createProduct(sku: "selftest-var3", name: "Boné", attributeSetId: "' . $roupa . '", categoryIds: ["' . $baseCategory . '"], type: CONFIGURABLE, variantAttributes: ["selftest_tam"]) { type } }')['data']['createProduct']['type'] ?? null,
     'GraphQL: createProduct com grade');
+$corOptions = static fn (array $values) => $service->update($attrId('selftest_vcor'), ['label' => 'Cor', 'input_type' => 'select', 'options' => array_map(static fn ($v) => ['value' => $v, 'label' => $v === 'az' ? 'Azul Marinho' : ucfirst($v)], $values)]);
+$corOptions(['az', 'pr', 'vd']);
+$corOptions(['az', 'pr']);
+assertSame(['OPTION_IN_USE', 'OPTION_IN_USE', ['az', 'pr']], [
+    $throws(static fn () => $corOptions(['az'])),
+    $throws(static fn () => $service->update($attrId('selftest_vcor'), ['label' => 'Cor', 'input_type' => 'text'])),
+    array_column($service->getOptions($attrId('selftest_vcor')), 'value'),
+], 'opção usada por variação não é removida (nem trocando o tipo); a sem uso pode');
 $productService->delete($parentId);
 assertSame([false, []], [$productRow('selftest-var-az-p'), $values->load('product', $variants[0]['product_id'])], 'apagar o pai apaga as variações e os valores delas');
+$corOptions(['az']);
+assertSame(['az'], array_column($service->getOptions($attrId('selftest_vcor')), 'value'), 'sem variações, a opção pode ser removida');
 
 // --- e-mail -------------------------------------------------------------------------------------------
 $mail = new MailService();
