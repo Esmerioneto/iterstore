@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Inventory\View;
 
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Store\Model\Website;
 use Iter\Inventory\Model\Source;
 
 class SourceList implements ViewComponentInterface
@@ -18,6 +19,7 @@ class SourceList implements ViewComponentInterface
     {
         return [
             'sources' => (new Source())->getResource()->getListWithCounts(),
+            'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
         ];
     }
 }

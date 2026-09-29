@@ -6,6 +6,20 @@
         <input type="hidden" name="source_id" value="<?= (int) $source_id ?>">
 <?php endif; ?>
         <p>
+            <label>Website *<br>
+<?php if ($is_edit): ?>
+                <input type="text" value="<?= htmlspecialchars((string) ($websites[$values['website_id']] ?? '')) ?>" readonly>
+<?php else: ?>
+                <select name="website_id" required>
+    <?php foreach ($websites as $websiteId => $websiteName): ?>
+                    <option value="<?= (int) $websiteId ?>" <?= (string) $values['website_id'] === (string) $websiteId ? 'selected' : '' ?>><?= htmlspecialchars((string) $websiteName) ?></option>
+    <?php endforeach; ?>
+                </select>
+<?php endif; ?>
+            </label>
+            <small><?= $is_edit ? 'O website não muda depois de criada.' : 'A origem só guarda estoque dos produtos deste website.' ?></small>
+        </p>
+        <p>
             <label>Código *<br>
 <?php if ($is_edit): ?>
                 <input type="text" value="<?= htmlspecialchars((string) $values['code']) ?>" readonly>

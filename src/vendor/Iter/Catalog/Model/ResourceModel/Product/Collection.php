@@ -28,6 +28,13 @@ class Collection extends AbstractCollection
             ]);
     }
 
+    public function addWebsiteFilter(int $websiteId): static
+    {
+        $this->select->where('main_table.product_id IN (SELECT product_id FROM catalog_product_website WHERE website_id = ?)', $websiteId);
+
+        return $this;
+    }
+
     /** products of the category and of its subcategories */
     public function addCategoryFilter(int $categoryId): static
     {

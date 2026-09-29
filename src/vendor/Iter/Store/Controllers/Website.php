@@ -109,8 +109,8 @@ class Website
                 (new WebsiteModel())->setId($id)->delete();
                 Messages::addSuccess('Website removido com sucesso.');
             } catch (\PDOException $e) {
-                // store.group_id is ON DELETE RESTRICT, so the cascade to groups stops here
-                Messages::addError('Não é possível remover: há lojas vinculadas aos grupos deste website.');
+                // RESTRICT: stores (through the groups), customers, products, categories and stock sources hold the website
+                Messages::addError('Não é possível remover: há lojas, clientes, produtos, categorias ou origens de estoque vinculados a este website.');
             }
         }
 

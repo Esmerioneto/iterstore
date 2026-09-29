@@ -6,10 +6,12 @@ namespace Iter\Inventory\Model;
 
 use Iter\Core\Db\Connection;
 use Iter\Core\Db\Expr;
+use Iter\Store\Model\Website;
 
 /**
- * Stock sources. The code is set on creation and never changes; the default
- * source is always there and enabled. Disabling a source takes it out of the
+ * Stock sources. The code and the website are set on creation and never change;
+ * a source only holds stock of products in its website. The default source is
+ * always there and enabled. Disabling a source takes it out of the
  * salable quantity but keeps its quantities.
  */
 class SourceService
@@ -25,10 +27,15 @@ class SourceService
             throw new InventoryException('SOURCE_CODE_DUPLICATE', "Já existe uma origem com o código '{$code}'.");
         }
 
-        return $source->addData(['code' => $code] + $this->fields($data))->save();
+        $websiteId = (int) ($data['website_id'] ?? 0);
+        if ($websiteId <= 0 || !(new Website())->load($websiteId)->getId()) {
+            throw new InventoryException('WEBSITE_INVALID', 'Selecione um website.');
+        }
+
+        return $source->addData(['code' => $code, 'website_id' => $websiteId] + $this->fields($data))->save();
     }
 
-    /** the code in $data is ignored: it's immutable */
+    /** the code and the website in $data are ignored: they're immutable */
     public function update(int $id, array $data): Source
     {
         $source = $this->get($id);

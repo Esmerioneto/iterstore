@@ -5,6 +5,9 @@
         <thead>
             <tr>
                 <th>Nome</th>
+<?php if (count($websites) > 1): ?>
+                <th>Website</th>
+<?php endif; ?>
                 <th>Chave de URL</th>
                 <th>Posição</th>
                 <th>Status</th>
@@ -14,11 +17,14 @@
         </thead>
         <tbody>
 <?php if (empty($categories)): ?>
-            <tr><td colspan="6">Nenhuma categoria cadastrada.</td></tr>
+            <tr><td colspan="<?= count($websites) > 1 ? 7 : 6 ?>">Nenhuma categoria cadastrada.</td></tr>
 <?php else: ?>
     <?php foreach ($categories as $category): ?>
             <tr>
                 <td style="padding-left: <?= (int) $category['level'] * 1.5 ?>em"><?= $category['level'] ? '└ ' : '' ?><?= htmlspecialchars((string) $category['name']) ?></td>
+<?php if (count($websites) > 1): ?>
+                <td><?= htmlspecialchars((string) ($websites[$category['website_id']] ?? '')) ?></td>
+<?php endif; ?>
                 <td><?= htmlspecialchars((string) $category['url_key']) ?></td>
                 <td><?= (int) $category['position'] ?></td>
                 <td><?= $category['is_active'] ? 'Ativa' : 'Inativa' ?></td>

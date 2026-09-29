@@ -12,6 +12,7 @@ use Iter\Core\View\ViewComponentInterface;
 use Iter\Eav\Form\FormSchemaGenerator;
 use Iter\Eav\Model\AttributeSet;
 use Iter\Eav\Model\FormLayout;
+use Iter\Store\Model\Website;
 
 class ProductForm implements ViewComponentInterface
 {
@@ -43,6 +44,9 @@ class ProductForm implements ViewComponentInterface
             'sets' => $sets,
             'attribute_set_id' => $setId,
             'categories' => (new Category())->getResource()->getTree(),
+            'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
+            // a new product starts in the default website
+            'website_ids' => array_map('intval', (array) ($old['website_ids'] ?? ($id ? (new ProductService())->getWebsiteIds($id) : [(new Website())->getResource()->getDefaultId()]))),
             // without the permission, the default layout (even if one was saved before it was revoked)
             'can_arrange' => $canArrange = Auth::isAllowed('Iter_Catalog::product_layout'),
             'layout' => (new FormLayout(Product::ENTITY_TYPE))->get($canArrange ? (int) Auth::user()->getId() : null),

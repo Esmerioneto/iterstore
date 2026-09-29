@@ -10,10 +10,12 @@ use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\AttributeSet;
 use Iter\Eav\Model\ValueService;
+use Iter\Store\Model\Website;
 
 /**
- * Products: sku/name/is_active live in catalog_product, categories in
- * catalog_category_product (at least one; on update only touched when $data has category_ids),
+ * Products: sku/name/is_active live in catalog_product, websites and categories in
+ * catalog_product_website and catalog_category_product (at least one of each, the categories
+ * from the product's websites; on update only touched when $data has website_ids/category_ids),
  * everything else in EAV values. Only the attributes of the product's set are saved, and a set's
  * field missing from $attributes is saved empty (unchecked multiselect posts
  * nothing). Errors reuse AttributeException, as ValueService throws it too.
@@ -21,7 +23,7 @@ use Iter\Eav\Model\ValueService;
 class ProductService
 {
     /**
-     * @param array{attribute_set_id: int, sku: string, name: string, is_active?: int, category_ids?: int[]} $data
+     * @param array{attribute_set_id: int, sku: string, name: string, is_active?: int, website_ids?: int[], category_ids?: int[]} $data
      * @param array<string, mixed> $attributes code => value
      */
     public function create(array $data, array $attributes = []): Product
@@ -30,11 +32,13 @@ class ProductService
         $fields = $this->fields($data);
         $values = new ValueService();
         $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($set, $attributes));
-        $categoryIds = $this->categoryIds($data, true);
+        $websiteIds = $this->websiteIds($data, true);
+        $categoryIds = $this->categoryIds($data, true, $websiteIds);
 
         // one transaction; values last, as write() deletes the files they replaced
-        return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $categoryIds): Product {
+        return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $websiteIds, $categoryIds): Product {
             $model = (new Product())->addData($fields + ['attribute_set_id' => (int) $set->getId()])->save();
+            $model->getResource()->setWebsites((int) $model->getId(), $websiteIds);
             $this->saveCategories((int) $model->getId(), $categoryIds);
             $values->write((int) $model->getId(), $rows);
 
@@ -49,10 +53,17 @@ class ProductService
         $fields = $this->fields($data, $id);
         $values = new ValueService();
         $rows = $values->validate(Product::ENTITY_TYPE, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes), $id);
-        $categoryIds = $this->categoryIds($data, false);
+        $websiteIds = $this->websiteIds($data, false);
+        $categoryIds = $this->categoryIds($data, false, $websiteIds ?? $this->getWebsiteIds($id));
+        if ($categoryIds === null && $websiteIds !== null) {
+            (new CategoryService())->validIds($this->getCategoryIds($id), $websiteIds); // the kept categories must fit the new websites
+        }
 
-        return Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $categoryIds): Product {
+        return Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $websiteIds, $categoryIds): Product {
             $model->addData($fields)->save();
+            if ($websiteIds !== null) {
+                $model->getResource()->setWebsites($id, $websiteIds);
+            }
             $this->saveCategories($id, $categoryIds);
             $values->write($id, $rows);
 
@@ -72,18 +83,44 @@ class ProductService
         return (new Category())->getResource()->getProductCategoryIds($id);
     }
 
+    /** @return int[] */
+    public function getWebsiteIds(int $id): array
+    {
+        return (new Product())->getResource()->getWebsiteIds($id);
+    }
+
     /**
-     * A new product needs a category; on update, omitted = unchanged, but never none
+     * A new product needs a website; on update, omitted = unchanged, but never none
      *
+     * @return ?int[] null = keep the current websites
+     */
+    private function websiteIds(array $data, bool $isNew): ?array
+    {
+        if (!$isNew && !array_key_exists('website_ids', $data)) {
+            return null;
+        }
+        $ids = array_values(array_unique(array_map('intval', (array) ($data['website_ids'] ?? []))));
+        $known = array_map('intval', array_column((new Website())->getList(), 'website_id'));
+        if (!$ids || array_diff($ids, $known)) {
+            throw new AttributeException('WEBSITE_INVALID', 'Escolha ao menos um website válido para o produto.');
+        }
+
+        return $ids;
+    }
+
+    /**
+     * A new product needs a category of one of its websites; on update, omitted = unchanged, but never none
+     *
+     * @param int[] $websiteIds the product's websites
      * @return ?int[] null = keep the current categories
      */
-    private function categoryIds(array $data, bool $isNew): ?array
+    private function categoryIds(array $data, bool $isNew, array $websiteIds): ?array
     {
         if (!$isNew && !array_key_exists('category_ids', $data)) {
             return null;
         }
 
-        return (new CategoryService())->validIds($data['category_ids'] ?? [])
+        return (new CategoryService())->validIds($data['category_ids'] ?? [], $websiteIds)
             ?: throw new AttributeException('CATEGORY_REQUIRED', 'Escolha ao menos uma categoria para o produto.');
     }
 

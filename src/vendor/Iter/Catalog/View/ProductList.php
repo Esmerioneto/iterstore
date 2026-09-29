@@ -7,6 +7,7 @@ namespace Iter\Catalog\View;
 use Iter\Catalog\Model\Category;
 use Iter\Catalog\Model\Product;
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Store\Model\Website;
 
 class ProductList implements ViewComponentInterface
 {
@@ -20,7 +21,7 @@ class ProductList implements ViewComponentInterface
     public function getData(): array
     {
         $filters = [];
-        foreach (['attribute_set_id', 'category_id', 'is_active', 'q'] as $key) {
+        foreach (['website_id', 'attribute_set_id', 'category_id', 'is_active', 'q'] as $key) {
             $filters[$key] = trim((string) ($_GET[$key] ?? ''));
         }
         $page = max(1, (int) ($_GET['page'] ?? 1));
@@ -33,6 +34,7 @@ class ProductList implements ViewComponentInterface
             'total' => $result['total'],
             'total_pages' => max(1, (int) ceil($result['total'] / self::PER_PAGE)),
             'sets' => ProductForm::productSets(),
+            'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
             'categories' => (new Category())->getResource()->getTree(),
         ];
     }

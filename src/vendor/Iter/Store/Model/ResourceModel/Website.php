@@ -19,6 +19,15 @@ class Website extends AbstractDb
         return parent::getList($orderBy ?? 'sort_order, website_id');
     }
 
+    /** the website marked default, or the first one; null when there's none */
+    public function getDefaultId(): ?int
+    {
+        $db = $this->getConnection();
+        $id = $db->fetchOne($db->select()->from('store_website', ['website_id'])->order('is_default DESC, sort_order, website_id')->limit(1));
+
+        return $id === false ? null : (int) $id;
+    }
+
     /** @return array{websites: int, groups: int, stores: int, ungrouped: int} for the dashboard */
     public function getCounts(): array
     {

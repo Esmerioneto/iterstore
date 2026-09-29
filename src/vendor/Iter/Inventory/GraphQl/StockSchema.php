@@ -55,6 +55,7 @@ class StockSchema
             'name' => 'InventorySource',
             'fields' => [
                 'id' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($s) => $s['source_id']],
+                'websiteId' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($s) => $s['website_id']],
                 'code' => Type::nonNull(Type::string()),
                 'name' => Type::nonNull(Type::string()),
                 'is_enabled' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => fn ($s) => (bool) $s['is_enabled']],
@@ -71,7 +72,7 @@ class StockSchema
             'fields' => [
                 'salable_quantity' => [
                     'type' => Type::nonNull(Type::float()),
-                    'description' => 'Soma das quantidades "em estoque" nas origens ativas.',
+                    'description' => 'Soma das quantidades "em estoque" nas origens ativas dos websites do produto.',
                     'resolve' => $salable,
                 ],
                 'is_in_stock' => [
@@ -89,7 +90,7 @@ class StockSchema
                             'status' => ['type' => Type::nonNull(Type::int()), 'description' => '1 = em estoque, 0 = fora de estoque.'],
                         ],
                     ])))),
-                    'description' => 'Quantidade em cada origem (todas as origens). Só para o admin.',
+                    'description' => 'Quantidade em cada origem dos websites do produto. Só para o admin.',
                     'resolve' => $guard('Iter_Inventory::stock', static fn ($stock) => $service->getItems($stock['product_id'])),
                 ],
             ],

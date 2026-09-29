@@ -3,6 +3,14 @@
     <h2>Produtos</h2>
     <p><a href="/admin/product/create">+ Novo produto</a></p>
     <form method="get" action="/admin/product/index">
+<?php if (count($websites) > 1): ?>
+        <select name="website_id">
+            <option value="">Todos os websites</option>
+    <?php foreach ($websites as $websiteId => $websiteName): ?>
+            <option value="<?= (int) $websiteId ?>" <?= $filters['website_id'] === (string) $websiteId ? 'selected' : '' ?>><?= htmlspecialchars((string) $websiteName) ?></option>
+    <?php endforeach; ?>
+        </select>
+<?php endif; ?>
         <select name="attribute_set_id">
             <option value="">Todos os conjuntos</option>
 <?php foreach ($sets as $setId => $set): ?>

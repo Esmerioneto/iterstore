@@ -58,6 +58,7 @@ class Category
     public function Save(): void
     {
         $data = [
+            'website_id' => (int) ($_POST['website_id'] ?? 0),
             'parent_id' => (int) ($_POST['parent_id'] ?? 0),
             'name' => trim($_POST['name'] ?? ''),
             'url_key' => trim($_POST['url_key'] ?? ''),
