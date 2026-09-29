@@ -989,8 +989,15 @@ $lastPage = (int) ceil($listTotal / 8);
 assertSame([min(8, $listTotal), $listTotal - ($lastPage - 1) * 8, $lastPage > 1], [
     substr_count($admin->request('/admin/product/index')['body'], '/admin/product/edit?id='),
     substr_count($admin->request('/admin/product/index?page=' . $lastPage)['body'], '/admin/product/edit?id='),
-    str_contains($admin->request('/admin/product/index')['body'], 'href="/admin/product/index?page=2"'),
+    str_contains($admin->request('/admin/product/index')['body'], 'href="/admin/product/index?page=2" title="Próxima página"'),
 ], 'lista de produtos pagina de 8 em 8');
+$pager = $admin->request('/admin/product/index?limit=5&page=999&q=')['body'];
+$lastFrom = (int) (floor(($listTotal - 1) / 5) * 5 + 1);
+assertSame([$listTotal - $lastFrom + 1, true, true], [
+    substr_count($pager, '/admin/product/edit?id='),
+    str_contains($pager, '<option value="5" selected>'),
+    str_contains($pager, $lastFrom . '-' . $listTotal . ' de ' . $listTotal),
+], 'paginação: "Mostrar linhas" muda o tamanho; página além do fim mostra a última');
 $sourceService->create(['code' => 'selftest_var_cd', 'name' => 'CD Var', 'website_id' => $defaultWebsite, 'is_enabled' => 1]);
 assertSame('PRODUCT_IS_CONFIGURABLE', $throws(static fn () => $stock->save($parentId, ['selftest_var_cd' => ['quantity' => '1']])), 'estoque no pai com grade é recusado');
 $stock->saveGrid($parentId, 'selftest_var_cd', [$v[0]['product_id'] => '2', $v[1]['product_id'] => '3,5', $v[2]['product_id'] => '4']);

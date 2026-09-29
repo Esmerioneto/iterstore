@@ -11,7 +11,8 @@ use Iter\Store\Model\Website;
 
 class ProductList implements ViewComponentInterface
 {
-    private const PER_PAGE = 8;
+    /** "Mostrar linhas" choices; the first one is the default */
+    public const PAGE_SIZES = [8, 5, 10, 20];
 
     public function getTemplate(): string
     {
@@ -24,8 +25,14 @@ class ProductList implements ViewComponentInterface
         foreach (['website_id', 'attribute_set_id', 'category_id', 'is_active', 'q'] as $key) {
             $filters[$key] = trim((string) ($_GET[$key] ?? ''));
         }
+        $limit = in_array((int) ($_GET['limit'] ?? 0), self::PAGE_SIZES, true) ? (int) $_GET['limit'] : self::PAGE_SIZES[0];
         $page = max(1, (int) ($_GET['page'] ?? 1));
-        $result = (new Product())->getResource()->search($filters, $page, self::PER_PAGE);
+        $result = (new Product())->getResource()->search($filters, $page, $limit);
+        $totalPages = max(1, (int) ceil($result['total'] / $limit));
+        if ($page > $totalPages) { // "Ir para a página" past the end, or fewer pages after a bigger page size
+            $page = $totalPages;
+            $result = (new Product())->getResource()->search($filters, $page, $limit);
+        }
         $categoryResource = (new Category())->getResource();
         $tree = $categoryResource->getTree();
         $productCategories = $categoryResource->getProductsCategoryIds(array_map('intval', array_column($result['items'], 'product_id')));
@@ -34,8 +41,9 @@ class ProductList implements ViewComponentInterface
             'products' => $result['items'],
             'filters' => $filters,
             'page' => $page,
+            'limit' => $limit,
             'total' => $result['total'],
-            'total_pages' => max(1, (int) ceil($result['total'] / self::PER_PAGE)),
+            'total_pages' => $totalPages,
             'sets' => ProductForm::productSets(),
             'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
             'categories' => $tree,
