@@ -9,6 +9,7 @@ use GraphQL\Type\Definition\Type;
 use GraphQL\Error\UserError;
 use GraphQL\Type\Schema as GraphQLSchema;
 use Iter\Admin\Auth;
+use Iter\Admin\GraphQl\AdminSchema;
 use Iter\Core\Config;
 use Iter\Catalog\GraphQl\ProductSchema;
 use Iter\Inventory\GraphQl\StockSchema;
@@ -92,6 +93,7 @@ class Schema
         $stock = \isModuleEnabled('iter_inventory') ? StockSchema::fields() : ['product' => [], 'query' => [], 'mutation' => []];
         $product = \isModuleEnabled('iter_catalog') ? ProductSchema::fields($stock['product']) : ['query' => [], 'mutation' => []];
         $stores = \isModuleEnabled('iter_store');
+        $admin = AdminSchema::fields(); // Admin is a required module
 
         $queryType = new ObjectType([
             'name' => 'Query',
@@ -114,7 +116,7 @@ class Schema
                         return $id === null || Config::websiteExists($id) ? ['id' => $id] : null;
                     },
                 ],
-            ] : []) + $product['query'] + $stock['query'],
+            ] : []) + $product['query'] + $stock['query'] + $admin['query'],
         ]);
 
         $mutationType = new ObjectType([
@@ -153,7 +155,7 @@ class Schema
                         return true;
                     }),
                 ],
-            ] : []) + $product['mutation'] + $stock['mutation'],
+            ] : []) + $product['mutation'] + $stock['mutation'] + $admin['mutation'],
         ]);
 
         if (!$queryType->getFields()) {

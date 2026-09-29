@@ -1359,6 +1359,30 @@ assertSame('7', (new StockService())->getSalable([$estId])[$estId], 'Inventory r
 assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
 assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Configurações não chega aos módulos');
 
+// --- GraphQL: admin login by token ------------------------------------------------------------
+$api = static function (string $query, ?string $token = null) use ($base): array { // no cookies: a separate app
+    $ch = curl_init($base . '/core/graphql/index');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POSTFIELDS => json_encode(['query' => $query]),
+        CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $token === null ? [] : ["Authorization: Bearer {$token}"])]);
+    $body = json_decode((string) curl_exec($ch), true);
+
+    return [curl_getinfo($ch, CURLINFO_RESPONSE_CODE), $body];
+};
+$login = static fn (string $password) => $api('mutation { generateAdminToken(username: "selftest_admin", password: "' . $password . '") { token expires_at user { username role } } }');
+[, $r] = $login('errada1234');
+assertSame(['INVALID_CREDENTIALS', 1], [$r['errors'][0]['extensions']['code'] ?? null, (int) $pdo->query("SELECT failures_num FROM admin_user WHERE user_id = {$adminId}")->fetchColumn()], 'API: senha errada é recusada e conta como falha');
+[, $r] = $login(PASSWORD);
+$token = $r['data']['generateAdminToken']['token'] ?? '';
+assertSame([64, 'selftest_admin', 0], [strlen($token), $r['data']['generateAdminToken']['user']['username'] ?? null, (int) $pdo->query("SELECT failures_num FROM admin_user WHERE user_id = {$adminId}")->fetchColumn()], 'API: login devolve o token');
+assertSame([null, 'selftest_admin'], [$api('{ currentAdmin { username } }')[1]['data']['currentAdmin'], $api('{ currentAdmin { username } }', $token)[1]['data']['currentAdmin']['username'] ?? null], 'API: o token identifica o admin sem sessão');
+$update = 'mutation { updateProduct(id: "0") { id } }';
+assertSame(['Acesso negado.', 'PRODUCT_NOT_FOUND'], [$api($update)[1]['errors'][0]['message'] ?? null, $api($update, $token)[1]['errors'][0]['extensions']['code'] ?? null], 'API: o token dá as permissões do admin');
+assertSame([401, 'TOKEN_INVALID'], [$api('{ currentAdmin { username } }', 'nada')[0], $api('{ currentAdmin { username } }', 'nada')[1]['errors'][0]['extensions']['code'] ?? null], 'API: token desconhecido é recusado');
+assertSame([true, 401], [$api('mutation { revokeAdminToken }', $token)[1]['data']['revokeAdminToken'] ?? null, $api('{ currentAdmin { username } }', $token)[0]], 'API: logout revoga o token');
+[, $r] = $login(PASSWORD);
+$pdo->exec("UPDATE admin_api_token SET expires_at = NOW() - INTERVAL '1 second' WHERE user_id = {$adminId}");
+assertSame(401, $api('{ currentAdmin { username } }', $r['data']['generateAdminToken']['token'])[0], 'API: token vencido é recusado');
+
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());
 assertSame(true, abs($dbNow - time()) < 5, 'banco e PHP usam o mesmo fuso (' . date_default_timezone_get() . ')');
