@@ -324,6 +324,66 @@ a {
   color: var(--color-paper);
 }
 
+/* List pager: "Ir para a página", "Mostrar linhas", range and arrows, on the right under the table */
+.admin-dashboard form.admin-pager {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--spacing-16);
+  margin-top: var(--spacing-16);
+  font-size: 13px;
+}
+
+.admin-dashboard form.admin-pager label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.admin-dashboard form.admin-pager input[type="number"],
+.admin-dashboard form.admin-pager select {
+  width: auto;
+  margin: 0;
+  padding: 3px 6px;
+  font-size: 13px;
+}
+
+.admin-dashboard form.admin-pager input[type="number"] {
+  width: 3.5em;
+  text-align: right;
+}
+
+.admin-pager-arrows {
+  display: inline-flex;
+}
+
+.admin-pager-arrows > a,
+.admin-pager-arrows > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  border: 1px solid var(--color-pebble);
+  color: var(--color-ink);
+  font-size: 9px;
+  text-decoration: none;
+}
+
+.admin-pager-arrows > :last-child {
+  border-left: 0;
+}
+
+.admin-pager-arrows > a:hover {
+  background: var(--color-linen);
+}
+
+.admin-pager-arrows > span {
+  color: var(--color-pebble);
+}
+
 /* Entity forms (product, customer): blocks in a grid as wide as the page; each admin arranges their own ("Organizar tela") */
 .product-layout {
   display: grid;

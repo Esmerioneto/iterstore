@@ -74,16 +74,34 @@
 <?php endif; ?>
         </tbody>
     </table>
-<?php if ($total_pages > 1): ?>
-    <p>
-    <?php for ($p = 1; $p <= $total_pages; $p++): ?>
-        <?php if ($p === $page): ?>
-        <strong><?= $p ?></strong>
-        <?php else: ?>
-        <a href="/admin/product/index?<?= htmlspecialchars(http_build_query(array_filter($filters, 'strlen') + ['page' => $p])) ?>"><?= $p ?></a>
-        <?php endif; ?>
-    <?php endfor; ?>
-        (<?= (int) $total ?> produtos)
-    </p>
-<?php endif; ?>
+<?php
+$query = array_filter($filters, 'strlen') + ($limit === \Iter\Catalog\View\ProductList::PAGE_SIZES[0] ? [] : ['limit' => $limit]);
+$pageUrl = static fn (int $p) => '/admin/product/index?' . htmlspecialchars(http_build_query($query + ['page' => $p]));
+?>
+    <form method="get" action="/admin/product/index" class="admin-pager">
+    <?php foreach (array_filter($filters, 'strlen') as $name => $value): ?>
+        <input type="hidden" name="<?= htmlspecialchars($name) ?>" value="<?= htmlspecialchars($value) ?>">
+    <?php endforeach; ?>
+        <label>Ir para a página: <input type="number" name="page" value="<?= (int) $page ?>" min="1" max="<?= (int) $total_pages ?>"></label>
+        <label>Mostrar linhas:
+            <select name="limit" data-autosubmit>
+    <?php foreach (\Iter\Catalog\View\ProductList::PAGE_SIZES as $size): ?>
+                <option value="<?= $size ?>" <?= $size === $limit ? 'selected' : '' ?>><?= $size ?></option>
+    <?php endforeach; ?>
+            </select>
+        </label>
+        <span><?= $total ? (($page - 1) * $limit + 1) . '-' . min($page * $limit, $total) : 0 ?> de <?= (int) $total ?></span>
+        <span class="admin-pager-arrows">
+    <?php if ($page > 1): ?>
+            <a href="<?= $pageUrl($page - 1) ?>" title="Página anterior" aria-label="Página anterior">&#9664;</a>
+    <?php else: ?>
+            <span aria-disabled="true">&#9664;</span>
+    <?php endif; ?>
+    <?php if ($page < $total_pages): ?>
+            <a href="<?= $pageUrl($page + 1) ?>" title="Próxima página" aria-label="Próxima página">&#9654;</a>
+    <?php else: ?>
+            <span aria-disabled="true">&#9654;</span>
+    <?php endif; ?>
+        </span>
+    </form>
 </section>
