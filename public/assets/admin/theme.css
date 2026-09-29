@@ -553,6 +553,11 @@ a {
   cursor: zoom-in;
 }
 
+/* display:block above beats the hidden attribute */
+.eav-file-preview[hidden] {
+  display: none;
+}
+
 .eav-file-placeholder {
   filter: grayscale(1);
   opacity: 0.4;
@@ -594,4 +599,3 @@ a {
 @media (max-width: 800px) {
   .config-settings-form .config-fields { grid-template-columns: 1fr; }
 }
-.config-settings-form [data-image-preview][hidden] { display: none; }
