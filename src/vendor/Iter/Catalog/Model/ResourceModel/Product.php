@@ -80,4 +80,31 @@ class Product extends AbstractDb
             ));
         });
     }
+
+    /** @return int[] the configurable product's variant attributes, in grid order */
+    public function getVariantAttributeIds(int $productId): array
+    {
+        $db = $this->getConnection();
+
+        return array_map('intval', $db->fetchCol($db->select()->from('catalog_product_variant_attribute', ['attribute_id'])
+            ->where('product_id = ?', $productId)->order('position')));
+    }
+
+    /** @param int[] $attributeIds in grid order */
+    public function setVariantAttributes(int $productId, array $attributeIds): void
+    {
+        $this->getConnection()->insertMultiple('catalog_product_variant_attribute', array_map(
+            static fn ($id, $position) => ['product_id' => $productId, 'attribute_id' => $id, 'position' => $position],
+            $attributeIds,
+            array_keys($attributeIds)
+        ));
+    }
+
+    /** @return array<int, array<string, mixed>> the variants' catalog_product rows */
+    public function getVariantRows(int $parentId): array
+    {
+        $db = $this->getConnection();
+
+        return $db->fetchAll($db->select()->from('catalog_product')->where('parent_id = ?', $parentId)->order('product_id'));
+    }
 }
