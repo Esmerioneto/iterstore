@@ -388,14 +388,15 @@ assertSame('radio', $attributeRow('selftest_color')['input_type'], 'troca para t
 $optionsOf = static fn (string $code) => $pdo->query("SELECT o.value, o.label, o.sort_order, o.is_default FROM eav_attribute_option o
     JOIN eav_attribute a ON a.attribute_id = o.attribute_id WHERE a.code = '{$code}' ORDER BY o.sort_order")->fetchAll(PDO::FETCH_NUM);
 $blankRow = ['value' => '', 'label' => '', 'sort_order' => ''];
-assertSame(['Atributo criado com sucesso.'], $saveAttribute(['code' => 'selftest_size', 'input_type' => 'select', 'options' => [
+assertSame(['Atributo criado com sucesso.'], $saveAttribute(['code' => 'selftest_size', 'input_type' => 'select', 'is_variant' => '1', 'options' => [
     ['value' => 'p', 'label' => 'Pequeno', 'sort_order' => ''], ['value' => 'g', 'label' => '', 'sort_order' => '', 'is_default' => '1'], $blankRow,
 ]]), 'select criado com opções');
 assertSame([['p', 'Pequeno', 10, 0], ['g', 'g', 20, 1]], $optionsOf('selftest_size'), 'opções gravadas; linha vazia ignorada, nome vazio usa o valor');
 assertSame(["A opção 'x' aparece mais de uma vez."], $saveAttribute(['code' => 'selftest_dup', 'input_type' => 'select', 'options' => [['value' => 'x'], ['value' => 'x']]]), 'valor de opção repetido é recusado');
 assertSame(["Informe o valor da opção 'Sem valor'."], $saveAttribute(['code' => 'selftest_noval', 'input_type' => 'radio', 'options' => [['value' => '', 'label' => 'Sem valor']]]), 'opção sem valor é recusada');
 assertSame(["O tipo 'Seleção' aceita só uma opção padrão."], $saveAttribute(['code' => 'selftest_2def', 'input_type' => 'select', 'options' => [['value' => 'a', 'is_default' => '1'], ['value' => 'b', 'is_default' => '1']]]), 'seleção simples aceita só uma opção padrão');
-assertSame(['Atributo criado com sucesso.'], $saveAttribute(['code' => 'selftest_multi', 'input_type' => 'multiselect', 'options' => [['value' => 'a', 'is_default' => '1'], ['value' => 'b', 'is_default' => '1']]]), 'múltipla seleção aceita várias opções padrão');
+assertSame(['Atributo criado com sucesso.'], $saveAttribute(['code' => 'selftest_multi', 'input_type' => 'multiselect', 'is_variant' => '1', 'options' => [['value' => 'a', 'is_default' => '1'], ['value' => 'b', 'is_default' => '1']]]), 'múltipla seleção aceita várias opções padrão');
+assertSame([1, 0], [(int) $attributeRow('selftest_size')['is_variant'], (int) $attributeRow('selftest_multi')['is_variant']], '"Usar na grade" só vale para Seleção');
 $saveAttribute(['code' => 'selftest_texto', 'options' => [['value' => 'ignorada']]]);
 assertSame([], $optionsOf('selftest_texto'), 'tipo sem opções não grava opções');
 
@@ -569,7 +570,7 @@ assertSame(['SKU deve ter até 64 caracteres: letras, números, ponto, hífen e 
 // a product in another set gets that set's fields only
 $setService->create(['entity_type' => 'product', 'code' => 'selftest_roupa', 'label' => 'Roupa']);
 $roupa = (int) $setRow('selftest_roupa')['attribute_set_id'];
-$service->create(['entity_type' => 'product', 'code' => 'selftest_tam', 'label' => 'Tamanho', 'input_type' => 'select', 'options' => [['value' => 'p'], ['value' => 'm']]]);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_tam', 'label' => 'Tamanho', 'input_type' => 'select', 'is_variant' => 1, 'options' => [['value' => 'p'], ['value' => 'm']]]);
 $setService->update($roupa, ['label' => 'Roupa', 'items' => [$attrId('price') => ['in' => 1], $attrId('selftest_tam') => ['in' => 1, 'group' => 'Medidas']]]);
 $roupaForm = $admin->request('/admin/product/create?set=' . $roupa)['body'];
 assertSame([true, false], [str_contains($roupaForm, 'name="attributes[selftest_tam]"'), str_contains($roupaForm, 'name="attributes[description]"')], 'form segue o conjunto escolhido');
@@ -913,17 +914,19 @@ assertSame(['0', false], [$stock->getSalable([$webId])[$webId], in_array('selfte
 $productService->delete($webId);
 
 // --- variações (produto com grade) -------------------------------------------------------------
-$service->create(['entity_type' => 'product', 'code' => 'selftest_vcor', 'label' => 'Cor', 'input_type' => 'select', 'options' => [['value' => 'az', 'label' => 'Azul Marinho'], ['value' => 'pr', 'label' => 'Preto']]]);
-$service->create(['entity_type' => 'product', 'code' => 'selftest_tec', 'label' => 'Tecido', 'input_type' => 'select', 'options' => [['value' => 'al', 'label' => 'Algodão']]]);
-$service->create(['entity_type' => 'product', 'code' => 'selftest_gola', 'label' => 'Gola', 'input_type' => 'select', 'options' => [['value' => 'v', 'label' => 'V']]]);
-$setService->update($roupa, ['label' => 'Roupa', 'items' => [$attrId('price') => ['in' => 1], $attrId('selftest_tam') => ['in' => 1], $attrId('selftest_vcor') => ['in' => 1], $attrId('selftest_tec') => ['in' => 1], $attrId('selftest_gola') => ['in' => 1], $attrId('selftest_cor') => ['in' => 1]]]);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_vcor', 'label' => 'Cor', 'input_type' => 'select', 'is_variant' => 1, 'options' => [['value' => 'az', 'label' => 'Azul Marinho'], ['value' => 'pr', 'label' => 'Preto']]]);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_tec', 'label' => 'Tecido', 'input_type' => 'select', 'is_variant' => 1, 'options' => [['value' => 'al', 'label' => 'Algodão']]]);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_gola', 'label' => 'Gola', 'input_type' => 'select', 'is_variant' => 1, 'options' => [['value' => 'v', 'label' => 'V']]]);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_manga', 'label' => 'Manga', 'input_type' => 'select', 'options' => [['value' => 'c', 'label' => 'Curta']]]);
+$setService->update($roupa, ['label' => 'Roupa', 'items' => [$attrId('price') => ['in' => 1], $attrId('selftest_tam') => ['in' => 1], $attrId('selftest_vcor') => ['in' => 1], $attrId('selftest_tec') => ['in' => 1], $attrId('selftest_gola') => ['in' => 1], $attrId('selftest_manga') => ['in' => 1], $attrId('selftest_cor') => ['in' => 1]]]);
 $varService = new VariantService();
 $parentData = ['attribute_set_id' => $roupa, 'sku' => 'selftest-var', 'name' => 'Blusa', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory], 'type' => 'configurable'];
-assertSame(['VARIANT_ATTRIBUTE_INVALID', 'VARIANT_ATTRIBUTE_INVALID', 'VARIANT_ATTRIBUTE_INVALID'], [
+assertSame(['VARIANT_ATTRIBUTE_INVALID', 'VARIANT_ATTRIBUTE_INVALID', 'VARIANT_ATTRIBUTE_INVALID', 'VARIANT_ATTRIBUTE_INVALID'], [
     $throws(static fn () => $productService->create($parentData + ['variant_attributes' => []])),
     $throws(static fn () => $productService->create($parentData + ['variant_attributes' => ['selftest_vcor', 'selftest_tam', 'selftest_tec', 'selftest_gola']])),
     $throws(static fn () => $productService->create($parentData + ['variant_attributes' => ['selftest_cor']])),
-], 'grade pede de 1 a 3 atributos de seleção do conjunto');
+    $throws(static fn () => $productService->create($parentData + ['variant_attributes' => ['selftest_manga']])),
+], 'grade pede de 1 a 3 atributos do conjunto marcados "Usar na grade"');
 $parentId = (int) $productService->create($parentData + ['variant_attributes' => ['selftest_vcor', 'selftest_tam']], ['price' => '99'])->getId();
 assertSame([[], ['selftest_vcor', 'selftest_tam']], [$productService->getValues($parentId), array_column($varService->getAttributes($parentId), 'code')], 'pai com grade não grava valores EAV; atributos da grade em ordem');
 $combos = [];
@@ -959,7 +962,7 @@ assertSame(['Camisa - Azul Marinho / p', 'selftest-var-az-p', ['selftest_vcor' =
 ], 'variação editada: SKU e preço mudam; nome, websites e combinação ficam os do pai');
 assertSame([['selftest_vcor' => 'pr', 'selftest_tam' => 'm']], $varService->generate($parentId, ['selftest_vcor' => ['az', 'pr', 'xx'], 'selftest_tam' => ['p', 'm']]), 'gerar devolve só as combinações que faltam');
 $createForm = $admin->request('/admin/product/create?set=' . $roupa . '&type=configurable')['body'];
-assertSame([true, false, false], [str_contains($createForm, 'name="variant_attributes[]" value="selftest_vcor"'), str_contains($createForm, 'value="selftest_cor"'), str_contains($createForm, 'name="attributes[price]"')], 'criar com grade oferece os atributos de seleção, sem campos EAV');
+assertSame([true, false, false, false], [str_contains($createForm, 'name="variant_attributes[]" value="selftest_vcor"'), str_contains($createForm, 'value="selftest_cor"'), str_contains($createForm, 'value="selftest_manga"'), str_contains($createForm, 'name="attributes[price]"')], 'criar com grade oferece só os atributos marcados "Usar na grade", sem campos EAV');
 [, $msgs] = $admin->submit('/admin/product/create?set=' . $roupa . '&type=configurable', '/admin/product/save', ['attribute_set_id' => $roupa, 'type' => 'configurable', 'variant_attributes' => ['selftest_tam'], 'sku' => 'selftest-var2', 'name' => 'Meia', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]]);
 assertSame([['Produto criado com sucesso.'], 'configurable'], [$msgs, $productRow('selftest-var2')['type'] ?? null], 'tela: cria produto com grade');
 $v = $varService->getVariants($parentId);

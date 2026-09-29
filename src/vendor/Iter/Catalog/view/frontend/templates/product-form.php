@@ -36,7 +36,7 @@ ob_start(); ?>
         <label style="display:block"><input form="product-form" type="checkbox" name="variant_attributes[]" value="<?= $e($field['name']) ?>" <?= in_array($field['name'], $variant_attributes, true) ? 'checked' : '' ?>> <?= $e($field['label']) ?></label>
     <?php endforeach; ?>
     <?php if (!$variant_candidates): ?>
-        <p>O conjunto não tem atributos de seleção: cadastre um (ex.: Cor, Tamanho) e inclua no conjunto.</p>
+        <p>O conjunto não tem atributos marcados "Usar na grade": em Catálogo → Atributos, marque a opção num atributo do tipo Seleção (ex.: Cor, Tamanho) e inclua-o no conjunto.</p>
     <?php endif; ?>
         <small>De 1 a 3 (ex.: Cor e Tamanho). Não mudam depois de salvar.</small>
     </fieldset>

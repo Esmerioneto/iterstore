@@ -65,7 +65,7 @@ class Attribute
             'default_value' => trim($_POST['default_value'] ?? ''),
             'sort_order' => (int) ($_POST['sort_order'] ?? 0),
         ];
-        foreach (['is_required', 'is_visible', 'is_searchable', 'is_filterable', 'is_sortable'] as $flag) {
+        foreach (['is_required', 'is_visible', 'is_searchable', 'is_filterable', 'is_sortable', 'is_variant'] as $flag) {
             $data[$flag] = !empty($_POST[$flag]) ? 1 : 0;
         }
         // absent when the form disabled the options block (input type without options)

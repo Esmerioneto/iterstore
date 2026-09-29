@@ -25,7 +25,7 @@ class AttributeService
     /**
      * @param array{entity_type: string, code: string, label: string, input_type: string, default_value?: ?string,
      *              is_required?: int, is_visible?: int, is_searchable?: int, is_filterable?: int, is_sortable?: int,
-     *              sort_order?: int, options?: array<int, array>} $data
+     *              sort_order?: int, is_variant?: int, options?: array<int, array>} $data
      */
     public function create(array $data, bool $system = false): Attribute
     {
@@ -46,7 +46,7 @@ class AttributeService
         $options = $inputType['supports_options'] ? $this->options($data['options'] ?? [], $inputType) : [];
 
         $model->getResource()->getConnection()->transaction(function () use ($model, $data, $entityType, $code, $inputType, $system, $options): void {
-            $model->addData($this->fields($data) + [
+            $model->addData($this->fields($data, $inputType) + [
                 'entity_type_id' => (int) $entityType['entity_type_id'],
                 'code' => $code,
                 'input_type' => $inputType['code'],
@@ -97,7 +97,7 @@ class AttributeService
             }
         }
 
-        $fields = $this->fields($data) + ['input_type' => $newType, 'storage_type' => $inputType['storage_type']];
+        $fields = $this->fields($data, $inputType) + ['input_type' => $newType, 'storage_type' => $inputType['storage_type']];
         if ($model->isSystem()) {
             $fields = array_intersect_key($fields, array_flip(self::SYSTEM_EDITABLE));
         }
@@ -208,7 +208,7 @@ class AttributeService
     }
 
     /** editable columns, normalized */
-    private function fields(array $data): array
+    private function fields(array $data, array $inputType): array
     {
         $fields = [
             'label' => trim((string) $data['label']),
@@ -219,6 +219,8 @@ class AttributeService
             // missing flag = off, except is_visible, which defaults to on
             $fields[$flag] = empty($data[$flag] ?? ($flag === 'is_visible')) ? 0 : 1;
         }
+        // "Usar na grade": one option per variant, so only a single-choice list
+        $fields['is_variant'] = $inputType['code'] === 'select' && !empty($data['is_variant']) ? 1 : 0;
 
         return $fields;
     }
