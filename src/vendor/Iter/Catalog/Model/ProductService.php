@@ -113,7 +113,8 @@ class ProductService
     }
 
     /**
-     * A new product needs a category of one of its websites; on update, omitted = unchanged, but never none
+     * A new product needs a category of one of its websites; on update, omitted = unchanged, but never none.
+     * The parents of a chosen subcategory are added.
      *
      * @param int[] $websiteIds the product's websites
      * @return ?int[] null = keep the current categories
@@ -124,8 +125,17 @@ class ProductService
             return null;
         }
 
-        return (new CategoryService())->validIds($data['category_ids'] ?? [], $websiteIds)
+        $ids = (new CategoryService())->validIds($data['category_ids'] ?? [], $websiteIds)
             ?: throw new AttributeException('CATEGORY_REQUIRED', 'Escolha ao menos uma categoria para o produto.');
+        // a subcategory brings its parents (same website as it)
+        $parents = array_column((new Category())->getResource()->getTree(), 'parent_id', 'category_id');
+        foreach ($ids as $id) {
+            for ($parent = $parents[$id]; $parent !== null; $parent = $parents[$parent]) {
+                $ids[] = (int) $parent;
+            }
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**
