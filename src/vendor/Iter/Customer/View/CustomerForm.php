@@ -6,6 +6,7 @@ namespace Iter\Customer\View;
 
 use Iter\Admin\Auth;
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Customer\Model\AddressService;
 use Iter\Customer\Model\Customer;
 use Iter\Customer\Model\CustomerService;
 use Iter\Customer\Model\Group;
@@ -54,6 +55,9 @@ class CustomerForm implements ViewComponentInterface
             'sets' => $sets,
             'attribute_set_id' => $setId,
             'types' => Customer::TYPES,
+            // after a failed save, what was posted; else the saved ones
+            'addresses' => $old['addresses'] ?? ($id ? (new AddressService())->getList($id) : []),
+            'regions' => AddressService::REGIONS,
             // without the permission, the default layout (even if one was saved before it was revoked)
             'can_arrange' => $canArrange = Auth::isAllowed('Iter_Customer::customer_layout'),
             'layout' => (new FormLayout(Customer::ENTITY_TYPE))->get($canArrange ? (int) Auth::user()->getId() : null),

@@ -80,7 +80,8 @@ class Customer
         try {
             $attributes = ValueService::fromRequest('attributes');
             $service = new CustomerService();
-            $id ? $service->update($id, $data, $attributes) : $service->create($data, $attributes);
+            $addresses = is_array($_POST['addresses'] ?? null) ? $_POST['addresses'] : null;
+            $id ? $service->update($id, $data, $attributes, $addresses) : $service->create($data, $attributes, $addresses);
             Messages::addSuccess($id ? 'Cliente atualizado com sucesso.' : 'Cliente criado com sucesso.');
         } catch (AttributeException $e) {
             Messages::addError($e->getMessage());
@@ -88,7 +89,10 @@ class Customer
                 header('Location: /admin/customer/index');
                 exit;
             }
-            $_SESSION['iter_old_input'] = $data + ['attributes' => is_array($_POST['attributes'] ?? null) ? $_POST['attributes'] : []];
+            $_SESSION['iter_old_input'] = $data + [
+                'attributes' => is_array($_POST['attributes'] ?? null) ? $_POST['attributes'] : [],
+                'addresses' => is_array($_POST['addresses'] ?? null) ? array_values(array_filter($_POST['addresses'], 'is_array')) : null,
+            ];
             header('Location: ' . ($id ? '/admin/customer/edit?id=' . $id : '/admin/customer/create?set=' . $data['attribute_set_id']));
             exit;
         }

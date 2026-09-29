@@ -106,6 +106,47 @@ ob_start(); ?>
 </fieldset>
 <?php $blocks['pj'] = ['title' => 'Pessoa jurídica', 'html' => ob_get_clean(), 'attrs' => ' data-customer-type-block="pj"' . ($type === 'pj' ? '' : ' hidden')];
 
+// addresses: the saved ones plus a blank row that "+ Adicionar endereço" (admin.js data-add-row) copies;
+// blank rows are ignored and an address left out of the post is removed
+ob_start(); ?>
+<fieldset>
+    <legend>Endereços</legend>
+    <div id="customer-address-rows">
+<?php foreach (array_merge(array_values($addresses), [[]]) as $i => $address):
+    $a = static fn (string $key) => $e($address[$key] ?? ''); ?>
+        <fieldset class="customer-address" data-cep-scope>
+            <input form="customer-form" type="hidden" name="addresses[<?= $i ?>][address_id]" value="<?= $a('address_id') ?>">
+            <p><label>CEP<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][postcode]" value="<?= $a('postcode') ?>" data-mask="cep" data-cep="lookup"></label></p>
+            <p><label>Rua<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][street]" maxlength="255" value="<?= $a('street') ?>" data-cep="logradouro"></label></p>
+            <p><label>Número<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][number]" maxlength="20" size="8" value="<?= $a('number') ?>"></label></p>
+            <p><label>Complemento<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][complement]" maxlength="255" value="<?= $a('complement') ?>"></label></p>
+            <p><label>Bairro<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][district]" maxlength="255" value="<?= $a('district') ?>" data-cep="bairro"></label></p>
+            <p><label>Cidade<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][city]" maxlength="255" value="<?= $a('city') ?>" data-cep="localidade"></label></p>
+            <p>
+                <label>Estado (UF)<br>
+                    <select form="customer-form" name="addresses[<?= $i ?>][region]" data-cep="uf">
+                        <option value="">Selecione</option>
+<?php foreach ($regions as $uf => $name): ?>
+                        <option value="<?= $uf ?>" <?= ($address['region'] ?? '') === $uf ? 'selected' : '' ?>><?= $uf ?> — <?= $e($name) ?></option>
+<?php endforeach; ?>
+                    </select>
+                </label>
+            </p>
+            <p><label>Destinatário<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][recipient]" maxlength="255" value="<?= $a('recipient') ?>" placeholder="O próprio cliente"></label></p>
+            <p><label>Telefone<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][telephone]" value="<?= $a('telephone') ?>" data-mask="phone"></label></p>
+            <p>
+                <label><input form="customer-form" type="checkbox" name="addresses[<?= $i ?>][is_default_shipping]" value="1" data-exclusive="shipping" <?= !empty($address['is_default_shipping']) ? 'checked' : '' ?>> Padrão de entrega</label>
+                <label><input form="customer-form" type="checkbox" name="addresses[<?= $i ?>][is_default_billing]" value="1" data-exclusive="billing" <?= !empty($address['is_default_billing']) ? 'checked' : '' ?>> Padrão de cobrança</label>
+                <button type="button" data-clear-row>Remover</button>
+            </p>
+        </fieldset>
+<?php endforeach; ?>
+    </div>
+    <button type="button" data-add-row="customer-address-rows">+ Adicionar endereço</button>
+    <p><small>Linhas em branco são ignoradas. "Remover" limpa o endereço, que sai ao salvar. Sem padrão marcado, o primeiro endereço vira o padrão.</small></p>
+</fieldset>
+<?php $blocks['addresses'] = ['title' => 'Endereços', 'html' => ob_get_clean()];
+
 // one block per EAV group, rendered by the eav module's template
 $groupFields = [];
 foreach ($schema['fields'] as $field) {

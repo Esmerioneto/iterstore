@@ -1293,11 +1293,11 @@ assertSame(['gender' => 'f', 'phone' => '(11) 98765-4321', 'selftest_prof' => 'M
 // customer form layout: same editor as the product's, saved apart from it
 $anaPage = $admin->request('/admin/customer/edit?id=' . $anaId)['body'];
 $custBlocks = $blocksOf($anaPage);
-assertSame([['account', 'pf', 'pj', 'group:Dados pessoais', 'group:Extra'], true, true], [$custBlocks, str_contains($anaPage, 'data-layout-toggle'), str_contains($anaPage, 'data-save-url="/admin/customerlayout/save"')], 'form de cliente em blocos, com "Organizar tela"');
+assertSame([['account', 'pf', 'pj', 'addresses', 'group:Dados pessoais', 'group:Extra'], true, true], [$custBlocks, str_contains($anaPage, 'data-layout-toggle'), str_contains($anaPage, 'data-save-url="/admin/customerlayout/save"')], 'form de cliente em blocos, com "Organizar tela"');
 $custLayout = ['blocks' => [['id' => 'group:Extra', 'wide' => true], ['id' => 'account', 'wide' => false]], 'fields' => ['group:Dados pessoais' => ['phone', 'gender']], 'columns' => 2];
 assertSame([200, 'Layout salvo.'], $layoutPost($admin, '/admin/customerlayout/save', ['layout' => json_encode($custLayout)]), 'layout do cliente salvo pelo admin');
 $anaPage = $admin->request('/admin/customer/edit?id=' . $anaId)['body'];
-assertSame([['group:Extra (largura total)', 'account', 'pf', 'pj', 'group:Dados pessoais'], true, true], [
+assertSame([['group:Extra (largura total)', 'account', 'pf', 'pj', 'addresses', 'group:Dados pessoais'], true, true], [
     $blocksOf($anaPage),
     strpos($anaPage, 'data-field="phone"') < strpos($anaPage, 'data-field="gender"'),
     str_contains($anaPage, '--layout-columns: 2'),
@@ -1308,6 +1308,28 @@ assertSame([403, false], [$layoutPost($editor, '/admin/customerlayout/save', ['l
     'perfil sem "Organizar tela do cliente" recebe 403; outro admin mantém o padrão');
 assertSame([200, 'Layout padrão restaurado.'], $layoutPost($admin, '/admin/customerlayout/reset'), 'restaurar layout do cliente');
 assertSame($custBlocks, $blocksOf($admin->request('/admin/customer/edit?id=' . $anaId)['body']), 'depois de restaurar, cliente volta à ordem padrão');
+// addresses: saved with the customer form; blank rows ignored, one default of each kind
+$anaPost = static fn (array $addresses) => $admin->submit('/admin/customer/edit?id=' . $anaId, '/admin/customer/save', ['customer_id' => $anaId, 'website_id' => $websiteId, 'group_id' => $custGroup,
+    'email' => 'ana@selftest.local', 'firstname' => 'Ana', 'lastname' => 'Silva', 'customer_type' => 'pf', 'cpf' => '529.982.247-25', 'is_active' => '1', 'addresses' => $addresses])[1];
+$addr = ['postcode' => '01310-100', 'street' => 'Avenida Paulista', 'number' => '1000', 'district' => 'Bela Vista', 'city' => 'São Paulo', 'region' => 'SP'];
+$addrRows = static fn () => $pdo->query("SELECT address_id, postcode, number, is_default_shipping, is_default_billing FROM customer_address WHERE customer_id = {$anaId} ORDER BY address_id")->fetchAll(PDO::FETCH_ASSOC);
+assertSame([true, true, true], [
+    str_contains($anaPage, 'data-add-row="customer-address-rows"'),
+    (bool) preg_match('/name="addresses\[0\]\[postcode\]"[^>]*data-mask="cep" data-cep="lookup"/', $anaPage),
+    str_contains($anaPage, 'data-cep-scope'),
+], 'form de cliente: bloco de endereços com CEP e máscara');
+assertSame([['Endereço 1: informe o bairro.'], []], [$anaPost([['district' => ''] + $addr]), $addrRows()], 'endereço sem bairro é recusado');
+assertSame([['Endereço 1: escolha o estado (UF).'], []], [$anaPost([['region' => 'XX'] + $addr]), $addrRows()], 'UF inválida é recusada');
+assertSame(['Cliente atualizado com sucesso.'], $anaPost([$addr, ['number' => '20', 'is_default_shipping' => '1'] + $addr, ['postcode' => '', 'street' => '']]), 'cliente salvo com dois endereços e uma linha em branco');
+$rows = $addrRows();
+assertSame([2, '01310100', [0, 1], [1, 0]], [count($rows), $rows[0]['postcode'], array_map('intval', array_column($rows, 'is_default_shipping')), array_map('intval', array_column($rows, 'is_default_billing'))],
+    'CEP só com dígitos; padrão de entrega o marcado, de cobrança o primeiro');
+assertSame(['Cliente atualizado com sucesso.'], $anaPost([['address_id' => $rows[0]['address_id'], 'number' => '1500'] + $addr]), 'endereço editado e o outro removido');
+$rows2 = $addrRows();
+assertSame([[$rows[0]['address_id'], '1500', 1, 1]], array_map(static fn ($r) => [$r['address_id'], $r['number'], (int) $r['is_default_shipping'], (int) $r['is_default_billing']], $rows2), 'o endereço que ficou mantém o id e vira o padrão');
+assertSame(['O endereço 999999 não é deste cliente.'], $anaPost([['address_id' => '999999'] + $addr]), 'endereço de outro cliente é recusado');
+assertSame(true, str_contains($admin->request('/admin/customer/edit?id=' . $anaId)['body'], 'value="Avenida Paulista"'), 'form mostra o endereço salvo');
+
 assertSame(['Já existe um cliente com este e-mail neste website.'], $saveCustomer(['email' => 'ANA@selftest.local', 'cpf' => '111.444.777-35']), 'e-mail repetido no website é recusado');
 assertSame(['Já existe um cliente com este CPF neste website.'], $saveCustomer(['email' => 'outra@selftest.local']), 'CPF repetido no website é recusado');
 assertSame(['Cliente criado com sucesso.'], $saveCustomer(['website_id' => $website2]), 'o mesmo e-mail e CPF em outro website pode');
@@ -1332,7 +1354,7 @@ assertSame(403, $dash->request('/admin/customer/index')['status'], 'perfil sem C
 [, $msgs] = $admin->submit('/admin/customergroup/index', '/admin/customergroup/delete', ['customer_group_id' => $custGroup]);
 assertSame(['Não é possível remover: há clientes neste grupo.'], $msgs, 'grupo com clientes não é removido');
 [, $msgs] = $admin->submit('/admin/customer/index', '/admin/customer/delete', ['customer_id' => $anaId]);
-assertSame([['Cliente removido com sucesso.'], false, []], [$msgs, $custRow('ana@selftest.local'), $values->load('customer', $anaId)], 'cliente removido com os seus valores');
+assertSame([['Cliente removido com sucesso.'], false, [], []], [$msgs, $custRow('ana@selftest.local'), $values->load('customer', $anaId), $addrRows()], 'cliente removido com os seus valores e endereços');
 
 // --- modules on/off -------------------------------------------------------------------------------
 $toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];
