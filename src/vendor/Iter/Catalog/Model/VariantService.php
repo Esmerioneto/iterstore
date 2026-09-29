@@ -169,6 +169,7 @@ class VariantService
                     'name' => mb_substr($parent->getData('name') . ' - ' . implode(' / ', $labels), 0, 255),
                     'is_active' => empty($variant['is_active']) ? 0 : 1,
                 ] + ($id ? [] : ['variant_key' => $key]),
+                'options' => $options,
                 'values' => $values->validate(Product::ENTITY_TYPE, $eav, $id ?: null),
             ];
         }
@@ -193,6 +194,7 @@ class VariantService
                 if (!$row['id']) {
                     $model->getResource()->setWebsites($id, $websiteIds);
                     (new Category())->getResource()->setProductCategories($id, $categoryIds);
+                    $model->getResource()->setVariantOptions($id, $row['options']);
                 }
                 $values->write($id, $row['values']);
             }

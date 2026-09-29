@@ -102,12 +102,21 @@ class AttributeService
             $fields = array_intersect_key($fields, array_flip(self::SYSTEM_EDITABLE));
         }
 
-        $model->getResource()->getConnection()->transaction(function () use ($model, $fields, $options, $id): void {
-            $model->addData($fields)->save();
-            if ($options !== null) {
-                $model->getResource()->replaceOptions($id, $options);
+        try {
+            $model->getResource()->getConnection()->transaction(function () use ($model, $fields, $options, $id): void {
+                $model->addData($fields)->save();
+                if ($options !== null) {
+                    $model->getResource()->replaceOptions($id, $options);
+                }
+            });
+        } catch (\PDOException $e) {
+            // other modules' tables (e.g. a product variant's combination) reference options with ON DELETE RESTRICT
+            if ($e->getCode() === '23503') {
+                $removed = array_diff(array_column($this->getOptions($id), 'value'), array_column($options ?? [], 'value'));
+                throw new AttributeException('OPTION_IN_USE', 'Uma das opções removidas (' . implode(', ', $removed) . ') está em uso, por exemplo numa variação de produto, e não pode ser removida nem ter o valor alterado.');
             }
-        });
+            throw $e;
+        }
 
         return $model;
     }
