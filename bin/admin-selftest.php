@@ -878,6 +878,15 @@ assertSame(['WEBSITE_INVALID', 'CATEGORY_WEBSITE_MISMATCH'], [
     $throws(static fn () => $productService->create($webData + ['website_ids' => [], 'category_ids' => [$baseCategory]], ['price' => '1'])),
     $throws(static fn () => $productService->create($webData + ['website_ids' => [$defaultWebsite], 'category_ids' => [$siteWCat]], ['price' => '1'])),
 ], 'produto sem website e categoria de website em que o produto não está são recusados');
+$emptySite = (int) (new Website())->addData(['code' => 'selftest_vazio', 'name' => 'Vazio'])->save()->getId();
+assertSame([
+    "O produto não tem categoria no website 'Selftest W'. Escolha uma categoria desse website ou desmarque o website.",
+    "O produto não tem categoria no website 'Vazio'. Esse website ainda não tem categorias: cadastre uma em Catálogo → Categorias ou desmarque o website.",
+], [
+    $saveProduct(['sku' => 'selftest-web', 'website_ids' => [$defaultWebsite, $websiteId], 'attributes' => ['price' => '1']])[0] ?? null,
+    $saveProduct(['sku' => 'selftest-web', 'website_ids' => [$defaultWebsite, $emptySite], 'attributes' => ['price' => '1']])[0] ?? null,
+], 'produto em website sem nenhuma das categorias dele é recusado, com o aviso');
+(new Website())->setId($emptySite)->delete();
 $webId = (int) $productService->create($webData + ['website_ids' => [$defaultWebsite, $websiteId], 'category_ids' => [$baseCategory, $siteWCat]], ['price' => '1'])->getId();
 assertSame('CATEGORY_WEBSITE_MISMATCH', $throws(static fn () => $productService->update($webId, $webData + ['website_ids' => [$defaultWebsite]], ['price' => '1'])), 'tirar o website de uma categoria mantida é recusado');
 $productService->update($webId, $webData + ['website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '1']);
@@ -890,9 +899,9 @@ assertSame(['WEBSITE_INVALID', 'SOURCE_WEBSITE_MISMATCH', false], [
     $throws(static fn () => $stock->save($webId, ['selftest_w_cd' => ['quantity' => '3']])),
     in_array('selftest_w_cd', array_column($stock->getItems($webId), 'code'), true),
 ], 'origem sem website é recusada; produto só tem estoque nas origens dos websites dele');
-$productService->update($webId, $webData + ['website_ids' => [$defaultWebsite, $websiteId]], ['price' => '1']);
+$productService->update($webId, $webData + ['website_ids' => [$defaultWebsite, $websiteId], 'category_ids' => [$baseCategory, $siteWCat]], ['price' => '1']);
 $stock->save($webId, ['selftest_w_cd' => ['quantity' => '3']]);
-$productService->update($webId, $webData + ['website_ids' => [$defaultWebsite]], ['price' => '1']);
+$productService->update($webId, $webData + ['website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '1']);
 assertSame(['0', false], [$stock->getSalable([$webId])[$webId], in_array('selftest_w_cd', array_column($stock->getItems($webId), 'code'), true)], 'estoque de origem de website que o produto deixou não entra no saldo');
 $productService->delete($webId);
 
