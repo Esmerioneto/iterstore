@@ -996,6 +996,29 @@ assertSame([true, true, 1, true], [str_contains($gridPage, 'Estoque por grade'),
     'painel da grade: célula por variação, hífen onde não há combinação, total');
 [, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId . '&source=selftest_var_cd', '/admin/stock/grid', ['product_id' => $parentId, 'source' => 'selftest_var_cd', 'grid' => [$v[0]['product_id'] => '1']]);
 assertSame([['Estoque atualizado com sucesso.'], true], [$msgs, str_contains($admin->request('/admin/product/index?q=selftest-var')['body'], '<td>4,5</td>')], 'tela: salva a grade; lista mostra o saldo somado');
+$r = $gql($guest, '{ product(sku: "selftest-var") { type variantAttributes { code options { value label } } variants { sku variantOptions { code value label } parent { sku } } } }')['data']['product'] ?? null;
+$opt = static fn ($c, $v, $l) => ['code' => $c, 'value' => $v, 'label' => $l];
+assertSame([
+    'type' => 'CONFIGURABLE',
+    'variantAttributes' => [['code' => 'selftest_vcor', 'options' => [['value' => 'az', 'label' => 'Azul Marinho'], ['value' => 'pr', 'label' => 'Preto']]], ['code' => 'selftest_tam', 'options' => [['value' => 'p', 'label' => 'p'], ['value' => 'm', 'label' => 'm']]]],
+    'variants' => [
+        ['sku' => 'selftest-var-az-p', 'variantOptions' => [$opt('selftest_vcor', 'az', 'Azul Marinho'), $opt('selftest_tam', 'p', 'p')], 'parent' => ['sku' => 'selftest-var']],
+        ['sku' => 'selftest-var-PRETO-P', 'variantOptions' => [$opt('selftest_vcor', 'pr', 'Preto'), $opt('selftest_tam', 'p', 'p')], 'parent' => ['sku' => 'selftest-var']],
+    ],
+], $r, 'GraphQL: tipo, atributos da grade e variações ativas com a combinação e o pai');
+$skus = array_column($gql($guest, '{ products(search: "selftest-var") { items { sku } } }')['data']['products']['items'] ?? [], 'sku');
+assertSame([true, false, 'selftest-var'], [in_array('selftest-var', $skus, true), in_array('selftest-var-az-p', $skus, true), $gql($guest, '{ product(sku: "SELFTEST-VAR-PRETO-P") { parent { sku } } }')['data']['product']['parent']['sku'] ?? null],
+    'GraphQL: products lista só os pais; product(sku:) acha a variação');
+$saveGql = 'mutation ($id: ID!, $vs: [VariantInput!]!) { saveVariants(productId: $id, variants: $vs) { sku } }';
+$vs = [...array_map(static fn ($x) => ['id' => (string) $x['product_id']], $v), ['options' => [['code' => 'selftest_vcor', 'value' => 'az'], ['code' => 'selftest_tam', 'value' => 'm']], 'price' => '50']];
+assertSame(['Acesso negado.', 'VARIANT_DUPLICATE'], [
+    $gql($guest, $saveGql, ['id' => (string) $parentId, 'vs' => $vs])['errors'][0]['message'] ?? null,
+    $gql($admin, $saveGql, ['id' => (string) $parentId, 'vs' => [...$vs, $vs[3]]])['errors'][0]['extensions']['code'] ?? null,
+], 'GraphQL: saveVariants só para o admin; erros com código');
+assertSame(['selftest-var-az-p', 'selftest-var-PRETO-P', 'selftest-var-PRETO-M', 'selftest-var-AZUL-MARINHO-M'], array_column($gql($admin, $saveGql, ['id' => (string) $parentId, 'vs' => $vs])['data']['saveVariants'] ?? [], 'sku'),
+    'GraphQL: saveVariants mantém os SKUs e cria a nova com o SKU sugerido');
+assertSame('CONFIGURABLE', $gql($admin, 'mutation { createProduct(sku: "selftest-var3", name: "Boné", attributeSetId: "' . $roupa . '", categoryIds: ["' . $baseCategory . '"], type: CONFIGURABLE, variantAttributes: ["selftest_tam"]) { type } }')['data']['createProduct']['type'] ?? null,
+    'GraphQL: createProduct com grade');
 $productService->delete($parentId);
 assertSame([false, []], [$productRow('selftest-var-az-p'), $values->load('product', $variants[0]['product_id'])], 'apagar o pai apaga as variações e os valores delas');
 
