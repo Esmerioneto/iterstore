@@ -54,7 +54,7 @@ foreach ($groups as $group => $fields) {
         $name_prefix = 'attributes';
         $form_id = 'product-form';
         require (new \Iter\Core\View\ComponentResolver())->resolveTemplate('eav/form-fields');
-    })(['fields' => FormLayout::sortFields($layout, $id, $fields)], $attribute_values);
+    })(['entity_type' => 'product', 'fields' => FormLayout::sortFields($layout, $id, $fields)], $attribute_values);
     $blocks[$id] = ['title' => $group !== '' ? $group : 'Atributos', 'html' => ob_get_clean()];
 }
 

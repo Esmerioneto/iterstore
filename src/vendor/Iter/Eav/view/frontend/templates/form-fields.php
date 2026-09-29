@@ -31,7 +31,14 @@ foreach ($schema['fields'] as $field) {
             <?php if ($file !== ''): ?>
         <a href="<?= $e(\Iter\Eav\Model\ValueService::MEDIA_URL . $file) ?>" target="_blank" data-image-popup="<?= $e($f['label']) ?>"><img class="eav-file-preview" src="<?= $e(\Iter\Eav\Model\ValueService::MEDIA_URL . $file) ?>" alt=""></a><br>
             <?php endif; ?>
-        <input<?= $formAttr ?> type="file" name="<?= $name ?>" accept="<?= $e(implode(',', $f['accept'])) ?>" <?= $file === '' ? $required : '' ?>>
+            <?php if (!array_filter($f['accept'], static fn ($type) => !str_starts_with($type, 'image/'))): // images only: show the chosen file before saving ?>
+                <?php if ($file === '' && ($schema['entity_type'] ?? '') === 'product'): // no image yet: the system logo in gray ?>
+        <img class="eav-file-preview eav-file-placeholder" src="/imagem/logo.png" alt="Sem imagem" title="Sem imagem" data-image-preview data-placeholder="/imagem/logo.png">
+                <?php else: ?>
+        <img class="eav-file-preview" alt="Imagem escolhida (salve para gravar)" title="Imagem escolhida (salve para gravar)" data-image-preview hidden>
+                <?php endif; ?>
+            <?php endif; ?>
+        <input<?= $formAttr ?> type="file" name="<?= $name ?>" accept="<?= $e(implode(',', $f['accept'])) ?>" <?= $file === '' ? $required : '' ?> data-image-input>
     </label>
             <?php if ($file !== '' && !$f['required']): ?>
         <label><input<?= $formAttr ?> type="checkbox" name="<?= $name ?>[remove]" value="1"> Remover</label>
