@@ -20,3 +20,6 @@
 
 # Uploaded files (EAV image attributes)
 /public/media/
+
+# Serena (MCP code-navigation tool), local to each developer
+.serena/
