@@ -984,6 +984,13 @@ assertSame([true, false, true], [str_contains($varPage, 'Variação de <a href="
 $list = $admin->request('/admin/product/index?q=selftest-var')['body'];
 assertSame([2, true, true], [substr_count($list, '/admin/product/edit?id='), str_contains($list, '(3 variações)'), str_contains($list, 'R$ 50,00 – R$ 60,00')], 'lista mostra só os pais, com a contagem e a faixa de preço');
 assertSame(1, substr_count($admin->request('/admin/product/index?q=PRETO-M')['body'], '/admin/product/edit?id=' . $parentId . '"'), 'busca pelo SKU da variação acha o pai');
+$listTotal = (int) $pdo->query('SELECT count(*) FROM catalog_product WHERE parent_id IS NULL')->fetchColumn();
+$lastPage = (int) ceil($listTotal / 8);
+assertSame([min(8, $listTotal), $listTotal - ($lastPage - 1) * 8, $lastPage > 1], [
+    substr_count($admin->request('/admin/product/index')['body'], '/admin/product/edit?id='),
+    substr_count($admin->request('/admin/product/index?page=' . $lastPage)['body'], '/admin/product/edit?id='),
+    str_contains($admin->request('/admin/product/index')['body'], 'href="/admin/product/index?page=2"'),
+], 'lista de produtos pagina de 8 em 8');
 $sourceService->create(['code' => 'selftest_var_cd', 'name' => 'CD Var', 'website_id' => $defaultWebsite, 'is_enabled' => 1]);
 assertSame('PRODUCT_IS_CONFIGURABLE', $throws(static fn () => $stock->save($parentId, ['selftest_var_cd' => ['quantity' => '1']])), 'estoque no pai com grade é recusado');
 $stock->saveGrid($parentId, 'selftest_var_cd', [$v[0]['product_id'] => '2', $v[1]['product_id'] => '3,5', $v[2]['product_id'] => '4']);
