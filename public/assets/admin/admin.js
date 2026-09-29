@@ -300,16 +300,42 @@ document.addEventListener('click', function (event) {
   var rows = document.getElementById(button.dataset.addRow);
   var row = rows.lastElementChild.cloneNode(true);
   var index = rows.children.length;
-  row.querySelectorAll('input').forEach(function (input) {
+  row.querySelectorAll('input, select').forEach(function (input) {
     input.name = input.name.replace(/\[\d+\]/, '[' + index + ']');
-    if (input.type === 'checkbox') {
-      input.checked = false;
-    } else {
-      input.value = '';
-    }
+    clearField(input);
   });
+  row.querySelectorAll('[data-cep-last]').forEach(function (input) { delete input.dataset.cepLast; });
+  row.querySelectorAll('[data-cep-status]').forEach(function (status) { status.remove(); });
   rows.appendChild(row);
-  row.querySelector('input').focus();
+  row.querySelector('input:not([type="hidden"]), select').focus();
+});
+
+function clearField(input) {
+  if (input.type === 'checkbox') {
+    input.checked = false;
+  } else if (input.tagName === 'SELECT') {
+    input.selectedIndex = 0;
+  } else {
+    input.value = '';
+  }
+}
+
+// <button data-clear-row> empties the fields of its row (a blank row is dropped on save)
+document.addEventListener('click', function (event) {
+  var button = event.target.closest('[data-clear-row]');
+  if (button) {
+    button.closest('fieldset').querySelectorAll('input, select').forEach(clearField);
+  }
+});
+
+// <input type="checkbox" data-exclusive="name">: checking one unchecks the others with the same name
+document.addEventListener('change', function (event) {
+  var input = event.target;
+  if (input.matches('input[data-exclusive]') && input.checked) {
+    document.querySelectorAll('input[data-exclusive="' + input.dataset.exclusive + '"]').forEach(function (other) {
+      other.checked = other === input;
+    });
+  }
 });
 
 // <select data-autosubmit>: choosing an option submits its form (e.g. the scope of Configurações)
@@ -410,7 +436,8 @@ document.addEventListener('change', function (event) {
   }
 });
 
-// CEP lookup (ViaCEP): 8 digits in [data-cep="lookup"] fill the form's [data-cep="<ViaCEP field>"] inputs
+// CEP lookup (ViaCEP): 8 digits in [data-cep="lookup"] fill the [data-cep="<ViaCEP field>"] inputs of its
+// [data-cep-scope] (one address among many), else of its form
 document.addEventListener('input', function (event) {
   var cep = event.target;
   if (!cep.matches('[data-cep="lookup"]')) {
@@ -438,7 +465,7 @@ document.addEventListener('input', function (event) {
         return;
       }
       cep.value = digits.slice(0, 5) + '-' + digits.slice(5);
-      cep.form.querySelectorAll('[data-cep]:not([data-cep="lookup"])').forEach(function (input) {
+      (cep.closest('[data-cep-scope]') || cep.form).querySelectorAll('[data-cep]:not([data-cep="lookup"])').forEach(function (input) {
         if (address[input.dataset.cep]) {
           input.value = address[input.dataset.cep];
           input.dispatchEvent(new Event('input', { bubbles: true }));

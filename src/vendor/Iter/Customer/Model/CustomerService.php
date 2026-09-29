@@ -24,16 +24,20 @@ class CustomerService
      *              taxvat?: string, company_name?: string, trade_name?: string, state_registration?: string, is_ie_exempt?: int,
      *              dob?: string, is_active?: int, attribute_set_id?: int} $data taxvat: CPF when pf, CNPJ when pj (mask optional)
      * @param array<string, mixed> $attributes code => value
+     * @param array<int, array<string, mixed>>|null $addresses see AddressService::save(); null leaves them as they are
      */
-    public function create(array $data, array $attributes = []): Customer
+    public function create(array $data, array $attributes = [], ?array $addresses = null): Customer
     {
         $set = $this->set((int) ($data['attribute_set_id'] ?? 0));
         $fields = $this->fields($data);
         $values = new ValueService();
         $rows = $values->validate(Customer::ENTITY_TYPE, $this->setValues($set, $attributes));
 
-        return Connection::get()->adapter()->transaction(static function () use ($fields, $set, $values, $rows): Customer {
+        return Connection::get()->adapter()->transaction(static function () use ($fields, $set, $values, $rows, $addresses): Customer {
             $model = (new Customer())->addData($fields + ['attribute_set_id' => (int) $set->getId()])->save();
+            if ($addresses !== null) {
+                (new AddressService())->save((int) $model->getId(), $addresses);
+            }
             $values->write((int) $model->getId(), $rows);
 
             return $model;
@@ -41,15 +45,18 @@ class CustomerService
     }
 
     /** the attribute set is chosen on creation and doesn't change */
-    public function update(int $id, array $data, array $attributes = []): Customer
+    public function update(int $id, array $data, array $attributes = [], ?array $addresses = null): Customer
     {
         $model = $this->get($id);
         $fields = $this->fields($data, $id);
         $values = new ValueService();
         $rows = $values->validate(Customer::ENTITY_TYPE, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes), $id);
 
-        return Connection::get()->adapter()->transaction(static function () use ($model, $fields, $values, $id, $rows): Customer {
+        return Connection::get()->adapter()->transaction(static function () use ($model, $fields, $values, $id, $rows, $addresses): Customer {
             $model->addData($fields)->save();
+            if ($addresses !== null) {
+                (new AddressService())->save($id, $addresses);
+            }
             $values->write($id, $rows);
 
             return $model;
