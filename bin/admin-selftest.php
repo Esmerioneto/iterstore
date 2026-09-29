@@ -595,7 +595,13 @@ $gql = static function (Browser $b, string $query, array $variables = []): array
 $deleteGql = 'mutation { deleteProduct(id: "0") }';
 assertSame(['UNAUTHENTICATED', 'FORBIDDEN'], [$gql($guest, $deleteGql)['errors'][0]['extensions']['code'] ?? null, $gql($dash, $deleteGql)['errors'][0]['extensions']['code'] ?? null], 'GraphQL: sem login dá UNAUTHENTICATED, sem permissão dá FORBIDDEN');
 $deep = '{ categories { ' . str_repeat('children { ', 20) . 'id' . str_repeat(' }', 22);
-assertSame(true, str_starts_with($gql($guest, $deep)['errors'][0]['message'] ?? '', 'Max query depth should be 15'), 'GraphQL: consulta profunda demais é recusada');
+$deepError = $gql($guest, $deep)['errors'][0] ?? [];
+assertSame([true, 'QUERY_LIMIT_EXCEEDED'], [str_starts_with($deepError['message'] ?? '', 'Max query depth should be 15'), $deepError['extensions']['code'] ?? null], 'GraphQL: consulta profunda demais é recusada');
+assertSame(['GRAPHQL_VALIDATION_FAILED', 'GRAPHQL_PARSE_FAILED', 'GRAPHQL_VALIDATION_FAILED'], [
+    $gql($guest, '{ nada }')['errors'][0]['extensions']['code'] ?? null,
+    $gql($guest, '{ categories {')['errors'][0]['extensions']['code'] ?? null,
+    $gql($guest, 'query ($p: Int) { products(page: $p) { total } }', ['p' => 'x'])['errors'][0]['extensions']['code'] ?? null,
+], 'GraphQL: erros de consulta também trazem o código');
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'system/api/introspection', '0') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '0'");
 assertSame([true, true], [str_contains($gql($guest, '{ __schema { queryType { name } } }')['errors'][0]['message'] ?? '', 'introspection'), isset($gql($guest, '{ categories { id } }')['data'])], 'GraphQL: introspecção desligada nas Configurações');
 $pdo->exec("DELETE FROM core_config_data WHERE path = 'system/api/introspection'");
