@@ -5,5 +5,6 @@
     { "path": "admin/security/password_min_length", "group": "Segurança do admin", "label": "Tamanho mínimo da senha", "type": "number", "default": 8, "min": 1, "max": 64 },
     { "path": "admin/security/password_require_alnum", "group": "Segurança do admin", "label": "Exigir letras e números na senha", "type": "boolean", "default": 1 },
     { "path": "admin/security/password_history", "group": "Segurança do admin", "label": "Senhas anteriores que não podem ser reutilizadas (0 = sem restrição)", "type": "number", "default": 4, "min": 0, "max": 20 },
-    { "path": "admin/security/password_lifetime", "group": "Segurança do admin", "label": "Dias até a senha expirar (0 = nunca expira)", "type": "number", "default": 90, "min": 0, "max": 3650 }
+    { "path": "admin/security/password_lifetime", "group": "Segurança do admin", "label": "Dias até a senha expirar (0 = nunca expira)", "type": "number", "default": 90, "min": 0, "max": 3650 },
+    { "path": "admin/security/api_token_hours", "group": "Segurança do admin", "label": "Horas de validade do token de login pela API", "type": "number", "default": 4, "min": 1, "max": 720 }
 ]

@@ -20,19 +20,39 @@ class Auth
     private const SESSION_KEY = 'iter_admin_user_id';
 
     private static ?AdminUser $user = null;
+    /** the API token of this request (useToken), null on a session */
+    private static ?string $token = null;
 
     public static function login(string $username, string $password): bool
+    {
+        $user = self::checkCredentials($username, $password);
+        if ($user === null) {
+            return false;
+        }
+
+        session_regenerate_id(true);
+        $_SESSION[self::SESSION_KEY] = (int) $user->getId();
+        self::$user = $user;
+
+        return true;
+    }
+
+    /**
+     * The password check shared by the admin form and the API: counts failures,
+     * locks the account after admin/security/max_failures, records the login.
+     */
+    public static function checkCredentials(string $username, string $password): ?AdminUser
     {
         $user = new AdminUser();
         $user->getResource()->load($user, $username, 'username');
 
         if (!$user->getId() || !$user->getData('is_active')) {
-            return false;
+            return null;
         }
 
         $lockExpires = $user->getData('lock_expires');
         if ($lockExpires && strtotime($lockExpires) > time()) {
-            return false;
+            return null;
         }
 
         if (!password_verify($password, (string) $user->getData('password'))) {
@@ -43,7 +63,7 @@ class Auth
                 'lock_expires' => $locked ? date('Y-m-d H:i:s', time() + (int) Config::get('admin/security/lock_minutes') * 60) : null,
             ])->save();
 
-            return false;
+            return null;
         }
 
         $user->addData([
@@ -53,9 +73,60 @@ class Auth
             'lognum' => (int) $user->getData('lognum') + 1,
         ])->save();
 
-        session_regenerate_id(true);
-        $_SESSION[self::SESSION_KEY] = (int) $user->getId();
+        return $user;
+    }
+
+    /**
+     * API login: a random token valid for admin/security/api_token_hours. Only its
+     * sha256 is stored; expired ones are cleaned up here.
+     *
+     * @return array{token: string, expires_at: string}
+     */
+    public static function issueToken(AdminUser $user): array
+    {
+        $db = $user->getResource()->getConnection();
+        $db->delete('admin_api_token', ['expires_at < ?' => date('Y-m-d H:i:s')]);
+        $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', time() + (int) Config::get('admin/security/api_token_hours') * 3600);
+        $db->insert('admin_api_token', ['user_id' => (int) $user->getId(), 'token_hash' => hash('sha256', $token), 'created_at' => date('Y-m-d H:i:s'), 'expires_at' => $expiresAt]);
+
+        return ['token' => $token, 'expires_at' => $expiresAt];
+    }
+
+    /**
+     * An API request with "Authorization: Bearer <token>" acts as the token's user
+     * (no session). False when the token is unknown, expired, revoked, older than
+     * the user's last password change, or the user is inactive.
+     */
+    public static function useToken(string $token): bool
+    {
+        $user = new AdminUser();
+        $db = $user->getResource()->getConnection();
+        $row = $db->fetchRow($db->select()->from('admin_api_token', ['user_id', 'created_at'])
+            ->where('token_hash = ?', hash('sha256', $token))
+            ->where('expires_at > ?', date('Y-m-d H:i:s')));
+        if (!$row || !$user->load((int) $row['user_id'])->getId() || !$user->getData('is_active')) {
+            return false;
+        }
+        $changedAt = $user->getResource()->getPasswordChangedAt((int) $user->getId());
+        if ($changedAt !== null && strtotime((string) $row['created_at']) < $changedAt) { // a new password ends older tokens
+            return false;
+        }
         self::$user = $user;
+        self::$token = $token;
+
+        return true;
+    }
+
+    /** API logout: the token in use stops working */
+    public static function revokeToken(): bool
+    {
+        if (self::$token === null) {
+            return false;
+        }
+        (new AdminUser())->getResource()->getConnection()->delete('admin_api_token', ['token_hash = ?' => hash('sha256', self::$token)]);
+        self::$token = null;
+        self::$user = null;
 
         return true;
     }
