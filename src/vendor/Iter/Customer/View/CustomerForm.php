@@ -65,6 +65,8 @@ class CustomerForm implements ViewComponentInterface
             // after a failed save, what was posted; else the saved ones
             'addresses' => $old['addresses'] ?? ($id ? (new AddressService())->getList($id) : []),
             'regions' => AddressService::REGIONS,
+            // below the fixed fields of each address, like the customer's groups
+            'address_fields' => AddressService::fields(),
             // without the permission, the default layout (even if one was saved before it was revoked)
             'can_arrange' => $canArrange = Auth::isAllowed('Iter_Customer::customer_layout'),
             'layout' => (new FormLayout(Customer::ENTITY_TYPE))->get($canArrange ? (int) Auth::user()->getId() : null),

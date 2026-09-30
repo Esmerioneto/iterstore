@@ -319,6 +319,10 @@ type CustomerAddress {
   region: String!
 
   telephone: String
+
+  "Os campos que o admin criou no conjunto de endereço (os de cima ficam fora)."
+  attributes: [CustomerAttribute!]!
+
   is_default_shipping: Boolean!
   is_default_billing: Boolean!
 }
@@ -636,6 +640,9 @@ input CustomerAddressInput {
   "UF, ex.: SP."
   region: String!
   telephone: String
+
+  "Os campos que o admin criou no conjunto de endereço."
+  attributes: [CustomerAttributeInput!]
   isDefaultShipping: Boolean = false
   isDefaultBilling: Boolean = false
 }

@@ -300,7 +300,7 @@ document.addEventListener('click', function (event) {
   var rows = document.getElementById(button.dataset.addRow);
   var row = rows.lastElementChild.cloneNode(true);
   var index = rows.children.length;
-  row.querySelectorAll('input, select').forEach(function (input) {
+  row.querySelectorAll('input, select, textarea').forEach(function (input) {
     input.name = input.name.replace(/\[\d+\]/, '[' + index + ']');
     clearField(input);
   });
@@ -324,7 +324,7 @@ function clearField(input) {
 document.addEventListener('click', function (event) {
   var button = event.target.closest('[data-clear-row]');
   if (button) {
-    button.closest('fieldset').querySelectorAll('input, select').forEach(clearField);
+    button.closest('fieldset').querySelectorAll('input, select, textarea').forEach(clearField);
   }
 });
 

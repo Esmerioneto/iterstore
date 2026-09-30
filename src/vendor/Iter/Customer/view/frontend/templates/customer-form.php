@@ -108,6 +108,9 @@ ob_start(); ?>
 
 // addresses: the saved ones plus a blank row that "+ Adicionar endereço" (admin.js data-add-row) copies;
 // blank rows are ignored and an address left out of the post is removed
+// the browser doesn't enforce "required" here (the blank row would block the save): the label keeps
+// the *, AddressService checks it for every address that isn't blank
+$addressFields = array_map(static fn (array $f) => ['required' => false, 'label' => $f['label'] . ($f['required'] ? ' *' : '')] + $f, $address_fields);
 ob_start(); ?>
 <fieldset>
     <legend>Endereços</legend>
@@ -119,7 +122,6 @@ ob_start(); ?>
             <p><label><?= $e($address_labels['postcode']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][postcode]" value="<?= $a('postcode') ?>" data-mask="cep" data-cep="lookup"></label></p>
             <p><label><?= $e($address_labels['street']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][street]" maxlength="255" value="<?= $a('street') ?>" data-cep="logradouro"></label></p>
             <p><label><?= $e($address_labels['number']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][number]" maxlength="20" size="8" value="<?= $a('number') ?>"></label></p>
-            <p><label><?= $e($address_labels['complement']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][complement]" maxlength="255" value="<?= $a('complement') ?>"></label></p>
             <p><label><?= $e($address_labels['district']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][district]" maxlength="255" value="<?= $a('district') ?>" data-cep="bairro"></label></p>
             <p><label><?= $e($address_labels['city']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][city]" maxlength="255" value="<?= $a('city') ?>" data-cep="localidade"></label></p>
             <p>
@@ -132,8 +134,10 @@ ob_start(); ?>
                     </select>
                 </label>
             </p>
-            <p><label><?= $e($address_labels['recipient']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][recipient]" maxlength="255" value="<?= $a('recipient') ?>" placeholder="O próprio cliente"></label></p>
-            <p><label><?= $e($address_labels['telephone']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][telephone]" value="<?= $a('telephone') ?>" data-mask="phone"></label></p>
+<?php (static function (array $schema, array $values, string $name_prefix): void {
+    $form_id = 'customer-form';
+    require (new \Iter\Core\View\ComponentResolver())->resolveTemplate('eav/form-fields');
+})(['fields' => $addressFields], $address, "addresses[{$i}]"); ?>
             <p>
                 <label><input form="customer-form" type="checkbox" name="addresses[<?= $i ?>][is_default_shipping]" value="1" data-exclusive="shipping" <?= !empty($address['is_default_shipping']) ? 'checked' : '' ?>> Padrão de entrega</label>
                 <label><input form="customer-form" type="checkbox" name="addresses[<?= $i ?>][is_default_billing]" value="1" data-exclusive="billing" <?= !empty($address['is_default_billing']) ? 'checked' : '' ?>> Padrão de cobrança</label>

@@ -27,10 +27,13 @@ class AttributeService
      * they never go into attribute sets, and only label and position change (not even visibility).
      */
     private const FIXED = ['customer' => ['email', 'firstname', 'lastname', 'customer_type', 'taxvat', 'dob', 'company_name', 'trade_name', 'state_registration', 'is_ie_exempt'],
-        'customer_address' => ['postcode', 'street', 'number', 'complement', 'district', 'city', 'region', 'recipient', 'telephone']];
+        'customer_address' => ['postcode', 'street', 'number', 'district', 'city', 'region']];
 
-    /** entities whose form only has the fixed fields: no attribute can be added to them */
-    private const CLOSED = ['customer_address'];
+    /** entities whose other system attributes (address complement, recipient, telephone) may also become required or optional */
+    private const REQUIRED_EDITABLE = ['customer_address'];
+
+    /** entities edited as a list of rows inside another form: file uploads don't reach them */
+    private const NO_FILES = ['customer_address'];
 
     private const FLAGS = ['is_required', 'is_visible', 'is_searchable', 'is_filterable', 'is_sortable'];
 
@@ -53,15 +56,13 @@ class AttributeService
         if ($entityType === null) {
             throw new AttributeException('ENTITY_TYPE_INVALID', 'Entidade inválida.');
         }
-        if (!$system && in_array($data['entity_type'], self::CLOSED, true)) {
-            throw new AttributeException('ENTITY_TYPE_CLOSED', "'{$entityType['label']}' só tem os campos do sistema; não aceita novos atributos.");
-        }
         $code = $data['code'] ?? '';
         if (!preg_match('/^[a-z][a-z0-9_]{0,99}$/', $code)) {
             throw new AttributeException('CODE_INVALID', 'Código deve começar com letra e conter apenas a-z, 0-9 e _ (máx. 100).');
         }
         $this->assertLabel($data);
         $inputType = $this->inputType($data['input_type'] ?? '');
+        $this->assertFileAllowed($data['entity_type'], $inputType, $entityType['label']);
         if ($model->getResource()->codeExists((int) $entityType['entity_type_id'], $code)) {
             throw new AttributeException('CODE_DUPLICATE', "Já existe um atributo '{$code}' nesta entidade.");
         }
@@ -95,6 +96,29 @@ class AttributeService
         $types = array_column((new Attribute())->getResource()->getEntityTypes(), 'code', 'entity_type_id');
 
         return in_array($attribute['code'], self::FIXED[$types[$attribute['entity_type_id']] ?? ''] ?? [], true);
+    }
+
+    /**
+     * What an admin may change on a system attribute (the form locks the rest)
+     *
+     * @param array{entity_type_id: int|string, code: string} $attribute
+     * @return string[]
+     */
+    public static function editable(array $attribute): array
+    {
+        if (self::isFixed($attribute)) {
+            return ['label', 'sort_order'];
+        }
+        $types = array_column((new Attribute())->getResource()->getEntityTypes(), 'code', 'entity_type_id');
+
+        return in_array($types[$attribute['entity_type_id']] ?? '', self::REQUIRED_EDITABLE, true) ? [...self::SYSTEM_EDITABLE, 'is_required'] : self::SYSTEM_EDITABLE;
+    }
+
+    private function assertFileAllowed(string $entityType, array $inputType, string $label): void
+    {
+        if ($inputType['accept'] && in_array($entityType, self::NO_FILES, true)) {
+            throw new AttributeException('INPUT_TYPE_INVALID', "'{$label}' não aceita campos de arquivo ou imagem.");
+        }
     }
 
     public static function canManage(): bool
@@ -137,6 +161,8 @@ class AttributeService
         }
 
         $inputType = $this->inputType($newType);
+        $entityType = array_column($model->getResource()->getEntityTypes(), null, 'entity_type_id')[$model->getData('entity_type_id')];
+        $this->assertFileAllowed($entityType['code'], $inputType, $entityType['label']);
         $options = null; // null = leave as they are
         if (!$inputType['supports_options']) {
             $options = [];
@@ -153,7 +179,7 @@ class AttributeService
 
         $fields = $this->fields($data, $inputType) + ['input_type' => $newType, 'storage_type' => $inputType['storage_type']];
         if ($model->isSystem()) {
-            $fields = array_intersect_key($fields, array_flip(self::isFixed($model->getData()) ? ['label', 'sort_order'] : self::SYSTEM_EDITABLE));
+            $fields = array_intersect_key($fields, array_flip(self::editable($model->getData())));
         }
         // ponytail: switched on only while empty; turning it on later needs each entity's scope to build the keys
         if (($fields['is_unique'] ?? 0) && !$model->getData('is_unique') && $model->getResource()->hasValues($id, $model->getData('storage_type'))) {
