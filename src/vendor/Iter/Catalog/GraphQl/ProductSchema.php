@@ -11,6 +11,7 @@ use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use Iter\Admin\Auth;
 use Iter\Catalog\Model\Category;
+use Iter\Catalog\Model\CategoryService;
 use Iter\Catalog\Model\Product;
 use Iter\Catalog\Model\ProductService;
 use Iter\Catalog\Model\VariantService;
@@ -299,6 +300,25 @@ class ProductSchema
                 'values' => ['type' => Type::listOf(Type::nonNull(Type::string())), 'description' => 'Para múltipla seleção; [] apaga.'],
             ],
         ]);
+        // categories: same rules as the admin screen (CategoryService), behind the Categorias resource
+        $categoryService = new CategoryService();
+        $categoryGuard = static fn (callable $resolve) => Schema::guard('Iter_Catalog::category', $resolve);
+        /** @return array<string, mixed> code => value; a code outside the category set is a client error */
+        $categoryValues = static function (array $args): array {
+            $values = array_column(array_map(static fn ($a) => ['code' => $a['code'], 'value' => $a['values'] ?? $a['value'] ?? ''], $args['attributes'] ?? []), 'value', 'code');
+            $unknown = array_diff(array_keys($values), array_column((new FormSchemaGenerator())->generate(Category::ENTITY_TYPE)['fields'], 'name'));
+            if ($unknown) {
+                throw new AttributeException('ATTRIBUTE_NOT_FOUND', 'Atributo fora do conjunto de categoria: ' . implode(', ', $unknown) . '.');
+            }
+
+            return $values;
+        };
+        // the saved category as the tree gives it (level, children), reloaded after the change
+        $freshCategory = static function (int $id) use (&$tree, $categories): array {
+            $tree = null;
+
+            return $categories()[$id];
+        };
         $variantInput = new InputObjectType([
             'name' => 'VariantInput',
             'fields' => [
@@ -479,6 +499,77 @@ class ProductSchema
                     'args' => ['id' => Type::nonNull(Type::id())],
                     'resolve' => $guard(static function ($root, array $args) use ($service): bool {
                         $service->delete((int) $args['id']);
+                        return true;
+                    }),
+                ],
+                'createCategory' => [
+                    'type' => Type::nonNull($categoryType),
+                    'description' => 'Sem parentId, uma categoria principal do website. Uma subcategoria fica no website da mãe. urlKey omitida sai do nome.',
+                    'args' => [
+                        'websiteId' => ['type' => Type::id(), 'description' => 'Omitido = website padrão; ignorado numa subcategoria.'],
+                        'parentId' => Type::id(),
+                        'name' => Type::nonNull(Type::string()),
+                        'urlKey' => Type::string(),
+                        'isActive' => ['type' => Type::boolean(), 'defaultValue' => true],
+                        'position' => ['type' => Type::int(), 'defaultValue' => 0],
+                        'attributes' => ['type' => Type::listOf(Type::nonNull($attributeInput)), 'description' => 'Atributos de categoria (Catálogo → Atributos, entidade Categoria).'],
+                    ],
+                    'resolve' => $categoryGuard(static function ($root, array $args) use ($categoryService, $categoryValues, $freshCategory): array {
+                        $id = (int) $categoryService->create([
+                            'website_id' => (int) ($args['websiteId'] ?? (new Website())->getResource()->getDefaultId()),
+                            'parent_id' => $args['parentId'] ?? null,
+                            'name' => $args['name'],
+                            'url_key' => $args['urlKey'] ?? '',
+                            'is_active' => $args['isActive'] ? 1 : 0,
+                            'position' => $args['position'],
+                        ], $categoryValues($args))->getId();
+                        return $freshCategory($id);
+                    }),
+                ],
+                'updateCategory' => [
+                    'type' => Type::nonNull($categoryType),
+                    'description' => 'Só muda o que for enviado. Para trocar a categoria mãe, use moveCategory.',
+                    'args' => [
+                        'id' => Type::nonNull(Type::id()),
+                        'name' => Type::string(),
+                        'urlKey' => Type::string(),
+                        'isActive' => Type::boolean(),
+                        'position' => Type::int(),
+                        'attributes' => Type::listOf(Type::nonNull($attributeInput)),
+                    ],
+                    'resolve' => $categoryGuard(static function ($root, array $args) use ($categoryService, $categoryValues, $freshCategory): array {
+                        $id = (int) $args['id'];
+                        $current = $categoryService->get($id)->getData(); // CATEGORY_NOT_FOUND
+                        $categoryService->update($id, [
+                            'parent_id' => $current['parent_id'],
+                            'name' => $args['name'] ?? $current['name'],
+                            'url_key' => $args['urlKey'] ?? $current['url_key'],
+                            'is_active' => (int) ($args['isActive'] ?? $current['is_active']),
+                            'position' => $args['position'] ?? $current['position'],
+                        ], $categoryValues($args) + $categoryService->getValues($id));
+                        return $freshCategory($id);
+                    }),
+                ],
+                'moveCategory' => [
+                    'type' => Type::nonNull($categoryType),
+                    'description' => 'Muda a categoria mãe (sem parentId = principal) e a posição. Fica no mesmo website; não vai para dentro dela mesma nem de uma subcategoria sua.',
+                    'args' => ['id' => Type::nonNull(Type::id()), 'parentId' => Type::id(), 'position' => Type::int()],
+                    'resolve' => $categoryGuard(static function ($root, array $args) use ($categoryService, $freshCategory): array {
+                        $id = (int) $args['id'];
+                        $current = $categoryService->get($id)->getData();
+                        $categoryService->update($id, [
+                            'parent_id' => $args['parentId'] ?? null,
+                            'position' => $args['position'] ?? $current['position'],
+                        ] + $current, $categoryService->getValues($id));
+                        return $freshCategory($id);
+                    }),
+                ],
+                'deleteCategory' => [
+                    'type' => Type::nonNull(Type::boolean()),
+                    'description' => 'Recusada com subcategorias (CATEGORY_HAS_CHILDREN) ou produtos (CATEGORY_HAS_PRODUCTS).',
+                    'args' => ['id' => Type::nonNull(Type::id())],
+                    'resolve' => $categoryGuard(static function ($root, array $args) use ($categoryService): bool {
+                        $categoryService->delete((int) $args['id']);
                         return true;
                     }),
                 ],
