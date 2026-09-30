@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Core\GraphQl;
 
+use GraphQL\Type\Definition\CustomScalarType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use GraphQL\Error\Error;
@@ -32,6 +33,26 @@ class Schema
 
             return $resolve(...$args);
         };
+    }
+
+    /**
+     * A file sent by the GraphQL multipart request spec (Controllers/Graphql.php puts it in the variables);
+     * the value is its $_FILES entry (error, name, tmp_name, size), which Eav\Model\ValueService::uploaded() checks.
+     * One instance: a schema can't have two types with one name.
+     */
+    public static function upload(): CustomScalarType
+    {
+        static $type = null;
+
+        return $type ??= new CustomScalarType([
+            'name' => 'Upload',
+            'description' => 'Arquivo enviado pelo GraphQL multipart request spec (multipart/form-data com operations, map e o arquivo). Exige o token Bearer.',
+            'serialize' => static fn () => throw new Error('Upload só é aceito como entrada.'),
+            'parseValue' => static fn ($value) => is_array($value) && isset($value['tmp_name'], $value['error'])
+                ? $value
+                : throw new Error('Envie o arquivo pelo multipart request spec (operations + map).', extensions: ['code' => 'BAD_REQUEST']),
+            'parseLiteral' => static fn () => throw new Error('Upload vem numa variável, não escrito na consulta.', extensions: ['code' => 'BAD_REQUEST']),
+        ]);
     }
 
     /** null when no enabled module has API fields (a schema needs at least one query) */

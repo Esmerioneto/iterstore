@@ -869,6 +869,28 @@ assertSame([true, true], [str_contains($upPage, 'class="eav-field eav-field-file
 $gqlImage = array_column($gql($admin, 'query ($id: ID!) { product(id: $id) { attributes { code url } } }', ['id' => $upId])['data']['product']['attributes'] ?? [], 'url', 'code');
 ksort($gqlImage);
 assertSame(['price' => null, 'selftest_capa' => $url], $gqlImage, 'GraphQL: atributo imagem traz a url; os outros, não');
+// image upload through the API: GraphQL multipart request spec (API-PLAN delivery 12)
+$upToken = $gql($guest, 'mutation { generateAdminToken(username: "selftest_admin", password: "' . PASSWORD . '") { token } }')['data']['generateAdminToken']['token'] ?? '';
+$gqlUpload = static function (string $code, string $file, ?string $token) use ($base, $upId, $scratch): array {
+    $ch = curl_init($base . '/core/graphql/index');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $token === null ? [] : ["Authorization: Bearer {$token}"], CURLOPT_POSTFIELDS => [
+        'operations' => json_encode(['query' => 'mutation ($id: ID!, $code: String!, $file: Upload!) { uploadProductImage(productId: $id, code: $code, file: $file) { attributes { code url } } }',
+            'variables' => ['id' => (string) $upId, 'code' => $code, 'file' => null]]),
+        'map' => json_encode(['0' => ['variables.file']]),
+        '0' => new CURLFile("{$scratch}/{$file}", 'image/png', $file),
+    ]]);
+    $body = json_decode((string) curl_exec($ch), true);
+
+    return [curl_getinfo($ch, CURLINFO_RESPONSE_CODE), $body['errors'][0]['extensions']['code'] ?? null, array_column($body['data']['uploadProductImage']['attributes'] ?? [], 'url', 'code')];
+};
+[$status, , $urls] = $gqlUpload('selftest_foto', 'a.png', $upToken);
+assertSame([200, 'png', true, true], [$status, pathinfo((string) ($urls['selftest_foto'] ?? ''), PATHINFO_EXTENSION), is_file(ValueService::mediaDir() . ($productService->getValues($upId)['selftest_foto'] ?? 'nada')), ($urls['selftest_capa'] ?? null) === $url],
+    'API: uploadProductImage grava a imagem pelo multipart e mantém as outras');
+assertSame([[400, 'UNAUTHENTICATED'], 'ATTRIBUTE_NOT_FOUND', 'FILE_TYPE_INVALID'], [
+    array_slice($gqlUpload('selftest_foto', 'a.png', null), 0, 2),
+    $gqlUpload('price', 'a.png', $upToken)[1],
+    $gqlUpload('selftest_foto', 'fake.png', $upToken)[1],
+], 'API: upload sem token é recusado (CSRF); só campo de imagem do conjunto; arquivo que finge ser PNG é recusado');
 assertSame('INPUT_TYPE_CHANGE_BLOCKED', $throws(static fn () => $service->update($attrId('selftest_capa'), ['label' => 'Capa', 'input_type' => 'text'])), 'atributo imagem com valores não vira texto');
 array_map('unlink', glob("{$scratch}/*"));
 rmdir($scratch);

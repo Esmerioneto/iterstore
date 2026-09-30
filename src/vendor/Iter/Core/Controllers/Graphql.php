@@ -38,6 +38,11 @@ class Graphql
         header('Content-Type: application/json');
 
         $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        // file upload: GraphQL multipart request spec, operations = {query, variables}, map = {"0": ["variables.file"]}
+        $multipart = isset($_POST['operations']);
+        if ($multipart) {
+            $input = self::multipart();
+        }
         $query = $input['query'] ?? '';
         $variables = $input['variables'] ?? null;
 
@@ -48,6 +53,13 @@ class Graphql
             && !Auth::useToken($m[1]) && !(\isModuleEnabled('iter_customer') && CustomerAuth::useToken($m[1]))) {
             http_response_code(401);
             echo json_encode(['errors' => [['message' => 'Token inválido ou expirado. Faça login de novo.', 'extensions' => ['code' => 'TOKEN_INVALID']]]]);
+            return;
+        }
+
+        // a multipart form from another site skips the CORS preflight: with the session cookie alone it would be CSRF
+        if ($multipart && !isset($m[1])) {
+            http_response_code(400);
+            echo json_encode(['errors' => [['message' => 'Envio de arquivo exige o token (Authorization: Bearer).', 'extensions' => ['code' => 'UNAUTHENTICATED']]]]);
             return;
         }
 
@@ -79,5 +91,27 @@ class Graphql
             return $formatted;
         });
         echo json_encode($result->toArray());
+    }
+
+    /**
+     * {query, variables} from the multipart fields, each mapped file (its $_FILES entry) placed at its
+     * path, e.g. "variables.file" or "variables.files.0". A single operation only (no batching).
+     */
+    private static function multipart(): array
+    {
+        $input = json_decode((string) $_POST['operations'], true);
+        $input = is_array($input) ? $input : [];
+        foreach (json_decode((string) ($_POST['map'] ?? ''), true) ?: [] as $key => $paths) {
+            foreach ((array) $paths as $path) {
+                $target = &$input;
+                foreach (explode('.', (string) $path) as $part) {
+                    $target = &$target[$part];
+                }
+                $target = $_FILES[$key] ?? null;
+                unset($target);
+            }
+        }
+
+        return $input;
     }
 }

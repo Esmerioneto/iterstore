@@ -470,6 +470,9 @@ type Mutation {
 
   deleteProduct(id: ID!): Boolean!
 
+  "Envia a imagem de um atributo de imagem do conjunto do produto (troca a atual), pelo multipart request spec com token. Tipos e tamanho são os do painel. Num produto com grade, a imagem vai em cada variação."
+  uploadProductImage(productId: ID!, code: String!, file: Upload!): Product!
+
   "Sem parentId, uma categoria principal do website. Uma subcategoria fica no website da mãe. urlKey omitida sai do nome."
   createCategory(
     "Omitido = website padrão; ignorado numa subcategoria."
@@ -695,6 +698,9 @@ input VariantInput {
   price: String
   isActive: Boolean = true
 }
+
+"Arquivo enviado pelo GraphQL multipart request spec (multipart/form-data com operations, map e o arquivo). Exige o token Bearer."
+scalar Upload
 
 input ProductStockInput {
   "Código da origem."
