@@ -160,11 +160,15 @@ class ProductSchema
                 'options' => ['type' => Type::nonNull(Type::listOf(Type::nonNull($optionType))), 'description' => 'Só as opções usadas pelas variações.'],
             ],
         ]);
+        $priceRangeType = new ObjectType([
+            'name' => 'PriceRange',
+            'fields' => ['min' => Type::float(), 'max' => Type::float()],
+        ]);
         $variants = new VariantService();
         $productType = new ObjectType([
             'name' => 'Product',
             // a closure: variants and parent are Products too, and $load is set below
-            'fields' => static function () use (&$productType, &$load, $productFields, $service, $variants, $isAdmin, $typeEnum, $variantAttributeType, $optionType, $attributeType, $typeOf, $optionsOf, $labelOf, $categories, $categoryType): array {
+            'fields' => static function () use (&$productType, &$load, $productFields, $service, $variants, $isAdmin, $typeEnum, $variantAttributeType, $optionType, $attributeType, $typeOf, $optionsOf, $labelOf, $categories, $categoryType, $priceRangeType): array {
                 return [
                 'id' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($p) => $p['product_id']],
                 'type' => ['type' => Type::nonNull($typeEnum), 'resolve' => fn ($p) => $p['type']],
@@ -181,6 +185,22 @@ class ProductSchema
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($productType))),
                     'description' => 'As variações (produto com grade); fora do admin, só as ativas.',
                     'resolve' => static fn ($p) => array_values(array_filter((new Product())->getResource()->getVariantRows((int) $p['product_id']), static fn ($v) => $v['is_active'] || $isAdmin())),
+                ],
+                'priceRange' => [
+                    'type' => Type::nonNull($priceRangeType),
+                    'description' => 'Para a vitrine: o preço do produto; num produto com grade, o menor e o maior das variações ativas ("a partir de" = min).',
+                    'resolve' => static function ($p): array {
+                        $db = Connection::get()->adapter();
+                        $ids = $p['type'] === 'configurable'
+                            ? 'SELECT product_id FROM catalog_product WHERE parent_id = ' . (int) $p['product_id'] . ' AND is_active = 1'
+                            : (string) (int) $p['product_id'];
+                        $row = $db->fetchRow("SELECT MIN(v.value) AS min, MAX(v.value) AS max FROM eav_value_decimal v
+                            JOIN eav_attribute a ON a.attribute_id = v.attribute_id AND a.code = 'price'
+                            JOIN eav_entity_type et ON et.entity_type_id = a.entity_type_id AND et.code = 'product'
+                            WHERE v.entity_id IN ({$ids})") ?: [];
+
+                        return ['min' => isset($row['min']) ? (float) $row['min'] : null, 'max' => isset($row['max']) ? (float) $row['max'] : null];
+                    },
                 ],
                 'variantOptions' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($optionType))),
@@ -251,11 +271,7 @@ class ProductSchema
                         ])))),
                     ],
                 ])))),
-                'price' => Type::nonNull(new ObjectType([
-                    'name' => 'PriceRange',
-                    'description' => 'Menor e maior preço dos produtos da busca (sem o filtro de preço); null sem preço.',
-                    'fields' => ['min' => Type::float(), 'max' => Type::float()],
-                ])),
+                'price' => ['type' => Type::nonNull($priceRangeType), 'description' => 'Menor e maior preço dos produtos da busca (sem o filtro de preço); null sem preço.'],
             ],
         ]);
         $productList = new ObjectType([
