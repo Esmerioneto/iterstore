@@ -133,6 +133,9 @@ type Product {
   "As variações (produto com grade); fora do admin, só as ativas."
   variants: [Product!]!
 
+  "Para a vitrine: o preço do produto; num produto com grade, o menor e o maior das variações ativas (\"a partir de\" = min)."
+  priceRange: PriceRange!
+
   "A combinação da variação (ex.: Cor = Azul, Tamanho = P)."
   variantOptions: [ProductOption!]!
 
@@ -174,6 +177,11 @@ type ProductOption {
   code: String
   value: String!
   label: String!
+}
+
+type PriceRange {
+  min: Float
+  max: Float
 }
 
 type ProductAttribute {
@@ -234,6 +242,8 @@ type ProductList {
 
 type ProductAggregations {
   attributes: [ProductAggregation!]!
+
+  "Menor e maior preço dos produtos da busca (sem o filtro de preço); null sem preço."
   price: PriceRange!
 }
 
@@ -247,12 +257,6 @@ type ProductAggregationOption {
   value: String!
   label: String!
   count: Int!
-}
-
-"Menor e maior preço dos produtos da busca (sem o filtro de preço); null sem preço."
-type PriceRange {
-  min: Float
-  max: Float
 }
 
 type ProductStock {

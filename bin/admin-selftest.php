@@ -1260,6 +1260,12 @@ assertSame([
 $skus = array_column($gql($guest, '{ products(search: "selftest-var") { items { sku } } }')['data']['products']['items'] ?? [], 'sku');
 assertSame([true, false, 'selftest-var'], [in_array('selftest-var', $skus, true), in_array('selftest-var-az-p', $skus, true), $gql($guest, '{ product(sku: "SELFTEST-VAR-PRETO-P") { parent { sku } } }')['data']['product']['parent']['sku'] ?? null],
     'GraphQL: products lista só os pais; product(sku:) acha a variação');
+$activePrices = array_map('floatval', $pdo->query("SELECT v.value FROM catalog_product p JOIN eav_value_decimal v ON v.entity_id = p.product_id AND v.attribute_id = {$attrId('price')}
+    WHERE p.parent_id = {$parentId} AND p.is_active = 1")->fetchAll(PDO::FETCH_COLUMN));
+assertSame([['min' => min($activePrices), 'max' => max($activePrices)], array_fill_keys(['min', 'max'], (float) $pdo->query("SELECT v.value FROM catalog_product p JOIN eav_value_decimal v ON v.entity_id = p.product_id AND v.attribute_id = {$attrId('price')} WHERE p.sku = 'selftest-var-az-p'")->fetchColumn())], [
+    array_map('floatval', $gql($guest, '{ product(sku: "selftest-var") { priceRange { min max } } }')['data']['product']['priceRange'] ?? []),
+    array_map('floatval', $gql($guest, '{ product(sku: "selftest-var-az-p") { priceRange { min max } } }')['data']['product']['priceRange'] ?? []),
+], 'GraphQL priceRange: "a partir de" do configurável vem das variações ativas (a inativa de R$ 60 fica fora); o simples tem o próprio preço');
 $service->update($attrId('selftest_vcor'), ['label' => 'Cor grade', 'input_type' => '', 'is_variant' => 1, 'is_filterable' => 1]);
 $varSearch = static fn (string $args) => $gql($guest, '{ products(search: "selftest-var"' . $args . ') { total aggregations { attributes { code options { value count } } } } }')['data']['products'] ?? null;
 $activeColors = $pdo->query("SELECT DISTINCT v.value FROM catalog_product p JOIN eav_value_varchar v ON v.entity_id = p.product_id AND v.attribute_id = {$attrId('selftest_vcor')}
