@@ -57,6 +57,11 @@ class ProductSchema
 
             return InputTypeRegistry::has($inputType) ? InputTypeRegistry::get($inputType) : null;
         };
+        $labelOf = static function (string $code) use ($typeOf, &$attributeRows): string {
+            $typeOf($code); // loads $attributeRows
+
+            return $attributeRows[$code]['label'] ?? $code;
+        };
         /** @return ?array value => label, null when the attribute has no options */
         $optionsOf = static function (string $code) use ($typeOf, &$attributeRows, &$optionLabels): ?array {
             if (!($typeOf($code)['supports_options'] ?? false)) {
@@ -123,6 +128,7 @@ class ProductSchema
             'name' => 'ProductAttribute',
             'fields' => [
                 'code' => Type::nonNull(Type::string()),
+                'label' => ['type' => Type::nonNull(Type::string()), 'description' => 'Nome do atributo, como editado em Catálogo → Atributos.'],
                 'value' => ['type' => Type::string(), 'description' => 'Valor de atributos de valor único (Sim/Não = "1"/"0").'],
                 'values' => ['type' => Type::listOf(Type::nonNull(Type::string())), 'description' => 'Valores de atributos de múltipla seleção.'],
                 'option_label' => ['type' => Type::string(), 'description' => 'Rótulo da opção escolhida, em atributos de opções (Seleção, Opções).'],
@@ -150,7 +156,7 @@ class ProductSchema
         $productType = new ObjectType([
             'name' => 'Product',
             // a closure: variants and parent are Products too, and $load is set below
-            'fields' => static function () use (&$productType, &$load, $productFields, $service, $variants, $isAdmin, $typeEnum, $variantAttributeType, $optionType, $attributeType, $typeOf, $optionsOf, $categories, $categoryType): array {
+            'fields' => static function () use (&$productType, &$load, $productFields, $service, $variants, $isAdmin, $typeEnum, $variantAttributeType, $optionType, $attributeType, $typeOf, $optionsOf, $labelOf, $categories, $categoryType): array {
                 return [
                 'id' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($p) => $p['product_id']],
                 'type' => ['type' => Type::nonNull($typeEnum), 'resolve' => fn ($p) => $p['type']],
@@ -190,7 +196,7 @@ class ProductSchema
                 'attributes' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($attributeType))),
                     // ponytail: one values query per product (N+1), capped by pageSize; batch if lists get slow
-                    'resolve' => static function ($p) use ($service, $typeOf, $optionsOf): array {
+                    'resolve' => static function ($p) use ($service, $typeOf, $optionsOf, $labelOf): array {
                         $rows = [];
                         foreach ($service->getValues((int) $p['product_id']) as $code => $value) {
                             $options = $optionsOf($code);
@@ -198,6 +204,7 @@ class ProductSchema
                             $labels = $options === null ? null : array_map(static fn ($v) => $options[$v] ?? (string) $v, (array) $value);
                             $rows[] = [
                                 'code' => $code,
+                                'label' => $labelOf($code),
                                 'value' => is_array($value) ? null : (is_bool($value) ? ($value ? '1' : '0') : (string) $value),
                                 'values' => is_array($value) ? $value : null,
                                 'option_label' => $labels !== null && !is_array($value) ? $labels[0] : null,

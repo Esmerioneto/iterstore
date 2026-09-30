@@ -72,6 +72,9 @@ type Query {
     pageSize: Int = 20
   ): CustomerList!
 
+  "Os atributos de uma entidade (product, customer, customer_address, category), na ordem de posição. Os ocultos só aparecem para o admin."
+  attributes(entityType: String!): [AttributeDefinition!]!
+
   "O usuário do token (ou da sessão do painel); null sem login."
   currentAdmin: AdminUser
 }
@@ -158,6 +161,9 @@ type ProductOption {
 
 type ProductAttribute {
   code: String!
+
+  "Nome do atributo, como editado em Catálogo → Atributos."
+  label: String!
 
   "Valor de atributos de valor único (Sim/Não = \"1\"/\"0\")."
   value: String
@@ -330,6 +336,42 @@ type CustomerAddress {
 type CustomerList {
   items: [Customer!]!
   total: Int!
+}
+
+type AttributeDefinition {
+  code: String!
+  label: String!
+
+  "text, textarea, select, multiselect, boolean, date, phone, cep, email, cpf_cnpj, image..."
+  inputType: String!
+
+  "true: o valor é uma lista (values)."
+  multiple: Boolean!
+
+  "Máscara do campo: phone, cep, cpf_cnpj ou email."
+  mask: String
+
+  defaultValue: String
+  isRequired: Boolean!
+  isVisible: Boolean!
+  isSearchable: Boolean!
+  isFilterable: Boolean!
+  isSortable: Boolean!
+
+  "\"Usar na grade\" (produtos com variações)."
+  isVariant: Boolean!
+
+  isSystem: Boolean!
+  sortOrder: Int!
+
+  "Vazio nos tipos sem opções."
+  options: [AttributeOption!]!
+}
+
+type AttributeOption {
+  value: String!
+  label: String!
+  isDefault: Boolean!
 }
 
 type AdminUser {

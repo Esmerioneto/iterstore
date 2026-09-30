@@ -13,6 +13,7 @@ use Iter\Admin\GraphQl\AdminSchema;
 use Iter\Core\Config;
 use Iter\Catalog\GraphQl\ProductSchema;
 use Iter\Customer\GraphQl\CustomerSchema;
+use Iter\Eav\GraphQl\AttributeSchema;
 use Iter\Inventory\GraphQl\StockSchema;
 use Iter\Store\Model\Store as StoreModel;
 
@@ -105,6 +106,7 @@ class Schema
         $stores = \isModuleEnabled('iter_store');
         $customer = \isModuleEnabled('iter_customer') ? CustomerSchema::fields() : ['query' => [], 'mutation' => []];
         $admin = AdminSchema::fields(); // Admin is a required module
+        $eav = \isModuleEnabled('iter_eav') ? AttributeSchema::fields() : ['query' => [], 'mutation' => []];
 
         $queryType = new ObjectType([
             'name' => 'Query',
@@ -127,7 +129,7 @@ class Schema
                         return $id === null || Config::websiteExists($id) ? ['id' => $id] : null;
                     },
                 ],
-            ] : []) + $product['query'] + $stock['query'] + $customer['query'] + $admin['query'],
+            ] : []) + $product['query'] + $stock['query'] + $customer['query'] + $eav['query'] + $admin['query'],
         ]);
 
         $mutationType = new ObjectType([

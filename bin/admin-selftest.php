@@ -735,6 +735,23 @@ assertSame([['Vermelho', 'Azul'], null, 'ACME Ltda', null, null], [$labels['self
 $service->update($attrId('selftest_cor'), ['label' => 'Cor multipla', 'input_type' => 'multiselect', 'options' => [['value' => 'az', 'label' => 'Azul']]]);
 $labels = array_column($gql($admin, 'query ($id: ID!) { product(id: $id) { attributes { code option_labels } } }', ['id' => $gqlId])['data']['product']['attributes'] ?? [], 'option_labels', 'code');
 assertSame(['vm', 'Azul'], $labels['selftest_cor'] ?? null, 'GraphQL: opção removida mostra o valor no lugar do rótulo');
+// attribute labels in the API (API-PLAN delivery 9)
+$attrLabels = array_column($gql($admin, 'query ($id: ID!) { product(id: $id) { attributes { code label } } }', ['id' => $gqlId])['data']['product']['attributes'] ?? [], 'label', 'code');
+assertSame(['Cor multipla', $pdo->query("SELECT label FROM eav_attribute WHERE attribute_id = {$attrId('price')}")->fetchColumn()], [$attrLabels['selftest_cor'] ?? null, $attrLabels['price'] ?? null], 'GraphQL: Product.attributes traz o nome do atributo');
+$defs = static fn ($client, string $entity) => array_column($gql($client, '{ attributes(entityType: "' . $entity . '") { code label inputType multiple isRequired isVisible options { value label } } }')['data']['attributes'] ?? [], null, 'code');
+$service->update($attrId('selftest_marca'), ['label' => $pdo->query("SELECT label FROM eav_attribute WHERE attribute_id = {$attrId('selftest_marca')}")->fetchColumn(), 'input_type' => '', 'is_visible' => 0]);
+[$guestDefs, $adminDefs] = [$defs($guest, 'product'), $defs($admin, 'product')];
+$service->update($attrId('selftest_marca'), ['label' => $adminDefs['selftest_marca']['label'] ?? 'x', 'input_type' => '', 'is_visible' => 1]);
+assertSame([['Cor multipla', 'multiselect', true, [['value' => 'az', 'label' => 'Azul']]], false, false], [
+    [$guestDefs['selftest_cor']['label'] ?? null, $guestDefs['selftest_cor']['inputType'] ?? null, $guestDefs['selftest_cor']['multiple'] ?? null, $guestDefs['selftest_cor']['options'] ?? null],
+    isset($guestDefs['selftest_marca']),
+    $adminDefs['selftest_marca']['isVisible'] ?? null,
+], 'GraphQL attributes(entityType): definição pública com opções; atributo oculto só o admin vê');
+assertSame([['CEP', true], 27, 'ENTITY_TYPE_INVALID'], [
+    [$defs($guest, 'customer_address')['postcode']['label'] ?? null, $defs($guest, 'customer_address')['postcode']['isRequired'] ?? null],
+    count($defs($guest, 'customer_address')['region']['options'] ?? []),
+    $gql($guest, '{ attributes(entityType: "nada") { code } }')['errors'][0]['extensions']['code'] ?? null,
+], 'GraphQL attributes(entityType): campos do endereço para o formulário da loja; entidade inexistente é recusada');
 $read = 'query ($id: ID!) { product(id: $id) { sku } products(search: "selftest-gql") { total items { sku } } }';
 assertSame([null, 0], [$gql($guest, $read, ['id' => $gqlId])['data']['product'], $gql($guest, $read, ['id' => $gqlId])['data']['products']['total']], 'GraphQL: visitante não vê produto inativo');
 assertSame(['selftest-gql', 1], [$gql($admin, $read, ['id' => $gqlId])['data']['product']['sku'] ?? null, $gql($admin, $read, ['id' => $gqlId])['data']['products']['total'] ?? null], 'GraphQL: admin vê produto inativo');
