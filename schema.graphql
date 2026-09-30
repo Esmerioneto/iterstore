@@ -436,6 +436,17 @@ type Mutation {
   "Logout: o token enviado deixa de valer. false sem token de cliente."
   revokeCustomerToken: Boolean!
 
+  "Senha esquecida: manda o e-mail com o link do frontend (Configurações → Clientes → link de nova senha). Sempre true, exista ou não o e-mail."
+  requestCustomerPasswordReset(
+    email: String!
+
+    "Omitido = website padrão."
+    websiteId: ID
+  ): Boolean!
+
+  "O token do link do e-mail + a nova senha. O link vale uma vez; todos os logins do cliente caem, e ele entra de novo com generateCustomerToken."
+  resetCustomerPassword(token: String!, password: String!): Boolean!
+
   "O cliente do token muda os próprios dados; só muda o que for enviado. Trocar e-mail ou CPF/CNPJ pede currentPassword."
   updateMe(
     email: String

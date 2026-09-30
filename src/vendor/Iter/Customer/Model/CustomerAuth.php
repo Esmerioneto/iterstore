@@ -7,7 +7,9 @@ namespace Iter\Customer\Model;
 use Iter\Core\Config;
 use Iter\Core\Db\Connection;
 use Iter\Core\Db\Expr;
+use Iter\Core\Log;
 use Iter\Eav\Model\AttributeException;
+use Iter\Mail\Model\MailException;
 use Iter\Mail\Model\MailService;
 
 /**
@@ -151,6 +153,66 @@ class CustomerAuth
         $db->transaction(static function () use ($db, $customer, $new): void {
             $customer->addData(['password_hash' => password_hash($new, PASSWORD_DEFAULT)])->save();
             $db->delete('customer_api_token', ['customer_id = ?' => (int) $customer->getId(), 'token_hash <> ?' => hash('sha256', (string) self::$token)]);
+        });
+    }
+
+    /**
+     * "Forgot password": queues the e-mail with the storefront link (customer/account/reset_url).
+     * Silent for an unknown or inactive e-mail (no account enumeration) and for a new request
+     * less than a minute after the last one (resend spam). A new link replaces the old one.
+     */
+    public static function requestPasswordReset(string $email, int $websiteId): void
+    {
+        $customer = (new Customer())->load((int) (new Customer())->getResource()->findIdByEmail($email, $websiteId));
+        if (!$customer->getId() || !$customer->getData('is_active')) {
+            return;
+        }
+        $db = Connection::get()->adapter();
+        $customerId = (int) $customer->getId();
+        $last = $db->fetchOne($db->select()->from('customer_password_reset', ['created_at'])->where('customer_id = ?', $customerId));
+        if ($last && strtotime((string) $last) > time() - 60) {
+            return;
+        }
+        $token = bin2hex(random_bytes(32));
+        $db->insertOnConflict('customer_password_reset', ['customer_id' => $customerId, 'token_hash' => hash('sha256', $token), 'created_at' => date('Y-m-d H:i:s')], ['customer_id']);
+        $link = (string) Config::get('customer/account/reset_url', $websiteId);
+        try {
+            (new MailService())->send('customer_password_reset', (string) $customer->getData('email'), [
+                'name' => $customer->getData('firstname'),
+                'link' => str_contains($link, '{token}') ? str_replace('{token}', $token, $link) : $token,
+                'hours' => (int) Config::get('customer/security/reset_link_hours'),
+            ], ['website_id' => $websiteId]);
+        } catch (MailException $e) {
+            // same answer either way; a mail setup problem doesn't tell the caller the e-mail exists
+            Log::error('Mail: redefinição de senha do cliente não enfileirada: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * The link's token sets the new password once, within customer/security/reset_link_hours.
+     * Every login (token) of the customer ends; the link also proves the e-mail, so a pending
+     * confirmation is cleared.
+     *
+     * @throws AttributeException TOKEN_INVALID (unknown, used or expired), PASSWORD_INVALID
+     */
+    public static function resetPassword(string $token, string $password): Customer
+    {
+        $db = Connection::get()->adapter();
+        $id = $db->fetchOne($db->select()->from('customer_password_reset', ['customer_id'])
+            ->where('token_hash = ?', hash('sha256', $token))
+            ->where('created_at > ?', date('Y-m-d H:i:s', time() - (int) Config::get('customer/security/reset_link_hours') * 3600)));
+        $customer = (new Customer())->load((int) $id);
+        if (!$customer->getId() || !$customer->getData('is_active')) {
+            throw new AttributeException('TOKEN_INVALID', 'Link de nova senha inválido, vencido ou já usado.');
+        }
+        self::checkPassword($password);
+
+        return $db->transaction(static function () use ($db, $customer, $password): Customer {
+            $customer->addData(['password_hash' => password_hash($password, PASSWORD_DEFAULT), 'confirmation_hash' => null])->save();
+            $db->delete('customer_password_reset', ['customer_id = ?' => (int) $customer->getId()]);
+            $db->delete('customer_api_token', ['customer_id = ?' => (int) $customer->getId()]);
+
+            return $customer;
         });
     }
 
