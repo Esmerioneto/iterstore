@@ -275,11 +275,13 @@ a {
 .admin-dashboard form input[type="email"],
 .admin-dashboard form input[type="password"],
 .admin-dashboard form input[type="number"],
+.admin-dashboard form input[type="date"],
 .admin-dashboard form select,
 .catalog-product-form input[type="text"],
 .catalog-product-form input[type="email"],
 .catalog-product-form input[type="password"],
 .catalog-product-form input[type="number"],
+.catalog-product-form input[type="date"],
 .catalog-product-form select {
   width: 100%;
   max-width: 360px;

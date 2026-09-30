@@ -44,6 +44,7 @@ class AttributeForm implements ViewComponentInterface
         return [
             'is_edit' => $attribute !== null,
             'is_system' => (int) ($attribute['is_system'] ?? 0) === 1,
+            'is_fixed' => $attribute !== null && AttributeService::isFixed($attribute),
             'attribute_id' => $id,
             'values' => array_merge(
                 [

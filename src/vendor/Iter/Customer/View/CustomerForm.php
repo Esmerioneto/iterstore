@@ -11,6 +11,7 @@ use Iter\Customer\Model\Customer;
 use Iter\Customer\Model\CustomerService;
 use Iter\Customer\Model\Group;
 use Iter\Eav\Form\FormSchemaGenerator;
+use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\FormLayout;
 use Iter\Store\Model\Website;
 
@@ -48,7 +49,11 @@ class CustomerForm implements ViewComponentInterface
         // a new customer starts in the first group (Geral)
         $values['group_id'] = $values['group_id'] ?: ($groups[0]['customer_group_id'] ?? '');
 
+        $attributes = (new Attribute())->getResource();
+
         return [
+            // registration fields are system attributes: their labels are edited in Atributos
+            'labels' => array_column($attributes->getByEntityType((int) $attributes->getEntityTypes()[Customer::ENTITY_TYPE]['entity_type_id']), 'label', 'code'),
             'is_edit' => $customer !== null,
             'customer_id' => $id,
             'values' => $values,
