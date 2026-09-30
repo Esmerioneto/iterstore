@@ -1,7 +1,7 @@
 <?php
 /** @var array|null $schema given directly, or built from entity_type / attribute_set / fields */
 $schema ??= (new \Iter\Eav\Form\FormSchemaGenerator())->generate($entity_type, $attribute_set, $fields);
-$html = ['number' => 'number', 'integer' => 'number', 'date' => 'date', 'datetime' => 'datetime-local', 'hidden' => 'hidden'];
+$html = ['number' => 'number', 'integer' => 'number', 'date' => 'date', 'datetime' => 'datetime-local', 'hidden' => 'hidden', 'email' => 'email'];
 $e = static fn ($v) => htmlspecialchars((string) $v);
 // optional: fields placed outside their <form> (product form layout) point to it with form="..."
 $formAttr = ($form_id ?? '') === '' ? '' : ' form="' . $e($form_id) . '"';

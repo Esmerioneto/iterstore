@@ -463,6 +463,22 @@ $optionsNamed = static fn (array $labels) => $throws(static fn () => $service->c
     'options' => array_map(static fn ($l) => ['value' => strtolower($l), 'label' => $l], $labels)]));
 assertSame(['OPTION_DUPLICATE', 'nada'], [$optionsNamed(['Azul', 'azuis']), $optionsNamed(['P', 'PP', 'G', 'GG'])], 'opções com o mesmo nome são recusadas; P e PP não');
 
+// input types email and cpf_cnpj: validated and stored normalized
+$service->create(['entity_type' => 'customer', 'code' => 'selftest_mail', 'label' => 'Mail teste', 'input_type' => 'email']);
+$service->create(['entity_type' => 'customer', 'code' => 'selftest_doc', 'label' => 'Documento teste', 'input_type' => 'cpf_cnpj']);
+$normalized = static fn (string $code, string $value) => (static function () use ($code, $value) {
+    try {
+        return (new ValueService())->validate('customer', [$code => $value])[0]['value'];
+    } catch (AttributeException $e) {
+        return $e->getMessage();
+    }
+})();
+assertSame(
+    ['ana@loja.com', "'Mail teste' não é um e-mail válido.", '39053344705', '11222333000181', "'Documento teste' não é um CPF ou CNPJ válido."],
+    [$normalized('selftest_mail', ' Ana@Loja.COM '), $normalized('selftest_mail', 'ana@'), $normalized('selftest_doc', '390.533.447-05'), $normalized('selftest_doc', '11.222.333/0001-81'), $normalized('selftest_doc', '111.111.111-11')],
+    'tipos e-mail e CPF/CNPJ validam e gravam normalizado'
+);
+
 // creating and removing fields: only the Administrador profile (Iter_Admin::root); "Atributos" edits
 $makeUser('selftest_attr', ['Iter_Eav::attribute']);
 $attrUser = new Browser($base);
