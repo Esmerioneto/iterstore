@@ -14,9 +14,10 @@ use Iter\Eav\Model\ValueService;
 use Iter\Store\Model\Website;
 
 /**
- * Customers: account, type (pf/pj) and documents live in customer_entity, everything
- * else in EAV values (same rules as ProductService). The fields of the other type are
- * cleared on save. Errors reuse AttributeException, as ValueService throws it too.
+ * Customers: website, group, status and secrets live in customer_entity; the registration
+ * fields (Customer::FIELDS, system attributes) and everything else in EAV values, e-mail and
+ * CPF/CNPJ unique per website (eav_unique_value). The fields of the other type are cleared on
+ * save. Errors reuse AttributeException, as ValueService throws it too.
  */
 class CustomerService
 {
@@ -32,14 +33,15 @@ class CustomerService
         $set = $this->set((int) ($data['attribute_set_id'] ?? 0));
         $fields = $this->fields($data);
         $values = new ValueService();
-        $rows = $values->validate(Customer::ENTITY_TYPE, $this->setValues($set, $attributes));
+        $rows = $this->rows($values, $fields, $this->setValues($set, $attributes));
 
-        return Connection::get()->adapter()->transaction(static function () use ($fields, $set, $values, $rows, $addresses): Customer {
+        return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $addresses): Customer {
+            $this->assertUnique($fields);
             $model = (new Customer())->addData($fields + ['attribute_set_id' => (int) $set->getId()])->save();
             if ($addresses !== null) {
                 (new AddressService())->save((int) $model->getId(), $addresses);
             }
-            $values->write((int) $model->getId(), $rows);
+            $values->write((int) $model->getId(), $rows, $fields['website_id']);
 
             return $model;
         });
@@ -51,23 +53,24 @@ class CustomerService
         $model = $this->get($id);
         $fields = $this->fields($data, $id);
         $values = new ValueService();
-        $rows = $values->validate(Customer::ENTITY_TYPE, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes), $id);
+        $rows = $this->rows($values, $fields, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes), $id);
 
-        return Connection::get()->adapter()->transaction(static function () use ($model, $fields, $values, $id, $rows, $addresses): Customer {
+        return Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $addresses): Customer {
+            $this->assertUnique($fields, $id);
             $model->addData($fields)->save();
             if ($addresses !== null) {
                 (new AddressService())->save($id, $addresses);
             }
-            $values->write($id, $rows);
+            $values->write($id, $rows, $fields['website_id']);
 
             return $model;
         });
     }
 
-    /** @return array<string, mixed> code => value */
+    /** @return array<string, mixed> code => value, without the registration fields (they're on the model) */
     public function getValues(int $id): array
     {
-        return (new ValueService())->load(Customer::ENTITY_TYPE, $id);
+        return array_diff_key((new ValueService())->load(Customer::ENTITY_TYPE, $id), array_flip(Customer::FIELDS));
     }
 
     public function delete(int $id): void
@@ -107,6 +110,31 @@ class CustomerService
         };
     }
 
+    /** the registration fields' EAV rows, then the set's attributes */
+    private function rows(ValueService $values, array $fields, array $attributes, ?int $id = null): array
+    {
+        return array_merge(
+            $values->validate(Customer::ENTITY_TYPE, array_intersect_key($fields, array_flip(Customer::FIELDS)), $id),
+            $values->validate(Customer::ENTITY_TYPE, $attributes, $id)
+        );
+    }
+
+    /**
+     * Inside the save's transaction: the lock queues saves of the same website, so a concurrent
+     * sign-up with the same e-mail waits and gets EMAIL_DUPLICATE here instead of a raw 23505.
+     */
+    private function assertUnique(array $fields, ?int $id = null): void
+    {
+        $resource = (new Customer())->getResource();
+        $resource->getConnection()->fetchOne('SELECT pg_advisory_xact_lock(hashtext(?), ?)', ['customer_unique', $fields['website_id']]);
+        if ($resource->exists('email', $fields['email'], $fields['website_id'], $id)) {
+            throw new AttributeException('EMAIL_DUPLICATE', 'Já existe um cliente com este e-mail neste website.');
+        }
+        if ($resource->exists('taxvat', $fields['taxvat'], $fields['website_id'], $id)) {
+            throw new AttributeException('TAXVAT_DUPLICATE', 'Já existe um cliente com este ' . ($fields['customer_type'] === 'pf' ? 'CPF' : 'CNPJ') . ' neste website.');
+        }
+    }
+
     private function set(int $setId): AttributeSet
     {
         $sets = self::sets();
@@ -134,7 +162,6 @@ class CustomerService
     private function fields(array $data, ?int $id = null): array
     {
         $error = static fn (string $code, string $message) => throw new AttributeException($code, $message);
-        $resource = (new Customer())->getResource();
 
         $websiteId = (int) ($data['website_id'] ?? 0);
         if ($websiteId <= 0 || !(new Website())->load($websiteId)->getId()) {
@@ -147,9 +174,6 @@ class CustomerService
         $email = mb_strtolower(trim((string) ($data['email'] ?? '')));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 255) {
             $error('EMAIL_INVALID', 'Informe um e-mail válido.');
-        }
-        if ($resource->exists('email', $email, $websiteId, $id)) {
-            $error('EMAIL_DUPLICATE', 'Já existe um cliente com este e-mail neste website.');
         }
         $names = [];
         foreach (['firstname' => 'Nome', 'lastname' => 'Sobrenome'] as $key => $label) {
@@ -195,9 +219,6 @@ class CustomerService
                 }
                 $fields['state_registration'] = $ie;
             }
-        }
-        if ($resource->exists('taxvat', $taxvat, $websiteId, $id)) {
-            $error('TAXVAT_DUPLICATE', 'Já existe um cliente com este ' . ($type === 'pf' ? 'CPF' : 'CNPJ') . ' neste website.');
         }
 
         return [
