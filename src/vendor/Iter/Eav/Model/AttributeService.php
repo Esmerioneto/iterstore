@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Iter\Eav\Model;
 
+use Iter\Admin\Auth;
+use Iter\Core\Log;
 use Iter\Eav\InputTypeRegistry;
 
 /**
@@ -33,6 +35,9 @@ class AttributeService
      */
     public function create(array $data, bool $system = false): Attribute
     {
+        if (!$system) {
+            self::assertCanManage();
+        }
         $model = new Attribute();
         $entityType = $model->getResource()->getEntityTypes()[$data['entity_type'] ?? ''] ?? null;
         if ($entityType === null) {
@@ -62,8 +67,26 @@ class AttributeService
                 $model->getResource()->replaceOptions((int) $model->getId(), $options);
             }
         }));
+        Log::info("Atributo criado: {$data['entity_type']}/{$code}"); // Log adds the admin user
 
         return $model;
+    }
+
+    /**
+     * Creating and removing fields is for the Administrador profile (Iter_Admin::root) only; editing
+     * label, position and options stays with the "Atributos" resource.
+     */
+    public static function canManage(): bool
+    {
+        // ponytail: the CLI (migrations, scripts) is trusted, whoever runs it owns the server
+        return PHP_SAPI === 'cli' || Auth::isAllowed('Iter_Admin::root');
+    }
+
+    private static function assertCanManage(): void
+    {
+        if (!self::canManage()) {
+            throw new AttributeException('FORBIDDEN', 'Só o perfil Administrador cria e remove atributos.');
+        }
     }
 
     /** entity_type, code and is_system never change here; storage_type follows the input type while there are no values */
@@ -139,6 +162,7 @@ class AttributeService
 
     public function delete(int $id): void
     {
+        self::assertCanManage();
         $model = $this->get($id);
         if ($model->isSystem()) {
             throw new AttributeException('ATTRIBUTE_SYSTEM_PROTECTED', 'Atributos do sistema não podem ser removidos.');
@@ -146,7 +170,9 @@ class AttributeService
         if ($model->getResource()->hasValues($id, $model->getData('storage_type'))) {
             throw new AttributeException('ATTRIBUTE_HAS_VALUES', 'O atributo tem valores gravados e não pode ser removido.');
         }
+        $code = $model->getData('code');
         $model->delete();
+        Log::info("Atributo removido: {$code} (id {$id})");
     }
 
     public function get(int $id): Attribute

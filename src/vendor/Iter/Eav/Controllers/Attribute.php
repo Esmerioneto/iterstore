@@ -27,6 +27,11 @@ class Attribute
 
     public function Create(): void
     {
+        if (!AttributeService::canManage()) {
+            Messages::addError('Só o perfil Administrador cria e remove atributos.');
+            header('Location: /admin/attribute/index');
+            exit;
+        }
         Breadcrumb::set([
             ['label' => 'Dashboard', 'url' => '/admin/index'],
             ['label' => 'Atributos', 'url' => '/admin/attribute/index'],
@@ -81,7 +86,7 @@ class Attribute
             Messages::addSuccess($id ? 'Atributo atualizado com sucesso.' : 'Atributo criado com sucesso.');
         } catch (AttributeException $e) {
             Messages::addError($e->getMessage());
-            if ($e->errorCode === 'ATTRIBUTE_NOT_FOUND') {
+            if (in_array($e->errorCode, ['ATTRIBUTE_NOT_FOUND', 'FORBIDDEN'], true)) {
                 header('Location: /admin/attribute/index');
                 exit;
             }
