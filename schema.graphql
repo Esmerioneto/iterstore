@@ -155,7 +155,9 @@ type Product {
   attributes: [ProductAttribute!]!
   websiteIds: [ID!]!
   categories: [Category!]!
-  stock: ProductStock!
+
+  "Com websiteId, o que aquela loja pode vender: as origens do website menos as reservas dos pedidos dele. A vitrine deve informar o seu."
+  stock(websiteId: ID): ProductStock!
 }
 
 enum ProductType {
@@ -260,7 +262,7 @@ type ProductAggregationOption {
 }
 
 type ProductStock {
-  "Soma das quantidades \"em estoque\" nas origens ativas dos websites do produto."
+  "Soma das quantidades \"em estoque\" nas origens ativas (do website pedido, ou de todos os do produto), menos as reservas dos pedidos."
   salable_quantity: Float!
 
   is_in_stock: Boolean!

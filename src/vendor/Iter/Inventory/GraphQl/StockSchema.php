@@ -27,20 +27,21 @@ class StockSchema
         $service = new StockService();
         $guard = Schema::guard(...);
 
-        // salable quantities of every product in the response, in one query
+        // salable quantities of every product in the response, one query per website asked
         $pending = [];
         $loaded = [];
         $salable = static function (array $stock) use ($service, &$pending, &$loaded): Deferred {
             $id = $stock['product_id'];
-            $pending[$id] = $id;
+            $website = $stock['website_id'] ?? ''; // '' = every website of the product
+            $pending[$website][$id] = $id;
 
-            return new Deferred(static function () use ($id, $service, &$pending, &$loaded): float {
-                if (!isset($loaded[$id])) {
-                    $loaded = $service->getSalable($pending) + $loaded;
-                    $pending = [];
+            return new Deferred(static function () use ($id, $website, $service, &$pending, &$loaded): float {
+                if (!isset($loaded[$website][$id])) {
+                    $loaded[$website] = $service->getSalable($pending[$website], $website === '' ? null : (int) $website) + ($loaded[$website] ?? []);
+                    $pending[$website] = [];
                 }
 
-                return (float) $loaded[$id];
+                return (float) $loaded[$website][$id];
             });
         };
 
@@ -65,7 +66,7 @@ class StockSchema
             'fields' => [
                 'salable_quantity' => [
                     'type' => Type::nonNull(Type::float()),
-                    'description' => 'Soma das quantidades "em estoque" nas origens ativas dos websites do produto.',
+                    'description' => 'Soma das quantidades "em estoque" nas origens ativas (do website pedido, ou de todos os do produto), menos as reservas dos pedidos.',
                     'resolve' => $salable,
                 ],
                 'is_in_stock' => [
@@ -99,7 +100,12 @@ class StockSchema
 
         return [
             'product' => [
-                'stock' => ['type' => Type::nonNull($stockType), 'resolve' => static fn ($p) => ['product_id' => (int) $p['product_id']]],
+                'stock' => [
+                    'type' => Type::nonNull($stockType),
+                    'description' => 'Com websiteId, o que aquela loja pode vender: as origens do website menos as reservas dos pedidos dele. A vitrine deve informar o seu.',
+                    'args' => ['websiteId' => Type::id()],
+                    'resolve' => static fn ($p, array $args) => ['product_id' => (int) $p['product_id'], 'website_id' => isset($args['websiteId']) ? (int) $args['websiteId'] : ''],
+                ],
             ],
             'query' => [
                 'inventorySources' => [
@@ -133,7 +139,7 @@ class StockSchema
                             $items[$source['code']] = ['quantity' => (string) $source['quantity'], 'status' => (string) $source['status']];
                         }
                         $service->save($id, $items);
-                        unset($loaded[$id]);
+                        $loaded = [];
 
                         return ['product_id' => $id];
                     }),

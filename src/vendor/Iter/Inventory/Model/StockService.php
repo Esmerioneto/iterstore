@@ -13,7 +13,7 @@ use Iter\Core\Db\Select;
 /**
  * Product quantities per source. Only the sources of the product's websites count:
  * salable quantity = sum of the quantities marked "in stock" (status 1) in their
- * enabled sources; it's computed on read, never stored.
+ * enabled sources, plus the reservations (negative while an order holds them); computed on read, never stored.
  * A zero quantity in stock isn't stored either: no row means 0, in stock.
  * A configurable product has no stock of its own: its salable quantity is its active variants' sum.
  */
@@ -94,23 +94,74 @@ class StockService
     }
 
     /**
-     * One query for many products (and one more for configurable ones).
+     * One query for many products (and one more for configurable ones), plus the reservations.
+     * With $websiteId, only that website's sources and reservations (what that store can sell).
      *
      * @param int[] $productIds
      * @return array<int, string> product id => salable quantity (every id, 0 when there's none)
      */
-    public function getSalable(array $productIds): array
+    public function getSalable(array $productIds, ?int $websiteId = null): array
     {
         $ids = array_values(array_unique(array_map('intval', $productIds)));
         if (!$ids) {
             return [];
         }
         $db = Connection::get()->adapter();
-        $salable = static fn () => self::salableSelect();
-        $rows = $db->fetchPairs($salable()->columns(['i.product_id', new Expr('SUM(i.quantity)')])->where('i.product_id IN (?)', $ids)->group('i.product_id'))
-            + $db->fetchPairs($salable()->columns(['p.parent_id', new Expr('SUM(i.quantity)')])->where('p.parent_id IN (?)', $ids)->where('p.is_active = 1')->group('p.parent_id'));
+        $sum = static function (Select $select, string $quantity) use ($db, $ids): array {
+            return $db->fetchPairs((clone $select)->columns(['i.product_id', new Expr("SUM({$quantity})")])->where('i.product_id IN (?)', $ids)->group('i.product_id'))
+                + $db->fetchPairs((clone $select)->columns(['p.parent_id', new Expr("SUM({$quantity})")])->where('p.parent_id IN (?)', $ids)->where('p.is_active = 1')->group('p.parent_id'));
+        };
+        $physical = self::salableSelect();
+        $reserved = $db->select()->from(['i' => 'inventory_reservation'], [])->join(['p' => 'catalog_product'], 'p.product_id = i.product_id', []);
+        if ($websiteId !== null) {
+            $physical->where('s.website_id = ?', $websiteId);
+            $reserved->where('i.website_id = ?', $websiteId);
+        }
+        $physical = $sum($physical, 'i.quantity');
+        $reserved = $sum($reserved, 'i.quantity'); // negative while reserved
 
-        return array_map(static fn ($id) => self::format($rows[$id] ?? '0'), array_combine($ids, $ids));
+        return array_map(static fn ($id) => self::format(sprintf('%.4F', (float) ($physical[$id] ?? 0) + (float) ($reserved[$id] ?? 0))), array_combine($ids, $ids));
+    }
+
+    /**
+     * Reserves for an order: checks the website's salable quantity and inserts -qty, all or nothing.
+     * A lock per product (in id order, no deadlock) queues concurrent orders, so the last unit is
+     * reserved once; the other gets INSUFFICIENT_STOCK. Joins the caller's transaction.
+     *
+     * @param array<int, int|float|string> $quantities product id => quantity (simple products or variants)
+     */
+    public function reserve(int $websiteId, array $quantities, string $reason, ?string $reference = null): void
+    {
+        ksort($quantities);
+        Connection::get()->adapter()->transaction(function ($db) use ($websiteId, $quantities, $reason, $reference): void {
+            foreach ($quantities as $productId => $quantity) {
+                $db->fetchOne('SELECT pg_advisory_xact_lock(hashtext(?), ?)', ['inventory_reservation', (int) $productId]);
+                $product = (new ProductService())->get((int) $productId); // PRODUCT_NOT_FOUND
+                if ($product->getData('type') === 'configurable') {
+                    throw new InventoryException('PRODUCT_IS_CONFIGURABLE', "'{$product->getData('name')}' tem grade: reserve a variação.");
+                }
+                $salable = (float) $this->getSalable([(int) $productId], $websiteId)[(int) $productId];
+                if ((float) $quantity <= 0 || (float) $quantity > $salable) {
+                    throw new InventoryException('INSUFFICIENT_STOCK', sprintf("'%s' (%s): só há %s disponível.", $product->getData('name'), $product->getData('sku'), str_replace('.', ',', self::format((string) $salable))));
+                }
+                $db->insert('inventory_reservation', ['product_id' => (int) $productId, 'website_id' => $websiteId, 'quantity' => -(float) $quantity, 'reason' => $reason, 'reference' => $reference]);
+            }
+        });
+    }
+
+    /**
+     * Gives reserved quantities back (canceled order) or clears them once the physical quantity was
+     * taken (shipped order): inserts +qty, never checks the balance.
+     *
+     * @param array<int, int|float|string> $quantities product id => quantity
+     */
+    public function release(int $websiteId, array $quantities, string $reason, ?string $reference = null): void
+    {
+        Connection::get()->adapter()->transaction(static function ($db) use ($websiteId, $quantities, $reason, $reference): void {
+            foreach ($quantities as $productId => $quantity) {
+                $db->insert('inventory_reservation', ['product_id' => (int) $productId, 'website_id' => $websiteId, 'quantity' => (float) $quantity, 'reason' => $reason, 'reference' => $reference]);
+            }
+        });
     }
 
     /** in-stock quantities of enabled sources in the product's websites; p = the item's product */
@@ -127,8 +178,11 @@ class StockService
     /** "Estoque" column sort (Catalog's columns slot): the salable quantity of main_table.product_id, as SQL */
     public static function salableSort(): string
     {
-        return (string) self::salableSelect()->columns([new Expr('COALESCE(SUM(i.quantity), 0)')])
-            ->where('(i.product_id = main_table.product_id OR (p.parent_id = main_table.product_id AND p.is_active = 1))');
+        $mine = '(i.product_id = main_table.product_id OR (p.parent_id = main_table.product_id AND p.is_active = 1))';
+        $reserved = Connection::get()->adapter()->select()->from(['i' => 'inventory_reservation'], [new Expr('COALESCE(SUM(i.quantity), 0)')])
+            ->join(['p' => 'catalog_product'], 'p.product_id = i.product_id', [])->where($mine);
+
+        return '((' . self::salableSelect()->columns([new Expr('COALESCE(SUM(i.quantity), 0)')])->where($mine) . ") + ({$reserved}))";
     }
 
     /** "12.5000" -> "12.5", "3.0000" -> "3" */
