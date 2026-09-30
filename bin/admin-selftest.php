@@ -479,6 +479,23 @@ assertSame(
     'tipos e-mail e CPF/CNPJ validam e gravam normalizado'
 );
 
+// "Valor único": the value doesn't repeat within the scope (entities here are fake category ids)
+$service->create(['entity_type' => 'category', 'code' => 'selftest_ean', 'label' => 'EAN teste', 'input_type' => 'text', 'is_unique' => 1]);
+$uniqueWrite = static fn (int $entityId, ?string $value, int $scope = 0) => $throws(static fn () => (new ValueService())->write($entityId, (new ValueService())->validate('category', ['selftest_ean' => $value]), $scope));
+assertSame(
+    ['nada', 'VALUE_DUPLICATE', 'nada', 'nada', 'nada', 'nada'],
+    [$uniqueWrite(900001, 'ABC-1'), $uniqueWrite(900002, ' abc-1 '), $uniqueWrite(900001, 'ABC-1'), $uniqueWrite(900002, 'abc-1', 7), $uniqueWrite(900001, null), $uniqueWrite(900003, 'abc-1')],
+    'valor único: repetido (sem diferenciar maiúsculas) é recusado; o mesmo registro regrava; outro escopo aceita; apagar libera'
+);
+$eanId = (int) $pdo->query("SELECT attribute_id FROM eav_attribute WHERE code = 'selftest_ean'")->fetchColumn();
+assertSame('23505', $sqlError("INSERT INTO eav_value_varchar (attribute_id, entity_id, value) VALUES ({$eanId}, 900004, 'xyz')"), 'banco: valor único gravado por SQL sem a chave é recusado');
+assertSame('23505', $throws(static fn () => (new \Iter\Eav\Model\Attribute())->getResource()->saveValues(900005, [['attribute_id' => $eanId, 'storage_type' => 'varchar', 'value' => 'ABC-1', 'unique' => 'EAN']])) === 'PDOException' ? '23505' : 'nada', 'banco: dois cadastros simultâneos com o mesmo valor, o índice recusa o segundo');
+$loose = (int) $service->create(['entity_type' => 'category', 'code' => 'selftest_loose', 'label' => 'Solto teste', 'input_type' => 'text'])->getId();
+(new ValueService())->save('category', 900001, ['selftest_loose' => 'x']);
+assertSame('UNIQUE_CHANGE_BLOCKED', $throws(static fn () => $service->update($loose, ['label' => 'Solto teste', 'input_type' => 'text', 'is_unique' => 1])), 'valor único não liga em atributo que já tem valores');
+assertSame('0', (string) $service->create(['entity_type' => 'category', 'code' => 'selftest_unq_sel', 'label' => 'Sel unico', 'input_type' => 'select', 'is_unique' => 1])->getData('is_unique'), 'valor único só vale para texto simples');
+assertSame('23001', $sqlError("UPDATE eav_attribute SET is_unique = 1 WHERE code = 'selftest_sys'"), 'banco: valor único do atributo do sistema não muda por SQL');
+
 // creating and removing fields: only the Administrador profile (Iter_Admin::root); "Atributos" edits
 $makeUser('selftest_attr', ['Iter_Eav::attribute']);
 $attrUser = new Browser($base);

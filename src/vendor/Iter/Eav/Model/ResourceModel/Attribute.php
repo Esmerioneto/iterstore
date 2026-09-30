@@ -101,14 +101,21 @@ class Attribute extends AbstractDb
     }
 
     /**
-     * One transaction for the whole entity: a null value deletes the row.
+     * One transaction for the whole entity: a null value deletes the row. A row with 'unique'
+     * (the attribute's label, set by ValueService::validate) also keeps its eav_unique_value key.
      *
-     * @param array<int, array{attribute_id: int, storage_type: string, value: string|int|null}> $rows
+     * @param array<int, array{attribute_id: int, storage_type: string, value: string|int|null, unique?: ?string}> $rows
      */
-    public function saveValues(int $entityId, array $rows): void
+    public function saveValues(int $entityId, array $rows, int $scopeId = 0): void
     {
-        $this->getConnection()->transaction(function ($db) use ($entityId, $rows): void {
+        $this->getConnection()->transaction(function ($db) use ($entityId, $rows, $scopeId): void {
             foreach ($rows as $row) {
+                if (($row['unique'] ?? null) !== null) {
+                    $db->delete('eav_unique_value', ['attribute_id = ?' => $row['attribute_id'], 'entity_id = ?' => $entityId]);
+                    if ($row['value'] !== null) {
+                        $db->insert('eav_unique_value', ['attribute_id' => $row['attribute_id'], 'entity_id' => $entityId, 'scope_id' => $scopeId, 'value_key' => mb_strtolower((string) $row['value'])]);
+                    }
+                }
                 $table = $this->valueTable($row['storage_type']);
                 if ($row['value'] === null) {
                     $db->delete($table, ['attribute_id = ?' => $row['attribute_id'], 'entity_id = ?' => $entityId]);
@@ -121,12 +128,23 @@ class Attribute extends AbstractDb
 
     public function deleteValues(int $entityTypeId, int $entityId): void
     {
-        foreach (InputTypeRegistry::STORAGE_TYPES as $storage) {
-            $this->getConnection()->delete('eav_value_' . $storage, [
+        $tables = array_merge(['eav_unique_value'], array_map(static fn ($storage) => 'eav_value_' . $storage, InputTypeRegistry::STORAGE_TYPES));
+        foreach ($tables as $table) {
+            $this->getConnection()->delete($table, [
                 'attribute_id IN (SELECT attribute_id FROM eav_attribute WHERE entity_type_id = ?)' => $entityTypeId,
                 'entity_id = ?' => $entityId,
             ]);
         }
+    }
+
+    /** another entity already has $value for the "Valor único" attribute in the scope */
+    public function uniqueTaken(int $attributeId, int $scopeId, string $value, int $entityId): bool
+    {
+        $db = $this->getConnection();
+
+        return (bool) $db->fetchOne($db->select()->from('eav_unique_value', [new Expr('1')])
+            ->where('attribute_id = ?', $attributeId)->where('scope_id = ?', $scopeId)
+            ->where('value_key = ?', mb_strtolower($value))->where('entity_id <> ?', $entityId));
     }
 
     public function hasValues(int $attributeId, string $storageType): bool
