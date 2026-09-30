@@ -149,6 +149,9 @@ class CategoryService
         if ($resource->urlKeyExists($urlKey, $websiteId, $id)) {
             throw new AttributeException('URL_KEY_DUPLICATE', "Já existe uma categoria com a chave de URL '{$urlKey}' neste website.");
         }
+        if ((new Product())->getResource()->urlKeyExists($urlKey, null, $websiteId)) {
+            throw new AttributeException('URL_KEY_DUPLICATE', "Já existe um produto com a chave de URL '{$urlKey}' neste website.");
+        }
 
         return [
             'website_id' => $websiteId,

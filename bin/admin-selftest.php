@@ -891,6 +891,27 @@ assertSame([[400, 'UNAUTHENTICATED'], 'ATTRIBUTE_NOT_FOUND', 'FILE_TYPE_INVALID'
     $gqlUpload('price', 'a.png', $upToken)[1],
     $gqlUpload('selftest_foto', 'fake.png', $upToken)[1],
 ], 'API: upload sem token é recusado (CSRF); só campo de imagem do conjunto; arquivo que finge ser PNG é recusado');
+// friendly URLs: product url_key + route(url) (API-PLAN delivery 13)
+$urlProduct = static fn (string $sku, array $extra = []) => $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => $sku, 'name' => 'Selftest URL', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]] + $extra,
+    ['price' => '1', 'selftest_capa' => $upload('a.png')]);
+$u1 = $urlProduct('selftest-url-1');
+$u2 = $urlProduct('selftest-url-2');
+$u3 = $urlProduct('selftest-url-3', ['url_key' => 'Selftest Produto Único']);
+$baseKey = (string) $pdo->query("SELECT url_key FROM catalog_category WHERE category_id = {$baseCategory}")->fetchColumn();
+assertSame(['selftest-url', 'selftest-url-selftest-url-2', 'selftest-produto-unico', 'URL_KEY_DUPLICATE', 'URL_KEY_DUPLICATE', 'URL_KEY_DUPLICATE'], [
+    $u1->getData('url_key'), $u2->getData('url_key'), $u3->getData('url_key'),
+    $throws(static fn () => $urlProduct('selftest-url-4', ['url_key' => 'selftest-url'])),
+    $throws(static fn () => $urlProduct('selftest-url-5', ['url_key' => $baseKey])),
+    $throws(static fn () => (new CategoryService())->create(['website_id' => $defaultWebsite, 'name' => 'Selftest URL cat', 'url_key' => 'selftest-produto-unico'])),
+], 'URL do produto: vem do nome (com o SKU quando o nome repete) ou digitada; repetida entre produtos ou com uma categoria do website é recusada');
+assertSame(true, (bool) preg_match('/name="url_key" maxlength="255" value="selftest-produto-unico"/', $admin->request('/admin/product/edit?id=' . $u3->getId())['body']), 'form de produto mostra a chave de URL');
+$productService->update((int) $u3->getId(), ['sku' => 'selftest-url-3', 'name' => 'Outro nome', 'is_active' => 1], ['price' => '1']);
+assertSame('selftest-produto-unico', (string) $pdo->query("SELECT url_key FROM catalog_product WHERE product_id = {$u3->getId()}")->fetchColumn(), 'URL do produto: salvar sem a chave mantém a atual');
+$routeCat = (int) (new CategoryService())->create(['website_id' => $defaultWebsite, 'name' => 'Selftest rota', 'url_key' => 'selftest-rota', 'is_active' => 1])->getId();
+$route = static fn (string $url) => $gql($guest, '{ route(url: "' . $url . '") { type product { sku url_key } category { id } } }')['data']['route'];
+assertSame([['type' => 'PRODUCT', 'product' => ['sku' => 'selftest-url-3', 'url_key' => 'selftest-produto-unico'], 'category' => null], ['type' => 'CATEGORY', 'product' => null, 'category' => ['id' => (string) $routeCat]], null], [
+    $route('/moda/selftest-produto-unico'), $route('selftest-rota/'), $route('/selftest-nada-aqui'),
+], 'route(url): acha o produto pela última parte do endereço, depois a categoria; endereço desconhecido dá null');
 assertSame('INPUT_TYPE_CHANGE_BLOCKED', $throws(static fn () => $service->update($attrId('selftest_capa'), ['label' => 'Capa', 'input_type' => 'text'])), 'atributo imagem com valores não vira texto');
 array_map('unlink', glob("{$scratch}/*"));
 rmdir($scratch);

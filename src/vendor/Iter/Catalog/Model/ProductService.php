@@ -40,6 +40,7 @@ class ProductService
         $websiteIds = $this->websiteIds($data, true);
         $categoryIds = $this->categoryIds($data, true, $websiteIds);
         $this->checkCategoryPerWebsite($websiteIds, $categoryIds);
+        $fields['url_key'] = $this->urlKey((string) ($data['url_key'] ?? ''), $fields, $websiteIds);
 
         // one transaction; values last, as write() deletes the files they replaced
         return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $websiteIds, $categoryIds, $configurable, $variantAttributeIds): Product {
@@ -74,6 +75,11 @@ class ProductService
         }
         if ($websiteIds !== null || $categoryIds !== null) {
             $this->checkCategoryPerWebsite($websiteIds ?? $this->getWebsiteIds($id), $categoryIds ?? $this->getCategoryIds($id));
+        }
+        if ($parentId === null) { // a variant opens through its parent: no url_key; omitted = unchanged
+            $fields['url_key'] = array_key_exists('url_key', $data)
+                ? $this->urlKey((string) $data['url_key'], $fields, $websiteIds ?? $this->getWebsiteIds($id), $id)
+                : $model->getData('url_key');
         }
 
         return Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $websiteIds, $categoryIds, $configurable): Product {
@@ -240,6 +246,35 @@ class ProductService
         }
         if ((new Product())->getResource()->skuExists($sku, $id)) {
             throw new AttributeException('SKU_DUPLICATE', "Já existe um produto com o SKU '{$sku}'.");
+        }
+    }
+
+    /**
+     * Empty = made from the name, plus the SKU when the name's is taken (two "Camiseta" are common); a key
+     * typed in that is taken is an error. A category of one of the product's websites can't have it either,
+     * or route(url) couldn't tell them apart.
+     *
+     * @param int[] $websiteIds
+     */
+    private function urlKey(string $urlKey, array $fields, array $websiteIds, ?int $id = null): string
+    {
+        $typed = trim($urlKey) !== '';
+        $candidates = $typed ? [CategoryService::slug($urlKey)] : [CategoryService::slug($fields['name']), CategoryService::slug($fields['name'] . '-' . $fields['sku'])];
+        foreach ($candidates as $i => $key) {
+            if ($key === '' || strlen($key) > 255) {
+                throw new AttributeException('URL_KEY_INVALID', 'Chave de URL inválida: use letras, números e hífen.');
+            }
+            $taken = match (true) {
+                (new Product())->getResource()->urlKeyExists($key, $id) => "Já existe um produto com a chave de URL '{$key}'.",
+                (bool) array_filter($websiteIds, static fn ($w) => (new Category())->getResource()->urlKeyExists($key, (int) $w)) => "Já existe uma categoria com a chave de URL '{$key}' num website do produto.",
+                default => null,
+            };
+            if ($taken === null) {
+                return $key;
+            }
+            if ($i === count($candidates) - 1) {
+                throw new AttributeException('URL_KEY_DUPLICATE', $taken);
+            }
         }
     }
 

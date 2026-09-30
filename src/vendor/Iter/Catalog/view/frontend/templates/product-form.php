@@ -26,6 +26,14 @@ ob_start(); ?>
             <input form="product-form" type="text" name="name" maxlength="255" value="<?= $e($values['name']) ?>" required <?= $parent ? 'readonly' : '' ?>>
         </label>
     </p>
+<?php if (!$parent): // a variant opens through its parent's URL ?>
+    <p>
+        <label>Chave de URL<br>
+            <input form="product-form" type="text" name="url_key" maxlength="255" value="<?= $e($values['url_key'] ?? '') ?>">
+        </label>
+        <small>Vazia = gerada a partir do nome. Única entre os produtos e diferente das categorias dos websites do produto.</small>
+    </p>
+<?php endif; ?>
     <p>
         <label><input form="product-form" type="checkbox" name="is_active" value="1" <?= $values['is_active'] ? 'checked' : '' ?>> Ativo</label>
     </p>

@@ -15,6 +15,7 @@ use Iter\Catalog\Model\CategoryService;
 use Iter\Catalog\Model\Product;
 use Iter\Catalog\Model\ProductService;
 use Iter\Catalog\Model\VariantService;
+use Iter\Core\Db\Connection;
 use Iter\Core\GraphQl\Schema;
 use Iter\Eav\Form\FormSchemaGenerator;
 use Iter\Eav\InputTypeRegistry;
@@ -196,6 +197,7 @@ class ProductSchema
                 'parent' => ['type' => $productType, 'description' => 'O produto com grade, numa variação.', 'resolve' => static fn ($p) => empty($p['parent_id']) ? null : $load((int) $p['parent_id'])],
                 'sku' => Type::nonNull(Type::string()),
                 'name' => Type::nonNull(Type::string()),
+                'url_key' => ['type' => Type::string(), 'description' => 'Para route(url). null nas variações, que abrem pela URL do pai.'],
                 'is_active' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => fn ($p) => (bool) $p['is_active']],
                 'attribute_set_id' => Type::nonNull(Type::id()),
                 'created_at' => Type::nonNull(Type::string()),
@@ -356,7 +358,8 @@ class ProductSchema
             'sku' => $args['sku'] ?? $current['sku'] ?? '',
             'name' => $args['name'] ?? $current['name'] ?? '',
             'is_active' => $args['isActive'] ?? $current['is_active'] ?? true,
-        ] + (isset($args['websiteIds']) ? ['website_ids' => $args['websiteIds']] : []) // omitted = websites unchanged
+        ] + (isset($args['urlKey']) ? ['url_key' => $args['urlKey']] : []) // omitted = unchanged (from the name on creation)
+          + (isset($args['websiteIds']) ? ['website_ids' => $args['websiteIds']] : []) // omitted = websites unchanged
           + (isset($args['categoryIds']) ? ['category_ids' => $args['categoryIds']] : []); // and categories
 
         return [
@@ -392,6 +395,34 @@ class ProductSchema
                         $id = isset($args['id']) ? (int) $args['id'] : (new Category())->getResource()->findIdByUrlKey($args['url_key'], (int) ($args['websiteId'] ?? (new Website())->getResource()->getDefaultId()));
 
                         return $categories()[$id] ?? null;
+                    },
+                ],
+                'route' => [
+                    'type' => new ObjectType([
+                        'name' => 'Route',
+                        'fields' => [
+                            'type' => ['type' => Type::nonNull(Type::string()), 'description' => 'PRODUCT ou CATEGORY.'],
+                            'product' => $productType,
+                            'category' => $categoryType,
+                        ],
+                    ]),
+                    'description' => 'O que abre num endereço da loja: "/calca-jeans" ou "calca-jeans" (vale a última parte, "/vestuario/calca-jeans" também). Produto do website primeiro, depois categoria; null quando não há nada.',
+                    'args' => ['url' => Type::nonNull(Type::string()), 'websiteId' => ['type' => Type::id(), 'description' => 'Omitido = website padrão.']],
+                    'resolve' => static function ($root, array $args) use ($load, $categories): ?array {
+                        $parts = array_values(array_filter(explode('/', (string) parse_url($args['url'], PHP_URL_PATH))));
+                        $key = strtolower((string) end($parts));
+                        $websiteId = (int) ($args['websiteId'] ?? (new Website())->getResource()->getDefaultId());
+                        $db = Connection::get()->adapter();
+                        $productId = $key === '' ? false : $db->fetchOne($db->select()->from('catalog_product', ['product_id'])->where('url_key = ?', $key)
+                            ->where('product_id IN (SELECT product_id FROM catalog_product_website WHERE website_id = ?)', $websiteId));
+                        $product = $productId === false ? null : $load((int) $productId); // inactive: only for the admin
+                        if ($product !== null) {
+                            return ['type' => 'PRODUCT', 'product' => $product, 'category' => null];
+                        }
+                        $categoryId = $key === '' ? null : (new Category())->getResource()->findIdByUrlKey($key, $websiteId);
+                        $category = $categoryId === null ? null : ($categories()[$categoryId] ?? null);
+
+                        return $category === null ? null : ['type' => 'CATEGORY', 'product' => null, 'category' => $category];
                     },
                 ],
                 'products' => [
@@ -437,6 +468,7 @@ class ProductSchema
                     'args' => [
                         'sku' => Type::nonNull(Type::string()),
                         'name' => Type::nonNull(Type::string()),
+                        'urlKey' => ['type' => Type::string(), 'description' => 'Omitida = gerada do nome.'],
                         'attributeSetId' => ['type' => Type::id(), 'description' => 'Omitido = conjunto padrão de produto.'],
                         'isActive' => ['type' => Type::boolean(), 'defaultValue' => true],
                         'attributes' => Type::listOf(Type::nonNull($attributeInput)),
@@ -458,6 +490,7 @@ class ProductSchema
                         'id' => Type::nonNull(Type::id()),
                         'sku' => Type::string(),
                         'name' => Type::string(),
+                        'urlKey' => ['type' => Type::string(), 'description' => 'Vazia = gerada do nome; omitida = sem mudança.'],
                         'isActive' => Type::boolean(),
                         'attributes' => Type::listOf(Type::nonNull($attributeInput)),
                         'websiteIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Substitui os websites (ao menos um).'],

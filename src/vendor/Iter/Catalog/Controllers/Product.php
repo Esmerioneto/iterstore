@@ -63,6 +63,7 @@ class Product
             'attribute_set_id' => (int) ($_POST['attribute_set_id'] ?? 0),
             'sku' => trim($_POST['sku'] ?? ''),
             'name' => trim($_POST['name'] ?? ''),
+            'url_key' => trim($_POST['url_key'] ?? ''),
             'is_active' => !empty($_POST['is_active']) ? 1 : 0,
             'website_ids' => (array) ($_POST['website_ids'] ?? []), // the form always lists the websites
             'category_ids' => (array) ($_POST['category_ids'] ?? []), // and the categories

@@ -23,6 +23,14 @@ type Query {
     websiteId: ID
   ): Category
 
+  "O que abre num endereço da loja: \"/calca-jeans\" ou \"calca-jeans\" (vale a última parte, \"/vestuario/calca-jeans\" também). Produto do website primeiro, depois categoria; null quando não há nada."
+  route(
+    url: String!
+
+    "Omitido = website padrão."
+    websiteId: ID
+  ): Route
+
   products(
     "Parte do SKU ou do nome."
     search: String
@@ -133,6 +141,10 @@ type Product {
 
   sku: String!
   name: String!
+
+  "Para route(url). null nas variações, que abrem pela URL do pai."
+  url_key: String
+
   is_active: Boolean!
   attribute_set_id: ID!
   created_at: String!
@@ -261,6 +273,14 @@ type ProductStockSource {
 
   "1 = em estoque, 0 = fora de estoque."
   status: Int!
+}
+
+type Route {
+  "PRODUCT ou CATEGORY."
+  type: String!
+
+  product: Product
+  category: Category
 }
 
 input ProductFilterInput {
@@ -431,6 +451,9 @@ type Mutation {
     sku: String!
     name: String!
 
+    "Omitida = gerada do nome."
+    urlKey: String
+
     "Omitido = conjunto padrão de produto."
     attributeSetId: ID
 
@@ -455,6 +478,10 @@ type Mutation {
     id: ID!
     sku: String
     name: String
+
+    "Vazia = gerada do nome; omitida = sem mudança."
+    urlKey: String
+
     isActive: Boolean
     attributes: [ProductAttributeInput!]
 
