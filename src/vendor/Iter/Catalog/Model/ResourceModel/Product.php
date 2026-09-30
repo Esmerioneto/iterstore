@@ -16,12 +16,59 @@ class Product extends AbstractDb
     }
 
     /**
-     * @param array{attribute_set_id?: string, is_active?: string, q?: string, category_id?: string, website_id?: string} $filters category_id includes its subcategories
+     * @param array{attribute_set_id?: string, is_active?: string, q?: string, category_id?: string, website_id?: string,
+     *              attributes?: array<string, array{attribute: array, values: string[]}>, price_from?: ?float, price_to?: ?float} $filters
+     *        category_id includes its subcategories; attributes (by code) match the product or one of its variants
      * @return array{items: array<int, array<string, mixed>>, total: int} rows + set_label, price
      */
     public function search(array $filters, int $page, int $perPage, string|Expr $orderBy = 'name', string $direction = 'ASC'): array
     {
-        $collection = (new Collection())->setOrder($orderBy, $direction)->setOrder('product_id', $direction)->setPageSize($perPage)->setCurPage($page);
+        $collection = $this->filtered($filters)->setOrder($orderBy, $direction)->setOrder('product_id', $direction)->setPageSize($perPage)->setCurPage($page);
+
+        return ['items' => $collection->getData(), 'total' => $collection->getSize()];
+    }
+
+    /**
+     * Storefront filters: for each attribute in $filterable, how many products of the search have each
+     * value. An attribute's own filter is left out of its counts, so the other options stay offered.
+     *
+     * @param array<string, array> $filterable eav_attribute rows by code
+     * @return array{attributes: array<string, array<string, int>>, price: array{min: ?float, max: ?float}} value => count
+     */
+    public function aggregations(array $filters, array $filterable): array
+    {
+        $db = $this->getConnection();
+        $counts = [];
+        foreach ($filterable as $code => $attribute) {
+            $ids = $this->idsSql($this->filtered(['attributes' => array_diff_key($filters['attributes'] ?? [], [$code => 0])] + $filters));
+            $value = match ($attribute['storage_type']) {
+                'text' => 'jsonb_array_elements_text(v.value::jsonb)',
+                'boolean' => 'v.value::text', // 0/1
+                default => 'v.value',
+            };
+            $counts[$code] = array_map('intval', $db->fetchPairs(
+                "SELECT {$value} AS value, COUNT(DISTINCT COALESCE(p.parent_id, p.product_id)) FROM catalog_product p
+                 JOIN eav_value_{$attribute['storage_type']} v ON v.entity_id = p.product_id AND v.attribute_id = " . (int) $attribute['attribute_id'] . "
+                 WHERE (p.parent_id IS NULL OR p.is_active = 1) AND COALESCE(p.parent_id, p.product_id) IN ({$ids[0]}) GROUP BY 1",
+                $ids[1]
+            ));
+        }
+        $ids = $this->idsSql($this->filtered(['price_from' => null, 'price_to' => null] + $filters));
+        $price = $db->fetchRow(
+            "SELECT MIN(v.value) AS min, MAX(v.value) AS max FROM catalog_product p
+             JOIN eav_value_decimal v ON v.entity_id = p.product_id
+             JOIN eav_attribute a ON a.attribute_id = v.attribute_id AND a.code = 'price'
+             JOIN eav_entity_type et ON et.entity_type_id = a.entity_type_id AND et.code = 'product'
+             WHERE (p.parent_id IS NULL OR p.is_active = 1) AND COALESCE(p.parent_id, p.product_id) IN ({$ids[0]})",
+            $ids[1]
+        ) ?: [];
+
+        return ['attributes' => $counts, 'price' => ['min' => isset($price['min']) ? (float) $price['min'] : null, 'max' => isset($price['max']) ? (float) $price['max'] : null]];
+    }
+
+    private function filtered(array $filters): Collection
+    {
+        $collection = new Collection();
         $collection->addFieldToFilter('parent_id', ['null' => true]); // variants show under their parent
         if (($filters['attribute_set_id'] ?? '') !== '') {
             $collection->addFieldToFilter('attribute_set_id', (int) $filters['attribute_set_id']);
@@ -40,8 +87,20 @@ class Product extends AbstractDb
             $variantSkus = new Expr("(SELECT string_agg(sku, ' ') FROM catalog_product c WHERE c.parent_id = main_table.product_id)");
             $collection->addFieldToFilter(['sku', 'name', $variantSkus], [$q, $q, $q]);
         }
+        foreach ($filters['attributes'] ?? [] as $filter) {
+            $collection->addAttributeValueFilter($filter['attribute'], $filter['values']);
+        }
+        $collection->addPriceFilter($filters['price_from'] ?? null, $filters['price_to'] ?? null);
 
-        return ['items' => $collection->getData(), 'total' => $collection->getSize()];
+        return $collection;
+    }
+
+    /** @return array{0: string, 1: array} the collection's product ids as a subquery, and its bind */
+    private function idsSql(Collection $collection): array
+    {
+        $select = $collection->getSelect();
+
+        return ["SELECT product_id FROM ({$select}) AS ids", $select->getBind()];
     }
 
     /** SKUs are unique ignoring case, so the lookup ignores it too */
