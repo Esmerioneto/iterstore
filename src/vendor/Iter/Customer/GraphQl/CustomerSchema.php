@@ -9,9 +9,12 @@ use GraphQL\Type\Definition\EnumType;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
+use Iter\Core\Config;
 use Iter\Core\GraphQl\Schema;
+use Iter\Core\RateLimit;
 use Iter\Customer\Model\AddressService;
 use Iter\Customer\Model\Customer;
+use Iter\Customer\Model\CustomerAuth;
 use Iter\Customer\Model\CustomerService;
 use Iter\Eav\Form\FormSchemaGenerator;
 use Iter\Eav\Model\Attribute;
@@ -20,8 +23,9 @@ use Iter\Store\Model\Website;
 
 /**
  * Customer fields for Iter\Core\GraphQl\Schema. Personal data: reads and writes
- * need an admin with the Clientes resource (the storefront's own account comes with
- * the customer login). EAV values go as {code, value | values} like the product's.
+ * need an admin with the Clientes resource. The storefront signs up and logs in with
+ * registerCustomer / generateCustomerToken and reads its own account with `me`.
+ * EAV values go as {code, value | values} like the product's.
  */
 class CustomerSchema
 {
@@ -203,6 +207,23 @@ class CustomerSchema
 
             return $values;
         };
+        // sign-up and login share a per-IP limit against password guessing and spam accounts
+        $limit = static function (): void {
+            if (!RateLimit::hit('customer_login:' . RateLimit::ip(), (int) Config::get('customer/security/api_login_per_minute'))) {
+                http_response_code(429);
+                throw new Error('Muitas tentativas. Aguarde um minuto e tente de novo.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
+            }
+        };
+        $sessionType = new ObjectType([
+            'name' => 'CustomerSession',
+            'fields' => [
+                'token' => ['type' => Type::string(), 'description' => 'Envie em "Authorization: Bearer <token>". null no cadastro que aguarda a confirmação do e-mail.'],
+                'expires_at' => ['type' => Type::string(), 'description' => 'Configurações → Clientes → validade do token. O app renova com refreshCustomerToken.'],
+                'confirmationRequired' => ['type' => Type::nonNull(Type::boolean()), 'description' => 'true: o cliente precisa abrir o link do e-mail (confirmCustomerEmail) antes de entrar.'],
+                'customer' => Type::nonNull($customerType),
+            ],
+        ]);
+        $session = static fn (Customer $c): array => CustomerAuth::issueToken($c) + ['confirmationRequired' => false, 'customer' => $c->getData()];
         $addresses = static fn (array $args): ?array => isset($args['addresses']) ? array_map(static fn ($a) => [
             'address_id' => $a['id'] ?? null,
             'is_default_shipping' => $a['isDefaultShipping'] ? 1 : 0,
@@ -226,6 +247,11 @@ class CustomerSchema
                         return $customer->getId() ? $customer->getData() : null;
                     }),
                 ],
+                'me' => [
+                    'type' => $customerType,
+                    'description' => 'O cliente do token; null sem login de cliente.',
+                    'resolve' => static fn () => CustomerAuth::customer()?->getData(),
+                ],
                 'customers' => [
                     'type' => Type::nonNull($customerList),
                     'args' => [
@@ -247,6 +273,55 @@ class CustomerSchema
                 ],
             ],
             'mutation' => [
+                'registerCustomer' => [
+                    'type' => Type::nonNull($sessionType),
+                    'description' => 'Cadastro pela loja: a conta entra no grupo Geral, ativa. Com a confirmação de e-mail ligada, não traz token até confirmCustomerEmail.',
+                    'args' => array_intersect_key($customerArgs(true), array_flip(['websiteId', 'email', 'firstname', 'lastname', 'type', 'taxvat', 'dob', 'companyName', 'tradeName', 'stateRegistration', 'isIeExempt', 'attributes']))
+                        + ['password' => Type::nonNull(Type::string())],
+                    'resolve' => static function ($root, array $args) use ($limit, $data, $attributes, $session): array {
+                        $limit();
+                        $args['websiteId'] ??= (new Website())->getResource()->getDefaultId();
+                        $setId = (int) key(array_filter(CustomerService::sets(), static fn ($s) => $s['is_default']));
+                        $values = $attributes($args, $setId);
+                        $result = CustomerAuth::register(['attribute_set_id' => $setId, 'attributes' => $values] + $data($args), $args['password']);
+
+                        return $result['confirmation_required']
+                            ? ['token' => null, 'expires_at' => null, 'confirmationRequired' => true, 'customer' => $result['customer']->getData()]
+                            : $session($result['customer']);
+                    },
+                ],
+                'confirmCustomerEmail' => [
+                    'type' => Type::nonNull($sessionType),
+                    'description' => 'O token do link do e-mail de confirmação. Confirma e já entra.',
+                    'args' => ['token' => Type::nonNull(Type::string())],
+                    'resolve' => static function ($root, array $args) use ($session): array {
+                        $customer = CustomerAuth::confirm($args['token']) ?? throw new Error('Link de confirmação inválido ou já usado.', extensions: ['code' => 'TOKEN_INVALID']);
+                        return $session($customer);
+                    },
+                ],
+                'generateCustomerToken' => [
+                    'type' => Type::nonNull($sessionType),
+                    'description' => 'Login do cliente pela loja.',
+                    'args' => ['email' => Type::nonNull(Type::string()), 'password' => Type::nonNull(Type::string()), 'websiteId' => ['type' => Type::id(), 'description' => 'Omitido = website padrão.']],
+                    'resolve' => static function ($root, array $args) use ($limit, $session): array {
+                        $limit();
+                        return $session(CustomerAuth::checkCredentials($args['email'], $args['password'], (int) ($args['websiteId'] ?? (new Website())->getResource()->getDefaultId())));
+                    },
+                ],
+                'refreshCustomerToken' => [
+                    'type' => Type::nonNull($sessionType),
+                    'description' => 'Troca o token enviado por um novo, com a validade renovada (app mobile).',
+                    'resolve' => static function () use ($session): array {
+                        $customer = CustomerAuth::customer() ?? throw new Error('Faça login como cliente.', extensions: ['code' => 'UNAUTHENTICATED']);
+                        CustomerAuth::revokeToken();
+                        return $session($customer);
+                    },
+                ],
+                'revokeCustomerToken' => [
+                    'type' => Type::nonNull(Type::boolean()),
+                    'description' => 'Logout: o token enviado deixa de valer. false sem token de cliente.',
+                    'resolve' => static fn () => CustomerAuth::revokeToken(),
+                ],
                 'createCustomer' => [
                     'type' => Type::nonNull($customerType),
                     'args' => $customerArgs(true) + ['attributeSetId' => ['type' => Type::id(), 'description' => 'Omitido = conjunto padrão de cliente.']],

@@ -14,6 +14,7 @@ use GraphQL\Validator\Rules\DisableIntrospection;
 use GraphQL\Validator\Rules\QueryComplexity;
 use GraphQL\Validator\Rules\QueryDepth;
 use Iter\Core\GraphQl\Schema;
+use Iter\Customer\Model\CustomerAuth;
 
 class Graphql
 {
@@ -40,11 +41,13 @@ class Graphql
         $query = $input['query'] ?? '';
         $variables = $input['variables'] ?? null;
 
-        // API login: a Bearer token (generateAdminToken) acts as its admin user; a bad one is refused, not ignored
+        // API login: a Bearer token acts as its admin user (generateAdminToken) or customer (generateCustomerToken,
+        // which never passes the admin guard); a bad one is refused, not ignored
         $authorization = $_SERVER['HTTP_AUTHORIZATION'] ?? (function_exists('getallheaders') ? (array_change_key_case(getallheaders())['authorization'] ?? '') : '');
-        if (preg_match('/^Bearer\s+(\S+)$/i', (string) $authorization, $m) && !Auth::useToken($m[1])) {
+        if (preg_match('/^Bearer\s+(\S+)$/i', (string) $authorization, $m)
+            && !Auth::useToken($m[1]) && !(\isModuleEnabled('iter_customer') && CustomerAuth::useToken($m[1]))) {
             http_response_code(401);
-            echo json_encode(['errors' => [['message' => 'Token inválido ou expirado. Faça login de novo (generateAdminToken).', 'extensions' => ['code' => 'TOKEN_INVALID']]]]);
+            echo json_encode(['errors' => [['message' => 'Token inválido ou expirado. Faça login de novo.', 'extensions' => ['code' => 'TOKEN_INVALID']]]]);
             return;
         }
 

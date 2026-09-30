@@ -1463,6 +1463,50 @@ assertSame([[200, 'INVALID_CREDENTIALS'], [200, 'INVALID_CREDENTIALS'], [429, 'T
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'admin_login:%'");
 $pdo->exec("UPDATE admin_user SET failures_num = 0, lock_expires = NULL WHERE user_id = {$adminId}");
 
+// --- API: storefront customer login ---------------------------------------------------------------
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
+$register = static fn (string $email, string $cpf, string $password = 'segredo123') => $api('mutation { registerCustomer(email: "' . $email . '", password: "' . $password . '", firstname: "Lu", lastname: "Loja", type: PF, taxvat: "' . $cpf . '")
+    { token expires_at confirmationRequired customer { id email groupId } } }');
+$custLogin = static fn (string $password) => $api('mutation { generateCustomerToken(email: "LOJA@selftest.local", password: "' . $password . '") { token customer { email } } }');
+assertSame('PASSWORD_INVALID', $register('loja@selftest.local', '390.533.447-05', 'curta')[1]['errors'][0]['extensions']['code'] ?? null, 'API cliente: senha curta é recusada');
+$reg = $register('loja@selftest.local', '390.533.447-05')[1]['data']['registerCustomer'] ?? [];
+$general = $pdo->query("SELECT customer_group_id FROM customer_group WHERE code = 'general'")->fetchColumn();
+assertSame([64, false, 'loja@selftest.local', (string) $general], [strlen((string) ($reg['token'] ?? '')), $reg['confirmationRequired'] ?? null, $reg['customer']['email'] ?? null, $reg['customer']['groupId'] ?? null], 'API cliente: cadastro ativo na hora, no grupo Geral, já com token');
+assertSame([200, 'loja@selftest.local'], [$api('{ me { email } }', $reg['token'] ?? '')[0], $api('{ me { email } }', $reg['token'] ?? '')[1]['data']['me']['email'] ?? null], 'API cliente: o token identifica o cliente em me');
+assertSame([null, null, 'UNAUTHENTICATED'], [$api('{ me { email } }')[1]['data']['me'] ?? null, $api('{ currentAdmin { username } }', $reg['token'] ?? '')[1]['data']['currentAdmin'] ?? null,
+    $api('{ customers { total } }', $reg['token'] ?? '')[1]['errors'][0]['extensions']['code'] ?? null], 'API cliente: sem token, me é null; o token do cliente não dá acesso de admin');
+assertSame([['INVALID_CREDENTIALS', 'E-mail ou senha inválidos.'], 'loja@selftest.local'], [
+    [$custLogin('errada123')[1]['errors'][0]['extensions']['code'] ?? null, $custLogin('errada123')[1]['errors'][0]['message'] ?? null],
+    $custLogin('segredo123')[1]['data']['generateCustomerToken']['customer']['email'] ?? null,
+], 'API cliente: login com senha errada é recusado, com a certa entra (e-mail sem diferenciar maiúsculas)');
+$old = $custLogin('segredo123')[1]['data']['generateCustomerToken']['token'] ?? '';
+$new = $api('mutation { refreshCustomerToken { token } }', $old)[1]['data']['refreshCustomerToken']['token'] ?? '';
+assertSame([64, 401, 200], [strlen($new), $api('{ me { id } }', $old)[0], $api('{ me { id } }', $new)[0]], 'API cliente: refresh troca o token e o antigo deixa de valer');
+assertSame([true, 401], [$api('mutation { revokeCustomerToken }', $new)[1]['data']['revokeCustomerToken'] ?? null, $api('{ me { id } }', $new)[0]], 'API cliente: logout revoga o token');
+assertSame('EMAIL_DUPLICATE', $register('loja@selftest.local', '529.982.247-25')[1]['errors'][0]['extensions']['code'] ?? null, 'API cliente: e-mail repetido no website é recusado');
+$pdo->exec("UPDATE customer_entity SET is_active = 0 WHERE email = 'loja@selftest.local'");
+assertSame([401, 'INVALID_CREDENTIALS'], [$api('{ me { id } }', $reg['token'] ?? '')[0], $custLogin('segredo123')[1]['errors'][0]['extensions']['code'] ?? null], 'API cliente: cliente desativado perde o token e não entra');
+
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
+$pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/account/confirm_email', '1'), ('default', 0, 'customer/account/confirm_url', 'https://front.selftest/confirmar?token={token}')
+    ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = EXCLUDED.value");
+$reg = $register('conf@selftest.local', '529.982.247-25')[1]['data']['registerCustomer'] ?? [];
+$confMail = (string) $pdo->query("SELECT body_html FROM mail_queue WHERE to_email = 'conf@selftest.local' AND template_code = 'customer_confirm_email'")->fetchColumn();
+preg_match('#https://front\.selftest/confirmar\?token=([0-9a-f]{64})#', $confMail, $m);
+assertSame([true, true, 64], [array_key_exists('token', $reg) && $reg['token'] === null, $reg['confirmationRequired'] ?? null, strlen($m[1] ?? '')], 'API cliente: com a confirmação ligada, o cadastro não traz token e o e-mail leva o link do frontend');
+$confLogin = static fn () => $api('mutation { generateCustomerToken(email: "conf@selftest.local", password: "segredo123") { token } }')[1];
+assertSame('EMAIL_NOT_CONFIRMED', $confLogin()['errors'][0]['extensions']['code'] ?? null, 'API cliente: sem confirmar o e-mail não entra');
+$confirmed = $api('mutation { confirmCustomerEmail(token: "' . ($m[1] ?? '') . '") { token customer { email } } }')[1]['data']['confirmCustomerEmail'] ?? [];
+assertSame([64, 'conf@selftest.local', 64, 'TOKEN_INVALID'], [
+    strlen((string) ($confirmed['token'] ?? '')), $confirmed['customer']['email'] ?? null, strlen((string) ($confLogin()['data']['generateCustomerToken']['token'] ?? '')),
+    $api('mutation { confirmCustomerEmail(token: "' . ($m[1] ?? '') . '") { token } }')[1]['errors'][0]['extensions']['code'] ?? null,
+], 'API cliente: o link confirma e já entra; depois o login funciona e o link não vale de novo');
+
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
+$pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");
+assertSame([200, 200, 429], array_map(static fn () => $custLogin('errada123')[0], [1, 2, 3]), 'API cliente: login passa do limite por IP e recebe 429');
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
+
 $cors = static function (string $origin, string $method = 'OPTIONS') use ($base): array {
     $ch = curl_init($base . '/core/graphql/index');
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true, CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => ["Origin: {$origin}"]]);

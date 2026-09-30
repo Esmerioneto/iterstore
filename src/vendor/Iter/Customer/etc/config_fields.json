@@ -1,0 +1,7 @@
+[
+    { "path": "customer/account/confirm_email", "group": "Clientes", "label": "Exigir confirmação do e-mail no cadastro pela loja", "type": "boolean", "default": 0, "scope": "website" },
+    { "path": "customer/account/confirm_url", "group": "Clientes", "label": "Link de confirmação na loja (frontend), com {token}, ex.: https://loja.com.br/confirmar?token={token}", "type": "text", "required": false, "scope": "website" },
+    { "path": "customer/security/password_min_length", "group": "Clientes", "label": "Tamanho mínimo da senha do cliente", "type": "number", "default": 8, "min": 6, "max": 64 },
+    { "path": "customer/security/api_token_hours", "group": "Clientes", "label": "Horas de validade do token de login do cliente (app: use refreshCustomerToken)", "type": "number", "default": 720, "min": 1, "max": 8760 },
+    { "path": "customer/security/api_login_per_minute", "group": "Clientes", "label": "Tentativas de login e cadastro de cliente por minuto, por IP (0 = sem limite)", "type": "number", "default": 10, "min": 0, "max": 1000 }
+]
