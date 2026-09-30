@@ -1,6 +1,8 @@
 <section class="eav-attribute-list">
     <h2>Atributos</h2>
+<?php if ($can_manage): ?>
     <p><a href="/admin/attribute/create<?= $filters['entity_type'] !== '' ? '?entity_type=' . urlencode($filters['entity_type']) : '' ?>">+ Novo atributo</a></p>
+<?php endif; ?>
     <form method="get" action="/admin/attribute/index">
         <select name="entity_type">
             <option value="">Todas as entidades</option>
@@ -50,7 +52,7 @@
                 <td><?= (int) $attribute['sort_order'] ?></td>
                 <td>
                     <a href="/admin/attribute/edit?id=<?= (int) $attribute['attribute_id'] ?>">Editar</a>
-        <?php if (!$attribute['is_system']): ?>
+        <?php if ($can_manage && !$attribute['is_system']): ?>
                     <form method="post" action="/admin/attribute/delete" style="display:inline" data-confirm="Remover este atributo?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="attribute_id" value="<?= (int) $attribute['attribute_id'] ?>">

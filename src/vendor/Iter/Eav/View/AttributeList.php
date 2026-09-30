@@ -7,6 +7,7 @@ namespace Iter\Eav\View;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Eav\InputTypeRegistry;
 use Iter\Eav\Model\Attribute;
+use Iter\Eav\Model\AttributeService;
 
 class AttributeList implements ViewComponentInterface
 {
@@ -35,6 +36,7 @@ class AttributeList implements ViewComponentInterface
             'total_pages' => max(1, (int) ceil($result['total'] / self::PER_PAGE)),
             'entity_types' => $resource->getEntityTypes(),
             'input_types' => InputTypeRegistry::all(),
+            'can_manage' => AttributeService::canManage(),
         ];
     }
 }

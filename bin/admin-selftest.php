@@ -447,6 +447,26 @@ $optionsNamed = static fn (array $labels) => $throws(static fn () => $service->c
     'options' => array_map(static fn ($l) => ['value' => strtolower($l), 'label' => $l], $labels)]));
 assertSame(['OPTION_DUPLICATE', 'nada'], [$optionsNamed(['Azul', 'azuis']), $optionsNamed(['P', 'PP', 'G', 'GG'])], 'opções com o mesmo nome são recusadas; P e PP não');
 
+// creating and removing fields: only the Administrador profile (Iter_Admin::root); "Atributos" edits
+$makeUser('selftest_attr', ['Iter_Eav::attribute']);
+$attrUser = new Browser($base);
+$attrUser->login('selftest_attr');
+$attrList = $attrUser->request('/admin/attribute/index?q=selftest_rua')['body'];
+assertSame([false, false, true], [str_contains($attrList, '+ Novo atributo'), str_contains($attrList, '/admin/attribute/delete'), str_contains($admin->request('/admin/attribute/index?q=selftest_rua')['body'], '/admin/attribute/delete')], 'só o Administrador vê criar e remover');
+assertSame('/admin/attribute/index', $attrUser->request('/admin/attribute/create')['location'], 'perfil sem Administrador não abre o novo atributo');
+[, $msgs] = $attrUser->submit('/admin/attribute/edit?id=' . $ruaId, '/admin/attribute/save', ['entity_type' => 'product', 'code' => 'selftest_perm', 'label' => 'Perm', 'input_type' => 'text']);
+assertSame(['Só o perfil Administrador cria e remove atributos.'], $msgs, 'perfil sem Administrador não cria atributo');
+[, $msgs] = $attrUser->submit('/admin/attribute/edit?id=' . $ruaId, '/admin/attribute/delete', ['attribute_id' => $ruaId]);
+assertSame(['Só o perfil Administrador cria e remove atributos.'], $msgs, 'perfil sem Administrador não remove atributo');
+[, $msgs] = $attrUser->submit('/admin/attribute/edit?id=' . $ruaId, '/admin/attribute/save', ['attribute_id' => $ruaId, 'label' => 'Rua da entrega', 'input_type' => 'text']);
+assertSame(['Atributo atualizado com sucesso.'], $msgs, 'perfil "Atributos" edita o nome');
+$logWas = Config::get('system/log/enabled');
+Config::save(['system/log/enabled' => '1']);
+$garrantia = (int) $attributeRow('selftest_garrantia')['attribute_id'];
+[, $msgs] = $admin->submit('/admin/attribute/index', '/admin/attribute/delete', ['attribute_id' => $garrantia]);
+assertSame(true, str_contains((string) @file_get_contents($logDir . 'iter-' . date('Y-m-d') . '.log'), "Atributo removido: selftest_garrantia (id {$garrantia}) {\"user\":\"selftest_admin\""), 'remover atributo fica no log, com quem removeu');
+Config::save(['system/log/enabled' => (string) $logWas]);
+
 for ($i = 1; $i <= 21; $i++) {
     $service->create(['entity_type' => 'category', 'code' => sprintf('selftest_p%02d', $i), 'label' => sprintf('P%02d', $i), 'input_type' => 'text']);
 }
