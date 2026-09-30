@@ -134,10 +134,17 @@ class AttributeService
         if ($model->isSystem()) {
             $fields = array_intersect_key($fields, array_flip(self::SYSTEM_EDITABLE));
         }
+        // ponytail: switched on only while empty; turning it on later needs each entity's scope to build the keys
+        if (($fields['is_unique'] ?? 0) && !$model->getData('is_unique') && $model->getResource()->hasValues($id, $model->getData('storage_type'))) {
+            throw new AttributeException('UNIQUE_CHANGE_BLOCKED', "'Valor único' só pode ser ligado antes de o atributo ter valores gravados.");
+        }
 
         try {
             $this->duplicateGuard(fn () => $model->getResource()->getConnection()->transaction(function () use ($model, $fields, $options, $id): void {
                 $model->addData($fields)->save();
+                if (!$model->getData('is_unique')) {
+                    $model->getResource()->getConnection()->delete('eav_unique_value', ['attribute_id = ?' => $id]);
+                }
                 if ($options !== null) {
                     $model->getResource()->replaceOptions($id, $options);
                 }
@@ -316,6 +323,8 @@ class AttributeService
         }
         // "Usar na grade": one option per variant, so only a single-choice list
         $fields['is_variant'] = $inputType['code'] === 'select' && !empty($data['is_variant']) ? 1 : 0;
+        // "Valor único": one plain text value (text, e-mail, CPF/CNPJ, phone...), compared without case
+        $fields['is_unique'] = $inputType['storage_type'] === 'varchar' && !$inputType['supports_options'] && !$inputType['accept'] && !empty($data['is_unique']) ? 1 : 0;
 
         return $fields;
     }

@@ -83,9 +83,17 @@ class ValueService
     /**
      * Writes what validate() returned: new files first (a value never points to a
      * missing file), then the values, then the files they replaced.
+     *
+     * $scopeId: where "Valor único" values can't repeat (0 = everywhere; the customer uses the website).
      */
-    public function write(int $entityId, array $rows): void
+    public function write(int $entityId, array $rows, int $scopeId = 0): void
     {
+        $resource = (new Attribute())->getResource();
+        foreach ($rows as $row) {
+            if (($row['unique'] ?? null) !== null && $row['value'] !== null && $resource->uniqueTaken($row['attribute_id'], $scopeId, (string) $row['value'], $entityId)) {
+                throw self::duplicate($row['unique']);
+            }
+        }
         $copied = [];
         try {
             foreach ($rows as $row) {
@@ -100,7 +108,13 @@ class ValueService
                     $copied[] = $target;
                 }
             }
-            (new Attribute())->getResource()->saveValues($entityId, $rows);
+            try {
+                $resource->saveValues($entityId, $rows, $scopeId);
+            } catch (\PDOException $e) {
+                // a concurrent save took the value between the check above and the commit
+                $unique = array_filter(array_column($rows, 'unique'));
+                throw $e->getCode() === '23505' && $unique ? self::duplicate(implode(' ou ', $unique)) : $e;
+            }
         } catch (\Throwable $e) {
             array_map('unlink', $copied);
             throw $e;
@@ -141,10 +155,16 @@ class ValueService
                 'attribute_id' => (int) $attribute['attribute_id'],
                 'storage_type' => $attribute['storage_type'],
                 'value' => $this->normalize($attribute, $value),
+                'unique' => (int) $attribute['is_unique'] === 1 ? $attribute['label'] : null,
             ];
         }
 
         return $rows;
+    }
+
+    private static function duplicate(string $label): AttributeException
+    {
+        return new AttributeException('VALUE_DUPLICATE', "'{$label}' já está em uso em outro cadastro.");
     }
 
     /** call when the entity itself is deleted: value tables have no FK to entities */

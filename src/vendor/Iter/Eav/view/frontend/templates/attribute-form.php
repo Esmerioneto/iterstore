@@ -5,6 +5,7 @@ $flags = [
     'is_searchable' => 'Pesquisável',
     'is_filterable' => 'Filtrável',
     'is_sortable' => 'Ordenável',
+    'is_unique' => 'Valor único (não se repete entre registros; só texto, e-mail, CPF/CNPJ e parecidos, e só antes de ter valores)',
 ];
 // on system attributes only label, position and visibility can change (enforced server-side too)
 $locked = static fn (string $field) => $is_system && !in_array($field, ['label', 'sort_order', 'is_visible'], true) ? 'disabled' : '';
