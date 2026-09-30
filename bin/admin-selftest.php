@@ -145,7 +145,7 @@ $purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTempla
         file_put_contents(ETC . 'config.json', $savedModules);
     }
     // before the websites: a customer holds its website
-    foreach ($pdo->query("SELECT customer_id FROM customer_entity WHERE email LIKE '%@selftest.local'")->fetchAll(PDO::FETCH_COLUMN) as $customerId) {
+    foreach ($pdo->query("SELECT customer_id FROM customer_flat WHERE email LIKE '%@selftest.local'")->fetchAll(PDO::FETCH_COLUMN) as $customerId) {
         (new CustomerService())->delete((int) $customerId);
     }
     $pdo->exec("DELETE FROM customer_group WHERE code LIKE 'selftest%'");
@@ -596,7 +596,7 @@ assertSame(['Conjunto removido com sucesso.'], $msgs, 'conjunto não padrão é 
 // --- EAV: values -------------------------------------------------------------------------------
 $types = ['name' => 'text', 'age' => 'integer', 'price' => 'number', 'ok' => 'checkbox', 'birth' => 'date', 'tags' => 'multiselect', 'size' => 'select'];
 foreach ($types as $code => $type) {
-    $service->create(['entity_type' => 'customer', 'code' => "selftest_v_{$code}", 'label' => ucfirst($code), 'input_type' => $type, 'is_required' => $code === 'name' ? 1 : 0,
+    $service->create(['entity_type' => 'customer', 'code' => "selftest_v_{$code}", 'label' => 'Selftest ' . $code, 'input_type' => $type, 'is_required' => $code === 'name' ? 1 : 0,
         'options' => [['value' => 'a'], ['value' => 'b'], ['value' => 'c']]]);
 }
 $v = static fn (array $values) => array_combine(array_map(static fn ($c) => "selftest_v_{$c}", array_keys($values)), $values);
@@ -622,8 +622,8 @@ $valueError(['size' => 'c', 'age' => 'x']);
 assertSame('b', $loaded(999001)['selftest_v_size'], 'erro em um valor não grava nenhum');
 
 $vId = static fn (string $code) => (int) $pdo->query("SELECT attribute_id FROM eav_attribute WHERE code = 'selftest_v_{$code}'")->fetchColumn();
-assertSame('INPUT_TYPE_CHANGE_BLOCKED', $throws(static fn () => $service->update($vId('price'), ['label' => 'Price', 'input_type' => 'integer'])), 'atributo com valores não troca de armazenamento');
-$service->update($vId('age'), ['label' => 'Age', 'input_type' => 'text']);
+assertSame('INPUT_TYPE_CHANGE_BLOCKED', $throws(static fn () => $service->update($vId('price'), ['label' => 'Selftest price', 'input_type' => 'integer'])), 'atributo com valores não troca de armazenamento');
+$service->update($vId('age'), ['label' => 'Selftest age', 'input_type' => 'text']);
 assertSame('varchar', $attributeRow('selftest_v_age')['storage_type'], 'atributo sem valores troca de armazenamento');
 assertSame('ATTRIBUTE_HAS_VALUES', $throws(static fn () => $service->delete($vId('size'))), 'atributo com valores não é removido');
 
@@ -1361,7 +1361,7 @@ $setService->update($custSet, ['label' => 'Cli', 'items' => [
     $custAttr('gender') => ['in' => 1, 'group' => 'Dados pessoais'], $custAttr('phone') => ['in' => 1, 'group' => 'Dados pessoais'],
     $custAttr('selftest_prof') => ['in' => 1, 'group' => 'Extra'],
 ]]);
-$custRow = static fn (string $email, ?int $website = null) => $pdo->query("SELECT * FROM customer_entity WHERE email = '{$email}' AND website_id = " . ($website ?? $websiteId))->fetch(PDO::FETCH_ASSOC);
+$custRow = static fn (string $email, ?int $website = null) => $pdo->query("SELECT * FROM customer_flat WHERE email = '{$email}' AND website_id = " . ($website ?? $websiteId))->fetch(PDO::FETCH_ASSOC);
 $saveCustomer = static fn (array $fields) => $admin->submit('/admin/customer/create', '/admin/customer/save', $fields + [
     'attribute_set_id' => $custSet, 'website_id' => $websiteId, 'group_id' => $custGroup, 'email' => 'ana@selftest.local',
     'firstname' => 'Ana', 'lastname' => 'Silva', 'customer_type' => 'pf', 'cpf' => '529.982.247-25', 'is_active' => '1',
@@ -1431,6 +1431,29 @@ assertSame(true, str_contains($admin->request('/admin/customer/edit?id=' . $anaI
 assertSame(['Já existe um cliente com este e-mail neste website.'], $saveCustomer(['email' => 'ANA@selftest.local', 'cpf' => '111.444.777-35']), 'e-mail repetido no website é recusado');
 assertSame(['Já existe um cliente com este CPF neste website.'], $saveCustomer(['email' => 'outra@selftest.local']), 'CPF repetido no website é recusado');
 assertSame(['Cliente criado com sucesso.'], $saveCustomer(['website_id' => $website2]), 'o mesmo e-mail e CPF em outro website pode');
+// registration fields as system attributes (CUSTOMER-EAV-PLAN): values in EAV, e-mail and CPF keyed by website
+$custAttr = static fn (string $code) => (int) $pdo->query("SELECT attribute_id FROM eav_attribute JOIN eav_entity_type et USING (entity_type_id) WHERE et.code = 'customer' AND eav_attribute.code = '{$code}'")->fetchColumn();
+assertSame([[['email', $websiteId], ['taxvat', $websiteId]], [null, null], ['ana@selftest.local', 'Ana']], [
+    array_map(static fn ($r) => [$r[0], (int) $r[1]], $pdo->query("SELECT a.code, u.scope_id FROM eav_unique_value u JOIN eav_attribute a USING (attribute_id) WHERE u.entity_id = {$anaId} AND a.code IN ('email', 'taxvat') ORDER BY a.code")->fetchAll(PDO::FETCH_NUM)),
+    $pdo->query("SELECT legacy_email, legacy_firstname FROM customer_entity WHERE customer_id = {$anaId}")->fetch(PDO::FETCH_NUM),
+    $pdo->query("SELECT string_agg(value, ',' ORDER BY attribute_id) FROM eav_value_varchar WHERE entity_id = {$anaId} AND attribute_id IN ({$custAttr('email')}, {$custAttr('firstname')})")->fetchColumn() === 'ana@selftest.local,Ana' ? ['ana@selftest.local', 'Ana'] : null,
+], 'cliente: e-mail, nome e CPF gravados no EAV, com a chave única no website; colunas legacy_* sem uso');
+try {
+    $pdo->exec("INSERT INTO eav_value_varchar (attribute_id, entity_id, value) VALUES ({$custAttr('email')}, 999999, 'direto@selftest.local')");
+    $raw = 'gravou';
+} catch (PDOException $e) {
+    $raw = $e->getCode();
+}
+assertSame('23505', $raw, 'cliente: e-mail gravado direto no banco, sem a chave única, é recusado');
+// another save committed the key between the form and this save: the check inside the transaction sees it
+$pdo->exec("INSERT INTO eav_unique_value (attribute_id, entity_id, scope_id, value_key) VALUES ({$custAttr('email')}, 999999, {$websiteId}, 'corrida@selftest.local')");
+$race = $saveCustomer(['email' => 'Corrida@selftest.local', 'cpf' => '111.444.777-35']);
+$pdo->exec('DELETE FROM eav_unique_value WHERE entity_id = 999999');
+assertSame(['Já existe um cliente com este e-mail neste website.'], $race, 'cliente: e-mail já com chave de outro cadastro recebe EMAIL_DUPLICATE');
+assertSame(['ATTRIBUTE_SYSTEM_PROTECTED', 'ATTRIBUTE_SYSTEM_PROTECTED'], [
+    $throws(static fn () => $service->delete($custAttr('email'))),
+    $throws(static fn () => $service->update($custAttr('customer_type'), ['label' => 'Tipo', 'options' => [['value' => 'pf', 'label' => 'Pessoa física']]])),
+], 'cliente: e-mail não é removido e o tipo não perde a opção pj');
 
 $pj = ['customer_type' => 'pj', 'email' => 'empresa@selftest.local', 'cnpj' => '11.222.333/0001-81', 'company_name' => 'Selftest Ltda', 'state_registration' => '123.456.789'];
 assertSame(['Informe um CNPJ válido.'], $saveCustomer(['cnpj' => '529.982.247-25'] + $pj), 'PJ não aceita CPF');
@@ -1582,7 +1605,7 @@ $new = $api('mutation { refreshCustomerToken { token } }', $old)[1]['data']['ref
 assertSame([64, 401, 200], [strlen($new), $api('{ me { id } }', $old)[0], $api('{ me { id } }', $new)[0]], 'API cliente: refresh troca o token e o antigo deixa de valer');
 assertSame([true, 401], [$api('mutation { revokeCustomerToken }', $new)[1]['data']['revokeCustomerToken'] ?? null, $api('{ me { id } }', $new)[0]], 'API cliente: logout revoga o token');
 assertSame('EMAIL_DUPLICATE', $register('loja@selftest.local', '529.982.247-25')[1]['errors'][0]['extensions']['code'] ?? null, 'API cliente: e-mail repetido no website é recusado');
-$pdo->exec("UPDATE customer_entity SET is_active = 0 WHERE email = 'loja@selftest.local'");
+$pdo->exec("UPDATE customer_entity SET is_active = 0 WHERE customer_id IN (SELECT customer_id FROM customer_flat WHERE email = 'loja@selftest.local')");
 assertSame([401, 'INVALID_CREDENTIALS'], [$api('{ me { id } }', $reg['token'] ?? '')[0], $custLogin('segredo123')[1]['errors'][0]['extensions']['code'] ?? null], 'API cliente: cliente desativado perde o token e não entra');
 
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");

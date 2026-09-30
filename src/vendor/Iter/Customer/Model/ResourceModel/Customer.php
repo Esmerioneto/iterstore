@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Iter\Customer\Model\ResourceModel;
 
 use Iter\Core\Db\Expr;
+use Iter\Core\Db\Select;
+use Iter\Core\Model\AbstractModel;
 use Iter\Core\Model\ResourceModel\AbstractDb;
 use Iter\Customer\Model\ResourceModel\Customer\Collection;
 
@@ -13,6 +15,17 @@ class Customer extends AbstractDb
     protected function _construct(): void
     {
         $this->init('customer_entity', 'customer_id');
+    }
+
+    /** reads customer_flat: the columns plus the registration fields (EAV) under their old names */
+    public function load(AbstractModel $object, $value, ?string $field = null): void
+    {
+        $db = $this->getConnection();
+        $row = $db->fetchRow($db->select()->from('customer_flat')->where($db->quoteIdentifier($field ?? 'customer_id') . ' = ?', $value));
+        $object->unsetData();
+        if ($row !== false) {
+            $object->addData($row);
+        }
     }
 
     /**
@@ -51,9 +64,7 @@ class Customer extends AbstractDb
 
     public function findIdByEmail(string $email, int $websiteId): ?int
     {
-        $db = $this->getConnection();
-        $id = $db->fetchOne($db->select()->from('customer_entity', ['customer_id'])
-            ->where('LOWER(email) = LOWER(?)', trim($email))->where('website_id = ?', $websiteId));
+        $id = $this->getConnection()->fetchOne($this->uniqueSelect('email', $email, $websiteId));
 
         return $id === false || $id === null ? null : (int) $id;
     }
@@ -70,15 +81,18 @@ class Customer extends AbstractDb
         ])));
     }
 
-    /** $column is email (compared ignoring case) or taxvat */
-    public function exists(string $column, string $value, int $websiteId, ?int $exceptId = null): bool
+    /** $code is email or taxvat (digits), looked up by the unique key of the website */
+    public function exists(string $code, string $value, int $websiteId, ?int $exceptId = null): bool
     {
-        $db = $this->getConnection();
+        return (bool) $this->getConnection()->fetchOne($this->uniqueSelect($code, $value, $websiteId)->where('u.entity_id <> ?', $exceptId ?? 0)->limit(1));
+    }
 
-        return (bool) $db->fetchOne($db->select()->from('customer_entity', [new Expr('1')])
-            ->where($column === 'email' ? 'LOWER(email) = LOWER(?)' : 'taxvat = ?', $value)
-            ->where('website_id = ?', $websiteId)
-            ->where('customer_id <> ?', $exceptId ?? 0)
-            ->limit(1));
+    /** the indexed lookup in eav_unique_value (attribute, website, value in lowercase) */
+    private function uniqueSelect(string $code, string $value, int $websiteId): Select
+    {
+        return $this->getConnection()->select()->from(['u' => 'eav_unique_value'], ['entity_id'])
+            ->join(['a' => 'eav_attribute'], 'a.attribute_id = u.attribute_id', [])
+            ->join(['et' => 'eav_entity_type'], "et.entity_type_id = a.entity_type_id AND et.code = 'customer'", [])
+            ->where('a.code = ?', $code)->where('u.scope_id = ?', $websiteId)->where('u.value_key = ?', mb_strtolower(trim($value)));
     }
 }
