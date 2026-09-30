@@ -1431,8 +1431,8 @@ assertSame(true, str_contains($admin->request('/admin/customer/edit?id=' . $anaI
 $addrValues = static fn (array $ids) => (int) $pdo->query('SELECT COUNT(*) FROM eav_value_varchar v JOIN eav_attribute a USING (attribute_id) JOIN eav_entity_type et USING (entity_type_id)
     WHERE et.code = \'customer_address\' AND v.entity_id IN (' . implode(',', array_map('intval', $ids)) . ')')->fetchColumn();
 assertSame([6, 0, 0], [$addrValues([$rows[0]['address_id']]), $addrValues([$rows[1]['address_id']]),
-    (int) $pdo->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'customer_address' AND column_name IN ('street', 'postcode')")->fetchColumn()],
-    'endereço: campos gravados no EAV; o removido perde os valores');
+    (int) $pdo->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'customer_address' AND column_name NOT IN ('address_id', 'customer_id', 'is_default_shipping', 'is_default_billing', 'created_at', 'updated_at')")->fetchColumn()],
+    'endereço: campos só no EAV, sem colunas legacy_*; o removido perde os valores');
 assertSame('ENTITY_TYPE_CLOSED', $throws(static fn () => $service->create(['entity_type' => 'customer_address', 'code' => 'selftest_ref', 'label' => 'Selftest ref', 'input_type' => 'text'])),
     'endereço: não aceita atributos novos');
 
