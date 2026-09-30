@@ -134,6 +134,26 @@ class CustomerAuth
         return self::$customer;
     }
 
+    /** @throws AttributeException INVALID_CREDENTIALS when $password isn't the customer's */
+    public static function verifyPassword(Customer $customer, string $password): void
+    {
+        if (!password_verify($password, (string) $customer->getData('password_hash'))) {
+            throw new AttributeException('INVALID_CREDENTIALS', 'Senha atual incorreta.');
+        }
+    }
+
+    /** the other sessions end (a stolen token stops working); the one in use stays */
+    public static function changePassword(Customer $customer, string $current, string $new): void
+    {
+        self::verifyPassword($customer, $current);
+        self::checkPassword($new);
+        $db = Connection::get()->adapter();
+        $db->transaction(static function () use ($db, $customer, $new): void {
+            $customer->addData(['password_hash' => password_hash($new, PASSWORD_DEFAULT)])->save();
+            $db->delete('customer_api_token', ['customer_id = ?' => (int) $customer->getId(), 'token_hash <> ?' => hash('sha256', (string) self::$token)]);
+        });
+    }
+
     public static function checkPassword(string $password): void
     {
         $min = (int) Config::get('customer/security/password_min_length');

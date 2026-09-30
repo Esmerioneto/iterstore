@@ -436,6 +436,49 @@ type Mutation {
   "Logout: o token enviado deixa de valer. false sem token de cliente."
   revokeCustomerToken: Boolean!
 
+  "O cliente do token muda os próprios dados; só muda o que for enviado. Trocar e-mail ou CPF/CNPJ pede currentPassword."
+  updateMe(
+    email: String
+    firstname: String
+    lastname: String
+    type: CustomerType
+
+    "CPF (PF) ou CNPJ (PJ), com ou sem máscara."
+    taxvat: String
+
+    "AAAA-MM-DD, só PF."
+    dob: String
+
+    "Obrigatória para PJ."
+    companyName: String
+
+    tradeName: String
+
+    "Para PJ: a inscrição estadual ou isIeExempt."
+    stateRegistration: String
+
+    isIeExempt: Boolean
+    attributes: [CustomerAttributeInput!]
+
+    "Obrigatória para trocar e-mail ou CPF/CNPJ."
+    currentPassword: String
+  ): Customer!
+
+  "Troca a senha do cliente do token. Os outros logins (tokens) deixam de valer; o enviado continua."
+  changeMyPassword(currentPassword: String!, newPassword: String!): Boolean!
+
+  "Novo endereço do cliente do token. Devolve a lista, os padrões primeiro. O primeiro endereço vira o padrão."
+  createMyAddress(address: CustomerAddressInput!): [CustomerAddress!]!
+
+  "Troca o endereço inteiro (o id vem em address.id). Marcar um padrão tira o de outro endereço; desmarcar não muda o padrão (use setMyDefaultAddress em outro)."
+  updateMyAddress(address: CustomerAddressInput!): [CustomerAddress!]!
+
+  "Torna o endereço o padrão de entrega e/ou de cobrança."
+  setMyDefaultAddress(id: ID!, shipping: Boolean = true, billing: Boolean = true): [CustomerAddress!]!
+
+  "Remove o endereço. Se era o padrão, o primeiro que sobrar vira o padrão."
+  deleteMyAddress(id: ID!): [CustomerAddress!]!
+
   createCustomer(
     "Omitido = website padrão."
     websiteId: ID

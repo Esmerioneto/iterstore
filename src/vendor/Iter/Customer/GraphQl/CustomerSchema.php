@@ -24,7 +24,8 @@ use Iter\Store\Model\Website;
 /**
  * Customer fields for Iter\Core\GraphQl\Schema. Personal data: reads and writes
  * need an admin with the Clientes resource. The storefront signs up and logs in with
- * registerCustomer / generateCustomerToken and reads its own account with `me`.
+ * registerCustomer / generateCustomerToken, reads its own account with `me` and edits it with
+ * updateMe, changeMyPassword and the *MyAddress mutations ("Minha conta").
  * EAV values go as {code, value | values} like the product's.
  */
 class CustomerSchema
@@ -224,11 +225,48 @@ class CustomerSchema
             ],
         ]);
         $session = static fn (Customer $c): array => CustomerAuth::issueToken($c) + ['confirmationRequired' => false, 'customer' => $c->getData()];
-        $addresses = static fn (array $args): ?array => isset($args['addresses']) ? array_map(static fn ($a) => [
+        $addressRow = static fn (array $a): array => [
             'address_id' => $a['id'] ?? null,
             'is_default_shipping' => $a['isDefaultShipping'] ? 1 : 0,
             'is_default_billing' => $a['isDefaultBilling'] ? 1 : 0,
-        ] + $a, $args['addresses']) : null;
+        ] + $a;
+        $addresses = static fn (array $args): ?array => isset($args['addresses']) ? array_map($addressRow, $args['addresses']) : null;
+        // partial update: CustomerService saves the whole set (missing = empty), so it starts from the
+        // stored values, minus options removed since they were chosen
+        $update = static function (int $id, array $args) use ($service, $data, $attributes, $addresses, $optionsOf): array {
+            $current = $service->get($id)->getData();
+            $stored = $service->getValues($id);
+            foreach ($stored as $code => $value) {
+                $options = $optionsOf($code);
+                if ($options !== null) {
+                    $stored[$code] = is_array($value) ? array_values(array_filter($value, static fn ($v) => isset($options[$v]))) : (isset($options[$value]) ? $value : '');
+                }
+            }
+
+            return $service->update($id, $data($args, $current), $attributes($args, (int) $current['attribute_set_id']) + $stored, $addresses($args))->getData();
+        };
+        $me = static fn (): Customer => CustomerAuth::customer() ?? throw new Error('Faça login como cliente.', extensions: ['code' => 'UNAUTHENTICATED']);
+        // "Minha conta" addresses: AddressService::save() takes the whole list, so each mutation edits the stored one
+        $editMyAddresses = static function (callable $edit) use ($me, $addressService): array {
+            $id = (int) $me()->getId();
+            $list = array_column($addressService->getList($id), null, 'address_id');
+            $addressService->save($id, $edit($list));
+
+            return $addressService->getList($id);
+        };
+        $myAddress = static function (array $list, string $id): array {
+            return $list[(int) $id] ?? throw new AttributeException('ADDRESS_NOT_FOUND', "O endereço {$id} não é deste cliente.");
+        };
+        // a default set here wins over the one stored (AddressService keeps the first marked)
+        $withDefaults = static function (array $list, array $row): array {
+            foreach (['is_default_shipping', 'is_default_billing'] as $flag) {
+                if ($row[$flag]) {
+                    $list = array_map(static fn ($a) => [$flag => 0] + $a, $list);
+                }
+            }
+
+            return $list;
+        };
 
         return [
             'query' => [
@@ -322,6 +360,81 @@ class CustomerSchema
                     'description' => 'Logout: o token enviado deixa de valer. false sem token de cliente.',
                     'resolve' => static fn () => CustomerAuth::revokeToken(),
                 ],
+                'updateMe' => [
+                    'type' => Type::nonNull($customerType),
+                    'description' => 'O cliente do token muda os próprios dados; só muda o que for enviado. Trocar e-mail ou CPF/CNPJ pede currentPassword.',
+                    'args' => array_intersect_key($customerArgs(false), array_flip(['email', 'firstname', 'lastname', 'type', 'taxvat', 'dob', 'companyName', 'tradeName', 'stateRegistration', 'isIeExempt', 'attributes']))
+                        + ['currentPassword' => ['type' => Type::string(), 'description' => 'Obrigatória para trocar e-mail ou CPF/CNPJ.']],
+                    'resolve' => static function ($root, array $args) use ($me, $update, $limit): array {
+                        $customer = $me();
+                        $changes = (isset($args['email']) && mb_strtolower(trim($args['email'])) !== $customer->getData('email'))
+                            || (isset($args['taxvat']) && preg_replace('/\D/', '', $args['taxvat']) !== $customer->getData('taxvat'));
+                        if ($changes) {
+                            $limit(); // the password check can't be used to guess it
+                            CustomerAuth::verifyPassword($customer, (string) ($args['currentPassword'] ?? ''));
+                        }
+
+                        return $update((int) $customer->getId(), $args);
+                    },
+                ],
+                'changeMyPassword' => [
+                    'type' => Type::nonNull(Type::boolean()),
+                    'description' => 'Troca a senha do cliente do token. Os outros logins (tokens) deixam de valer; o enviado continua.',
+                    'args' => ['currentPassword' => Type::nonNull(Type::string()), 'newPassword' => Type::nonNull(Type::string())],
+                    'resolve' => static function ($root, array $args) use ($me, $limit): bool {
+                        $customer = $me();
+                        $limit();
+                        CustomerAuth::changePassword($customer, $args['currentPassword'], $args['newPassword']);
+                        return true;
+                    },
+                ],
+                'createMyAddress' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($addressType))),
+                    'description' => 'Novo endereço do cliente do token. Devolve a lista, os padrões primeiro. O primeiro endereço vira o padrão.',
+                    'args' => ['address' => Type::nonNull($addressInput)],
+                    'resolve' => static fn ($root, array $args) => $editMyAddresses(static function (array $list) use ($args, $addressRow, $withDefaults): array {
+                        $row = $addressRow(['id' => null] + $args['address']);
+                        return [...$withDefaults($list, $row), $row];
+                    }),
+                ],
+                'updateMyAddress' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($addressType))),
+                    'description' => 'Troca o endereço inteiro (o id vem em address.id). Marcar um padrão tira o de outro endereço; desmarcar não muda o padrão (use setMyDefaultAddress em outro).',
+                    'args' => ['address' => Type::nonNull($addressInput)],
+                    'resolve' => static fn ($root, array $args) => $editMyAddresses(static function (array $list) use ($args, $addressRow, $withDefaults, $myAddress): array {
+                        $id = (string) ($args['address']['id'] ?? throw new Error('Informe address.id.', extensions: ['code' => 'INVALID_ARGUMENT']));
+                        $current = $myAddress($list, $id);
+                        $row = $addressRow($args['address']);
+                        foreach (['is_default_shipping', 'is_default_billing'] as $flag) {
+                            $row[$flag] = $row[$flag] ?: (int) $current[$flag]; // unmarking moves nothing
+                        }
+                        $list = $withDefaults($list, $row);
+                        $list[(int) $id] = $row;
+                        return $list;
+                    }),
+                ],
+                'setMyDefaultAddress' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($addressType))),
+                    'description' => 'Torna o endereço o padrão de entrega e/ou de cobrança.',
+                    'args' => ['id' => Type::nonNull(Type::id()), 'shipping' => ['type' => Type::boolean(), 'defaultValue' => true], 'billing' => ['type' => Type::boolean(), 'defaultValue' => true]],
+                    'resolve' => static fn ($root, array $args) => $editMyAddresses(static function (array $list) use ($args, $withDefaults, $myAddress): array {
+                        $current = $myAddress($list, (string) $args['id']);
+                        $row = ['is_default_shipping' => $args['shipping'] ? 1 : (int) $current['is_default_shipping'], 'is_default_billing' => $args['billing'] ? 1 : (int) $current['is_default_billing']] + $current;
+                        $list = $withDefaults($list, $row);
+                        $list[(int) $args['id']] = $row;
+                        return $list;
+                    }),
+                ],
+                'deleteMyAddress' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($addressType))),
+                    'description' => 'Remove o endereço. Se era o padrão, o primeiro que sobrar vira o padrão.',
+                    'args' => ['id' => Type::nonNull(Type::id())],
+                    'resolve' => static fn ($root, array $args) => $editMyAddresses(static function (array $list) use ($args, $myAddress): array {
+                        $myAddress($list, (string) $args['id']);
+                        unset($list[(int) $args['id']]);
+                        return $list;
+                    }),
+                ],
                 'createCustomer' => [
                     'type' => Type::nonNull($customerType),
                     'args' => $customerArgs(true) + ['attributeSetId' => ['type' => Type::id(), 'description' => 'Omitido = conjunto padrão de cliente.']],
@@ -336,21 +449,7 @@ class CustomerSchema
                     'type' => Type::nonNull($customerType),
                     'description' => 'Só muda o que for enviado; atributos omitidos mantêm o valor. O conjunto não muda.',
                     'args' => ['id' => Type::nonNull(Type::id())] + $customerArgs(false),
-                    'resolve' => $guard(static function ($root, array $args) use ($service, $data, $attributes, $addresses, $optionsOf): array {
-                        $id = (int) $args['id'];
-                        $current = $service->get($id)->getData();
-                        // CustomerService saves the whole set (missing = empty): start from the stored values,
-                        // minus options removed since they were chosen
-                        $stored = $service->getValues($id);
-                        foreach ($stored as $code => $value) {
-                            $options = $optionsOf($code);
-                            if ($options !== null) {
-                                $stored[$code] = is_array($value) ? array_values(array_filter($value, static fn ($v) => isset($options[$v]))) : (isset($options[$value]) ? $value : '');
-                            }
-                        }
-
-                        return $service->update($id, $data($args, $current), $attributes($args, (int) $current['attribute_set_id']) + $stored, $addresses($args))->getData();
-                    }),
+                    'resolve' => $guard(static fn ($root, array $args) => $update((int) $args['id'], $args)),
                 ],
                 'deleteCustomer' => [
                     'type' => Type::nonNull(Type::boolean()),

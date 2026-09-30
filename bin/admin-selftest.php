@@ -1621,6 +1621,45 @@ $new = $api('mutation { refreshCustomerToken { token } }', $old)[1]['data']['ref
 assertSame([64, 401, 200], [strlen($new), $api('{ me { id } }', $old)[0], $api('{ me { id } }', $new)[0]], 'API cliente: refresh troca o token e o antigo deixa de valer');
 assertSame([true, 401], [$api('mutation { revokeCustomerToken }', $new)[1]['data']['revokeCustomerToken'] ?? null, $api('{ me { id } }', $new)[0]], 'API cliente: logout revoga o token');
 assertSame('EMAIL_DUPLICATE', $register('loja@selftest.local', '529.982.247-25')[1]['errors'][0]['extensions']['code'] ?? null, 'API cliente: e-mail repetido no website é recusado');
+
+// "Minha conta" (API-PLAN delivery 7)
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
+$t = $reg['token'] ?? '';
+$gqlCode = static fn (array $r) => $r[1]['errors'][0]['extensions']['code'] ?? null;
+$updateMe = static fn (string $args) => $api('mutation { updateMe(' . $args . ') { email firstname } }', $t);
+assertSame(['UNAUTHENTICATED', ['email' => 'loja@selftest.local', 'firstname' => 'Luiza'], 'INVALID_CREDENTIALS', 'INVALID_CREDENTIALS'], [
+    $gqlCode($api('mutation { updateMe(firstname: "X") { id } }')),
+    $updateMe('firstname: "Luiza"')[1]['data']['updateMe'] ?? null,
+    $gqlCode($updateMe('email: "loja2@selftest.local"')),
+    $gqlCode($updateMe('taxvat: "529.982.247-25", currentPassword: "errada123"')),
+], 'API minha conta: só com login; muda o nome; e-mail e CPF só com a senha atual');
+assertSame(['loja2@selftest.local', 'loja@selftest.local'], [
+    $updateMe('email: "Loja2@selftest.local", currentPassword: "segredo123"')[1]['data']['updateMe']['email'] ?? null,
+    $updateMe('email: "loja@selftest.local", currentPassword: "segredo123"')[1]['data']['updateMe']['email'] ?? null,
+], 'API minha conta: troca o e-mail com a senha');
+$t2 = $custLogin('segredo123')[1]['data']['generateCustomerToken']['token'] ?? '';
+$changePassword = static fn (string $current, string $new) => $api('mutation { changeMyPassword(currentPassword: "' . $current . '", newPassword: "' . $new . '") }', $t);
+assertSame(['INVALID_CREDENTIALS', true, 401, 200, 64], [
+    $gqlCode($changePassword('errada123', 'novasenha1')),
+    $changePassword('segredo123', 'novasenha1')[1]['data']['changeMyPassword'] ?? null,
+    $api('{ me { id } }', $t2)[0],
+    $api('{ me { id } }', $t)[0],
+    strlen((string) ($custLogin('novasenha1')[1]['data']['generateCustomerToken']['token'] ?? '')),
+], 'API minha conta: troca a senha; os outros logins caem, o atual continua');
+$changePassword('novasenha1', 'segredo123');
+$addrFields = 'id number is_default_shipping is_default_billing';
+$myAddr = static fn (string $mutation, string $args) => $api("mutation { {$mutation}({$args}) { {$addrFields} } }", $t);
+$addrIn = static fn (string $number, string $extra = '') => 'address: {postcode: "01310-100", street: "Av Paulista", number: "' . $number . '", district: "Bela Vista", city: "São Paulo", region: "SP"' . $extra . '}';
+$flags = static fn (array $r, string $key) => array_map(static fn ($a) => [$a['number'], $a['is_default_shipping'], $a['is_default_billing']], $r[1]['data'][$key] ?? []);
+$a1 = $myAddr('createMyAddress', $addrIn('1'))[1]['data']['createMyAddress'][0]['id'] ?? '';
+assertSame([['2', true, false], ['1', false, true]], $flags($myAddr('createMyAddress', $addrIn('2', ', isDefaultShipping: true')), 'createMyAddress'), 'API minha conta: novo endereço marcado vira o padrão de entrega');
+assertSame([['1', true, true], ['2', false, false]], $flags($myAddr('setMyDefaultAddress', 'id: "' . $a1 . '", billing: false'), 'setMyDefaultAddress'), 'API minha conta: define o padrão de entrega sem tirar o de cobrança');
+assertSame([['10', true, true], ['2', false, false]], $flags($myAddr('updateMyAddress', $addrIn('10', ', id: "' . $a1 . '"')), 'updateMyAddress'), 'API minha conta: edita o endereço e mantém os padrões');
+assertSame([[['2', true, true]], 'ADDRESS_NOT_FOUND', 'ADDRESS_NOT_FOUND'], [
+    $flags($myAddr('deleteMyAddress', 'id: "' . $a1 . '"'), 'deleteMyAddress'),
+    $gqlCode($myAddr('deleteMyAddress', 'id: "999999"')),
+    $gqlCode($myAddr('updateMyAddress', $addrIn('3', ', id: "999999"'))),
+], 'API minha conta: remove, e o que sobra vira o padrão; endereço de outro é recusado');
 $pdo->exec("UPDATE customer_entity SET is_active = 0 WHERE customer_id IN (SELECT customer_id FROM customer_flat WHERE email = 'loja@selftest.local')");
 assertSame([401, 'INVALID_CREDENTIALS'], [$api('{ me { id } }', $reg['token'] ?? '')[0], $custLogin('segredo123')[1]['errors'][0]['extensions']['code'] ?? null], 'API cliente: cliente desativado perde o token e não entra');
 
