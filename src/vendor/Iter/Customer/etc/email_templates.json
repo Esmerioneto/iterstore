@@ -1,0 +1,4 @@
+[
+    { "code": "customer_confirm_email", "label": "Confirmação de e-mail do cliente", "subject": "Confirme o seu e-mail", "file": "customer-confirm-email", "private": true,
+      "vars": { "name": "Maria", "link": "https://loja.com.br/confirmar?token=exemplo" } }
+]

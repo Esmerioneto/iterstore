@@ -55,6 +55,9 @@ type Query {
     websiteId: ID
   ): Customer
 
+  "O cliente do token; null sem login de cliente."
+  me: Customer
+
   customers(
     "Parte do nome, razão social, e-mail ou CPF/CNPJ."
     search: String
@@ -386,6 +389,53 @@ type Mutation {
   "Só muda as origens enviadas; as outras mantêm o que têm."
   setProductStock(sku: String!, sources: [ProductStockInput!]!): ProductStock!
 
+  "Cadastro pela loja: a conta entra no grupo Geral, ativa. Com a confirmação de e-mail ligada, não traz token até confirmCustomerEmail."
+  registerCustomer(
+    "Omitido = website padrão."
+    websiteId: ID
+
+    email: String!
+    firstname: String!
+    lastname: String!
+    type: CustomerType!
+
+    "CPF (PF) ou CNPJ (PJ), com ou sem máscara."
+    taxvat: String!
+
+    "AAAA-MM-DD, só PF."
+    dob: String
+
+    "Obrigatória para PJ."
+    companyName: String
+
+    tradeName: String
+
+    "Para PJ: a inscrição estadual ou isIeExempt."
+    stateRegistration: String
+
+    isIeExempt: Boolean
+    attributes: [CustomerAttributeInput!]
+    password: String!
+  ): CustomerSession!
+
+  "O token do link do e-mail de confirmação. Confirma e já entra."
+  confirmCustomerEmail(token: String!): CustomerSession!
+
+  "Login do cliente pela loja."
+  generateCustomerToken(
+    email: String!
+    password: String!
+
+    "Omitido = website padrão."
+    websiteId: ID
+  ): CustomerSession!
+
+  "Troca o token enviado por um novo, com a validade renovada (app mobile)."
+  refreshCustomerToken: CustomerSession!
+
+  "Logout: o token enviado deixa de valer. false sem token de cliente."
+  revokeCustomerToken: Boolean!
+
   createCustomer(
     "Omitido = website padrão."
     websiteId: ID
@@ -501,6 +551,19 @@ input CustomerAttributeInput {
 
   "Para múltipla seleção; [] apaga."
   values: [String!]
+}
+
+type CustomerSession {
+  "Envie em \"Authorization: Bearer <token>\". null no cadastro que aguarda a confirmação do e-mail."
+  token: String
+
+  "Configurações → Clientes → validade do token. O app renova com refreshCustomerToken."
+  expires_at: String
+
+  "true: o cliente precisa abrir o link do e-mail (confirmCustomerEmail) antes de entrar."
+  confirmationRequired: Boolean!
+
+  customer: Customer!
 }
 
 input CustomerAddressInput {
