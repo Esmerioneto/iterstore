@@ -62,6 +62,11 @@ class CustomerSchema
                 'option_labels' => ['type' => Type::listOf(Type::nonNull(Type::string())), 'description' => 'Rótulos das opções escolhidas (Múltipla seleção).'],
             ],
         ]);
+        // the address set's fields that have no field of their own in CustomerAddress; loaded once per request
+        $extra = null;
+        $addressExtra = static function () use (&$extra): array {
+            return $extra ??= array_diff_key(array_column(AddressService::fields(), null, 'name'), array_flip(['complement', 'recipient', 'telephone']));
+        };
         $addressType = new ObjectType([
             'name' => 'CustomerAddress',
             'fields' => [
@@ -75,6 +80,30 @@ class CustomerSchema
                 'city' => Type::nonNull(Type::string()),
                 'region' => ['type' => Type::nonNull(Type::string()), 'description' => 'UF, ex.: SP.'],
                 'telephone' => Type::string(),
+                'attributes' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($attributeType))),
+                    'description' => 'Os campos que o admin criou no conjunto de endereço (os de cima ficam fora).',
+                    'resolve' => static function (array $a) use ($addressExtra): array {
+                        $rows = [];
+                        foreach ($addressExtra() as $code => $field) {
+                            $value = $a[$code] ?? null;
+                            if ($value === null || $value === '' || $value === []) {
+                                continue;
+                            }
+                            $options = isset($field['options']) ? array_column($field['options'], 'label', 'value') : null;
+                            $labels = $options === null ? null : array_map(static fn ($v) => $options[$v] ?? (string) $v, (array) $value);
+                            $rows[] = [
+                                'code' => $code,
+                                'value' => is_array($value) ? null : (is_bool($value) ? ($value ? '1' : '0') : (string) $value),
+                                'values' => is_array($value) ? $value : null,
+                                'option_label' => $labels !== null && !is_array($value) ? $labels[0] : null,
+                                'option_labels' => $labels !== null && is_array($value) ? $labels : null,
+                            ];
+                        }
+
+                        return $rows;
+                    },
+                ],
                 'is_default_shipping' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => fn ($a) => (bool) $a['is_default_shipping']],
                 'is_default_billing' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => fn ($a) => (bool) $a['is_default_billing']],
             ],
@@ -158,6 +187,7 @@ class CustomerSchema
                 'city' => Type::nonNull(Type::string()),
                 'region' => ['type' => Type::nonNull(Type::string()), 'description' => 'UF, ex.: SP.'],
                 'telephone' => Type::string(),
+                'attributes' => ['type' => Type::listOf(Type::nonNull($attributeInput)), 'description' => 'Os campos que o admin criou no conjunto de endereço.'],
                 'isDefaultShipping' => ['type' => Type::boolean(), 'defaultValue' => false],
                 'isDefaultBilling' => ['type' => Type::boolean(), 'defaultValue' => false],
             ],
@@ -227,6 +257,7 @@ class CustomerSchema
         $session = static fn (Customer $c): array => CustomerAuth::issueToken($c) + ['confirmationRequired' => false, 'customer' => $c->getData()];
         $addressRow = static fn (array $a): array => [
             'address_id' => $a['id'] ?? null,
+            'attributes' => array_column(array_map(static fn ($v) => ['code' => $v['code'], 'value' => $v['values'] ?? $v['value'] ?? ''], $a['attributes'] ?? []), 'value', 'code'),
             'is_default_shipping' => $a['isDefaultShipping'] ? 1 : 0,
             'is_default_billing' => $a['isDefaultBilling'] ? 1 : 0,
         ] + $a;

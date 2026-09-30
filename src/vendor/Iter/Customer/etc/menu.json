@@ -33,5 +33,19 @@
     "url": "/admin/attributeset/index?entity_type=customer",
     "parent": "clientes",
     "sort_order": 11
+  },
+  {
+    "label": "Atributos de endereço",
+    "resource": "Iter_Eav::attribute",
+    "url": "/admin/attribute/index?entity_type=customer_address",
+    "parent": "clientes",
+    "sort_order": 12
+  },
+  {
+    "label": "Conjuntos de endereço",
+    "resource": "Iter_Eav::attribute_set",
+    "url": "/admin/attributeset/index?entity_type=customer_address",
+    "parent": "clientes",
+    "sort_order": 13
   }
 ]

@@ -30,6 +30,7 @@ use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\AttributeService;
 use Iter\Eav\Model\AttributeSetService;
 use Iter\Eav\Model\ValueService;
+use Iter\Customer\Model\AddressService;
 use Iter\Customer\Model\CustomerService;
 use Iter\Inventory\Model\InventoryException;
 use Iter\Inventory\Model\SourceService;
@@ -1433,8 +1434,30 @@ $addrValues = static fn (array $ids) => (int) $pdo->query('SELECT COUNT(*) FROM 
 assertSame([6, 0, 0], [$addrValues([$rows[0]['address_id']]), $addrValues([$rows[1]['address_id']]),
     (int) $pdo->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'customer_address' AND column_name NOT IN ('address_id', 'customer_id', 'is_default_shipping', 'is_default_billing', 'created_at', 'updated_at')")->fetchColumn()],
     'endereço: campos só no EAV, sem colunas legacy_*; o removido perde os valores');
-assertSame('ENTITY_TYPE_CLOSED', $throws(static fn () => $service->create(['entity_type' => 'customer_address', 'code' => 'selftest_ref', 'label' => 'Selftest ref', 'input_type' => 'text'])),
-    'endereço: não aceita atributos novos');
+// the address block is built from the address set, like the customer's groups (ADDRESS-EAV)
+$addrAttr = static fn (string $code) => (int) $pdo->query("SELECT attribute_id FROM eav_attribute JOIN eav_entity_type et USING (entity_type_id) WHERE et.code = 'customer_address' AND eav_attribute.code = '{$code}'")->fetchColumn();
+$editable = static fn (string $code) => AttributeService::editable((new AttributeService())->get($addrAttr($code))->getData());
+assertSame([['label', 'sort_order'], ['label', 'sort_order', 'is_visible', 'is_required']], [$editable('postcode'), $editable('telephone')],
+    'endereço: CEP, rua, número, bairro, cidade e UF fixos; complemento, destinatário e telefone mudam também visibilidade e obrigatório');
+assertSame('INPUT_TYPE_INVALID', $throws(static fn () => $service->create(['entity_type' => 'customer_address', 'code' => 'selftest_foto', 'label' => 'Selftest foto fachada', 'input_type' => 'image'])),
+    'endereço: não aceita campo de imagem');
+$refId = (int) $service->create(['entity_type' => 'customer_address', 'code' => 'selftest_referencia', 'label' => 'Ponto de referência selftest', 'input_type' => 'text'])->getId();
+$pdo->exec("INSERT INTO eav_attribute_set_item (attribute_set_id, attribute_id, group_name, sort_order)
+    SELECT attribute_set_id, {$refId}, 'Complemento e contato', 99 FROM eav_attribute_set WHERE is_default = 1 AND entity_type_id = (SELECT entity_type_id FROM eav_entity_type WHERE code = 'customer_address')");
+$anaPage = $admin->request('/admin/customer/edit?id=' . $anaId)['body'];
+assertSame([true, true, false], [
+    str_contains($anaPage, 'name="addresses[0][selftest_referencia]"'),
+    (bool) preg_match('/name="addresses\[0\]\[telephone\]"[^>]*data-mask="phone"/', $anaPage),
+    (bool) preg_match('/name="addresses\[\d+\]\[[a-z_]+\]"[^>]*required/', $anaPage),
+], 'form de cliente: o endereço mostra os campos do conjunto (com máscara), sem required no navegador');
+assertSame(['Cliente atualizado com sucesso.'], $anaPost([['address_id' => $rows[0]['address_id'], 'number' => '1500', 'selftest_referencia' => 'Perto do metrô'] + $addr]), 'endereço salvo com o campo novo');
+assertSame('Perto do metrô', (new AddressService())->getList($anaId)[0]['selftest_referencia'] ?? null, 'o campo novo vem na lista de endereços');
+$pdo->exec("UPDATE eav_attribute SET is_required = 1 WHERE attribute_id = {$refId}");
+assertSame([["Endereço 1: 'Ponto de referência selftest' é obrigatório."], ['Cliente atualizado com sucesso.']], [
+    $anaPost([['address_id' => $rows[0]['address_id'], 'number' => '1500'] + $addr]),
+    $anaPost([['address_id' => $rows[0]['address_id'], 'number' => '1500', 'selftest_referencia' => 'Perto do metrô'] + $addr, ['postcode' => '', 'street' => '', 'selftest_referencia' => '']]),
+], 'endereço: campo obrigatório do conjunto é validado; a linha em branco continua ignorada');
+$pdo->exec("UPDATE eav_attribute SET is_required = 0 WHERE attribute_id = {$refId}");
 
 assertSame(['Já existe um cliente com este e-mail neste website.'], $saveCustomer(['email' => 'ANA@selftest.local', 'cpf' => '111.444.777-35']), 'e-mail repetido no website é recusado');
 assertSame(['Já existe um cliente com este CPF neste website.'], $saveCustomer(['email' => 'outra@selftest.local']), 'CPF repetido no website é recusado');
@@ -1660,6 +1683,11 @@ assertSame([[['2', true, true]], 'ADDRESS_NOT_FOUND', 'ADDRESS_NOT_FOUND'], [
     $gqlCode($myAddr('deleteMyAddress', 'id: "999999"')),
     $gqlCode($myAddr('updateMyAddress', $addrIn('3', ', id: "999999"'))),
 ], 'API minha conta: remove, e o que sobra vira o padrão; endereço de outro é recusado');
+$withRef = $api('mutation { createMyAddress(' . $addrIn('4', ', attributes: [{code: "selftest_referencia", value: "Em frente à praça"}]') . ') { number attributes { code value } } }', $t)[1]['data']['createMyAddress'] ?? [];
+assertSame([[['code' => 'selftest_referencia', 'value' => 'Em frente à praça']], 'ATTRIBUTE_NOT_FOUND'], [
+    array_values(array_filter(array_map(static fn ($a) => $a['number'] === '4' ? $a['attributes'] : null, $withRef)))[0] ?? null,
+    $gqlCode($api('mutation { createMyAddress(' . $addrIn('5', ', attributes: [{code: "nada_disso", value: "x"}]') . ') { id } }', $t)),
+], 'API minha conta: o endereço grava e devolve os campos do conjunto; código fora do conjunto é recusado');
 $pdo->exec("UPDATE customer_entity SET is_active = 0 WHERE customer_id IN (SELECT customer_id FROM customer_flat WHERE email = 'loja@selftest.local')");
 assertSame([401, 'INVALID_CREDENTIALS'], [$api('{ me { id } }', $reg['token'] ?? '')[0], $custLogin('segredo123')[1]['errors'][0]['extensions']['code'] ?? null], 'API cliente: cliente desativado perde o token e não entra');
 
