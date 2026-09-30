@@ -227,6 +227,12 @@ class ValueService
         }
 
         $invalid = new AttributeException('VALUE_INVALID', "Valor inválido para '{$label}'.");
+        // stored normalized, so equal values compare equal (and can be kept unique)
+        $value = match ($type['code']) {
+            'email' => filter_var($value, FILTER_VALIDATE_EMAIL) ? mb_strtolower($value) : throw new AttributeException('VALUE_INVALID', "'{$label}' não é um e-mail válido."),
+            'cpf_cnpj' => Taxvat::normalize($value) ?? throw new AttributeException('VALUE_INVALID', "'{$label}' não é um CPF ou CNPJ válido."),
+            default => $value,
+        };
         switch ($attribute['storage_type']) {
             case 'int':
                 return filter_var($value, FILTER_VALIDATE_INT) === false ? throw $invalid : (int) $value;

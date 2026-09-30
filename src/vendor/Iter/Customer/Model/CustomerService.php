@@ -9,6 +9,7 @@ use Iter\Eav\Form\FormSchemaGenerator;
 use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\AttributeSet;
+use Iter\Eav\Model\Taxvat;
 use Iter\Eav\Model\ValueService;
 use Iter\Store\Model\Website;
 
@@ -96,42 +97,6 @@ class CustomerService
         return array_column($sets, null, 'attribute_set_id');
     }
 
-    public static function validCpf(string $cpf): bool
-    {
-        if (!preg_match('/^\d{11}$/', $cpf) || preg_match('/^(\d)\1+$/', $cpf)) {
-            return false;
-        }
-        for ($t = 9; $t < 11; $t++) {
-            $sum = 0;
-            for ($i = 0; $i < $t; $i++) {
-                $sum += (int) $cpf[$i] * ($t + 1 - $i);
-            }
-            if ((int) $cpf[$t] !== $sum * 10 % 11 % 10) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    public static function validCnpj(string $cnpj): bool
-    {
-        if (!preg_match('/^\d{14}$/', $cnpj) || preg_match('/^(\d)\1+$/', $cnpj)) {
-            return false;
-        }
-        foreach ([12 => [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2], 13 => [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]] as $t => $weights) {
-            $sum = 0;
-            foreach ($weights as $i => $w) {
-                $sum += (int) $cnpj[$i] * $w;
-            }
-            if ((int) $cnpj[$t] !== ($sum % 11 < 2 ? 0 : 11 - $sum % 11)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     /** "12345678901" -> "123.456.789-01", 14 digits as CNPJ */
     public static function formatTaxvat(?string $digits): string
     {
@@ -202,7 +167,7 @@ class CustomerService
         // pf: CPF and birth date; pj: CNPJ, company names and state registration. The other type's fields are cleared
         $fields = ['company_name' => null, 'trade_name' => null, 'state_registration' => null, 'is_ie_exempt' => 0, 'dob' => null];
         if ($type === 'pf') {
-            if (!self::validCpf($taxvat)) {
+            if (!Taxvat::validCpf($taxvat)) {
                 $error('TAXVAT_INVALID', 'Informe um CPF válido.');
             }
             $dob = trim((string) ($data['dob'] ?? ''));
@@ -214,7 +179,7 @@ class CustomerService
                 $fields['dob'] = $dob;
             }
         } else {
-            if (!self::validCnpj($taxvat)) {
+            if (!Taxvat::validCnpj($taxvat)) {
                 $error('TAXVAT_INVALID', 'Informe um CNPJ válido.');
             }
             $fields['company_name'] = trim((string) ($data['company_name'] ?? ''));
