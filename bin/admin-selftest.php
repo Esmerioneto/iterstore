@@ -770,6 +770,30 @@ assertSame([1, 0, 1, 0, ['min' => 19.9, 'max' => 19.9], 'ATTRIBUTE_NOT_FILTERABL
     $search(', priceFrom: 20')['aggregations']['price'] ?? null,
     $gql($admin, '{ products(filters: [{code: "selftest_obs", values: ["x"]}]) { total } }')['errors'][0]['extensions']['code'] ?? null,
 ], 'filtros da loja: por opção (qualquer uma das escolhidas) e por preço; a faixa de preço ignora o próprio filtro de preço; atributo sem a marca é recusado');
+// category mutations (API-PLAN delivery 11)
+$catGql = static fn ($client, string $mutation) => $gql($client, 'mutation { ' . $mutation . ' }');
+$catFields = '{ id name url_key is_active level parent_id websiteId }';
+assertSame('UNAUTHENTICATED', $catGql($guest, 'createCategory(name: "Selftest API") { id }')['errors'][0]['extensions']['code'] ?? null, 'API categoria: sem login é negado');
+$apiRoot = $catGql($admin, "createCategory(name: \"Selftest API\", isActive: false) {$catFields}")['data']['createCategory'] ?? [];
+$apiChild = $catGql($admin, "createCategory(name: \"Filha\", urlKey: \"selftest-api-filha\", parentId: \"{$apiRoot['id']}\") {$catFields}")['data']['createCategory'] ?? [];
+assertSame([['selftest-api', false, 0, (string) $defaultWebsite], [1, $apiRoot['id'], (string) $defaultWebsite], 'URL_KEY_DUPLICATE'], [
+    [$apiRoot['url_key'] ?? null, $apiRoot['is_active'] ?? null, $apiRoot['level'] ?? null, $apiRoot['websiteId'] ?? null],
+    [$apiChild['level'] ?? null, $apiChild['parent_id'] ?? null, $apiChild['websiteId'] ?? null],
+    $catGql($admin, 'createCategory(name: "Selftest API") { id }')['errors'][0]['extensions']['code'] ?? null,
+], 'API categoria: cria principal (chave de URL do nome) e subcategoria no website da mãe; chave repetida no website é recusada');
+$renamed = $catGql($admin, "updateCategory(id: \"{$apiRoot['id']}\", name: \"Selftest API nova\") {$catFields}")['data']['updateCategory'] ?? [];
+assertSame(['Selftest API nova', 'selftest-api', false], [$renamed['name'] ?? null, $renamed['url_key'] ?? null, $renamed['is_active'] ?? null], 'API categoria: update parcial mantém o que não foi enviado');
+assertSame(['CATEGORY_PARENT_INVALID', [0, null]], [
+    $catGql($admin, "moveCategory(id: \"{$apiRoot['id']}\", parentId: \"{$apiChild['id']}\") { id }")['errors'][0]['extensions']['code'] ?? null,
+    array_values(array_intersect_key($catGql($admin, "moveCategory(id: \"{$apiChild['id']}\") {$catFields}")['data']['moveCategory'] ?? [], ['parent_id' => 0, 'level' => 0])),
+], 'API categoria: não entra numa subcategoria sua; mover sem parentId vira principal');
+$catGql($admin, "moveCategory(id: \"{$apiChild['id']}\", parentId: \"{$apiRoot['id']}\") { id }");
+assertSame(['CATEGORY_HAS_CHILDREN', 'CATEGORY_HAS_PRODUCTS', true, true], [
+    $catGql($admin, "deleteCategory(id: \"{$apiRoot['id']}\")")['errors'][0]['extensions']['code'] ?? null,
+    $catGql($admin, "deleteCategory(id: \"{$baseCategory}\")")['errors'][0]['extensions']['code'] ?? null,
+    $catGql($admin, "deleteCategory(id: \"{$apiChild['id']}\")")['data']['deleteCategory'] ?? null,
+    $catGql($admin, "deleteCategory(id: \"{$apiRoot['id']}\")")['data']['deleteCategory'] ?? null,
+], 'API categoria: não apaga com subcategorias nem com produtos; apaga a folha e depois a mãe');
 $read = 'query ($id: ID!) { product(id: $id) { sku } products(search: "selftest-gql") { total items { sku } } }';
 assertSame([null, 0], [$gql($guest, $read, ['id' => $gqlId])['data']['product'], $gql($guest, $read, ['id' => $gqlId])['data']['products']['total']], 'GraphQL: visitante não vê produto inativo');
 assertSame(['selftest-gql', 1], [$gql($admin, $read, ['id' => $gqlId])['data']['product']['sku'] ?? null, $gql($admin, $read, ['id' => $gqlId])['data']['products']['total'] ?? null], 'GraphQL: admin vê produto inativo');

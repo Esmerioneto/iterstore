@@ -470,6 +470,30 @@ type Mutation {
 
   deleteProduct(id: ID!): Boolean!
 
+  "Sem parentId, uma categoria principal do website. Uma subcategoria fica no website da mãe. urlKey omitida sai do nome."
+  createCategory(
+    "Omitido = website padrão; ignorado numa subcategoria."
+    websiteId: ID
+
+    parentId: ID
+    name: String!
+    urlKey: String
+    isActive: Boolean = true
+    position: Int = 0
+
+    "Atributos de categoria (Catálogo → Atributos, entidade Categoria)."
+    attributes: [ProductAttributeInput!]
+  ): Category!
+
+  "Só muda o que for enviado. Para trocar a categoria mãe, use moveCategory."
+  updateCategory(id: ID!, name: String, urlKey: String, isActive: Boolean, position: Int, attributes: [ProductAttributeInput!]): Category!
+
+  "Muda a categoria mãe (sem parentId = principal) e a posição. Fica no mesmo website; não vai para dentro dela mesma nem de uma subcategoria sua."
+  moveCategory(id: ID!, parentId: ID, position: Int): Category!
+
+  "Recusada com subcategorias (CATEGORY_HAS_CHILDREN) ou produtos (CATEGORY_HAS_PRODUCTS)."
+  deleteCategory(id: ID!): Boolean!
+
   "Só muda as origens enviadas; as outras mantêm o que têm."
   setProductStock(sku: String!, sources: [ProductStockInput!]!): ProductStock!
 
