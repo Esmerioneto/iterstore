@@ -1242,6 +1242,42 @@ assertSame(['QUANTITY_INVALID', '2', 'PRODUCT_NOT_FOUND'], [
 ], 'grade com erro não grava nada; só variações do produto');
 $productService->update($v[2]['product_id'], ['sku' => $v[2]['sku'], 'is_active' => 0], ['price' => '60']);
 assertSame('5.5', $stock->getSalable([$parentId])[$parentId], 'variação inativa não conta no saldo do pai');
+// stock per website + reservations (COMMERCE-PLAN delivery 1); selftest_var_cd is a default-website source
+$v0 = (int) $v[0]['product_id'];
+$reservations = static fn () => (int) $pdo->query("SELECT COUNT(*) FROM inventory_reservation WHERE product_id = {$v0}")->fetchColumn();
+assertSame(['2', '2', '0'], [$stock->getSalable([$v0], $defaultWebsite)[$v0], $stock->getSalable([$v0])[$v0], $stock->getSalable([$v0], $websiteId)[$v0]],
+    'saldo por website: só as origens daquele website contam');
+$stock->reserve($defaultWebsite, [$v0 => 1], 'order', 'selftest-1');
+$apiStock = static fn (string $website) => $gql($guest, '{ product(sku: "' . $v[0]['sku'] . '") { stock' . $website . ' { salable_quantity } } }')['data']['product']['stock']['salable_quantity'] ?? null;
+assertSame(['1', '4.5', 1, 1, 0], [
+    $stock->getSalable([$v0], $defaultWebsite)[$v0], $stock->getSalable([$parentId])[$parentId],
+    $apiStock('(websiteId: "' . $defaultWebsite . '")'), $apiStock(''), $apiStock('(websiteId: "' . $websiteId . '")'),
+], 'reserva: o saldo vendável cai (também no pai e na API por website) sem mexer na quantidade física');
+$physical = (string) $pdo->query("SELECT quantity FROM inventory_source_item WHERE product_id = {$v0}")->fetchColumn();
+assertSame(['INSUFFICIENT_STOCK', 'INSUFFICIENT_STOCK', 'INSUFFICIENT_STOCK', 'PRODUCT_IS_CONFIGURABLE', 1, '2.0000'], [
+    $throws(static fn () => $stock->reserve($defaultWebsite, [$v0 => 2], 'order', 'selftest-2')),
+    $throws(static fn () => $stock->reserve($defaultWebsite, [(int) $v[1]['product_id'] => 1, $v0 => 2], 'order', 'selftest-2')),
+    $throws(static fn () => $stock->reserve($websiteId, [$v0 => 1], 'order', 'selftest-2')),
+    $throws(static fn () => $stock->reserve($defaultWebsite, [$parentId => 1], 'order', 'selftest-2')),
+    $reservations(), $physical,
+], 'reserva: acima do saldo do website, em outro website ou no pai com grade é recusada, sem gravar nada (tudo ou nada)');
+$stock->release($defaultWebsite, [$v0 => 1], 'order_canceled', 'selftest-1');
+assertSame(['2', 2], [$stock->getSalable([$v0], $defaultWebsite)[$v0], $reservations()], 'cancelar devolve a reserva com um lançamento oposto');
+assertSame(['P0001', 2], [$sqlError("UPDATE inventory_reservation SET quantity = 5 WHERE product_id = {$v0}"), $reservations()], 'reservas só aceitam inclusão: alterar uma é recusado pelo banco');
+// the lock queues concurrent orders: while one reserves, another connection can't take the product's lock
+$db = parse_ini_file(ETC . 'database.ini');
+$second = new PDO(sprintf('pgsql:host=%s;port=%d;dbname=%s', $db['host'], $db['port'], $db['database']), $db['user'], $db['password']);
+$lockFree = static fn () => $second->query("SELECT pg_try_advisory_xact_lock(hashtext('inventory_reservation'), {$v0})")->fetchColumn();
+Connection::get()->adapter()->beginTransaction();
+$stock->reserve($defaultWebsite, [$v0 => 2], 'order', 'selftest-3');
+$second->beginTransaction();
+$whileHeld = $lockFree();
+$second->rollBack();
+Connection::get()->adapter()->rollBack();
+$second->beginTransaction();
+$afterRollback = $lockFree();
+$second->rollBack();
+assertSame([false, true, '2'], [$whileHeld, $afterRollback, $stock->getSalable([$v0], $defaultWebsite)[$v0]], 'reserva trava o produto até o fim da transação; desfeita, o saldo volta');
 $gridPage = $admin->request('/admin/product/edit?id=' . $parentId . '&source=selftest_var_cd')['body'];
 assertSame([true, true, 1, true], [str_contains($gridPage, 'Estoque por grade'), str_contains($gridPage, 'name="grid[' . $v[0]['product_id'] . ']" value="2"'), substr_count($gridPage, '<td>–</td>'), str_contains($gridPage, '<td>9,5</td>')],
     'painel da grade: célula por variação, hífen onde não há combinação, total');
