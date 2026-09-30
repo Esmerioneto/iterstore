@@ -42,17 +42,29 @@ class ValueService
             if ($error === UPLOAD_ERR_NO_FILE || !is_int($error)) {
                 continue;
             }
-            $name = (string) $files['name'][$code];
-            if ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
-                throw new AttributeException('FILE_TOO_LARGE', "'{$name}' é maior que o limite de " . ini_get('upload_max_filesize') . '.');
-            }
-            if ($error !== UPLOAD_ERR_OK || !is_uploaded_file($files['tmp_name'][$code])) {
-                throw new AttributeException('FILE_UPLOAD_FAILED', "Falha ao enviar '{$name}'. Tente de novo.");
-            }
-            $values[$code] = ['path' => $files['tmp_name'][$code], 'name' => $name];
+            $values[$code] = self::uploaded(['error' => $error, 'name' => $files['name'][$code], 'tmp_name' => $files['tmp_name'][$code]]);
         }
 
         return $values;
+    }
+
+    /**
+     * One $_FILES entry as the value validate() takes for a file attribute (the panel's form and the API's Upload)
+     *
+     * @param array{error: int, name: string, tmp_name: string} $file
+     * @return array{path: string, name: string}
+     */
+    public static function uploaded(array $file): array
+    {
+        $name = (string) $file['name'];
+        if ($file['error'] === UPLOAD_ERR_INI_SIZE || $file['error'] === UPLOAD_ERR_FORM_SIZE) {
+            throw new AttributeException('FILE_TOO_LARGE', "'{$name}' é maior que o limite de " . ini_get('upload_max_filesize') . '.');
+        }
+        if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
+            throw new AttributeException('FILE_UPLOAD_FAILED', "Falha ao enviar '{$name}'. Tente de novo.");
+        }
+
+        return ['path' => $file['tmp_name'], 'name' => $name];
     }
 
     /** @return array<string, string|int|bool|array> code => value (multiple types give arrays) */

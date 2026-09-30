@@ -502,6 +502,27 @@ class ProductSchema
                         return true;
                     }),
                 ],
+                'uploadProductImage' => [
+                    'type' => Type::nonNull($productType),
+                    'description' => 'Envia a imagem de um atributo de imagem do conjunto do produto (troca a atual), pelo multipart request spec com token. Tipos e tamanho são os do painel. Num produto com grade, a imagem vai em cada variação.',
+                    'args' => ['productId' => Type::nonNull(Type::id()), 'code' => Type::nonNull(Type::string()), 'file' => Type::nonNull(Schema::upload())],
+                    'resolve' => $guard(static function ($root, array $args) use ($service): array {
+                        $product = $service->get((int) $args['productId']); // PRODUCT_NOT_FOUND
+                        $id = (int) $product->getId();
+                        if ($product->getData('type') === 'configurable') {
+                            throw new AttributeException('PRODUCT_IS_CONFIGURABLE', 'Um produto com grade não tem imagens próprias; envie para cada variação.');
+                        }
+                        $set = (new AttributeSet())->load((int) $product->getData('attribute_set_id'));
+                        $images = array_column(array_filter((new FormSchemaGenerator())->generate(Product::ENTITY_TYPE, $set->getData('code'))['fields'], static fn ($f) => isset($f['accept'])), 'name');
+                        if (!in_array($args['code'], $images, true)) {
+                            throw new AttributeException('ATTRIBUTE_NOT_FOUND', "'{$args['code']}' não é um campo de imagem do conjunto do produto.");
+                        }
+                        $values = new ValueService();
+                        $values->write($id, $values->validate(Product::ENTITY_TYPE, [$args['code'] => ValueService::uploaded($args['file'])], $id));
+
+                        return $service->get($id)->getData();
+                    }),
+                ],
                 'createCategory' => [
                     'type' => Type::nonNull($categoryType),
                     'description' => 'Sem parentId, uma categoria principal do website. Uma subcategoria fica no website da mãe. urlKey omitida sai do nome.',
