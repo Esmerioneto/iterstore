@@ -1,1 +1,37 @@
-[{"id":"clientes","label":"Clientes","resource":"Iter_Customer::customer","url":"/admin/customer/index","sort_order":30},{"label":"Todos os clientes","resource":"Iter_Customer::customer","url":"/admin/customer/index","parent":"clientes","sort_order":0},{"label":"Grupos de clientes","resource":"Iter_Customer::group","url":"/admin/customergroup/index","parent":"clientes","sort_order":5},{"label":"Atributos de cliente","resource":"Iter_Eav::attribute","url":"/admin/attribute/index?entity_type=customer","parent":"clientes","sort_order":10},{"label":"Conjuntos de atributos","resource":"Iter_Eav::attribute_set","url":"/admin/attributeset/index?entity_type=customer","parent":"clientes","sort_order":11}]
+[
+  {
+    "id": "clientes",
+    "label": "Clientes",
+    "resource": "Iter_Customer::customer",
+    "url": "/admin/customer/index",
+    "sort_order": 30
+  },
+  {
+    "label": "Todos os clientes",
+    "resource": "Iter_Customer::customer",
+    "url": "/admin/customer/index",
+    "parent": "clientes",
+    "sort_order": 0
+  },
+  {
+    "label": "Grupos de clientes",
+    "resource": "Iter_Customer::group",
+    "url": "/admin/customergroup/index",
+    "parent": "clientes",
+    "sort_order": 5
+  },
+  {
+    "label": "Atributos de cliente",
+    "resource": "Iter_Eav::attribute",
+    "url": "/admin/attribute/index?entity_type=customer",
+    "parent": "clientes",
+    "sort_order": 10
+  },
+  {
+    "label": "Conjuntos de atributos",
+    "resource": "Iter_Eav::attribute_set",
+    "url": "/admin/attributeset/index?entity_type=customer",
+    "parent": "clientes",
+    "sort_order": 11
+  }
+]
