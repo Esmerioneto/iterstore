@@ -1678,6 +1678,29 @@ assertSame([64, 'conf@selftest.local', 64, 'TOKEN_INVALID'], [
     $api('mutation { confirmCustomerEmail(token: "' . ($m[1] ?? '') . '") { token } }')[1]['errors'][0]['extensions']['code'] ?? null,
 ], 'API cliente: o link confirma e já entra; depois o login funciona e o link não vale de novo');
 
+// forgot password (API-PLAN delivery 8)
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
+$pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/account/reset_url', 'https://front.selftest/nova-senha?token={token}')
+    ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = EXCLUDED.value");
+$requestReset = static fn (string $email) => $api('mutation { requestCustomerPasswordReset(email: "' . $email . '") }')[1]['data']['requestCustomerPasswordReset'] ?? null;
+$resetMails = static fn () => $pdo->query("SELECT body_html FROM mail_queue WHERE to_email = 'conf@selftest.local' AND template_code = 'customer_password_reset' ORDER BY message_id")->fetchAll(PDO::FETCH_COLUMN);
+$resetToken = static fn (): string => preg_match('#https://front\.selftest/nova-senha\?token=([0-9a-f]{64})#', (string) ($resetMails()[1] ?? $resetMails()[0] ?? ''), $m) ? $m[1] : '';
+$resetPassword = static fn (string $token, string $password) => $api('mutation { resetCustomerPassword(token: "' . $token . '", password: "' . $password . '") }');
+$session = $confirmed['token'] ?? '';
+assertSame([true, true, true, 1, 64], [$requestReset('ninguem@selftest.local'), $requestReset('conf@selftest.local'), $requestReset('conf@selftest.local'), count($resetMails()), strlen($resetToken())],
+    'API senha esquecida: sempre true; o e-mail leva o link do frontend e não é reenviado dentro de um minuto');
+$link = $resetToken();
+assertSame(['PASSWORD_INVALID', true, 401, 'TOKEN_INVALID', 64], [
+    $gqlCode($resetPassword($link, 'curta')),
+    $resetPassword($link, 'trocada123')[1]['data']['resetCustomerPassword'] ?? null,
+    $api('{ me { id } }', $session)[0],
+    $gqlCode($resetPassword($link, 'outra12345')),
+    strlen((string) ($api('mutation { generateCustomerToken(email: "conf@selftest.local", password: "trocada123") { token } }')[1]['data']['generateCustomerToken']['token'] ?? '')),
+], 'API senha esquecida: o link troca a senha uma vez, os logins caem e a nova senha entra');
+$requestReset('conf@selftest.local');
+$pdo->exec("UPDATE customer_password_reset SET created_at = NOW() - INTERVAL '3 hours'");
+assertSame([2, 'TOKEN_INVALID'], [count($resetMails()), $gqlCode($resetPassword($resetToken(), 'trocada456'))], 'API senha esquecida: link vencido é recusado');
+
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");
 assertSame([200, 200, 429], array_map(static fn () => $custLogin('errada123')[0], [1, 2, 3]), 'API cliente: login passa do limite por IP e recebe 429');

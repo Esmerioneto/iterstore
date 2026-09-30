@@ -360,6 +360,25 @@ class CustomerSchema
                     'description' => 'Logout: o token enviado deixa de valer. false sem token de cliente.',
                     'resolve' => static fn () => CustomerAuth::revokeToken(),
                 ],
+                'requestCustomerPasswordReset' => [
+                    'type' => Type::nonNull(Type::boolean()),
+                    'description' => 'Senha esquecida: manda o e-mail com o link do frontend (Configurações → Clientes → link de nova senha). Sempre true, exista ou não o e-mail.',
+                    'args' => ['email' => Type::nonNull(Type::string()), 'websiteId' => ['type' => Type::id(), 'description' => 'Omitido = website padrão.']],
+                    'resolve' => static function ($root, array $args) use ($limit): bool {
+                        $limit();
+                        CustomerAuth::requestPasswordReset($args['email'], (int) ($args['websiteId'] ?? (new Website())->getResource()->getDefaultId()));
+                        return true;
+                    },
+                ],
+                'resetCustomerPassword' => [
+                    'type' => Type::nonNull(Type::boolean()),
+                    'description' => 'O token do link do e-mail + a nova senha. O link vale uma vez; todos os logins do cliente caem, e ele entra de novo com generateCustomerToken.',
+                    'args' => ['token' => Type::nonNull(Type::string()), 'password' => Type::nonNull(Type::string())],
+                    'resolve' => static function ($root, array $args): bool {
+                        CustomerAuth::resetPassword($args['token'], $args['password']);
+                        return true;
+                    },
+                ],
                 'updateMe' => [
                     'type' => Type::nonNull($customerType),
                     'description' => 'O cliente do token muda os próprios dados; só muda o que for enviado. Trocar e-mail ou CPF/CNPJ pede currentPassword.',
