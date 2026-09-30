@@ -1,0 +1,7 @@
+[
+  {
+    "id": "Iter_Shipping::rates",
+    "parent": "Iter_Admin::root",
+    "title": "Faixas de frete"
+  }
+]

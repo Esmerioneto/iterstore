@@ -11,6 +11,7 @@ use Iter\Customer\Model\AddressService;
 use Iter\Customer\Model\Customer;
 use Iter\Eav\Model\Taxvat;
 use Iter\Inventory\Model\StockService;
+use Iter\Shipping\Model\ShippingService;
 
 /**
  * The cart (sales_quote). The storefront is external: a guest's cart is found by its cartId (only its
@@ -22,6 +23,10 @@ use Iter\Inventory\Model\StockService;
  */
 class CartService
 {
+    /** a product's system decimal attribute (%s = its code) */
+    private const DECIMAL_SQL = "(SELECT v.value FROM eav_value_decimal v JOIN eav_attribute a ON a.attribute_id = v.attribute_id AND a.code = '%s'
+        JOIN eav_entity_type et ON et.entity_type_id = a.entity_type_id AND et.code = 'product' WHERE v.entity_id = p.product_id)";
+
     /** @return string the cartId the storefront keeps (a guest's cart) */
     public function create(int $websiteId): string
     {
@@ -58,7 +63,8 @@ class CartService
      *
      * @return array{quote_id: int, website_id: int, customer_id: ?int, email: ?string, firstname: ?string, lastname: ?string,
      *               taxvat: ?string, shipping_address: ?array, billing_address: ?array, billing_same_as_shipping: bool,
-     *               items: array<int, array>, items_quantity: float, subtotal: float, total: float, has_errors: bool}
+     *               items: array<int, array>, items_quantity: float, subtotal: float, shipping_methods: array, shipping_method: ?array,
+     *               shipping_amount: float, total: float, has_errors: bool}
      */
     public function view(int $quoteId): array
     {
@@ -72,6 +78,15 @@ class CartService
         $items = $this->items($quoteId, (int) $quote['website_id']);
         $subtotal = round(array_sum(array_column($items, 'row_total')), 2);
         $shipping = $quote['shipping_address'] === null ? null : json_decode($quote['shipping_address'], true);
+        $view = [
+            'website_id' => (int) $quote['website_id'],
+            'items' => $items,
+            'subtotal' => $subtotal,
+            'shipping_address' => $shipping,
+        ];
+        // the shipping module is optional: without it the cart has no shipping (a store that only sells on pickup could switch it off)
+        $rates = \isModuleEnabled('iter_shipping') ? (new ShippingService())->rates($view) : [];
+        $method = $rates[(string) $quote['shipping_method']] ?? null; // a method that stopped fitting (new address) is dropped
 
         return [
             'quote_id' => $quoteId,
@@ -87,7 +102,10 @@ class CartService
             'items' => $items,
             'items_quantity' => (float) array_sum(array_column($items, 'quantity')),
             'subtotal' => $subtotal,
-            'total' => $subtotal, // ponytail: shipping and discounts join in their deliveries
+            'shipping_methods' => array_values($rates),
+            'shipping_method' => $method,
+            'shipping_amount' => $method['amount'] ?? 0.0,
+            'total' => round($subtotal + ($method['amount'] ?? 0.0), 2), // ponytail: discounts join with the promotions plan
             'has_errors' => (bool) array_filter(array_column($items, 'error')),
         ];
     }
@@ -194,6 +212,21 @@ class CartService
         Connection::get()->adapter()->update('sales_quote', ["{$type}_address" => $value], ['quote_id = ?' => $quoteId]);
     }
 
+    /** @throws SalesException SHIPPING_METHOD_UNAVAILABLE when $code isn't among the cart's options now */
+    public function setShippingMethod(int $quoteId, string $code): void
+    {
+        $cart = $this->view($quoteId);
+        $available = array_column($cart['shipping_methods'], 'code');
+        if (!in_array($code, $available, true)) {
+            throw new SalesException('SHIPPING_METHOD_UNAVAILABLE', match (true) {
+                (bool) $available => "Frete '{$code}' indisponível para este carrinho. Opções: " . implode(', ', $available) . '.',
+                $cart['shipping_address'] === null => 'Nenhum frete disponível: informe o endereço de entrega (setCartShippingAddress).',
+                default => 'Nenhum frete atende o endereço de entrega informado.',
+            });
+        }
+        Connection::get()->adapter()->update('sales_quote', ['shipping_method' => $code], ['quote_id = ?' => $quoteId]);
+    }
+
     /** bin/quote-clean.php: guest carts unused for $days days; customers' carts stay */
     public function cleanGuests(int $days): int
     {
@@ -235,6 +268,7 @@ class CartService
                 'quantity' => $quantity,
                 'price' => $product['price'] === null ? null : (float) $product['price'],
                 'row_total' => round((float) $product['price'] * $quantity, 2),
+                'weight' => $product['weight'] === null ? 0.0 : (float) $product['weight'],
                 'error' => $error,
                 'error_code' => $code,
             ];
@@ -254,8 +288,8 @@ class CartService
         $select->joinLeft(['pp' => 'catalog_product'], 'pp.product_id = p.parent_id', ['parent_active' => new Expr('COALESCE(pp.is_active, 1)')])
             ->columns([
                 'in_website' => new Expr('EXISTS (SELECT 1 FROM catalog_product_website w WHERE w.product_id = p.product_id AND w.website_id = ' . $select->bindValue($websiteId) . ')'),
-                'price' => new Expr("(SELECT v.value FROM eav_value_decimal v JOIN eav_attribute a ON a.attribute_id = v.attribute_id AND a.code = 'price'
-                    JOIN eav_entity_type et ON et.entity_type_id = a.entity_type_id AND et.code = 'product' WHERE v.entity_id = p.product_id)"),
+                'price' => new Expr(sprintf(self::DECIMAL_SQL, 'price')),
+                'weight' => new Expr(sprintf(self::DECIMAL_SQL, 'weight')),
             ])
             ->where('p.product_id IN (?)', array_map('intval', $ids));
 

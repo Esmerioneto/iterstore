@@ -141,7 +141,17 @@ $server = proc_open(
 
 $savedModules = file_get_contents(ETC . 'config.json'); // module on/off tests write it; shared with a running dev server
 $savedTemplates = $pdo->query('SELECT code, subject, body_html, body_text FROM mail_template')->fetchAll(PDO::FETCH_ASSOC);
-$purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTemplates): void {
+// the shipping tests replace the default website's table rate: it's put back as it was
+$savedRates = $pdo->query("SELECT to_regclass('shipping_table_rate') IS NOT NULL")->fetchColumn()
+    ? $pdo->query('SELECT website_id, postcode_from, postcode_to, weight_to, price, days FROM shipping_table_rate')->fetchAll(PDO::FETCH_ASSOC) : null;
+$purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTemplates, $savedRates): void {
+    if ($savedRates !== null) {
+        $pdo->exec('DELETE FROM shipping_table_rate');
+        $restoreRate = $pdo->prepare('INSERT INTO shipping_table_rate (website_id, postcode_from, postcode_to, weight_to, price, days) VALUES (?, ?, ?, ?, ?, ?)');
+        foreach ($savedRates as $rate) {
+            $restoreRate->execute(array_values($rate));
+        }
+    }
     if (file_get_contents(ETC . 'config.json') !== $savedModules) {
         file_put_contents(ETC . 'config.json', $savedModules);
     }
@@ -1709,7 +1719,7 @@ assertSame([['Cliente removido com sucesso.'], false, [], [], 0], [$msgs, $custR
 $toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];
 $configPage = $admin->request('/admin/config/index')['body'];
 assertSame([true, true, true, true], [
-    (bool) preg_match('/name="module" value="iter_sales">\s*<input type="hidden" name="enabled" value="0">/', $configPage),
+    (bool) preg_match('/name="module" value="iter_shipping">\s*<input type="hidden" name="enabled" value="0">/', $configPage),
     str_contains($configPage, 'Essencial'),
     str_contains($configPage, 'Usado por Catalog'),
     str_contains($configPage, 'Usado por Inventory'),
@@ -1717,6 +1727,12 @@ assertSame([true, true, true, true], [
 assertSame(['O módulo Core é essencial e não pode ser desativado.'], $toggle('iter_core', 0), 'módulo essencial não é desativado');
 assertSame(['Desative antes os módulos que dependem de Eav: Catalog, Customer.'], $toggle('iter_eav', 0), 'módulo com dependentes ativos não é desativado');
 assertSame(['Desative antes os módulos que dependem de Catalog: Inventory, Sales.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com Inventory e Sales ativos');
+assertSame(['Desative antes os módulos que dependem de Sales: Shipping.'], $toggle('iter_sales', 0), 'Sales não é desativado com o Shipping ativo');
+assertSame(['Módulo Shipping desativado. Os dados dele continuam no banco.'], $toggle('iter_shipping', 0), 'Shipping desativado pelo admin');
+assertSame([true, true], [
+    str_starts_with($gql($admin, '{ cart { shippingMethod { code } } }')['errors'][0]['message'] ?? '', 'Cannot query field "shippingMethod" on type "Cart".'),
+    str_starts_with($gql($admin, '{ shippingTableRates { price } }')['errors'][0]['message'] ?? '', 'Cannot query field "shippingTableRates" on type "Query".'),
+], 'Shipping desativado: sem frete no carrinho nem faixas na API');
 assertSame(['Módulo Sales desativado. Os dados dele continuam no banco.'], $toggle('iter_sales', 0), 'Sales desativado pelo admin');
 assertSame('Cannot query field "cart" on type "Query".', $gql($admin, '{ cart { total } }')['errors'][0]['message'] ?? null, 'Sales desativado: sem carrinho na API');
 assertSame(['Módulo Inventory desativado. Os dados dele continuam no banco.'], $toggle('iter_inventory', 0), 'Inventory desativado pelo admin');
@@ -1743,6 +1759,7 @@ assertSame([true, 200], [str_starts_with($toggle('iter_catalog', 1)[0] ?? '', 'M
 $toggle('iter_inventory', 1);
 $toggle('iter_customer', 1);
 $toggle('iter_sales', 1);
+$toggle('iter_shipping', 1);
 assertSame('7', (new StockService())->getSalable([$estId])[$estId], 'Inventory reativado: o estoque continua lá');
 assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
 assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Configurações não chega aos módulos');
@@ -1958,6 +1975,61 @@ assertSame([true, 'CART_NOT_FOUND', false], [
     $gqlCode($api('{ cart(cartId: "' . $oldCart . '") { total } }')),
     $gqlCode($api('{ cart { total } }', $ct)) !== null,
 ], 'limpeza: carrinho de visitante sem uso há mais de 30 dias é apagado; o do cliente fica');
+
+// --- shipping (COMMERCE-PLAN delivery 3) ------------------------------------------------------------
+$setConfig = static function (array $values) use ($pdo): void {
+    $stmt = $pdo->prepare("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, ?, ?) ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = EXCLUDED.value");
+    foreach ($values as $path => $value) {
+        $stmt->execute([$path, $value]);
+    }
+};
+$setConfig(['shipping/tablerate/active' => '1', 'shipping/tablerate/label' => 'Transportadora', 'shipping/freeshipping/active' => '1', 'shipping/freeshipping/min_subtotal' => '100',
+    'shipping/freeshipping/days' => '9', 'shipping/pickup/active' => '1', 'shipping/pickup/days' => '1']);
+$ratesGql = 'mutation ($r: [ShippingTableRateInput!]!) { saveShippingTableRates(rates: $r) { postcodeFrom postcodeTo weightTo price days } }';
+$ratesIn = [['postcodeFrom' => '01000-000', 'postcodeTo' => '09999-999', 'weightTo' => 1, 'price' => 15, 'days' => 3],
+    ['postcodeFrom' => '01000000', 'postcodeTo' => '09999999', 'price' => 30, 'days' => 5], ['postcodeFrom' => '20000000', 'postcodeTo' => '29999999', 'price' => 40, 'days' => 7]];
+assertSame(['UNAUTHENTICATED', 'SHIPPING_RATE_INVALID', 3, '01000000'], [
+    $gql($guest, $ratesGql, ['r' => $ratesIn])['errors'][0]['extensions']['code'] ?? null,
+    $gql($admin, $ratesGql, ['r' => [['postcodeFrom' => '09000000', 'postcodeTo' => '01000000', 'price' => 1]]])['errors'][0]['extensions']['code'] ?? null,
+    count($gql($admin, $ratesGql, ['r' => $ratesIn])['data']['saveShippingTableRates'] ?? []),
+    $gql($admin, '{ shippingTableRates { postcodeFrom } }')['data']['shippingTableRates'][0]['postcodeFrom'] ?? null,
+], 'frete: faixas só pelo admin, validadas, gravadas com o CEP sem máscara');
+$values->save('product', $v0, ['weight' => '0.4', 'price' => '24.9']); // save() writes the whole set
+$shipCart = $api('mutation { createCart }')[1]['data']['createCart'] ?? '';
+$sc = '"' . $shipCart . '"';
+$shipFields = '{ subtotal total shippingAmount shippingMethod { code } availableShippingMethods { code label amount days } }';
+$ship = static fn (string $call) => $api("mutation { {$call} {$shipFields} }")[1];
+$codes = static fn (array $r, string $key) => array_column($r['data'][$key]['availableShippingMethods'] ?? [], 'amount', 'code');
+$api("mutation { setCartGuestInfo(cartId: {$sc}, email: \"frete@selftest.local\", firstname: \"Fre\", lastname: \"Te\", taxvat: \"529.982.247-25\") { total } }");
+assertSame([['pickup' => 0.0], 'SHIPPING_METHOD_UNAVAILABLE'], [
+    array_map('floatval', $codes($ship("addToCart(cartId: {$sc}, sku: \"{$v0Sku}\", quantity: 2)"), 'addToCart')),
+    $gqlCode([0, $ship("setCartShippingMethod(cartId: {$sc}, code: \"tablerate\")")]),
+], 'frete: sem endereço, só a retirada; frete por tabela recusado');
+$withAddr = $ship("setCartShippingAddress(cartId: {$sc}, {$addr})")['data']['setCartShippingAddress'] ?? [];
+assertSame([['pickup' => 0.0, 'tablerate' => 15.0], 'Transportadora', 3], [
+    array_map('floatval', array_column($withAddr['availableShippingMethods'] ?? [], 'amount', 'code')),
+    array_column($withAddr['availableShippingMethods'] ?? [], 'label', 'code')['tablerate'] ?? null,
+    array_column($withAddr['availableShippingMethods'] ?? [], 'days', 'code')['tablerate'] ?? null,
+], 'frete por tabela: 0,8 kg no CEP 01310-100 cai na faixa até 1 kg; a retirada, grátis, vem primeiro');
+$chosen = $ship("setCartShippingMethod(cartId: {$sc}, code: \"tablerate\")")['data']['setCartShippingMethod'] ?? [];
+$heavier = $ship("addToCart(cartId: {$sc}, sku: \"{$v0Sku}\")")['data']['addToCart'] ?? [];
+assertSame([[15.0, 64.8], [30.0, 104.7], false], [
+    [(float) ($chosen['shippingAmount'] ?? 0), (float) ($chosen['total'] ?? 0)],
+    [(float) ($heavier['shippingAmount'] ?? 0), (float) ($heavier['total'] ?? 0)],
+    isset(array_column($heavier['availableShippingMethods'] ?? [], 'amount', 'code')['freeshipping']),
+], 'frete: o total soma o frete escolhido; com 1,2 kg vale a faixa sem limite de peso; R$ 74,70 não chega ao frete grátis de R$ 100');
+$setConfig(['shipping/freeshipping/min_subtotal' => '70']);
+$free = $api("{ cart(cartId: {$sc}) {$shipFields} }")[1]['data']['cart'] ?? [];
+assertSame([['freeshipping', 0, 9], 'freeshipping'], [ // JSON gives 0.0 back as 0
+    array_values(array_intersect_key(array_column($free['availableShippingMethods'] ?? [], null, 'code')['freeshipping'] ?? [], array_flip(['code', 'amount', 'days']))),
+    $free['availableShippingMethods'][1]['code'] ?? null, // the pickup (0, 1 day) comes first
+], 'frete grátis: aparece quando o subtotal chega ao valor configurado');
+$far = $ship('setCartShippingAddress(cartId: ' . $sc . ', ' . str_replace('01310-100', '30130-000', $addr) . ')')['data']['setCartShippingAddress'] ?? [];
+$setConfig(['shipping/pickup/active' => '0', 'shipping/freeshipping/active' => '0']);
+assertSame([null, 0.0, (float) ($far['subtotal'] ?? -1), 'Nenhum frete atende o endereço de entrega informado.'], [
+    $far['shippingMethod'] ?? null, (float) ($far['shippingAmount'] ?? -1), (float) ($far['total'] ?? 0),
+    $ship("setCartShippingMethod(cartId: {$sc}, code: \"tablerate\")")['errors'][0]['message'] ?? null,
+], 'frete: endereço fora das faixas tira o frete escolhido e o total volta ao subtotal; sem nenhuma opção, a mensagem diz isso');
 
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");

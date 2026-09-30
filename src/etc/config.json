@@ -10,7 +10,8 @@
         "iter_catalog": "1",
         "iter_inventory": "1",
         "iter_customer": "1",
-        "iter_sales": "1"
+        "iter_sales": "1",
+        "iter_shipping": "1"
     },
     "customized": {
         "egsn_user": "1"

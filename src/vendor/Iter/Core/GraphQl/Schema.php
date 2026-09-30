@@ -17,6 +17,7 @@ use Iter\Customer\GraphQl\CustomerSchema;
 use Iter\Eav\GraphQl\AttributeSchema;
 use Iter\Inventory\GraphQl\StockSchema;
 use Iter\Sales\GraphQl\CartSchema;
+use Iter\Shipping\GraphQl\ShippingSchema;
 use Iter\Store\Model\Store as StoreModel;
 
 class Schema
@@ -131,6 +132,7 @@ class Schema
         $eav = \isModuleEnabled('iter_eav') ? AttributeSchema::fields() : ['query' => [], 'mutation' => []];
         // Sales depends on Catalog, so $product has its types when it's on
         $sales = \isModuleEnabled('iter_sales') ? CartSchema::fields($product['types']['product']) : ['query' => [], 'mutation' => []];
+        $shipping = \isModuleEnabled('iter_shipping') ? ShippingSchema::fields() : ['query' => [], 'mutation' => []];
 
         $queryType = new ObjectType([
             'name' => 'Query',
@@ -153,7 +155,7 @@ class Schema
                         return $id === null || Config::websiteExists($id) ? ['id' => $id] : null;
                     },
                 ],
-            ] : []) + $product['query'] + $stock['query'] + $customer['query'] + $eav['query'] + $sales['query'] + $admin['query'],
+            ] : []) + $product['query'] + $stock['query'] + $customer['query'] + $eav['query'] + $sales['query'] + $shipping['query'] + $admin['query'],
         ]);
 
         $mutationType = new ObjectType([
@@ -192,7 +194,7 @@ class Schema
                         return true;
                     }),
                 ],
-            ] : []) + $product['mutation'] + $stock['mutation'] + $customer['mutation'] + $sales['mutation'] + $admin['mutation'],
+            ] : []) + $product['mutation'] + $stock['mutation'] + $customer['mutation'] + $sales['mutation'] + $shipping['mutation'] + $admin['mutation'],
         ]);
 
         if (!$queryType->getFields()) {

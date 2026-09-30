@@ -1,0 +1,9 @@
+[
+    { "path": "shipping/tablerate/active", "group": "Frete", "label": "Frete por tabela (faixas de CEP; editadas pela API saveShippingRates)", "type": "boolean", "default": 1, "scope": "website" },
+    { "path": "shipping/tablerate/label", "group": "Frete", "label": "Nome do frete por tabela na loja", "type": "text", "default": "Entrega", "required": false, "scope": "website" },
+    { "path": "shipping/freeshipping/active", "group": "Frete", "label": "Frete grátis acima de um valor", "type": "boolean", "default": 0, "scope": "website" },
+    { "path": "shipping/freeshipping/min_subtotal", "group": "Frete", "label": "Frete grátis a partir de (R$, subtotal do carrinho)", "type": "number", "default": 299, "min": 0, "max": 1000000, "scope": "website" },
+    { "path": "shipping/freeshipping/days", "group": "Frete", "label": "Prazo do frete grátis (dias úteis)", "type": "number", "default": 10, "min": 0, "max": 365, "scope": "website" },
+    { "path": "shipping/pickup/active", "group": "Frete", "label": "Retirar na loja (no endereço da loja, em Configurações → Endereço da loja)", "type": "boolean", "default": 0, "scope": "website" },
+    { "path": "shipping/pickup/days", "group": "Frete", "label": "Prazo para retirar (dias úteis)", "type": "number", "default": 1, "min": 0, "max": 365, "scope": "website" }
+]
