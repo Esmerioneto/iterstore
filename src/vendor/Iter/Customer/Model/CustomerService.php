@@ -77,6 +77,7 @@ class CustomerService
     {
         $model = $this->get($id);
         Connection::get()->adapter()->transaction(static function () use ($model, $id): void {
+            (new AddressService())->save($id, []); // address values have no FK to cascade
             $model->delete();
             (new ValueService())->deleteEntity(Customer::ENTITY_TYPE, $id);
         });

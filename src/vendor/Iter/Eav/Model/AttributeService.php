@@ -26,7 +26,11 @@ class AttributeService
      * System attributes an entity's own form shows and validates (the customer's registration fields):
      * they never go into attribute sets, and only label and position change (not even visibility).
      */
-    private const FIXED = ['customer' => ['email', 'firstname', 'lastname', 'customer_type', 'taxvat', 'dob', 'company_name', 'trade_name', 'state_registration', 'is_ie_exempt']];
+    private const FIXED = ['customer' => ['email', 'firstname', 'lastname', 'customer_type', 'taxvat', 'dob', 'company_name', 'trade_name', 'state_registration', 'is_ie_exempt'],
+        'customer_address' => ['postcode', 'street', 'number', 'complement', 'district', 'city', 'region', 'recipient', 'telephone']];
+
+    /** entities whose form only has the fixed fields: no attribute can be added to them */
+    private const CLOSED = ['customer_address'];
 
     private const FLAGS = ['is_required', 'is_visible', 'is_searchable', 'is_filterable', 'is_sortable'];
 
@@ -48,6 +52,9 @@ class AttributeService
         $entityType = $model->getResource()->getEntityTypes()[$data['entity_type'] ?? ''] ?? null;
         if ($entityType === null) {
             throw new AttributeException('ENTITY_TYPE_INVALID', 'Entidade inválida.');
+        }
+        if (!$system && in_array($data['entity_type'], self::CLOSED, true)) {
+            throw new AttributeException('ENTITY_TYPE_CLOSED', "'{$entityType['label']}' só tem os campos do sistema; não aceita novos atributos.");
         }
         $code = $data['code'] ?? '';
         if (!preg_match('/^[a-z][a-z0-9_]{0,99}$/', $code)) {
