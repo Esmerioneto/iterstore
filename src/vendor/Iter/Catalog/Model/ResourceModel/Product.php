@@ -112,6 +112,18 @@ class Product extends AbstractDb
         return $id === false ? null : (int) $id;
     }
 
+    /** url_key is unique among products; with $websiteId, only products of that website count */
+    public function urlKeyExists(string $urlKey, ?int $exceptId = null, ?int $websiteId = null): bool
+    {
+        $db = $this->getConnection();
+        $select = $db->select()->from('catalog_product', [new Expr('1')])->where('url_key = ?', $urlKey)->where('product_id <> ?', $exceptId ?? 0);
+        if ($websiteId !== null) {
+            $select->where('product_id IN (SELECT product_id FROM catalog_product_website WHERE website_id = ?)', $websiteId);
+        }
+
+        return (bool) $db->fetchOne($select);
+    }
+
     public function skuExists(string $sku, ?int $exceptId = null): bool
     {
         $db = $this->getConnection();

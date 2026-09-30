@@ -56,7 +56,7 @@ class ProductForm implements ViewComponentInterface
             'variant_candidates' => $type === 'configurable' && !$id ? $variantService->candidates($sets[$setId]['code']) : [],
             'variant_attributes' => array_map('strval', (array) ($old['variant_attributes'] ?? [])),
             'product_id' => $id,
-            'values' => array_merge(['sku' => '', 'name' => '', 'is_active' => 1], $product ?? [], $old ?? []),
+            'values' => array_merge(['sku' => '', 'name' => '', 'url_key' => '', 'is_active' => 1], $product ?? [], $old ?? []),
             'sets' => $sets,
             'attribute_set_id' => $setId,
             'categories' => (new Category())->getResource()->getTree(),
