@@ -58,6 +58,8 @@ class MigrationRunner
 
         $this->pdo->beginTransaction();
         try {
+            // opens the eav_attribute_system_guard lock for this transaction only
+            $this->pdo->exec("SET LOCAL iter.allow_system_attribute = 'on'");
             $migration->{$direction}($this->pdo);
             $direction === 'up'
                 ? $this->markApplied($module, $name)
