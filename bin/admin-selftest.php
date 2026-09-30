@@ -1410,7 +1410,7 @@ assertSame($custBlocks, $blocksOf($admin->request('/admin/customer/edit?id=' . $
 $anaPost = static fn (array $addresses) => $admin->submit('/admin/customer/edit?id=' . $anaId, '/admin/customer/save', ['customer_id' => $anaId, 'website_id' => $websiteId, 'group_id' => $custGroup,
     'email' => 'ana@selftest.local', 'firstname' => 'Ana', 'lastname' => 'Silva', 'customer_type' => 'pf', 'cpf' => '529.982.247-25', 'is_active' => '1', 'addresses' => $addresses])[1];
 $addr = ['postcode' => '01310-100', 'street' => 'Avenida Paulista', 'number' => '1000', 'district' => 'Bela Vista', 'city' => 'São Paulo', 'region' => 'SP'];
-$addrRows = static fn () => $pdo->query("SELECT address_id, postcode, number, is_default_shipping, is_default_billing FROM customer_address WHERE customer_id = {$anaId} ORDER BY address_id")->fetchAll(PDO::FETCH_ASSOC);
+$addrRows = static fn () => $pdo->query("SELECT address_id, postcode, number, is_default_shipping, is_default_billing FROM customer_address_flat WHERE customer_id = {$anaId} ORDER BY address_id")->fetchAll(PDO::FETCH_ASSOC);
 assertSame([true, true, true], [
     str_contains($anaPage, 'data-add-row="customer-address-rows"'),
     (bool) preg_match('/name="addresses\[0\]\[postcode\]"[^>]*data-mask="cep" data-cep="lookup"/', $anaPage),
@@ -1427,6 +1427,14 @@ $rows2 = $addrRows();
 assertSame([[$rows[0]['address_id'], '1500', 1, 1]], array_map(static fn ($r) => [$r['address_id'], $r['number'], (int) $r['is_default_shipping'], (int) $r['is_default_billing']], $rows2), 'o endereço que ficou mantém o id e vira o padrão');
 assertSame(['O endereço 999999 não é deste cliente.'], $anaPost([['address_id' => '999999'] + $addr]), 'endereço de outro cliente é recusado');
 assertSame(true, str_contains($admin->request('/admin/customer/edit?id=' . $anaId)['body'], 'value="Avenida Paulista"'), 'form mostra o endereço salvo');
+// address fields are system attributes of customer_address (CUSTOMER-EAV-PLAN delivery 5)
+$addrValues = static fn (array $ids) => (int) $pdo->query('SELECT COUNT(*) FROM eav_value_varchar v JOIN eav_attribute a USING (attribute_id) JOIN eav_entity_type et USING (entity_type_id)
+    WHERE et.code = \'customer_address\' AND v.entity_id IN (' . implode(',', array_map('intval', $ids)) . ')')->fetchColumn();
+assertSame([6, 0, 0], [$addrValues([$rows[0]['address_id']]), $addrValues([$rows[1]['address_id']]),
+    (int) $pdo->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'customer_address' AND column_name IN ('street', 'postcode')")->fetchColumn()],
+    'endereço: campos gravados no EAV; o removido perde os valores');
+assertSame('ENTITY_TYPE_CLOSED', $throws(static fn () => $service->create(['entity_type' => 'customer_address', 'code' => 'selftest_ref', 'label' => 'Selftest ref', 'input_type' => 'text'])),
+    'endereço: não aceita atributos novos');
 
 assertSame(['Já existe um cliente com este e-mail neste website.'], $saveCustomer(['email' => 'ANA@selftest.local', 'cpf' => '111.444.777-35']), 'e-mail repetido no website é recusado');
 assertSame(['Já existe um cliente com este CPF neste website.'], $saveCustomer(['email' => 'outra@selftest.local']), 'CPF repetido no website é recusado');
@@ -1518,7 +1526,7 @@ assertSame([true, ['customer' => null]], [
 [, $msgs] = $admin->submit('/admin/customergroup/index', '/admin/customergroup/delete', ['customer_group_id' => $custGroup]);
 assertSame(['Não é possível remover: há clientes neste grupo.'], $msgs, 'grupo com clientes não é removido');
 [, $msgs] = $admin->submit('/admin/customer/index', '/admin/customer/delete', ['customer_id' => $anaId]);
-assertSame([['Cliente removido com sucesso.'], false, [], []], [$msgs, $custRow('ana@selftest.local'), $values->load('customer', $anaId), $addrRows()], 'cliente removido com os seus valores e endereços');
+assertSame([['Cliente removido com sucesso.'], false, [], [], 0], [$msgs, $custRow('ana@selftest.local'), $values->load('customer', $anaId), $addrRows(), $addrValues([$rows[0]['address_id']])], 'cliente removido com os seus valores e endereços');
 
 // --- modules on/off -------------------------------------------------------------------------------
 $toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];

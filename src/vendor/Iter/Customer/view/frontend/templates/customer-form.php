@@ -116,14 +116,14 @@ ob_start(); ?>
     $a = static fn (string $key) => $e($address[$key] ?? ''); ?>
         <fieldset class="customer-address" data-cep-scope>
             <input form="customer-form" type="hidden" name="addresses[<?= $i ?>][address_id]" value="<?= $a('address_id') ?>">
-            <p><label>CEP<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][postcode]" value="<?= $a('postcode') ?>" data-mask="cep" data-cep="lookup"></label></p>
-            <p><label>Rua<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][street]" maxlength="255" value="<?= $a('street') ?>" data-cep="logradouro"></label></p>
-            <p><label>Número<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][number]" maxlength="20" size="8" value="<?= $a('number') ?>"></label></p>
-            <p><label>Complemento<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][complement]" maxlength="255" value="<?= $a('complement') ?>"></label></p>
-            <p><label>Bairro<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][district]" maxlength="255" value="<?= $a('district') ?>" data-cep="bairro"></label></p>
-            <p><label>Cidade<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][city]" maxlength="255" value="<?= $a('city') ?>" data-cep="localidade"></label></p>
+            <p><label><?= $e($address_labels['postcode']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][postcode]" value="<?= $a('postcode') ?>" data-mask="cep" data-cep="lookup"></label></p>
+            <p><label><?= $e($address_labels['street']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][street]" maxlength="255" value="<?= $a('street') ?>" data-cep="logradouro"></label></p>
+            <p><label><?= $e($address_labels['number']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][number]" maxlength="20" size="8" value="<?= $a('number') ?>"></label></p>
+            <p><label><?= $e($address_labels['complement']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][complement]" maxlength="255" value="<?= $a('complement') ?>"></label></p>
+            <p><label><?= $e($address_labels['district']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][district]" maxlength="255" value="<?= $a('district') ?>" data-cep="bairro"></label></p>
+            <p><label><?= $e($address_labels['city']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][city]" maxlength="255" value="<?= $a('city') ?>" data-cep="localidade"></label></p>
             <p>
-                <label>Estado (UF)<br>
+                <label><?= $e($address_labels['region']) ?><br>
                     <select form="customer-form" name="addresses[<?= $i ?>][region]" data-cep="uf">
                         <option value="">Selecione</option>
 <?php foreach ($regions as $uf => $name): ?>
@@ -132,8 +132,8 @@ ob_start(); ?>
                     </select>
                 </label>
             </p>
-            <p><label>Destinatário<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][recipient]" maxlength="255" value="<?= $a('recipient') ?>" placeholder="O próprio cliente"></label></p>
-            <p><label>Telefone<br><input form="customer-form" type="text" name="addresses[<?= $i ?>][telephone]" value="<?= $a('telephone') ?>" data-mask="phone"></label></p>
+            <p><label><?= $e($address_labels['recipient']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][recipient]" maxlength="255" value="<?= $a('recipient') ?>" placeholder="O próprio cliente"></label></p>
+            <p><label><?= $e($address_labels['telephone']) ?><br><input form="customer-form" type="text" name="addresses[<?= $i ?>][telephone]" value="<?= $a('telephone') ?>" data-mask="phone"></label></p>
             <p>
                 <label><input form="customer-form" type="checkbox" name="addresses[<?= $i ?>][is_default_shipping]" value="1" data-exclusive="shipping" <?= !empty($address['is_default_shipping']) ? 'checked' : '' ?>> Padrão de entrega</label>
                 <label><input form="customer-form" type="checkbox" name="addresses[<?= $i ?>][is_default_billing]" value="1" data-exclusive="billing" <?= !empty($address['is_default_billing']) ? 'checked' : '' ?>> Padrão de cobrança</label>

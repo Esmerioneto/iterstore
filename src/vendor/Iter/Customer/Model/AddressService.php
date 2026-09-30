@@ -6,15 +6,19 @@ namespace Iter\Customer\Model;
 
 use Iter\Core\Db\Connection;
 use Iter\Eav\Model\AttributeException;
+use Iter\Eav\Model\ValueService;
 
 /**
- * A customer's addresses (customer_address). save() replaces the list: rows with an
+ * A customer's addresses: customer_address keeps the customer and the default flags, the fields
+ * are system attributes of "customer_address" (read through the view customer_address_flat). save() replaces the list: rows with an
  * address_id are updated, the others created, and the ids not given are removed. Blank
  * rows are ignored. Without a marked default, the first address becomes the default
  * for shipping and for billing.
  */
 class AddressService
 {
+    public const ENTITY_TYPE = 'customer_address';
+
     public const REGIONS = [
         'AC' => 'Acre', 'AL' => 'Alagoas', 'AP' => 'Amapá', 'AM' => 'Amazonas', 'BA' => 'Bahia', 'CE' => 'Ceará',
         'DF' => 'Distrito Federal', 'ES' => 'Espírito Santo', 'GO' => 'Goiás', 'MA' => 'Maranhão', 'MT' => 'Mato Grosso',
@@ -30,7 +34,7 @@ class AddressService
     {
         $db = Connection::get()->adapter();
 
-        return $db->fetchAll($db->select()->from('customer_address')->where('customer_id = ?', $customerId)
+        return $db->fetchAll($db->select()->from('customer_address_flat')->where('customer_id = ?', $customerId)
             ->order(['is_default_shipping DESC', 'is_default_billing DESC', 'address_id']));
     }
 
@@ -45,17 +49,25 @@ class AddressService
         $rows = $this->validate($addresses, array_keys($current));
         $db = Connection::get()->adapter();
 
-        $db->transaction(function () use ($db, $customerId, $current, $rows): void {
+        $values = new ValueService();
+
+        $db->transaction(function () use ($db, $values, $customerId, $current, $rows): void {
             $kept = array_filter(array_column($rows, 'address_id'));
             foreach (array_diff(array_keys($current), $kept) as $id) {
                 $db->delete('customer_address', ['address_id = ?' => $id]);
+                $values->deleteEntity(self::ENTITY_TYPE, (int) $id);
             }
             // clear the defaults first, so the partial unique indexes never see two
             $db->update('customer_address', ['is_default_shipping' => 0, 'is_default_billing' => 0], ['customer_id = ?' => $customerId]);
             foreach ($rows as $row) {
+                $flags = ['is_default_shipping' => $row['is_default_shipping'], 'is_default_billing' => $row['is_default_billing']];
                 $id = $row['address_id'];
-                unset($row['address_id']);
-                $id ? $db->update('customer_address', $row, ['address_id = ?' => $id]) : $db->insert('customer_address', $row + ['customer_id' => $customerId]);
+                if ($id) {
+                    $db->update('customer_address', $flags, ['address_id = ?' => $id]);
+                } else {
+                    $id = $db->insert('customer_address', $flags + ['customer_id' => $customerId])['address_id'];
+                }
+                $values->write((int) $id, $values->validate(self::ENTITY_TYPE, array_diff_key($row, $flags + ['address_id' => 0]), (int) $id));
             }
         });
     }
