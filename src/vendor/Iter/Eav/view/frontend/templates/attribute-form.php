@@ -3,7 +3,7 @@ $flags = [
     'is_required' => 'Obrigatório',
     'is_visible' => 'Visível',
     'is_searchable' => 'Pesquisável',
-    'is_filterable' => 'Filtrável',
+    'is_filterable' => 'Usar nos filtros da loja (só Seleção, Opções, Múltipla seleção e Sim/Não)',
     'is_sortable' => 'Ordenável',
     'is_unique' => 'Valor único (não se repete entre registros; só texto, e-mail, CPF/CNPJ e parecidos, e só antes de ter valores)',
 ];

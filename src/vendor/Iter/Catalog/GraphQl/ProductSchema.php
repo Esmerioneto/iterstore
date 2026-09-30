@@ -71,6 +71,12 @@ class ProductSchema
 
             return $optionLabels[$id] ??= array_column((new Attribute())->getResource()->getOptions($id), 'label', 'value');
         };
+        /** @return array<string, array> the storefront filters ("Usar nos filtros da loja", visible), by code */
+        $filterable = static function () use ($typeOf, &$attributeRows): array {
+            $typeOf('price'); // loads $attributeRows
+
+            return array_filter($attributeRows, static fn ($a) => $a['is_filterable'] && $a['is_visible']);
+        };
         // the category tree, loaded once per request: id => row + children ids
         $tree = null;
         $categories = static function () use (&$tree, $isAdmin): array {
@@ -114,10 +120,10 @@ class ProductSchema
                             'page' => ['type' => Type::int(), 'defaultValue' => 1],
                             'pageSize' => ['type' => Type::int(), 'defaultValue' => 20, 'description' => 'Máximo 100.'],
                         ],
-                        'resolve' => static fn ($c, array $args) => (new Product())->getResource()->search([
+                        'resolve' => static fn ($c, array $args) => (new Product())->getResource()->search($filters = [
                             'category_id' => (string) $c['category_id'],
                             'is_active' => $isAdmin() ? '' : '1',
-                        ], max(1, $args['page']), min(100, max(1, $args['pageSize']))),
+                        ], max(1, $args['page']), min(100, max(1, $args['pageSize']))) + ['filters' => $filters],
                     ],
                     'created_at' => Type::nonNull(Type::string()),
                     'updated_at' => Type::nonNull(Type::string()),
@@ -228,11 +234,61 @@ class ProductSchema
             ] + $productFields;
             },
         ]);
+        $aggregationsType = new ObjectType([
+            'name' => 'ProductAggregations',
+            'fields' => [
+                'attributes' => Type::nonNull(Type::listOf(Type::nonNull(new ObjectType([
+                    'name' => 'ProductAggregation',
+                    'fields' => [
+                        'code' => Type::nonNull(Type::string()),
+                        'label' => Type::nonNull(Type::string()),
+                        'options' => Type::nonNull(Type::listOf(Type::nonNull(new ObjectType([
+                            'name' => 'ProductAggregationOption',
+                            'fields' => ['value' => Type::nonNull(Type::string()), 'label' => Type::nonNull(Type::string()), 'count' => Type::nonNull(Type::int())],
+                        ])))),
+                    ],
+                ])))),
+                'price' => Type::nonNull(new ObjectType([
+                    'name' => 'PriceRange',
+                    'description' => 'Menor e maior preço dos produtos da busca (sem o filtro de preço); null sem preço.',
+                    'fields' => ['min' => Type::float(), 'max' => Type::float()],
+                ])),
+            ],
+        ]);
         $productList = new ObjectType([
             'name' => 'ProductList',
             'fields' => [
                 'items' => Type::nonNull(Type::listOf(Type::nonNull($productType))),
                 'total' => Type::nonNull(Type::int()),
+                'aggregations' => [
+                    'type' => Type::nonNull($aggregationsType),
+                    'description' => 'Os filtros da loja para esta busca: contagem por opção (a do próprio filtro ignora a escolha nele) e a faixa de preço.',
+                    'resolve' => static function (array $list) use ($filterable, $optionsOf): array {
+                        $result = (new Product())->getResource()->aggregations($list['filters'], $filterable());
+                        $attributes = [];
+                        foreach ($filterable() as $code => $a) {
+                            $labels = $optionsOf($code) ?? ['1' => 'Sim', '0' => 'Não'];
+                            $options = [];
+                            foreach ($labels as $value => $label) { // in the options' order
+                                if (($result['attributes'][$code][(string) $value] ?? 0) > 0) {
+                                    $options[] = ['value' => (string) $value, 'label' => $label, 'count' => $result['attributes'][$code][(string) $value]];
+                                }
+                            }
+                            if ($options) {
+                                $attributes[] = ['code' => $code, 'label' => $a['label'], 'options' => $options];
+                            }
+                        }
+
+                        return ['attributes' => $attributes, 'price' => $result['price']];
+                    },
+                ],
+            ],
+        ]);
+        $filterInput = new InputObjectType([
+            'name' => 'ProductFilterInput',
+            'fields' => [
+                'code' => Type::nonNull(Type::string()),
+                'values' => ['type' => Type::nonNull(Type::listOf(Type::nonNull(Type::string()))), 'description' => 'Valores das opções; Sim/Não = "1"/"0".'],
             ],
         ]);
         $attributeInput = new InputObjectType([
@@ -326,18 +382,32 @@ class ProductSchema
                         'attributeSetId' => Type::id(),
                         'categoryId' => ['type' => Type::id(), 'description' => 'Inclui as subcategorias.'],
                         'isActive' => ['type' => Type::boolean(), 'description' => 'Só para o admin; fora dele a lista traz apenas produtos ativos.'],
+                        'filters' => ['type' => Type::listOf(Type::nonNull($filterInput)), 'description' => 'Filtros da loja (attributes com isFilterable). Entre filtros vale E; dentro de um, qualquer um dos values. Vale o produto ou uma das suas variações.'],
+                        'priceFrom' => Type::float(),
+                        'priceTo' => Type::float(),
                         'page' => ['type' => Type::int(), 'defaultValue' => 1],
                         'pageSize' => ['type' => Type::int(), 'defaultValue' => 20, 'description' => 'Máximo 100.'],
                     ],
-                    'resolve' => static function ($root, array $args) use ($isAdmin): array {
+                    'resolve' => static function ($root, array $args) use ($isAdmin, $filterable): array {
                         $active = $isAdmin() ? ($args['isActive'] ?? null) : true;
-                        return (new Product())->getResource()->search([
+                        $attributes = [];
+                        foreach ($args['filters'] ?? [] as $filter) {
+                            $attribute = $filterable()[$filter['code']] ?? throw new AttributeException('ATTRIBUTE_NOT_FILTERABLE', "'{$filter['code']}' não é um filtro da loja.");
+                            if (!$filter['values']) {
+                                continue; // nothing chosen = no filter
+                            }
+                            $attributes[$filter['code']] = ['attribute' => $attribute, 'values' => array_merge($attributes[$filter['code']]['values'] ?? [], $filter['values'])];
+                        }
+                        return (new Product())->getResource()->search($filters = [
+                            'attributes' => $attributes,
+                            'price_from' => $args['priceFrom'] ?? null,
+                            'price_to' => $args['priceTo'] ?? null,
                             'q' => (string) ($args['search'] ?? ''),
                             'attribute_set_id' => (string) ($args['attributeSetId'] ?? ''),
                             'category_id' => (string) ($args['categoryId'] ?? ''),
                             'website_id' => (string) ($args['websiteId'] ?? ''),
                             'is_active' => $active === null ? '' : ($active ? '1' : '0'),
-                        ], max(1, $args['page']), min(100, max(1, $args['pageSize'])));
+                        ], max(1, $args['page']), min(100, max(1, $args['pageSize']))) + ['filters' => $filters];
                     },
                 ],
             ],

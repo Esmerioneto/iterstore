@@ -368,6 +368,8 @@ class AttributeService
             // missing flag = off, except is_visible, which defaults to on
             $fields[$flag] = empty($data[$flag] ?? ($flag === 'is_visible')) ? 0 : 1;
         }
+        // "Usar nos filtros da loja": the storefront filters by option or Sim/Não (price has its own range)
+        $fields['is_filterable'] = ($inputType['supports_options'] || $inputType['code'] === 'checkbox') && $fields['is_filterable'] ? 1 : 0;
         // "Usar na grade": one option per variant, so only a single-choice list
         $fields['is_variant'] = $inputType['code'] === 'select' && !empty($data['is_variant']) ? 1 : 0;
         // "Valor único": one plain text value (text, e-mail, CPF/CNPJ, phone...), compared without case

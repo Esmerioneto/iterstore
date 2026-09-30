@@ -752,6 +752,24 @@ assertSame([['CEP', true], 27, 'ENTITY_TYPE_INVALID'], [
     count($defs($guest, 'customer_address')['region']['options'] ?? []),
     $gql($guest, '{ attributes(entityType: "nada") { code } }')['errors'][0]['extensions']['code'] ?? null,
 ], 'GraphQL attributes(entityType): campos do endereço para o formulário da loja; entidade inexistente é recusada');
+// storefront filters (API-PLAN delivery 10): "Usar nos filtros da loja" only on option lists and Sim/Não
+foreach (['selftest_marca' => 'Marca', 'selftest_novo' => 'Novo'] as $code => $label) {
+    $service->update($attrId($code), ['label' => $label, 'input_type' => '', 'is_filterable' => 1]);
+}
+$filterDescription = $service->create(['entity_type' => 'product', 'code' => 'selftest_obs', 'label' => 'Observação selftest', 'input_type' => 'text', 'is_filterable' => 1]);
+$search = static fn (string $args) => $gql($admin, '{ products(search: "selftest-gql"' . $args . ') { total aggregations { attributes { code options { value label count } } price { min max } } } }')['data']['products'] ?? null;
+$aggs = array_column($search('')['aggregations']['attributes'] ?? [], 'options', 'code');
+assertSame([0, [['value' => 'acme', 'label' => 'ACME Ltda', 'count' => 1]], [['value' => '0', 'label' => 'Não', 'count' => 1]], false],
+    [(int) $filterDescription->getData('is_filterable'), $aggs['selftest_marca'] ?? null, $aggs['selftest_novo'] ?? null, isset($aggs['selftest_cor'])],
+    'filtros da loja: texto não vira filtro; aggregations contam por opção e Sim/Não, só dos atributos marcados');
+assertSame([1, 0, 1, 0, ['min' => 19.9, 'max' => 19.9], 'ATTRIBUTE_NOT_FILTERABLE'], [
+    $search(', filters: [{code: "selftest_marca", values: ["acme", "outra"]}]')['total'] ?? null,
+    $search(', filters: [{code: "selftest_marca", values: ["outra"]}]')['total'] ?? null,
+    $search(', priceTo: 20')['total'] ?? null,
+    $search(', priceFrom: 20')['total'] ?? null,
+    $search(', priceFrom: 20')['aggregations']['price'] ?? null,
+    $gql($admin, '{ products(filters: [{code: "selftest_obs", values: ["x"]}]) { total } }')['errors'][0]['extensions']['code'] ?? null,
+], 'filtros da loja: por opção (qualquer uma das escolhidas) e por preço; a faixa de preço ignora o próprio filtro de preço; atributo sem a marca é recusado');
 $read = 'query ($id: ID!) { product(id: $id) { sku } products(search: "selftest-gql") { total items { sku } } }';
 assertSame([null, 0], [$gql($guest, $read, ['id' => $gqlId])['data']['product'], $gql($guest, $read, ['id' => $gqlId])['data']['products']['total']], 'GraphQL: visitante não vê produto inativo');
 assertSame(['selftest-gql', 1], [$gql($admin, $read, ['id' => $gqlId])['data']['product']['sku'] ?? null, $gql($admin, $read, ['id' => $gqlId])['data']['products']['total'] ?? null], 'GraphQL: admin vê produto inativo');
@@ -1175,6 +1193,15 @@ assertSame([
 $skus = array_column($gql($guest, '{ products(search: "selftest-var") { items { sku } } }')['data']['products']['items'] ?? [], 'sku');
 assertSame([true, false, 'selftest-var'], [in_array('selftest-var', $skus, true), in_array('selftest-var-az-p', $skus, true), $gql($guest, '{ product(sku: "SELFTEST-VAR-PRETO-P") { parent { sku } } }')['data']['product']['parent']['sku'] ?? null],
     'GraphQL: products lista só os pais; product(sku:) acha a variação');
+$service->update($attrId('selftest_vcor'), ['label' => 'Cor grade', 'input_type' => '', 'is_variant' => 1, 'is_filterable' => 1]);
+$varSearch = static fn (string $args) => $gql($guest, '{ products(search: "selftest-var"' . $args . ') { total aggregations { attributes { code options { value count } } } } }')['data']['products'] ?? null;
+$activeColors = $pdo->query("SELECT DISTINCT v.value FROM catalog_product p JOIN eav_value_varchar v ON v.entity_id = p.product_id AND v.attribute_id = {$attrId('selftest_vcor')}
+    WHERE p.parent_id = {$parentId} AND p.is_active = 1 ORDER BY 1")->fetchAll(PDO::FETCH_COLUMN);
+assertSame([array_map(static fn ($c) => ['value' => $c, 'count' => 1], $activeColors), 1, 1], [
+    array_column($varSearch('')['aggregations']['attributes'] ?? [], 'options', 'code')['selftest_vcor'] ?? null,
+    $varSearch(', filters: [{code: "selftest_vcor", values: ["' . $activeColors[0] . '"]}]')['total'] ?? null,
+    $varSearch(', filters: [{code: "selftest_vcor", values: ["' . $activeColors[0] . '"]}]')['aggregations']['attributes'][0]['options'][1]['count'] ?? 1,
+], 'filtros da loja: a cor das variações ativas filtra o configurável, contado uma vez; a contagem da cor ignora a própria escolha');
 $saveGql = 'mutation ($id: ID!, $vs: [VariantInput!]!) { saveVariants(productId: $id, variants: $vs) { sku } }';
 $vs = [...array_map(static fn ($x) => ['id' => (string) $x['product_id']], $v), ['options' => [['code' => 'selftest_vcor', 'value' => 'az'], ['code' => 'selftest_tam', 'value' => 'm']], 'price' => '50']];
 assertSame(['Acesso negado.', 'VARIANT_DUPLICATE'], [

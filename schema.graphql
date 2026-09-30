@@ -38,6 +38,11 @@ type Query {
     "Só para o admin; fora dele a lista traz apenas produtos ativos."
     isActive: Boolean
 
+    "Filtros da loja (attributes com isFilterable). Entre filtros vale E; dentro de um, qualquer um dos values. Vale o produto ou uma das suas variações."
+    filters: [ProductFilterInput!]
+
+    priceFrom: Float
+    priceTo: Float
     page: Int = 1
 
     "Máximo 100."
@@ -210,6 +215,32 @@ type Category {
 type ProductList {
   items: [Product!]!
   total: Int!
+
+  "Os filtros da loja para esta busca: contagem por opção (a do próprio filtro ignora a escolha nele) e a faixa de preço."
+  aggregations: ProductAggregations!
+}
+
+type ProductAggregations {
+  attributes: [ProductAggregation!]!
+  price: PriceRange!
+}
+
+type ProductAggregation {
+  code: String!
+  label: String!
+  options: [ProductAggregationOption!]!
+}
+
+type ProductAggregationOption {
+  value: String!
+  label: String!
+  count: Int!
+}
+
+"Menor e maior preço dos produtos da busca (sem o filtro de preço); null sem preço."
+type PriceRange {
+  min: Float
+  max: Float
 }
 
 type ProductStock {
@@ -230,6 +261,13 @@ type ProductStockSource {
 
   "1 = em estoque, 0 = fora de estoque."
   status: Int!
+}
+
+input ProductFilterInput {
+  code: String!
+
+  "Valores das opções; Sim/Não = \"1\"/\"0\"."
+  values: [String!]!
 }
 
 type InventorySource {
