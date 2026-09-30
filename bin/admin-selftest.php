@@ -161,7 +161,9 @@ $purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTempla
     $pdo->exec("DELETE FROM inventory_source WHERE code LIKE 'selftest%'");
     $pdo->exec("DELETE FROM eav_attribute_set WHERE code LIKE 'selftest%'");
     $pdo->exec("UPDATE eav_attribute_set SET is_default = 1 WHERE code = 'default' AND entity_type_id NOT IN (SELECT entity_type_id FROM eav_attribute_set WHERE is_default = 1)");
+    $pdo->exec("SET iter.allow_system_attribute = 'on'"); // selftest_sys* are system attributes
     $pdo->exec("DELETE FROM eav_attribute WHERE code LIKE 'selftest%'");
+    $pdo->exec('RESET iter.allow_system_attribute');
     $pdo->exec("DELETE FROM store WHERE store_name LIKE 'selftest%'");
     $pdo->exec("DELETE FROM store_group WHERE code LIKE 'selftest%'");
     $pdo->exec("DELETE FROM store_website WHERE code LIKE 'selftest%'");
@@ -417,6 +419,20 @@ $sysSelect = (int) $service->create(['entity_type' => 'product', 'code' => 'self
 assertSame('ATTRIBUTE_SYSTEM_PROTECTED', $throws(static fn () => $service->update($sysSelect, ['label' => 'S', 'options' => [['value' => 'a']]])), 'sistema: opção existente não pode ser removida');
 $service->update($sysSelect, ['label' => 'S', 'options' => [['value' => 'a', 'label' => 'A'], ['value' => 'b'], ['value' => 'c']]]);
 assertSame(['A', 'b', 'c'], array_column($optionsOf('selftest_sys_sel'), 1), 'sistema: opção nova e nome alterado são aceitos');
+$sqlError = static function (string $sql) use ($pdo): string {
+    try {
+        $pdo->exec($sql);
+        return 'nada';
+    } catch (PDOException $e) {
+        return $e->getCode();
+    }
+};
+assertSame(['23001', '23001', '23001', 'nada'], [
+    $sqlError("DELETE FROM eav_attribute WHERE code = 'selftest_sys'"),
+    $sqlError("UPDATE eav_attribute SET input_type = 'textarea', storage_type = 'text' WHERE code = 'selftest_sys'"),
+    $sqlError("UPDATE eav_attribute SET is_system = 0 WHERE code = 'selftest_sys'"),
+    $sqlError("UPDATE eav_attribute SET label = 'Sys SQL' WHERE code = 'selftest_sys'"),
+], 'banco: atributo do sistema não é removido nem muda de tipo por SQL; o nome muda');
 
 // names that only differ by case, accents, punctuation, connecting words, word order or plural
 $named = static fn (string $code, string $label, string $entity = 'product', array $extra = []) => $throws(static fn () => $service->create(['entity_type' => $entity, 'code' => $code, 'label' => $label, 'input_type' => 'text'] + $extra));
