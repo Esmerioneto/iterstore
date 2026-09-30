@@ -149,6 +149,7 @@ $purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTempla
     foreach ($pdo->query("SELECT customer_id FROM customer_flat WHERE email LIKE '%@selftest.local'")->fetchAll(PDO::FETCH_COLUMN) as $customerId) {
         (new CustomerService())->delete((int) $customerId);
     }
+    $pdo->exec("DELETE FROM sales_quote WHERE customer_id IS NULL AND email LIKE '%@selftest.local'"); // test guest carts (customers' go with them)
     $pdo->exec("DELETE FROM customer_group WHERE code LIKE 'selftest%'");
     foreach ($pdo->query("SELECT product_id FROM catalog_product WHERE sku LIKE 'selftest%' AND parent_id IS NULL")->fetchAll(PDO::FETCH_COLUMN) as $productId) {
         (new ProductService())->delete((int) $productId);
@@ -1708,14 +1709,16 @@ assertSame([['Cliente removido com sucesso.'], false, [], [], 0], [$msgs, $custR
 $toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];
 $configPage = $admin->request('/admin/config/index')['body'];
 assertSame([true, true, true, true], [
-    (bool) preg_match('/name="module" value="iter_inventory">\s*<input type="hidden" name="enabled" value="0">/', $configPage),
+    (bool) preg_match('/name="module" value="iter_sales">\s*<input type="hidden" name="enabled" value="0">/', $configPage),
     str_contains($configPage, 'Essencial'),
     str_contains($configPage, 'Usado por Catalog'),
     str_contains($configPage, 'Usado por Inventory'),
 ], 'lista de módulos: botão Desativar, essenciais e usados por outro sem botão');
 assertSame(['O módulo Core é essencial e não pode ser desativado.'], $toggle('iter_core', 0), 'módulo essencial não é desativado');
 assertSame(['Desative antes os módulos que dependem de Eav: Catalog, Customer.'], $toggle('iter_eav', 0), 'módulo com dependentes ativos não é desativado');
-assertSame(['Desative antes os módulos que dependem de Catalog: Inventory.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com o Inventory ativo');
+assertSame(['Desative antes os módulos que dependem de Catalog: Inventory, Sales.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com Inventory e Sales ativos');
+assertSame(['Módulo Sales desativado. Os dados dele continuam no banco.'], $toggle('iter_sales', 0), 'Sales desativado pelo admin');
+assertSame('Cannot query field "cart" on type "Query".', $gql($admin, '{ cart { total } }')['errors'][0]['message'] ?? null, 'Sales desativado: sem carrinho na API');
 assertSame(['Módulo Inventory desativado. Os dados dele continuam no banco.'], $toggle('iter_inventory', 0), 'Inventory desativado pelo admin');
 assertSame([false, false, 404, 'Cannot query field "stock" on type "Product".'], [
     str_contains($admin->request('/admin/product/edit?id=' . $estId)['body'], '/admin/stock/save'),
@@ -1739,6 +1742,7 @@ $toggle('iter_eav', 1);
 assertSame([true, 200], [str_starts_with($toggle('iter_catalog', 1)[0] ?? '', 'Módulo Catalog ativado.'), $admin->request('/admin/product/index')['status']], 'módulo reativado volta a funcionar');
 $toggle('iter_inventory', 1);
 $toggle('iter_customer', 1);
+$toggle('iter_sales', 1);
 assertSame('7', (new StockService())->getSalable([$estId])[$estId], 'Inventory reativado: o estoque continua lá');
 assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
 assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Configurações não chega aos módulos');
@@ -1881,6 +1885,79 @@ assertSame(['PASSWORD_INVALID', true, 401, 'TOKEN_INVALID', 64], [
 $requestReset('conf@selftest.local');
 $pdo->exec("UPDATE customer_password_reset SET created_at = NOW() - INTERVAL '3 hours'");
 assertSame([2, 'TOKEN_INVALID'], [count($resetMails()), $gqlCode($resetPassword($resetToken(), 'trocada456'))], 'API senha esquecida: link vencido é recusado');
+
+// --- API: cart (COMMERCE-PLAN delivery 2) ---------------------------------------------------------
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%' OR rate_key LIKE 'cart_create:%'");
+// its own simple product with 3 in stock (the configurable one was deleted by the catalog tests)
+$v0Sku = 'selftest-cart';
+$v0 = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => $v0Sku, 'name' => 'Caneca', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '24.9'])->getId();
+$stock->save($v0, ['selftest_var_cd' => ['quantity' => '3']]);
+// the cart only looks at the type: a product marked "com grade" is enough
+$cartParent = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-cart-grade', 'name' => 'Blusa grade', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '10'])->getId();
+$pdo->exec("UPDATE catalog_product SET type = 'configurable' WHERE product_id = {$cartParent}");
+$v0Price = (float) $pdo->query("SELECT value FROM eav_value_decimal WHERE entity_id = {$v0} AND attribute_id = {$attrId('price')}")->fetchColumn();
+$cartFields = '{ isGuest email items { id sku quantity price rowTotal error errorCode } subtotal total hasErrors shippingAddress { postcode city } billingSameAsShipping }';
+$cartCall = static fn (string $call, ?string $token = null) => $api("mutation { {$call} {$cartFields} }", $token)[1];
+$cartOf = static fn (array $r, string $key) => $r['data'][$key] ?? null; // $r = the response body
+$guestCart = $api('mutation { createCart }')[1]['data']['createCart'] ?? '';
+$c = '"' . $guestCart . '"';
+assertSame([64, 'PRODUCT_IS_CONFIGURABLE', 'PRODUCT_NOT_FOUND', 'QUANTITY_INVALID'], [
+    strlen($guestCart),
+    $gqlCode([0, $cartCall("addToCart(cartId: {$c}, sku: \"selftest-cart-grade\")")]),
+    $gqlCode([0, $cartCall("addToCart(cartId: {$c}, sku: \"selftest-nada\")")]),
+    $gqlCode([0, $cartCall("addToCart(cartId: {$c}, sku: \"{$v0Sku}\", quantity: -1)")]),
+], 'carrinho: visitante recebe o cartId; produto com grade, inexistente ou quantidade inválida são recusados');
+$added = $cartOf($cartCall("addToCart(cartId: {$c}, sku: \"{$v0Sku}\", quantity: 2)"), 'addToCart');
+$itemId = $added['items'][0]['id'] ?? '0';
+assertSame([true, 2.0, round($v0Price * 2, 2), 'INSUFFICIENT_STOCK', 3.0], [
+    $added['isGuest'] ?? null, (float) ($added['items'][0]['quantity'] ?? 0), (float) ($added['subtotal'] ?? 0),
+    $gqlCode([0, $cartCall("addToCart(cartId: {$c}, sku: \"{$v0Sku}\", quantity: 2)")]),
+    (float) ($cartOf($cartCall("updateCartItem(cartId: {$c}, itemId: \"{$itemId}\", quantity: 3)"), 'updateCartItem')['items'][0]['quantity'] ?? 0),
+], 'carrinho: soma ao item, confere o saldo do website (2 + 2 > 3) e muda a quantidade');
+$pdo->exec("UPDATE eav_value_decimal SET value = value + 10 WHERE entity_id = {$v0} AND attribute_id = {$attrId('price')}");
+$pdo->exec("UPDATE catalog_product SET is_active = 0 WHERE product_id = {$v0}");
+$stale = $api("{ cart(cartId: {$c}) {$cartFields} }")[1]['data']['cart'] ?? [];
+$pdo->exec("UPDATE catalog_product SET is_active = 1 WHERE product_id = {$v0}");
+$pdo->exec("UPDATE eav_value_decimal SET value = value - 10 WHERE entity_id = {$v0} AND attribute_id = {$attrId('price')}");
+assertSame([$v0Price + 10, 'PRODUCT_NOT_SALABLE', true], [(float) ($stale['items'][0]['price'] ?? 0), $stale['items'][0]['errorCode'] ?? null, $stale['hasErrors'] ?? null],
+    'carrinho: preço lido na hora; produto que saiu de venda fica com erro e marca o carrinho');
+assertSame(['CART_NOT_FOUND', 'UNAUTHENTICATED', 'CART_ITEM_NOT_FOUND'], [
+    $gqlCode($api('{ cart(cartId: "nada") { total } }')),
+    $gqlCode($api('{ cart { total } }')),
+    $gqlCode([0, $cartCall("removeCartItem(cartId: {$c}, itemId: \"999999\")")]),
+], 'carrinho: cartId desconhecido, sem cartId nem login, item de outro carrinho são recusados');
+$addr = 'address: {postcode: "01310-100", street: "Av Paulista", number: "1000", district: "Bela Vista", city: "São Paulo", region: "SP"}';
+assertSame(['TAXVAT_INVALID', 'loja-visitante@selftest.local', 'Endereço de entrega: informe o bairro.', ['postcode' => '01310100', 'city' => 'São Paulo'], true], [
+    $gqlCode([0, $cartCall("setCartGuestInfo(cartId: {$c}, email: \"x@selftest.local\", firstname: \"Vi\", lastname: \"Sita\", taxvat: \"111.111.111-11\")")]),
+    $cartOf($cartCall("setCartGuestInfo(cartId: {$c}, email: \"Loja-Visitante@selftest.local\", firstname: \"Vi\", lastname: \"Sita\", taxvat: \"529.982.247-25\")"), 'setCartGuestInfo')['email'] ?? null,
+    $cartCall('setCartShippingAddress(cartId: ' . $c . ', ' . str_replace('district: "Bela Vista", ', '', $addr) . ')')['errors'][0]['message'] ?? null,
+    $cartOf($cartCall("setCartShippingAddress(cartId: {$c}, {$addr})"), 'setCartShippingAddress')['shippingAddress'] ?? null,
+    $cartOf($cartCall("setCartBillingAddress(cartId: {$c})"), 'setCartBillingAddress')['billingSameAsShipping'] ?? null,
+], 'carrinho: dados do visitante validados (CPF, e-mail em minúsculas); endereço com as regras do cliente; cobrança igual à entrega');
+// a customer's cart and the merge on login
+$ct = $api('mutation { generateCustomerToken(email: "conf@selftest.local", password: "trocada123") { token } }')[1]['data']['generateCustomerToken']['token'] ?? '';
+$mine = $cartOf($cartCall("addToCart(sku: \"{$v0Sku}\")", $ct), 'addToCart');
+$merged = $cartOf($cartCall("mergeCarts(cartId: {$c})", $ct), 'mergeCarts');
+assertSame([false, 'conf@selftest.local', 1.0, 'INSUFFICIENT_STOCK', true, 'CART_NOT_FOUND', 'CART_IS_CUSTOMERS'], [
+    $mine['isGuest'] ?? null, $mine['email'] ?? null, (float) ($mine['items'][0]['quantity'] ?? 0),
+    $merged['items'][0]['errorCode'] ?? null, isset($merged['shippingAddress']),
+    $gqlCode($api("{ cart(cartId: {$c}) { total } }")),
+    $gqlCode([0, $cartCall('setCartGuestInfo(email: "a@selftest.local", firstname: "a", lastname: "b", taxvat: "529.982.247-25")', $ct)]),
+], 'carrinho do cliente: dados da conta; ao logar, mergeCarts soma os itens do visitante (1 + 3 > 3 fica com erro de estoque), traz o endereço e apaga o do visitante');
+assertSame(['ADDRESS_NOT_FOUND', 'UNAUTHENTICATED'], [
+    $gqlCode([0, $cartCall('setCartShippingAddress(customerAddressId: "999999")', $ct)]),
+    $gqlCode($api('mutation { mergeCarts(cartId: "nada") { total } }')),
+], 'carrinho: endereço salvo de outro cliente é recusado; mergeCarts exige login');
+$oldCart = $api('mutation { createCart }')[1]['data']['createCart'] ?? '';
+$api('mutation { setCartGuestInfo(cartId: "' . $oldCart . '", email: "velho@selftest.local", firstname: "V", lastname: "Elho", taxvat: "529.982.247-25") { total } }');
+$pdo->exec('ALTER TABLE sales_quote DISABLE TRIGGER sales_quote_set_updated_at'); // it would set NOW()
+$pdo->exec("UPDATE sales_quote SET updated_at = NOW() - INTERVAL '31 days' WHERE token_hash = '" . hash('sha256', $oldCart) . "'");
+$pdo->exec('ALTER TABLE sales_quote ENABLE TRIGGER sales_quote_set_updated_at');
+assertSame([true, 'CART_NOT_FOUND', false], [
+    (new \Iter\Sales\Model\CartService())->cleanGuests(30) >= 1,
+    $gqlCode($api('{ cart(cartId: "' . $oldCart . '") { total } }')),
+    $gqlCode($api('{ cart { total } }', $ct)) !== null,
+], 'limpeza: carrinho de visitante sem uso há mais de 30 dias é apagado; o do cliente fica');
 
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");

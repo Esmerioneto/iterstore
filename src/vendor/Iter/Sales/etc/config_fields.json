@@ -1,0 +1,4 @@
+[
+    { "path": "sales/quote/guest_days", "group": "Vendas", "label": "Dias que um carrinho de visitante sem uso é guardado (bin/quote-clean.php)", "type": "number", "default": 30, "min": 1, "max": 365 },
+    { "path": "sales/quote/create_per_minute", "group": "Vendas", "label": "Carrinhos de visitante criados por minuto, por IP (0 = sem limite)", "type": "number", "default": 30, "min": 0, "max": 1000 }
+]

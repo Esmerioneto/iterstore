@@ -93,53 +93,83 @@ class AddressService
     }
 
     /**
+     * One address outside a customer's list (the cart's delivery or billing address, a copy in an order):
+     * the same checks, returned as code => value (fixed fields + the set's), nothing written.
+     *
+     * @param string $label prefix of the messages, e.g. "Endereço de entrega"
+     * @return array<string, mixed>
+     */
+    public function check(array $address, string $label): array
+    {
+        $values = $this->normalize($address, $label) ?? $this->normalize(['postcode' => '-'] + $address, $label); // blank: the CEP error
+        try {
+            (new ValueService())->validate(self::ENTITY_TYPE, $values);
+        } catch (AttributeException $e) {
+            throw new AttributeException($e->errorCode, "{$label}: " . $e->getMessage());
+        }
+
+        return $values;
+    }
+
+    /**
      * An address carries its fields by code (the form's addresses[i][code]); the API may send the
      * set's fields in 'attributes' (code => value), where a code outside the set is an error.
      *
-     * @return array<int, array{address_id: ?int, is_default_shipping: int, is_default_billing: int, values: array}> (address_id null for new ones)
+     * @return ?array<string, mixed> fixed fields + the set's, checked; null for a blank form row
      */
-    private function validate(array $addresses, array $currentIds): array
+    private function normalize(array $address, string $label): ?array
     {
         $fields = array_column(self::fields(), null, 'name');
+        $extra = is_array($address['attributes'] ?? null) ? $address['attributes'] : [];
+        $unknown = array_diff(array_keys($extra), array_keys($fields));
+        if ($unknown) {
+            throw new AttributeException('ATTRIBUTE_NOT_FOUND', 'Atributo fora do conjunto do endereço: ' . implode(', ', $unknown) . '.');
+        }
+        $row = ['postcode' => preg_replace('/\D/', '', (string) ($address['postcode'] ?? '')), 'region' => strtoupper(trim((string) ($address['region'] ?? '')))];
+        foreach (self::TEXT as $key => $max) {
+            $row[$key] = mb_substr(trim((string) ($address[$key] ?? '')), 0, $max);
+        }
+        $set = [];
+        foreach ($fields as $code => $field) {
+            $set[$code] = $extra[$code] ?? $address[$code] ?? '';
+        }
+        // blank row of the form (an unchecked Sim/Não posts "0")
+        if (implode('', $row) === '' && !array_filter($set, static fn ($v) => !in_array($v, ['', '0', [], null], true))) {
+            return null;
+        }
+        $error = static fn (string $message) => throw new AttributeException('ADDRESS_INVALID', "{$label}: {$message}");
+        if (strlen($row['postcode']) !== 8) {
+            $error('informe um CEP com 8 dígitos.');
+        }
+        foreach (['street' => 'a rua', 'number' => 'o número', 'district' => 'o bairro', 'city' => 'a cidade'] as $key => $name) {
+            if ($row[$key] === '') {
+                $error("informe {$name}.");
+            }
+        }
+        if (!isset(self::REGIONS[$row['region']])) {
+            $error('escolha o estado (UF).');
+        }
+
+        return $row + $set;
+    }
+
+    /** @return array<int, array{address_id: ?int, is_default_shipping: int, is_default_billing: int, values: array}> (address_id null for new ones) */
+    private function validate(array $addresses, array $currentIds): array
+    {
         $values = new ValueService();
         $rows = [];
         foreach (array_values($addresses) as $i => $address) {
             $address = is_array($address) ? $address : [];
-            $extra = is_array($address['attributes'] ?? null) ? $address['attributes'] : [];
-            $unknown = array_diff(array_keys($extra), array_keys($fields));
-            if ($unknown) {
-                throw new AttributeException('ATTRIBUTE_NOT_FOUND', 'Atributo fora do conjunto do endereço: ' . implode(', ', $unknown) . '.');
-            }
-            $row = ['postcode' => preg_replace('/\D/', '', (string) ($address['postcode'] ?? '')), 'region' => strtoupper(trim((string) ($address['region'] ?? '')))];
-            foreach (self::TEXT as $key => $max) {
-                $row[$key] = mb_substr(trim((string) ($address[$key] ?? '')), 0, $max);
-            }
-            $set = [];
-            foreach ($fields as $code => $field) {
-                $set[$code] = $extra[$code] ?? $address[$code] ?? '';
-            }
-            // blank row of the form (an unchecked Sim/Não posts "0")
-            if (implode('', $row) === '' && !array_filter($set, static fn ($v) => !in_array($v, ['', '0', [], null], true))) {
+            $checked = $this->normalize($address, 'Endereço ' . ($i + 1));
+            if ($checked === null) {
                 continue;
-            }
-            $error = static fn (string $message) => throw new AttributeException('ADDRESS_INVALID', 'Endereço ' . ($i + 1) . ": {$message}");
-            if (strlen($row['postcode']) !== 8) {
-                $error('informe um CEP com 8 dígitos.');
-            }
-            foreach (['street' => 'a rua', 'number' => 'o número', 'district' => 'o bairro', 'city' => 'a cidade'] as $key => $label) {
-                if ($row[$key] === '') {
-                    $error("informe {$label}.");
-                }
-            }
-            if (!isset(self::REGIONS[$row['region']])) {
-                $error('escolha o estado (UF).');
             }
             $id = (int) ($address['address_id'] ?? 0);
             if ($id && !in_array($id, $currentIds, true)) {
                 throw new AttributeException('ADDRESS_NOT_FOUND', "O endereço {$id} não é deste cliente.");
             }
             try {
-                $valueRows = $values->validate(self::ENTITY_TYPE, $row + $set, $id ?: null);
+                $valueRows = $values->validate(self::ENTITY_TYPE, $checked, $id ?: null);
             } catch (AttributeException $e) {
                 throw new AttributeException($e->errorCode, 'Endereço ' . ($i + 1) . ': ' . $e->getMessage());
             }
