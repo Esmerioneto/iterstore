@@ -1350,6 +1350,41 @@ $list = $admin->request('/admin/customer/index?q=529.982.247-25')['body'];
 assertSame([2, true], [substr_count($list, '/admin/customer/edit?id='), str_contains($list, '529.982.247-25')], 'busca por CPF formatado, lista mostra o CPF com máscara');
 assertSame(1, substr_count($admin->request('/admin/customer/index?q=selftest.local&website_id=' . $website2)['body'], '/admin/customer/edit?id='), 'filtro por website');
 assertSame(403, $dash->request('/admin/customer/index')['status'], 'perfil sem Clientes recebe 403');
+assertSame([true, false], [str_contains($admin->request('/admin/index')['body'], '<h2>Clientes</h2>'), str_contains($dash->request('/admin/index')['body'], '<h2>Clientes</h2>')], 'card Clientes no painel só para quem tem Clientes');
+
+// --- GraphQL: customers (admin only) --------------------------------------------------------------
+$custGql = '{ customer(email: "ANA@selftest.local", websiteId: "' . $websiteId . '") { id email type taxvat addresses { number is_default_shipping } } }';
+assertSame(['UNAUTHENTICATED', 'FORBIDDEN'], [$gql($guest, $custGql)['errors'][0]['extensions']['code'] ?? null, $gql($dash, $custGql)['errors'][0]['extensions']['code'] ?? null], 'GraphQL cliente: visitante e perfil sem Clientes são negados');
+assertSame(['id' => (string) $anaId, 'email' => 'ana@selftest.local', 'type' => 'PF', 'taxvat' => '52998224725', 'addresses' => [['number' => '1500', 'is_default_shipping' => true]]],
+    $gql($admin, $custGql)['data']['customer'] ?? null, 'GraphQL: cliente por e-mail (sem diferenciar maiúsculas), com endereços');
+$createCust = 'mutation($a: [CustomerAddressInput!]) { createCustomer(websiteId: "' . $websiteId . '", groupId: "' . $custGroup . '", attributeSetId: "' . $custSet . '", email: "api@selftest.local",
+    firstname: "Api", lastname: "Cliente", type: PF, taxvat: "390.533.447-05", attributes: [{code: "selftest_prof", value: "Dev"}, {code: "gender", value: "f"}], addresses: $a)
+    { id attributes { code value option_label } addresses { id postcode is_default_billing } } }';
+$apiAddr = ['postcode' => '01310-100', 'street' => 'Avenida Paulista', 'number' => '10', 'district' => 'Bela Vista', 'city' => 'São Paulo', 'region' => 'SP'];
+$created = $gql($admin, $createCust, ['a' => [$apiAddr, ['number' => '20', 'isDefaultBilling' => true] + $apiAddr]])['data']['createCustomer'] ?? [];
+$attrOf = static fn (array $c) => array_column($c['attributes'] ?? [], null, 'code');
+assertSame([['code' => 'gender', 'value' => 'f', 'option_label' => 'Feminino'], 'Dev', ['01310100', '01310100'], [false, true]],
+    [$attrOf($created)['gender'] ?? null, $attrOf($created)['selftest_prof']['value'] ?? null, array_column($created['addresses'] ?? [], 'postcode'), array_column($created['addresses'] ?? [], 'is_default_billing')],
+    'GraphQL: createCustomer com atributos, rótulo da opção e endereços');
+$apiId = $created['id'] ?? '0';
+$updated = $gql($admin, 'mutation { updateCustomer(id: "' . $apiId . '", firstname: "Api2") { firstname taxvat attributes { code value } addresses { id } } }')['data']['updateCustomer'] ?? [];
+assertSame(['Api2', '39053344705', 'Dev', 2], [$updated['firstname'] ?? null, $updated['taxvat'] ?? null, $attrOf($updated)['selftest_prof']['value'] ?? null, count($updated['addresses'] ?? [])], 'GraphQL: updateCustomer parcial mantém atributos e endereços');
+$keep = $created['addresses'][1]['id'] ?? '0';
+$updated = $gql($admin, 'mutation($a: [CustomerAddressInput!]) { updateCustomer(id: "' . $apiId . '", addresses: $a) { addresses { id is_default_shipping } } }', ['a' => [['id' => $keep] + $apiAddr]])['data']['updateCustomer'] ?? [];
+assertSame([['id' => $keep, 'is_default_shipping' => true]], $updated['addresses'] ?? null, 'GraphQL: a lista de endereços enviada substitui a anterior');
+assertSame(['EMAIL_DUPLICATE', 'ATTRIBUTE_NOT_FOUND', 'ADDRESS_INVALID'], [
+    $gql($admin, 'mutation { updateCustomer(id: "' . $apiId . '", email: "ana@selftest.local") { id } }')['errors'][0]['extensions']['code'] ?? null,
+    $gql($admin, 'mutation { updateCustomer(id: "' . $apiId . '", attributes: [{code: "sku", value: "x"}]) { id } }')['errors'][0]['extensions']['code'] ?? null,
+    $gql($admin, 'mutation($a: [CustomerAddressInput!]) { updateCustomer(id: "' . $apiId . '", addresses: $a) { id } }', ['a' => [['region' => 'XX'] + $apiAddr]])['errors'][0]['extensions']['code'] ?? null,
+], 'GraphQL: erros de cliente com código');
+assertSame([3, 1], [
+    $gql($admin, '{ customers(search: "selftest.local", websiteId: "' . $websiteId . '") { total } }')['data']['customers']['total'] ?? null,
+    $gql($admin, '{ customers(search: "390.533.447-05", type: PF, isActive: true) { total } }')['data']['customers']['total'] ?? null,
+], 'GraphQL: customers com busca e filtros');
+assertSame([true, ['customer' => null]], [
+    $gql($admin, 'mutation { deleteCustomer(id: "' . $apiId . '") }')['data']['deleteCustomer'] ?? null,
+    $gql($admin, '{ customer(id: "' . $apiId . '") { id } }')['data'] ?? [],
+], 'GraphQL: deleteCustomer');
 
 [, $msgs] = $admin->submit('/admin/customergroup/index', '/admin/customergroup/delete', ['customer_group_id' => $custGroup]);
 assertSame(['Não é possível remover: há clientes neste grupo.'], $msgs, 'grupo com clientes não é removido');
@@ -1383,7 +1418,8 @@ assertSame([404, false, 'Cannot query field "products" on type "Query".'], [
 ], 'módulo desativado: sem rotas, sem menu e sem API');
 assertSame(true, (bool) $productRow('selftest-up'), 'desativar não apaga os dados');
 assertSame(['Módulo Customer desativado. Os dados dele continuam no banco.'], $toggle('iter_customer', 0), 'Customer desativado pelo admin');
-assertSame([404, false], [$admin->request('/admin/customer/index')['status'], str_contains($admin->request('/admin/index')['body'], '/admin/customer/index')], 'Customer desativado: sem rotas e sem menu');
+assertSame([404, false, 'Cannot query field "customers" on type "Query". Did you mean "stores"?'], [$admin->request('/admin/customer/index')['status'], str_contains($admin->request('/admin/index')['body'], '/admin/customer/index'),
+    $gql($admin, '{ customers { total } }')['errors'][0]['message'] ?? null], 'Customer desativado: sem rotas, sem menu e sem API');
 $toggle('iter_eav', 0);
 assertSame(['Ative antes os módulos de que Catalog depende: Eav.'], $toggle('iter_catalog', 1), 'módulo não é ativado sem as dependências');
 $toggle('iter_eav', 1);

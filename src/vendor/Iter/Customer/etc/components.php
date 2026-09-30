@@ -5,4 +5,5 @@ return [
     'customer/customer-form' => \Iter\Customer\View\CustomerForm::class,
     'customer/group-list' => \Iter\Customer\View\GroupList::class,
     'customer/group-form' => \Iter\Customer\View\GroupForm::class,
+    'customer/dashboard-summary' => \Iter\Customer\View\DashboardSummary::class,
 ];

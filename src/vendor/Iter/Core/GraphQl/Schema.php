@@ -12,6 +12,7 @@ use Iter\Admin\Auth;
 use Iter\Admin\GraphQl\AdminSchema;
 use Iter\Core\Config;
 use Iter\Catalog\GraphQl\ProductSchema;
+use Iter\Customer\GraphQl\CustomerSchema;
 use Iter\Inventory\GraphQl\StockSchema;
 use Iter\Store\Model\Store as StoreModel;
 
@@ -102,6 +103,7 @@ class Schema
         $stock = \isModuleEnabled('iter_inventory') ? StockSchema::fields() : ['product' => [], 'query' => [], 'mutation' => []];
         $product = \isModuleEnabled('iter_catalog') ? ProductSchema::fields($stock['product']) : ['query' => [], 'mutation' => []];
         $stores = \isModuleEnabled('iter_store');
+        $customer = \isModuleEnabled('iter_customer') ? CustomerSchema::fields() : ['query' => [], 'mutation' => []];
         $admin = AdminSchema::fields(); // Admin is a required module
 
         $queryType = new ObjectType([
@@ -125,7 +127,7 @@ class Schema
                         return $id === null || Config::websiteExists($id) ? ['id' => $id] : null;
                     },
                 ],
-            ] : []) + $product['query'] + $stock['query'] + $admin['query'],
+            ] : []) + $product['query'] + $stock['query'] + $customer['query'] + $admin['query'],
         ]);
 
         $mutationType = new ObjectType([
@@ -164,7 +166,7 @@ class Schema
                         return true;
                     }),
                 ],
-            ] : []) + $product['mutation'] + $stock['mutation'] + $admin['mutation'],
+            ] : []) + $product['mutation'] + $stock['mutation'] + $customer['mutation'] + $admin['mutation'],
         ]);
 
         if (!$queryType->getFields()) {
