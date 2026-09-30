@@ -64,6 +64,7 @@ class Attribute
             'input_type' => trim($_POST['input_type'] ?? ''),
             'default_value' => trim($_POST['default_value'] ?? ''),
             'sort_order' => (int) ($_POST['sort_order'] ?? 0),
+            'confirm_similar' => !empty($_POST['confirm_similar']),
         ];
         foreach (['is_required', 'is_visible', 'is_searchable', 'is_filterable', 'is_sortable', 'is_variant'] as $flag) {
             $data[$flag] = !empty($_POST[$flag]) ? 1 : 0;
@@ -84,7 +85,8 @@ class Attribute
                 header('Location: /admin/attribute/index');
                 exit;
             }
-            $_SESSION['iter_old_input'] = $data;
+            // ATTRIBUTE_SIMILAR: the form shows "Salvar mesmo assim"
+            $_SESSION['iter_old_input'] = ['similar' => $e->errorCode === 'ATTRIBUTE_SIMILAR'] + $data;
             header('Location: ' . ($id ? '/admin/attribute/edit?id=' . $id : '/admin/attribute/create'));
             exit;
         }

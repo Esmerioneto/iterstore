@@ -22,6 +22,10 @@ class AttributeService
 
     private const FLAGS = ['is_required', 'is_visible', 'is_searchable', 'is_filterable', 'is_sortable'];
 
+    /** names an admin can't give an attribute: they are entity columns or technical */
+    private const RESERVED = ['id', 'entity_id', 'website', 'website_id', 'grupo', 'group_id', 'ativo', 'is_active', 'senha', 'password',
+        'password_hash', 'token', 'created_at', 'updated_at', 'attribute_set_id'];
+
     /**
      * @param array{entity_type: string, code: string, label: string, input_type: string, default_value?: ?string,
      *              is_required?: int, is_visible?: int, is_searchable?: int, is_filterable?: int, is_sortable?: int,
@@ -43,9 +47,10 @@ class AttributeService
         if ($model->getResource()->codeExists((int) $entityType['entity_type_id'], $code)) {
             throw new AttributeException('CODE_DUPLICATE', "Já existe um atributo '{$code}' nesta entidade.");
         }
+        $this->assertName((int) $entityType['entity_type_id'], $code, trim($data['label']), null, $system ? null : !empty($data['confirm_similar']));
         $options = $inputType['supports_options'] ? $this->options($data['options'] ?? [], $inputType) : [];
 
-        $model->getResource()->getConnection()->transaction(function () use ($model, $data, $entityType, $code, $inputType, $system, $options): void {
+        $this->duplicateGuard(fn () => $model->getResource()->getConnection()->transaction(function () use ($model, $data, $entityType, $code, $inputType, $system, $options): void {
             $model->addData($this->fields($data, $inputType) + [
                 'entity_type_id' => (int) $entityType['entity_type_id'],
                 'code' => $code,
@@ -56,7 +61,7 @@ class AttributeService
             if ($options) {
                 $model->getResource()->replaceOptions((int) $model->getId(), $options);
             }
-        });
+        }));
 
         return $model;
     }
@@ -66,6 +71,11 @@ class AttributeService
     {
         $model = $this->get($id);
         $this->assertLabel($data);
+        $resource = $model->getResource();
+        [$newKey, $oldKey] = $resource->nameKeys([trim($data['label']), (string) $model->getData('label')]);
+        if ($newKey !== $oldKey) {
+            $this->assertName((int) $model->getData('entity_type_id'), (string) $model->getData('code'), trim($data['label']), $id, $model->isSystem() ? null : !empty($data['confirm_similar']));
+        }
 
         // empty = unchanged (the form disables the select on system attributes)
         $newType = ($data['input_type'] ?? '') ?: $model->getData('input_type');
@@ -103,12 +113,12 @@ class AttributeService
         }
 
         try {
-            $model->getResource()->getConnection()->transaction(function () use ($model, $fields, $options, $id): void {
+            $this->duplicateGuard(fn () => $model->getResource()->getConnection()->transaction(function () use ($model, $fields, $options, $id): void {
                 $model->addData($fields)->save();
                 if ($options !== null) {
                     $model->getResource()->replaceOptions($id, $options);
                 }
-            });
+            }));
         } catch (\PDOException $e) {
             // other modules' tables (e.g. a product variant's combination) reference options with ON DELETE RESTRICT
             if ($e->getCode() === '23503') {
@@ -193,11 +203,70 @@ class AttributeService
             ];
         }
 
+        $seen = [];
+        foreach ((new Attribute())->getResource()->nameKeys(array_column($options, 'label')) as $i => $key) {
+            $label = array_values($options)[$i]['label'];
+            if (isset($seen[$key])) {
+                throw new AttributeException('OPTION_DUPLICATE', "As opções '{$seen[$key]}' e '{$label}' têm o mesmo nome (maiúsculas, acentos e plural não contam).");
+            }
+            $seen[$key] = $label;
+        }
+
         if (!$inputType['multiple'] && array_sum(array_column($options, 'is_default')) > 1) {
             throw new AttributeException('OPTION_DEFAULT_MULTIPLE', "O tipo '{$inputType['label']}' aceita só uma opção padrão.");
         }
 
         return array_values($options);
+    }
+
+    /**
+     * No other attribute of the entity may have the same normalized name (iter_attr_key: case, accents,
+     * punctuation, connecting words, word order and regular plurals don't count) in its label or code;
+     * the trigger eav_attribute_name_unique is the backstop. With $confirmSimilar false, a name one
+     * letter away from another one (a typo) needs the admin's confirmation (confirm_similar); null = a
+     * module's system attribute, which skips the reserved and similar checks.
+     */
+    private function assertName(int $entityTypeId, string $code, string $label, ?int $id, ?bool $confirmSimilar): void
+    {
+        $resource = (new Attribute())->getResource();
+        $keys = $resource->nameKeys(array_merge([$code, $label], self::RESERVED));
+        $mine = array_unique(array_splice($keys, 0, 2));
+        if ($confirmSimilar !== null && array_intersect($mine, $keys)) {
+            throw new AttributeException('ATTRIBUTE_RESERVED', "O nome '{$label}' (código '{$code}') é reservado pelo sistema.");
+        }
+
+        // ponytail: one typo; a larger distance flags every "x_a"/"x_b" pair
+        $similar = [];
+        foreach ($resource->getNameKeys($entityTypeId) as $row) {
+            if ((int) $row['attribute_id'] === $id) {
+                continue;
+            }
+            $theirs = [$row['code_key'], $row['label_key']];
+            if (array_intersect($mine, $theirs)) {
+                throw new AttributeException('ATTRIBUTE_DUPLICATE', "Já existe o atributo \"{$row['label']}\" ({$row['code']}) com esse nome (maiúsculas, acentos e plural não contam).");
+            }
+            // labels only: codes like x_p01/x_p02 differ by one letter on purpose
+            $a = $mine[1] ?? $mine[0];
+            if (min(strlen($a), strlen($row['label_key'])) >= 4 && levenshtein($a, $row['label_key']) === 1) {
+                $similar[] = "\"{$row['label']}\" ({$row['code']})";
+            }
+        }
+        if ($similar && $confirmSimilar === false) {
+            throw new AttributeException('ATTRIBUTE_SIMILAR', 'O nome é parecido com ' . implode(', ', $similar) . '. Confira se não é o mesmo campo; se não for, marque "Salvar mesmo assim".');
+        }
+    }
+
+    /** a concurrent save that got past assertName()/options() is stopped by the name triggers (23505) */
+    private function duplicateGuard(callable $save): void
+    {
+        try {
+            $save();
+        } catch (\PDOException $e) {
+            if ($e->getCode() === '23505' && preg_match('/ERROR:\s+(.+)/', $e->getMessage(), $m)) {
+                throw new AttributeException('ATTRIBUTE_DUPLICATE', trim($m[1]));
+            }
+            throw $e;
+        }
     }
 
     private function assertLabel(array $data): void
