@@ -1433,11 +1433,11 @@ assertSame(['Já existe um cliente com este CPF neste website.'], $saveCustomer(
 assertSame(['Cliente criado com sucesso.'], $saveCustomer(['website_id' => $website2]), 'o mesmo e-mail e CPF em outro website pode');
 // registration fields as system attributes (CUSTOMER-EAV-PLAN): values in EAV, e-mail and CPF keyed by website
 $custAttr = static fn (string $code) => (int) $pdo->query("SELECT attribute_id FROM eav_attribute JOIN eav_entity_type et USING (entity_type_id) WHERE et.code = 'customer' AND eav_attribute.code = '{$code}'")->fetchColumn();
-assertSame([[['email', $websiteId], ['taxvat', $websiteId]], [null, null], ['ana@selftest.local', 'Ana']], [
+assertSame([[['email', $websiteId], ['taxvat', $websiteId]], 0, ['ana@selftest.local', 'Ana']], [
     array_map(static fn ($r) => [$r[0], (int) $r[1]], $pdo->query("SELECT a.code, u.scope_id FROM eav_unique_value u JOIN eav_attribute a USING (attribute_id) WHERE u.entity_id = {$anaId} AND a.code IN ('email', 'taxvat') ORDER BY a.code")->fetchAll(PDO::FETCH_NUM)),
-    $pdo->query("SELECT legacy_email, legacy_firstname FROM customer_entity WHERE customer_id = {$anaId}")->fetch(PDO::FETCH_NUM),
+    (int) $pdo->query("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'customer_entity' AND column_name LIKE 'legacy\\_%'")->fetchColumn(),
     $pdo->query("SELECT string_agg(value, ',' ORDER BY attribute_id) FROM eav_value_varchar WHERE entity_id = {$anaId} AND attribute_id IN ({$custAttr('email')}, {$custAttr('firstname')})")->fetchColumn() === 'ana@selftest.local,Ana' ? ['ana@selftest.local', 'Ana'] : null,
-], 'cliente: e-mail, nome e CPF gravados no EAV, com a chave única no website; colunas legacy_* sem uso');
+], 'cliente: e-mail, nome e CPF gravados no EAV, com a chave única no website; sem colunas legacy_*');
 try {
     $pdo->exec("INSERT INTO eav_value_varchar (attribute_id, entity_id, value) VALUES ({$custAttr('email')}, 999999, 'direto@selftest.local')");
     $raw = 'gravou';
