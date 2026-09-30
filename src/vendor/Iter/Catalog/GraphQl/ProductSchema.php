@@ -41,7 +41,7 @@ class ProductSchema
 {
     /**
      * @param array $productFields extra fields of the Product type, from other modules (e.g. Inventory's stock)
-     * @return array{query: array, mutation: array}
+     * @return array{types: array{product: ObjectType}, query: array, mutation: array}
      */
     public static function fields(array $productFields = []): array
     {
@@ -379,6 +379,7 @@ class ProductSchema
           + (isset($args['categoryIds']) ? ['category_ids' => $args['categoryIds']] : []); // and categories
 
         return [
+            'types' => ['product' => $productType], // for other modules' types (Sales' CartItem.product)
             'query' => [
                 'product' => [
                     'type' => $productType,

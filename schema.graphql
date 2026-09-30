@@ -88,6 +88,11 @@ type Query {
   "Os atributos de uma entidade (product, customer, customer_address, category), na ordem de posição. Os ocultos só aparecem para o admin."
   attributes(entityType: String!): [AttributeDefinition!]!
 
+  cart(
+    "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
+    cartId: String
+  ): Cart!
+
   "O usuário do token (ou da sessão do painel); null sem login."
   currentAdmin: AdminUser
 }
@@ -438,6 +443,75 @@ type AttributeOption {
   isDefault: Boolean!
 }
 
+type Cart {
+  websiteId: ID!
+  isGuest: Boolean!
+  email: String
+  firstname: String
+  lastname: String
+
+  "CPF ou CNPJ, só os dígitos."
+  taxvat: String
+
+  items: [CartItem!]!
+  itemsQuantity: Float!
+  subtotal: Float!
+
+  "Por enquanto igual ao subtotal; o frete entra quando for escolhido."
+  total: Float!
+
+  "Algum item com error."
+  hasErrors: Boolean!
+
+  shippingAddress: CartAddress
+
+  "Sem um próprio, o de entrega."
+  billingAddress: CartAddress
+
+  billingSameAsShipping: Boolean!
+}
+
+type CartItem {
+  id: ID!
+  sku: String!
+  name: String!
+  quantity: Float!
+
+  "O preço de agora; null sem preço."
+  price: Float
+
+  rowTotal: Float!
+
+  "Por que o item não pode ser comprado assim (inativo, sem estoque suficiente...). Com erro, o pedido é recusado."
+  error: String
+
+  "PRODUCT_NOT_SALABLE, INSUFFICIENT_STOCK ou PRODUCT_IS_CONFIGURABLE."
+  errorCode: String
+
+  product: Product
+}
+
+type CartAddress {
+  "Os campos que o admin criou no conjunto de endereço."
+  attributes: [CartAddressAttribute!]!
+
+  postcode: String
+  street: String
+  number: String
+  complement: String
+  district: String
+  city: String
+  region: String
+  recipient: String
+  telephone: String
+}
+
+type CartAddressAttribute {
+  code: String!
+  value: String
+  values: [String!]
+}
+
 type AdminUser {
   id: ID!
   username: String!
@@ -702,6 +776,71 @@ type Mutation {
   "Apaga também os endereços e os atributos."
   deleteCustomer(id: ID!): Boolean!
 
+  "Novo carrinho de visitante; devolve o cartId (guarde-o: ele é a chave do carrinho). O cliente logado não precisa: usa o dele. Depois do login, mergeCarts junta os dois."
+  createCart(
+    "Omitido = website padrão."
+    websiteId: ID
+  ): String!
+
+  "Soma à quantidade que já estiver no carrinho. O produto com grade não entra: envie o SKU da variação."
+  addToCart(
+    "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
+    cartId: String
+
+    sku: String!
+    quantity: Float! = 1
+  ): Cart!
+
+  "A nova quantidade do item; 0 remove."
+  updateCartItem(
+    "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
+    cartId: String
+
+    itemId: ID!
+    quantity: Float!
+  ): Cart!
+
+  removeCartItem(
+    "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
+    cartId: String
+
+    itemId: ID!
+  ): Cart!
+
+  "Depois do login: os itens do carrinho de visitante (cartId) vão para o do cliente, somando as quantidades, e o de visitante deixa de existir."
+  mergeCarts(cartId: String!): Cart!
+
+  "Dados do visitante para o pedido. O cliente logado não usa: os dados vêm da conta."
+  setCartGuestInfo(
+    "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
+    cartId: String
+
+    email: String!
+    firstname: String!
+    lastname: String!
+
+    "CPF ou CNPJ, com ou sem máscara."
+    taxvat: String!
+  ): Cart!
+
+  "O endereço digitado (address) ou um salvo do cliente (customerAddressId). As regras são as do endereço do cliente."
+  setCartShippingAddress(
+    "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
+    cartId: String
+
+    address: CartAddressInput
+    customerAddressId: ID
+  ): Cart!
+
+  "Como o de entrega; sem address nem customerAddressId, a cobrança é no endereço de entrega."
+  setCartBillingAddress(
+    "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
+    cartId: String
+
+    address: CartAddressInput
+    customerAddressId: ID
+  ): Cart!
+
   "Login do admin pela API. Erra junto com o painel: tentativas contam para o bloqueio."
   generateAdminToken(username: String!, password: String!): AdminToken!
 
@@ -788,6 +927,27 @@ input CustomerAddressInput {
   attributes: [CustomerAttributeInput!]
   isDefaultShipping: Boolean = false
   isDefaultBilling: Boolean = false
+}
+
+input CartAddressInput {
+  postcode: String
+  street: String
+  number: String
+  complement: String
+  district: String
+  city: String
+  region: String
+  recipient: String
+  telephone: String
+
+  "Os campos que o admin criou no conjunto de endereço (attributes(entityType: \"customer_address\"))."
+  attributes: [CartAddressAttributeInput!]
+}
+
+input CartAddressAttributeInput {
+  code: String!
+  value: String
+  values: [String!]
 }
 
 type AdminToken {
