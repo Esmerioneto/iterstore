@@ -92,6 +92,10 @@ type Query {
     "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
     cartId: String
   ): Cart!
+  shippingTableRates(
+    "Omitido = website padrão."
+    websiteId: ID
+  ): [ShippingTableRate!]!
 
   "O usuário do token (ou da sessão do painel); null sem login."
   currentAdmin: AdminUser
@@ -444,6 +448,13 @@ type AttributeOption {
 }
 
 type Cart {
+  "As opções de frete agora, a mais barata primeiro. Frete por tabela e grátis pedem o endereço de entrega."
+  availableShippingMethods: [ShippingMethod!]!
+
+  "O escolhido; null se nenhum ou se deixou de valer (endereço mudou)."
+  shippingMethod: ShippingMethod
+
+  shippingAmount: Float!
   websiteId: ID!
   isGuest: Boolean!
   email: String
@@ -457,7 +468,7 @@ type Cart {
   itemsQuantity: Float!
   subtotal: Float!
 
-  "Por enquanto igual ao subtotal; o frete entra quando for escolhido."
+  "Subtotal + frete escolhido."
   total: Float!
 
   "Algum item com error."
@@ -469,6 +480,17 @@ type Cart {
   billingAddress: CartAddress
 
   billingSameAsShipping: Boolean!
+}
+
+type ShippingMethod {
+  "tablerate, freeshipping ou pickup."
+  code: String!
+
+  label: String!
+  amount: Float!
+
+  "Prazo em dias úteis."
+  days: Int!
 }
 
 type CartItem {
@@ -510,6 +532,16 @@ type CartAddressAttribute {
   code: String!
   value: String
   values: [String!]
+}
+
+type ShippingTableRate {
+  postcodeFrom: String!
+  postcodeTo: String!
+  weightTo: Float
+  price: Float!
+
+  "Prazo em dias úteis."
+  days: Int!
 }
 
 type AdminUser {
@@ -832,6 +864,14 @@ type Mutation {
     customerAddressId: ID
   ): Cart!
 
+  "Um code de availableShippingMethods."
+  setCartShippingMethod(
+    "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
+    cartId: String
+
+    code: String!
+  ): Cart!
+
   "Como o de entrega; sem address nem customerAddressId, a cobrança é no endereço de entrega."
   setCartBillingAddress(
     "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
@@ -840,6 +880,14 @@ type Mutation {
     address: CartAddressInput
     customerAddressId: ID
   ): Cart!
+
+  "A lista enviada é a tabela inteira do website (faixa ausente é removida). CEP com ou sem máscara. Para um CEP, vale a faixa com o menor \"peso até\" que comporte o carrinho."
+  saveShippingTableRates(
+    "Omitido = website padrão."
+    websiteId: ID
+
+    rates: [ShippingTableRateInput!]!
+  ): [ShippingTableRate!]!
 
   "Login do admin pela API. Erra junto com o painel: tentativas contam para o bloqueio."
   generateAdminToken(username: String!, password: String!): AdminToken!
@@ -948,6 +996,16 @@ input CartAddressAttributeInput {
   code: String!
   value: String
   values: [String!]
+}
+
+input ShippingTableRateInput {
+  postcodeFrom: String!
+  postcodeTo: String!
+
+  "Peso até (kg); null = qualquer peso."
+  weightTo: Float
+  price: Float!
+  days: Int = 0
 }
 
 type AdminToken {

@@ -80,9 +80,29 @@ class CartSchema
                 'product' => ['type' => $productType, 'resolve' => static fn ($i) => (new Product())->load($i['product_id'])->getData() ?: null],
             ],
         ]);
+        // shipping fields only while Iter_Shipping is on (a disabled module's API is off)
+        $shipping = \isModuleEnabled('iter_shipping');
+        $rateType = new ObjectType([
+            'name' => 'ShippingMethod',
+            'fields' => [
+                'code' => ['type' => Type::nonNull(Type::string()), 'description' => 'tablerate, freeshipping ou pickup.'],
+                'label' => Type::nonNull(Type::string()),
+                'amount' => Type::nonNull(Type::float()),
+                'days' => ['type' => Type::nonNull(Type::int()), 'description' => 'Prazo em dias úteis.'],
+            ],
+        ]);
+        $shippingFields = $shipping ? [
+            'availableShippingMethods' => [
+                'type' => Type::nonNull(Type::listOf(Type::nonNull($rateType))),
+                'description' => 'As opções de frete agora, a mais barata primeiro. Frete por tabela e grátis pedem o endereço de entrega.',
+                'resolve' => fn ($c) => $c['shipping_methods'],
+            ],
+            'shippingMethod' => ['type' => $rateType, 'description' => 'O escolhido; null se nenhum ou se deixou de valer (endereço mudou).', 'resolve' => fn ($c) => $c['shipping_method']],
+            'shippingAmount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($c) => $c['shipping_amount']],
+        ] : [];
         $cartType = new ObjectType([
             'name' => 'Cart',
-            'fields' => [
+            'fields' => $shippingFields + [
                 'websiteId' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($c) => $c['website_id']],
                 'isGuest' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => fn ($c) => $c['customer_id'] === null],
                 'email' => Type::string(),
@@ -92,7 +112,7 @@ class CartSchema
                 'items' => Type::nonNull(Type::listOf(Type::nonNull($itemType))),
                 'itemsQuantity' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($c) => $c['items_quantity']],
                 'subtotal' => Type::nonNull(Type::float()),
-                'total' => ['type' => Type::nonNull(Type::float()), 'description' => 'Por enquanto igual ao subtotal; o frete entra quando for escolhido.'],
+                'total' => ['type' => Type::nonNull(Type::float()), 'description' => 'Subtotal + frete escolhido.'],
                 'hasErrors' => ['type' => Type::nonNull(Type::boolean()), 'description' => 'Algum item com error.', 'resolve' => fn ($c) => $c['has_errors']],
                 'shippingAddress' => ['type' => $addressType, 'resolve' => fn ($c) => $c['shipping_address']],
                 'billingAddress' => ['type' => $addressType, 'description' => 'Sem um próprio, o de entrega.', 'resolve' => fn ($c) => $c['billing_address']],
@@ -172,6 +192,14 @@ class CartSchema
                     'args' => $cartIdArg + ['address' => $addressInput, 'customerAddressId' => Type::id()],
                     'resolve' => $mutate(static fn (int $q, array $a) => $service->setAddress($q, 'shipping', $addressArg($a), isset($a['customerAddressId']) ? (int) $a['customerAddressId'] : null)),
                 ],
+            ] + ($shipping ? [
+                'setCartShippingMethod' => [
+                    'type' => Type::nonNull($cartType),
+                    'description' => 'Um code de availableShippingMethods.',
+                    'args' => $cartIdArg + ['code' => Type::nonNull(Type::string())],
+                    'resolve' => $mutate(static fn (int $q, array $a) => $service->setShippingMethod($q, $a['code'])),
+                ],
+            ] : []) + [
                 'setCartBillingAddress' => [
                     'type' => Type::nonNull($cartType),
                     'description' => 'Como o de entrega; sem address nem customerAddressId, a cobrança é no endereço de entrega.',
