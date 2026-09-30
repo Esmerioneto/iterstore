@@ -42,6 +42,9 @@ $locked = static fn (string $field) => $is_system && !in_array($field, ['label',
             <label>Nome<br>
                 <input type="text" name="label" maxlength="255" value="<?= htmlspecialchars((string) $values['label']) ?>" required>
             </label>
+<?php if (!empty($values['similar'])): ?>
+            <br><label><input type="checkbox" name="confirm_similar" value="1"> Salvar mesmo assim (o nome é parecido com outro atributo)</label>
+<?php endif; ?>
         </p>
         <p>
             <label>Tipo de campo<br>

@@ -146,6 +146,30 @@ class Attribute extends AbstractDb
         return 'eav_value_' . $storageType;
     }
 
+    /**
+     * iter_attr_key() of each name (lowercase, no accents or punctuation, singular, sorted words), in order
+     *
+     * @param string[] $names
+     * @return string[]
+     */
+    public function nameKeys(array $names): array
+    {
+        return $names ? $this->getConnection()->fetchCol(
+            'SELECT iter_attr_key(value) FROM json_array_elements_text(CAST(? AS json)) WITH ORDINALITY ORDER BY ordinality',
+            [json_encode(array_values($names))]
+        ) : [];
+    }
+
+    /** @return array<int, array{attribute_id: int, code: string, label: string, code_key: string, label_key: string}> */
+    public function getNameKeys(int $entityTypeId): array
+    {
+        return $this->getConnection()->fetchAll(
+            'SELECT attribute_id, code, label, iter_attr_key(code) AS code_key, iter_attr_key(label) AS label_key
+             FROM eav_attribute WHERE entity_type_id = ?',
+            [$entityTypeId]
+        );
+    }
+
     public function codeExists(int $entityTypeId, string $code): bool
     {
         $db = $this->getConnection();

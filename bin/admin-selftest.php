@@ -355,7 +355,7 @@ assertSame('RuntimeException', $throws(static fn () => InputTypeRegistry::build(
 ])), 'tipo de campo duplicado lança exceção');
 
 $saveAttribute = static fn (array $fields) => $admin->submit('/admin/attribute/create', '/admin/attribute/save', $fields + [
-    'entity_type' => 'product', 'label' => 'Selftest', 'input_type' => 'text',
+    'entity_type' => 'product', 'label' => $fields['code'] ?? 'Selftest', 'input_type' => 'text',
 ])[1];
 $attributeRow = static fn (string $code) => $pdo->query("SELECT * FROM eav_attribute WHERE code = '{$code}' ORDER BY attribute_id")->fetch(PDO::FETCH_ASSOC);
 assertSame(['Atributo criado com sucesso.'], $saveAttribute(['code' => 'selftest_color', 'input_type' => 'select', 'is_system' => '1']), 'atributo select criado pelo admin');
@@ -405,11 +405,11 @@ $optionId = static fn (string $value) => $pdo->query("SELECT option_id FROM eav_
 $pId = $optionId('p');
 assertSame(true, str_contains($admin->request('/admin/attribute/edit?id=' . $sizeId)['body'], 'value="Pequeno"'), 'form de edição mostra as opções');
 [, $msgs] = $admin->submit('/admin/attribute/edit?id=' . $sizeId, '/admin/attribute/save', [
-    'attribute_id' => $sizeId, 'label' => 'Tamanho', 'input_type' => 'select', 'options' => [['value' => 'p', 'label' => 'P', 'sort_order' => '5'], $blankRow],
+    'attribute_id' => $sizeId, 'label' => 'Tamanho selftest', 'input_type' => 'select', 'options' => [['value' => 'p', 'label' => 'P', 'sort_order' => '5'], $blankRow],
 ]);
 assertSame(['Atributo atualizado com sucesso.'], $msgs, 'atributo com opções atualizado');
 assertSame([[['p', 'P', 5, 0]], $pId], [$optionsOf('selftest_size'), $optionId('p')], 'opção removida some; a mantida muda de nome e conserva o id');
-$service->update($sizeId, ['label' => 'Tamanho', 'input_type' => 'text']);
+$service->update($sizeId, ['label' => 'Tamanho selftest', 'input_type' => 'text']);
 assertSame([], $optionsOf('selftest_size'), 'mudar para tipo sem opções remove as opções');
 
 $sysSelect = (int) $service->create(['entity_type' => 'product', 'code' => 'selftest_sys_sel', 'label' => 'S', 'input_type' => 'select',
@@ -418,8 +418,37 @@ assertSame('ATTRIBUTE_SYSTEM_PROTECTED', $throws(static fn () => $service->updat
 $service->update($sysSelect, ['label' => 'S', 'options' => [['value' => 'a', 'label' => 'A'], ['value' => 'b'], ['value' => 'c']]]);
 assertSame(['A', 'b', 'c'], array_column($optionsOf('selftest_sys_sel'), 1), 'sistema: opção nova e nome alterado são aceitos');
 
+// names that only differ by case, accents, punctuation, connecting words, word order or plural
+$named = static fn (string $code, string $label, string $entity = 'product', array $extra = []) => $throws(static fn () => $service->create(['entity_type' => $entity, 'code' => $code, 'label' => $label, 'input_type' => 'text'] + $extra));
+$ruaId = (int) $service->create(['entity_type' => 'product', 'code' => 'selftest_rua', 'label' => 'Rua', 'input_type' => 'text'])->getId();
+$service->create(['entity_type' => 'product', 'code' => 'selftest_numero', 'label' => 'Número da casa', 'input_type' => 'text']);
+$service->create(['entity_type' => 'category', 'code' => 'selftest_botao', 'label' => 'Botões', 'input_type' => 'text']);
+assertSame(
+    ['ATTRIBUTE_DUPLICATE', 'ATTRIBUTE_DUPLICATE', 'ATTRIBUTE_DUPLICATE', 'ATTRIBUTE_DUPLICATE', 'ATTRIBUTE_DUPLICATE'],
+    [$named('selftest_d1', 'rua'), $named('selftest_d2', 'Numeros das casas'), $named('selftest_d3', 'numero_casa'), $named('selftest_d4', 'botão', 'category'), $named('selftest_d5', 'Casa, número')],
+    'atributo com o mesmo nome (maiúsculas, acento, plural, pontuação, ordem) é recusado'
+);
+assertSame('ATTRIBUTE_DUPLICATE', $throws(static fn () => $service->update($ruaId, ['label' => 'Números da casa', 'input_type' => 'text'])), 'renomear para um nome já usado é recusado');
+$service->update($ruaId, ['label' => 'RUA', 'input_type' => 'text']);
+assertSame('RUA', $attributeRow('selftest_rua')['label'], 'mudar só maiúsculas do próprio nome é aceito');
+try {
+    $pdo->exec("INSERT INTO eav_attribute (entity_type_id, code, label, input_type, storage_type) SELECT entity_type_id, 'selftest_rua_sql', 'Ruas', 'text', 'varchar' FROM eav_entity_type WHERE code = 'product'");
+    $sqlCode = 'nada';
+} catch (PDOException $e) {
+    $sqlCode = $e->getCode();
+}
+assertSame('23505', $sqlCode, 'INSERT direto com nome repetido é recusado pelo banco');
+assertSame('nada', $named('selftest_rua_cli', 'Rua', 'customer'), 'mesmo nome em outra entidade é aceito');
+assertSame(['ATTRIBUTE_RESERVED', 'ATTRIBUTE_RESERVED'], [$named('selftest_senha', 'Senhas'), $named('website_id', 'Site')], 'nome ou código reservado é recusado');
+$service->create(['entity_type' => 'product', 'code' => 'selftest_garantia', 'label' => 'Garantia', 'input_type' => 'text']);
+assertSame('ATTRIBUTE_SIMILAR', $named('selftest_garrantia', 'Garrantia'), 'nome parecido (um erro de digitação) pede confirmação');
+assertSame(['Atributo criado com sucesso.'], $saveAttribute(['code' => 'selftest_garrantia', 'label' => 'Garrantia', 'confirm_similar' => '1']), 'nome parecido confirmado pelo admin é aceito');
+$optionsNamed = static fn (array $labels) => $throws(static fn () => $service->create(['entity_type' => 'product', 'code' => 'selftest_opt' . count($labels), 'label' => 'Opt' . count($labels), 'input_type' => 'select',
+    'options' => array_map(static fn ($l) => ['value' => strtolower($l), 'label' => $l], $labels)]));
+assertSame(['OPTION_DUPLICATE', 'nada'], [$optionsNamed(['Azul', 'azuis']), $optionsNamed(['P', 'PP', 'G', 'GG'])], 'opções com o mesmo nome são recusadas; P e PP não');
+
 for ($i = 1; $i <= 21; $i++) {
-    $service->create(['entity_type' => 'category', 'code' => sprintf('selftest_p%02d', $i), 'label' => 'P', 'input_type' => 'text']);
+    $service->create(['entity_type' => 'category', 'code' => sprintf('selftest_p%02d', $i), 'label' => sprintf('P%02d', $i), 'input_type' => 'text']);
 }
 $rows = static fn (string $query) => substr_count($admin->request('/admin/attribute/index?' . $query)['body'], '/admin/attribute/edit?id=');
 assertSame([20, 1], [$rows('q=selftest_p'), $rows('q=selftest_p&page=2')], 'lista pagina de 20 em 20');
@@ -570,7 +599,7 @@ assertSame(['SKU deve ter até 64 caracteres: letras, números, ponto, hífen e 
 // a product in another set gets that set's fields only
 $setService->create(['entity_type' => 'product', 'code' => 'selftest_roupa', 'label' => 'Roupa']);
 $roupa = (int) $setRow('selftest_roupa')['attribute_set_id'];
-$service->create(['entity_type' => 'product', 'code' => 'selftest_tam', 'label' => 'Tamanho', 'input_type' => 'select', 'is_variant' => 1, 'options' => [['value' => 'p'], ['value' => 'm']]]);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_tam', 'label' => 'Tamanho grade', 'input_type' => 'select', 'is_variant' => 1, 'options' => [['value' => 'p'], ['value' => 'm']]]);
 $setService->update($roupa, ['label' => 'Roupa', 'items' => [$attrId('price') => ['in' => 1], $attrId('selftest_tam') => ['in' => 1, 'group' => 'Medidas']]]);
 $roupaForm = $admin->request('/admin/product/create?set=' . $roupa)['body'];
 assertSame([true, false], [str_contains($roupaForm, 'name="attributes[selftest_tam]"'), str_contains($roupaForm, 'name="attributes[description]"')], 'form segue o conjunto escolhido');
@@ -606,7 +635,7 @@ $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES (
 assertSame([true, true], [str_contains($gql($guest, '{ __schema { queryType { name } } }')['errors'][0]['message'] ?? '', 'introspection'), isset($gql($guest, '{ categories { id } }')['data'])], 'GraphQL: introspecção desligada nas Configurações');
 $pdo->exec("DELETE FROM core_config_data WHERE path = 'system/api/introspection'");
 $service->create(['entity_type' => 'product', 'code' => 'selftest_novo', 'label' => 'Novo', 'input_type' => 'checkbox']);
-$service->create(['entity_type' => 'product', 'code' => 'selftest_cor', 'label' => 'Cor', 'input_type' => 'multiselect', 'options' => [['value' => 'az', 'label' => 'Azul'], ['value' => 'vm', 'label' => 'Vermelho']]]);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_cor', 'label' => 'Cor multipla', 'input_type' => 'multiselect', 'options' => [['value' => 'az', 'label' => 'Azul'], ['value' => 'vm', 'label' => 'Vermelho']]]);
 $service->create(['entity_type' => 'product', 'code' => 'selftest_marca', 'label' => 'Marca', 'input_type' => 'select', 'options' => [['value' => 'acme', 'label' => 'ACME Ltda']]]);
 $setService->update($defaultProductSet, ['label' => 'Básico', 'items' => [$attrId('price') => ['in' => 1], $attrId('description') => ['in' => 1], $attrId('selftest_novo') => ['in' => 1],
     $attrId('selftest_cor') => ['in' => 1], $attrId('selftest_marca') => ['in' => 1]]]);
@@ -633,7 +662,7 @@ $r = $gql($admin, 'mutation ($id: ID!, $attrs: [ProductAttributeInput!]) { updat
 $labels = array_column($r['data']['updateProduct']['attributes'] ?? [], null, 'code');
 assertSame([['Vermelho', 'Azul'], null, 'ACME Ltda', null, null], [$labels['selftest_cor']['option_labels'], $labels['selftest_cor']['option_label'],
     $labels['selftest_marca']['option_label'], $labels['selftest_marca']['option_labels'], $labels['price']['option_label']], 'GraphQL: rótulos das opções (seleção e múltipla seleção)');
-$service->update($attrId('selftest_cor'), ['label' => 'Cor', 'input_type' => 'multiselect', 'options' => [['value' => 'az', 'label' => 'Azul']]]);
+$service->update($attrId('selftest_cor'), ['label' => 'Cor multipla', 'input_type' => 'multiselect', 'options' => [['value' => 'az', 'label' => 'Azul']]]);
 $labels = array_column($gql($admin, 'query ($id: ID!) { product(id: $id) { attributes { code option_labels } } }', ['id' => $gqlId])['data']['product']['attributes'] ?? [], 'option_labels', 'code');
 assertSame(['vm', 'Azul'], $labels['selftest_cor'] ?? null, 'GraphQL: opção removida mostra o valor no lugar do rótulo');
 $read = 'query ($id: ID!) { product(id: $id) { sku } products(search: "selftest-gql") { total items { sku } } }';
@@ -928,7 +957,7 @@ assertSame(['0', false], [$stock->getSalable([$webId])[$webId], in_array('selfte
 $productService->delete($webId);
 
 // --- variações (produto com grade) -------------------------------------------------------------
-$service->create(['entity_type' => 'product', 'code' => 'selftest_vcor', 'label' => 'Cor', 'input_type' => 'select', 'is_variant' => 1, 'options' => [['value' => 'az', 'label' => 'Azul Marinho'], ['value' => 'pr', 'label' => 'Preto']]]);
+$service->create(['entity_type' => 'product', 'code' => 'selftest_vcor', 'label' => 'Cor grade', 'input_type' => 'select', 'is_variant' => 1, 'options' => [['value' => 'az', 'label' => 'Azul Marinho'], ['value' => 'pr', 'label' => 'Preto']]]);
 $service->create(['entity_type' => 'product', 'code' => 'selftest_tec', 'label' => 'Tecido', 'input_type' => 'select', 'is_variant' => 1, 'options' => [['value' => 'al', 'label' => 'Algodão']]]);
 $service->create(['entity_type' => 'product', 'code' => 'selftest_gola', 'label' => 'Gola', 'input_type' => 'select', 'is_variant' => 1, 'options' => [['value' => 'v', 'label' => 'V']]]);
 $service->create(['entity_type' => 'product', 'code' => 'selftest_manga', 'label' => 'Manga', 'input_type' => 'select', 'options' => [['value' => 'c', 'label' => 'Curta']]]);
@@ -1069,12 +1098,12 @@ assertSame(['selftest-var-az-p', 'selftest-var-PRETO-P', 'selftest-var-PRETO-M',
     'GraphQL: saveVariants mantém os SKUs e cria a nova com o SKU sugerido');
 assertSame('CONFIGURABLE', $gql($admin, 'mutation { createProduct(sku: "selftest-var3", name: "Boné", attributeSetId: "' . $roupa . '", categoryIds: ["' . $baseCategory . '"], type: CONFIGURABLE, variantAttributes: ["selftest_tam"]) { type } }')['data']['createProduct']['type'] ?? null,
     'GraphQL: createProduct com grade');
-$corOptions = static fn (array $values) => $service->update($attrId('selftest_vcor'), ['label' => 'Cor', 'input_type' => 'select', 'options' => array_map(static fn ($v) => ['value' => $v, 'label' => $v === 'az' ? 'Azul Marinho' : ucfirst($v)], $values)]);
+$corOptions = static fn (array $values) => $service->update($attrId('selftest_vcor'), ['label' => 'Cor grade', 'input_type' => 'select', 'options' => array_map(static fn ($v) => ['value' => $v, 'label' => $v === 'az' ? 'Azul Marinho' : ucfirst($v)], $values)]);
 $corOptions(['az', 'pr', 'vd']);
 $corOptions(['az', 'pr']);
 assertSame(['OPTION_IN_USE', 'OPTION_IN_USE', ['az', 'pr']], [
     $throws(static fn () => $corOptions(['az'])),
-    $throws(static fn () => $service->update($attrId('selftest_vcor'), ['label' => 'Cor', 'input_type' => 'text'])),
+    $throws(static fn () => $service->update($attrId('selftest_vcor'), ['label' => 'Cor grade', 'input_type' => 'text'])),
     array_column($service->getOptions($attrId('selftest_vcor')), 'value'),
 ], 'opção usada por variação não é removida (nem trocando o tipo); a sem uso pode');
 $productService->delete($parentId);
