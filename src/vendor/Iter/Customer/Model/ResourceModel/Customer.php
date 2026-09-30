@@ -49,6 +49,27 @@ class Customer extends AbstractDb
         return ['items' => $collection->getData(), 'total' => $collection->getSize()];
     }
 
+    public function findIdByEmail(string $email, int $websiteId): ?int
+    {
+        $db = $this->getConnection();
+        $id = $db->fetchOne($db->select()->from('customer_entity', ['customer_id'])
+            ->where('LOWER(email) = LOWER(?)', trim($email))->where('website_id = ?', $websiteId));
+
+        return $id === false || $id === null ? null : (int) $id;
+    }
+
+    /** @return array{total: int, recent: int, inactive: int} recent = created in the last 7 days */
+    public function getSummary(): array
+    {
+        $db = $this->getConnection();
+
+        return array_map('intval', $db->fetchRow($db->select()->from('customer_entity', [])->columns([
+            'total' => 'COUNT(*)',
+            'recent' => "COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')",
+            'inactive' => 'COUNT(*) FILTER (WHERE is_active = 0)',
+        ])));
+    }
+
     /** $column is email (compared ignoring case) or taxvat */
     public function exists(string $column, string $value, int $websiteId, ?int $exceptId = null): bool
     {
