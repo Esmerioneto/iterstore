@@ -8,11 +8,13 @@ $flags = [
     'is_unique' => 'Valor único (não se repete entre registros; só texto, e-mail, CPF/CNPJ e parecidos, e só antes de ter valores)',
 ];
 // on system attributes only label, position and visibility can change (enforced server-side too)
-$locked = static fn (string $field) => $is_system && !in_array($field, ['label', 'sort_order', 'is_visible'], true) ? 'disabled' : '';
+$locked = static fn (string $field) => $is_system && !in_array($field, $is_fixed ? ['label', 'sort_order'] : ['label', 'sort_order', 'is_visible'], true) ? 'disabled' : '';
 ?>
 <section class="eav-attribute-form">
     <h2><?= $is_edit ? 'Editar atributo' : 'Novo atributo' ?></h2>
-<?php if ($is_system): ?>
+<?php if ($is_fixed): ?>
+    <p>Campo de cadastro do sistema: só nome e posição podem ser alterados. Ele tem lugar fixo no formulário e não entra em conjuntos.</p>
+<?php elseif ($is_system): ?>
     <p>Atributo do sistema: só nome, posição e visibilidade podem ser alterados.</p>
 <?php endif; ?>
     <form method="post" action="/admin/attribute/save">

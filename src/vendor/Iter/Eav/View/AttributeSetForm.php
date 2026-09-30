@@ -7,6 +7,7 @@ namespace Iter\Eav\View;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Eav\InputTypeRegistry;
 use Iter\Eav\Model\Attribute;
+use Iter\Eav\Model\AttributeService;
 use Iter\Eav\Model\AttributeSet;
 
 class AttributeSetForm implements ViewComponentInterface
@@ -35,7 +36,10 @@ class AttributeSetForm implements ViewComponentInterface
                 $rows[$item['attribute_id']] = $item + ['in' => 1, 'group' => (string) $item['group_name'], 'sort_order' => $item['item_sort_order']];
             }
             foreach ($attributeResource->getByEntityType((int) $set['entity_type_id']) as $attribute) {
-                $rows[$attribute['attribute_id']] ??= $attribute + ['in' => 0, 'group' => '', 'sort_order' => ''];
+                // fields with a fixed place in the entity's form don't go into sets
+                if (!AttributeService::isFixed($attribute)) {
+                    $rows[$attribute['attribute_id']] ??= $attribute + ['in' => 0, 'group' => '', 'sort_order' => ''];
+                }
             }
             // after a failed save, show what was typed
             foreach ($old['items'] ?? [] as $attributeId => $posted) {

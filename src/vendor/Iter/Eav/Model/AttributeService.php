@@ -22,6 +22,12 @@ class AttributeService
     /** fields an admin may still change on a module-provided (system) attribute */
     private const SYSTEM_EDITABLE = ['label', 'sort_order', 'is_visible'];
 
+    /**
+     * System attributes an entity's own form shows and validates (the customer's registration fields):
+     * they never go into attribute sets, and only label and position change (not even visibility).
+     */
+    private const FIXED = ['customer' => ['email', 'firstname', 'lastname', 'customer_type', 'taxvat', 'dob', 'company_name', 'trade_name', 'state_registration', 'is_ie_exempt']];
+
     private const FLAGS = ['is_required', 'is_visible', 'is_searchable', 'is_filterable', 'is_sortable'];
 
     /** names an admin can't give an attribute: they are entity columns or technical */
@@ -76,6 +82,14 @@ class AttributeService
      * Creating and removing fields is for the Administrador profile (Iter_Admin::root) only; editing
      * label, position and options stays with the "Atributos" resource.
      */
+    /** @param array{entity_type_id: int|string, code: string} $attribute */
+    public static function isFixed(array $attribute): bool
+    {
+        $types = array_column((new Attribute())->getResource()->getEntityTypes(), 'code', 'entity_type_id');
+
+        return in_array($attribute['code'], self::FIXED[$types[$attribute['entity_type_id']] ?? ''] ?? [], true);
+    }
+
     public static function canManage(): bool
     {
         // ponytail: the CLI (migrations, scripts) is trusted, whoever runs it owns the server
@@ -132,7 +146,7 @@ class AttributeService
 
         $fields = $this->fields($data, $inputType) + ['input_type' => $newType, 'storage_type' => $inputType['storage_type']];
         if ($model->isSystem()) {
-            $fields = array_intersect_key($fields, array_flip(self::SYSTEM_EDITABLE));
+            $fields = array_intersect_key($fields, array_flip(self::isFixed($model->getData()) ? ['label', 'sort_order'] : self::SYSTEM_EDITABLE));
         }
         // ponytail: switched on only while empty; turning it on later needs each entity's scope to build the keys
         if (($fields['is_unique'] ?? 0) && !$model->getData('is_unique') && $model->getResource()->hasValues($id, $model->getData('storage_type'))) {

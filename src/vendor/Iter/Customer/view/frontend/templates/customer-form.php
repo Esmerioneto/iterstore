@@ -14,7 +14,7 @@ ob_start(); ?>
 <fieldset>
     <legend>Conta</legend>
     <p>
-        <label>Tipo *<br>
+        <label><?= $e($labels['customer_type']) ?> *<br>
             <select form="customer-form" name="customer_type" data-customer-type required>
 <?php foreach ($types as $code => $label): ?>
                 <option value="<?= $e($code) ?>" <?= $code === $type ? 'selected' : '' ?>><?= $e($label) ?></option>
@@ -42,17 +42,17 @@ ob_start(); ?>
         </label>
     </p>
     <p>
-        <label>E-mail *<br>
+        <label><?= $e($labels['email']) ?> *<br>
             <input form="customer-form" type="email" name="email" maxlength="255" value="<?= $e($values['email']) ?>" data-mask="email" required>
         </label>
     </p>
     <p>
-        <label>Nome *<br>
+        <label><?= $e($labels['firstname']) ?> *<br>
             <input form="customer-form" type="text" name="firstname" maxlength="255" value="<?= $e($values['firstname']) ?>" required>
         </label>
     </p>
     <p>
-        <label>Sobrenome *<br>
+        <label><?= $e($labels['lastname']) ?> *<br>
             <input form="customer-form" type="text" name="lastname" maxlength="255" value="<?= $e($values['lastname']) ?>" required>
         </label>
     </p>
@@ -71,7 +71,7 @@ ob_start(); ?>
         </label>
     </p>
     <p>
-        <label>Data de nascimento<br>
+        <label><?= $e($labels['dob']) ?><br>
             <input form="customer-form" type="date" name="dob" value="<?= $e(substr((string) $values['dob'], 0, 10)) ?>" max="<?= date('Y-m-d') ?>">
         </label>
     </p>
@@ -87,20 +87,20 @@ ob_start(); ?>
         </label>
     </p>
     <p>
-        <label>Razão social *<br>
+        <label><?= $e($labels['company_name']) ?> *<br>
             <input form="customer-form" type="text" name="company_name" maxlength="255" value="<?= $e($values['company_name']) ?>" required>
         </label>
     </p>
     <p>
-        <label>Nome fantasia<br>
+        <label><?= $e($labels['trade_name']) ?><br>
             <input form="customer-form" type="text" name="trade_name" maxlength="255" value="<?= $e($values['trade_name']) ?>">
         </label>
     </p>
     <p>
-        <label>Inscrição estadual<br>
+        <label><?= $e($labels['state_registration']) ?><br>
             <input form="customer-form" type="text" name="state_registration" maxlength="20" value="<?= $e($values['state_registration']) ?>">
         </label>
-        <label><input form="customer-form" type="checkbox" name="is_ie_exempt" value="1" <?= $values['is_ie_exempt'] ? 'checked' : '' ?>> Isento</label>
+        <label><input form="customer-form" type="checkbox" name="is_ie_exempt" value="1" <?= $values['is_ie_exempt'] ? 'checked' : '' ?>> <?= $e($labels['is_ie_exempt']) ?></label>
     </p>
     <p><small>Nome e sobrenome da conta são os do contato da empresa.</small></p>
 </fieldset>
@@ -163,7 +163,7 @@ foreach ($groupFields as $group => $fields) {
     $blocks[$id] = ['title' => $group !== '' ? $group : 'Atributos', 'html' => ob_get_clean()];
 }
 ?>
-<section class="customer-form">
+<section class="customer-form catalog-product-form">
     <h2><?= $is_edit ? 'Editar cliente' : 'Novo cliente' ?></h2>
 <?php if (!$is_edit && count($sets) > 1): ?>
     <form method="get" action="/admin/customer/create">

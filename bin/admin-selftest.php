@@ -1454,6 +1454,14 @@ assertSame(['ATTRIBUTE_SYSTEM_PROTECTED', 'ATTRIBUTE_SYSTEM_PROTECTED'], [
     $throws(static fn () => $service->delete($custAttr('email'))),
     $throws(static fn () => $service->update($custAttr('customer_type'), ['label' => 'Tipo', 'options' => [['value' => 'pf', 'label' => 'Pessoa física']]])),
 ], 'cliente: e-mail não é removido e o tipo não perde a opção pj');
+// registration fields have a fixed place in the form: only label and position change
+assertSame('ATTRIBUTE_FIXED', $throws(static fn () => $setService->update($custSet, ['label' => 'Cli', 'items' => [$custAttr('email') => ['in' => 1]]])),
+    'cliente: campo de cadastro não entra em conjunto');
+$service->update($custAttr('trade_name'), ['label' => 'Selftest fantasia', 'is_visible' => 0]);
+$fantasia = [(int) $pdo->query('SELECT is_visible FROM eav_attribute WHERE attribute_id = ' . $custAttr('trade_name'))->fetchColumn(),
+    str_contains($admin->request('/admin/customer/create?set=' . $custSet)['body'], 'Selftest fantasia')];
+$service->update($custAttr('trade_name'), ['label' => 'Nome fantasia']);
+assertSame([1, true], $fantasia, 'cliente: campo de cadastro não some; o rótulo editado em Atributos aparece no formulário');
 
 $pj = ['customer_type' => 'pj', 'email' => 'empresa@selftest.local', 'cnpj' => '11.222.333/0001-81', 'company_name' => 'Selftest Ltda', 'state_registration' => '123.456.789'];
 assertSame(['Informe um CNPJ válido.'], $saveCustomer(['cnpj' => '529.982.247-25'] + $pj), 'PJ não aceita CPF');

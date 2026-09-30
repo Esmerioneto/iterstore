@@ -124,6 +124,9 @@ class AttributeSetService
             if (!isset($allowed[$attributeId])) {
                 throw new AttributeException('ATTRIBUTE_NOT_FOUND', 'Atributo não pertence à entidade deste conjunto.');
             }
+            if (AttributeService::isFixed($allowed[$attributeId])) {
+                throw new AttributeException('ATTRIBUTE_FIXED', "'{$allowed[$attributeId]['label']}' já tem lugar fixo no formulário e não entra em conjuntos.");
+            }
             $group = trim((string) ($row['group'] ?? ''));
             if (mb_strlen($group) > 100) {
                 throw new AttributeException('GROUP_TOO_LONG', 'O nome do grupo tem no máximo 100 caracteres.');
