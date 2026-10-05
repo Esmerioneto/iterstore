@@ -7,6 +7,7 @@ namespace Iter\Adminsales\Controllers;
 use Iter\Admin\Auth;
 use Iter\Admin\Breadcrumb;
 use Iter\Adminsales\Model\AdminCartService;
+use Iter\Adminsales\View\Edit;
 use Iter\Core\Messages;
 use Iter\Core\View\Layout;
 use Iter\Eav\Model\AttributeException;
@@ -116,7 +117,12 @@ class Ordercreate
             $orderId = $service->place($quoteId, $this->userId(), $paymentReceived, !empty($_POST['notify']), (string) ($_POST['comment'] ?? ''));
             Messages::addSuccess('Pedido criado.');
             header('Location: ' . (Auth::isAllowed('Iter_Sales::order') ? '/admin/order/view?id=' . $orderId : '/admin/ordercreate/index'));
-        } catch (SalesException | InventoryException $e) {
+        } catch (SalesException $e) {
+            // what's still missing, in this screen's words
+            $screen = Edit::missing((new CartService())->view($quoteId));
+            Messages::addError($screen[$e->errorCode] ?? $e->getMessage());
+            header('Location: /admin/ordercreate/edit?id=' . $quoteId);
+        } catch (InventoryException $e) {
             Messages::addError($e->getMessage());
             header('Location: /admin/ordercreate/edit?id=' . $quoteId);
         }

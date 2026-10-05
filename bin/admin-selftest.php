@@ -2395,6 +2395,26 @@ assertSame([true, true, false, false], [
     $phpNoise($startPage, $searchPage, $filled, $found, $customerPage),
 ], 'Novo pedido: busca o cliente e começa o pedido dele (dados da conta, sem o formulário de visitante); as telas não mostram avisos do PHP');
 $adminCarts->discard((int) (explode('id=', $customerUrl)[1] ?? 0));
+[$pendingUrl] = $admin->submit('/admin/ordercreate/index', '/admin/ordercreate/start', ['website_id' => $defaultWebsite]);
+$pendingQuote = (int) (explode('id=', $pendingUrl)[1] ?? 0);
+$pendingPage = static fn () => $admin->request('/admin/ordercreate/edit?id=' . $pendingQuote)['body'];
+$admin->submit($pendingUrl, '/admin/ordercreate/guest', ['quote_id' => $pendingQuote, 'email' => 'pendente@selftest.local', 'firstname' => 'Pen', 'lastname' => 'Dente', 'taxvat' => '529.982.247-25']);
+$admin->submit($pendingUrl, '/admin/ordercreate/additem', ['quote_id' => $pendingQuote, 'sku' => $v0Sku, 'quantity' => '1']);
+$admin->submit($pendingUrl, '/admin/ordercreate/address', ['quote_id' => $pendingQuote, 'type' => 'shipping', 'address' => $address]);
+$pending = $pendingPage();
+[, $placeMsgs] = $admin->submit($pendingUrl, '/admin/ordercreate/place', ['quote_id' => $pendingQuote, 'notify' => '1']);
+$savedPayments = [Config::get('payment/pix/active'), Config::get('payment/offline/active')];
+$setConfig(['payment/pix/active' => '0', 'payment/offline/active' => '0']);
+$noPayment = $pendingPage();
+$setConfig(['payment/pix/active' => (string) $savedPayments[0], 'payment/offline/active' => (string) $savedPayments[1]]);
+assertSame([true, true, false, ['Escolha o frete (seção Frete).'], true], [
+    str_contains($pending, 'Antes de criar o pedido:') && str_contains($pending, 'Escolha o frete (seção Frete).'),
+    str_contains($pending, 'Escolha a forma de pagamento (seção Pagamento).'),
+    str_contains($pending, 'action="/admin/ordercreate/place"'),
+    $placeMsgs,
+    str_contains($noPayment, 'Nenhuma forma de pagamento está ativa neste website: ative uma em Configurações → Pagamento.'),
+], 'Novo pedido: a tela lista o que falta (frete, pagamento) antes de criar e só então mostra o botão; o erro do fechamento usa o texto da tela; sem forma de pagamento ativa, diz onde ativar');
+$adminCarts->discard($pendingQuote);
 
 // --- orders created by the admin through the API (ADMINSALES-PLAN delivery 3) -------------------------
 $apiAdminCart = $gql($admin, 'mutation { createAdminCart }')['data']['createAdminCart'] ?? '';
