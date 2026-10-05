@@ -2428,6 +2428,19 @@ assertSame(['pending_payment', null, [['Pedido criado pelo atendimento.', 'selft
     $pdo->query('SELECT u.username FROM sales_order o JOIN admin_user u ON u.user_id = o.admin_user_id WHERE o.order_id = ' . (int) ($apiAdminOrder['id'] ?? 0))->fetchColumn(),
 ], 'API pedido do admin: placeAdminOrder com o admin do token, comentário interno e sem e-mail (histórico só para quem vê pedidos); repetir devolve o mesmo pedido sem repetir o comentário');
 
+// --- forgotten admin carts are cleaned (ADMINSALES-PLAN delivery 4) ------------------------------------
+$oldAdminQuote = $adminCarts->resolve($adminCarts->create($confWebsite, $confId, $adminId));
+$confStore = $cartService->resolve(null, (new Iter\Customer\Model\Customer())->load($confId));
+$pdo->exec('ALTER TABLE sales_quote DISABLE TRIGGER sales_quote_set_updated_at');
+$pdo->exec("UPDATE sales_quote SET updated_at = NOW() - INTERVAL '40 days' WHERE quote_id IN ({$oldAdminQuote}, {$confStore})");
+$pdo->exec('ALTER TABLE sales_quote ENABLE TRIGGER sales_quote_set_updated_at');
+$cleanOut = (string) shell_exec(PHP_BINARY . ' ' . escapeshellarg(__DIR__ . '/quote-clean.php') . ' 2>&1');
+assertSame([0, 1, true], [
+    (int) $pdo->query("SELECT COUNT(*) FROM sales_quote WHERE quote_id = {$oldAdminQuote}")->fetchColumn(),
+    (int) $pdo->query("SELECT COUNT(*) FROM sales_quote WHERE quote_id = {$confStore}")->fetchColumn(),
+    str_contains($cleanOut, 'pedidos em montagem apagados'),
+], 'limpeza: o pedido em montagem esquecido (mesmo de cliente) é apagado; o carrinho do cliente na loja fica');
+
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");
 assertSame([200, 200, 429], array_map(static fn () => $custLogin('errada123')[0], [1, 2, 3]), 'API cliente: login passa do limite por IP e recebe 429');
