@@ -27,6 +27,16 @@ class OrderService
         'canceled' => 'Cancelado',
     ];
 
+    /** status => the ones it may go to; anything else is ORDER_STATUS_INVALID */
+    private const TRANSITIONS = [
+        'pending_payment' => ['processing', 'canceled'],
+        'processing' => ['shipped', 'canceled'],
+        'shipped' => ['complete'],
+    ];
+
+    /** the admin's actions and the status each one leads to */
+    private const ACTIONS = ['confirm' => 'processing', 'ship' => 'shipped', 'complete' => 'complete', 'cancel' => 'canceled'];
+
     /** address fields with a column in sales_order_address; the set's other fields go to its attributes (JSON) */
     private const ADDRESS_COLUMNS = ['postcode', 'street', 'number', 'complement', 'district', 'city', 'region', 'recipient', 'telephone'];
 
@@ -95,7 +105,7 @@ class OrderService
             return [$orderId, true];
         });
         if ($placed) {
-            $this->mailPlaced($orderId);
+            $this->mail('sales_order_placed', $this->get($orderId));
         }
 
         return $orderId;
@@ -117,12 +127,152 @@ class OrderService
         }
         $items = $db->fetchAll($db->select()->from('sales_order_item')->where('order_id = ?', $orderId)->order('item_id'));
 
+        $history = $db->select()->from(['h' => 'sales_order_status_history'])->where('h.order_id = ?', $orderId)->order('h.history_id DESC');
+        $history->joinLeft(['u' => 'admin_user'], 'u.user_id = h.admin_user_id', ['admin_username' => 'username']);
+
         return $order + [
             'status_label' => self::STATUS_LABELS[$order['status']] ?? $order['status'],
             'items' => array_map(static fn (array $i) => ['quantity' => (float) $i['quantity'], 'price' => (float) $i['price'], 'row_total' => (float) $i['row_total']] + $i, $items),
             'shipping_address' => $addresses['shipping'] ?? null,
             'billing_address' => $addresses['billing'] ?? null,
+            'history' => $db->fetchAll($history),
+            'shipment' => $db->fetchRow($db->select()->from('sales_shipment')->where('order_id = ?', $orderId)) ?: null,
         ];
+    }
+
+    /** The actions the status allows now (the screen also checks the admin's permissions) */
+    public static function actions(string $status): array
+    {
+        return array_keys(array_filter(self::ACTIONS, static fn ($to) => in_array($to, self::TRANSITIONS[$status] ?? [], true)));
+    }
+
+    /** pending_payment → processing: the payment arrived (manual Pix, deposit, a gateway that didn't confirm by itself) */
+    public function confirmPayment(int $orderId, ?string $comment, ?int $adminUserId): void
+    {
+        $this->transition($orderId, 'processing', $comment, $adminUserId);
+    }
+
+    /**
+     * processing → shipped: the stock leaves $sourceId (the physical quantity goes down, the reservation is
+     * given back), the shipment is recorded and the customer gets the tracking code.
+     *
+     * @throws SalesException SOURCE_INVALID; InventoryException INSUFFICIENT_STOCK when the source lacks a product
+     */
+    public function ship(int $orderId, int $sourceId, string $carrier, string $trackingCode, ?int $adminUserId): void
+    {
+        [$carrier, $trackingCode] = [mb_substr(trim($carrier), 0, 255), mb_substr(trim($trackingCode), 0, 255)];
+        $this->transition($orderId, 'shipped', null, $adminUserId, function ($db, array $order) use ($sourceId, $carrier, $trackingCode, $adminUserId): void {
+            $source = $db->fetchRow($db->select()->from('inventory_source', ['name'])->where('source_id = ?', $sourceId)->where('website_id = ?', (int) $order['website_id']))
+                ?: throw new SalesException('SOURCE_INVALID', 'Escolha uma origem do website do pedido.');
+            (new StockService())->deduct($sourceId, (int) $order['website_id'], $this->reserved($order['order_id']), $order['increment_id']);
+            $db->insert('sales_shipment', ['order_id' => $order['order_id'], 'source_id' => $sourceId, 'source_name' => $source['name'],
+                'carrier' => $carrier ?: null, 'tracking_code' => $trackingCode ?: null, 'admin_user_id' => $adminUserId]);
+        });
+    }
+
+    /** shipped → complete: delivered */
+    public function complete(int $orderId, ?int $adminUserId): void
+    {
+        $this->transition($orderId, 'complete', null, $adminUserId);
+    }
+
+    /** before shipping → canceled: the reservation is given back; the reason goes to the customer */
+    public function cancel(int $orderId, string $reason, ?int $adminUserId): void
+    {
+        $reason = trim($reason) ?: throw new SalesException('REASON_REQUIRED', 'Informe o motivo do cancelamento.');
+        $this->transition($orderId, 'canceled', $reason, $adminUserId, function ($db, array $order): void {
+            (new StockService())->release((int) $order['website_id'], $this->reserved($order['order_id']), 'canceled', $order['increment_id']);
+        });
+    }
+
+    /** A note in the history, in any status; $notify e-mails it to the customer */
+    public function addComment(int $orderId, string $comment, bool $notify, ?int $adminUserId): void
+    {
+        $comment = trim($comment) ?: throw new SalesException('COMMENT_REQUIRED', 'Escreva o comentário.');
+        $order = $this->get($orderId);
+        Connection::get()->adapter()->insert('sales_order_status_history', ['order_id' => $orderId, 'status' => $order['status'], 'comment' => $comment,
+            'is_customer_notified' => (int) $notify, 'admin_user_id' => $adminUserId]);
+        if ($notify) {
+            $this->mail('sales_order_comment', $order, ['comment' => $comment]);
+        }
+    }
+
+    /**
+     * The admin list: filters status, website_id, customer_id, q (number, e-mail or name), from, to (dates).
+     *
+     * @return array{items: array, total: int, amount: float} amount = the filtered orders' total, canceled ones left out
+     */
+    public function search(array $filters, int $page, int $limit, string $sort = 'created_at', string $dir = 'desc'): array
+    {
+        $db = Connection::get()->adapter();
+        $select = $db->select()->from(['o' => 'sales_order']);
+        foreach (['status' => 'o.status = ?', 'website_id' => 'o.website_id = ?', 'customer_id' => 'o.customer_id = ?', 'from' => 'o.created_at >= ?'] as $key => $where) {
+            if (($filters[$key] ?? '') !== '') {
+                $select->where($where, $filters[$key]);
+            }
+        }
+        if (($filters['to'] ?? '') !== '') {
+            $select->where("o.created_at < CAST(? AS date) + 1", $filters['to']);
+        }
+        if (($filters['q'] ?? '') !== '') {
+            $like = '%' . addcslashes(mb_strtolower($filters['q']), '%_\\') . '%';
+            $select->where("(LOWER(o.increment_id) LIKE ? OR o.email LIKE ? OR LOWER(o.firstname || ' ' || o.lastname) LIKE ?)", $like); // every ? gets $like
+        }
+        $totals = $db->fetchRow((clone $select)->reset('columns')->columns(['total' => new Expr('COUNT(*)'),
+            'amount' => new Expr("COALESCE(SUM(o.grand_total) FILTER (WHERE o.status <> 'canceled'), 0)")]));
+        $column = ['number' => 'o.increment_id', 'customer' => 'o.firstname', 'total' => 'o.grand_total', 'status' => 'o.status'][$sort] ?? 'o.created_at';
+        $items = $db->fetchAll($select->order($column . ($dir === 'asc' ? ' ASC' : ' DESC'))->order('o.order_id DESC')->limit($limit, ($page - 1) * $limit));
+
+        return ['items' => $items, 'total' => (int) $totals['total'], 'amount' => (float) $totals['amount']];
+    }
+
+    /** The dashboard card: orders today, waiting for payment, to ship, and this month's sales (canceled left out) */
+    public function summary(): array
+    {
+        $db = Connection::get()->adapter();
+
+        return array_map('floatval', $db->fetchRow($db->select()->from('sales_order', [
+            'today' => new Expr('COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE)'),
+            'pending_payment' => new Expr("COUNT(*) FILTER (WHERE status = 'pending_payment')"),
+            'processing' => new Expr("COUNT(*) FILTER (WHERE status = 'processing')"),
+            'month' => new Expr("COALESCE(SUM(grand_total) FILTER (WHERE status <> 'canceled' AND created_at >= date_trunc('month', CURRENT_DATE)), 0)"),
+        ])));
+    }
+
+    /** product id => quantity still reserved by the order (its items whose product still exists) */
+    private function reserved(int|string $orderId): array
+    {
+        $db = Connection::get()->adapter();
+
+        return array_map('floatval', $db->fetchPairs($db->select()->from('sales_order_item', ['product_id', 'quantity' => new Expr('SUM(quantity)')])
+            ->where('order_id = ?', (int) $orderId)->where('product_id IS NOT NULL')->group('product_id')));
+    }
+
+    /**
+     * Moves the order to $to when its current status allows it (ORDER_STATUS_INVALID otherwise), running
+     * $change in the same transaction, then e-mails the customer (not on complete: delivered, they know).
+     */
+    private function transition(int $orderId, string $to, ?string $comment, ?int $adminUserId, ?callable $change = null): void
+    {
+        Connection::get()->adapter()->transaction(function ($db) use ($orderId, $to, $comment, $adminUserId, $change): void {
+            $order = $db->fetchRow($db->select()->from('sales_order')->where('order_id = ?', $orderId)->forUpdate())
+                ?: throw new SalesException('ORDER_NOT_FOUND', 'Pedido não encontrado.');
+            if (!in_array($to, self::TRANSITIONS[$order['status']] ?? [], true)) {
+                throw new SalesException('ORDER_STATUS_INVALID', sprintf('Um pedido "%s" não pode passar para "%s".', self::STATUS_LABELS[$order['status']], self::STATUS_LABELS[$to]));
+            }
+            $change && $change($db, $order);
+            $db->update('sales_order', ['status' => $to], ['order_id = ?' => $orderId]);
+            $db->insert('sales_order_status_history', ['order_id' => $orderId, 'status' => $to, 'comment' => $comment ?: null, 'is_customer_notified' => (int) ($to !== 'complete'), 'admin_user_id' => $adminUserId]);
+        });
+        if ($to === 'complete') {
+            return;
+        }
+        $order = $this->get($orderId);
+        $this->mail('sales_order_' . $to, $order, [
+            'comment' => (string) $comment,
+            'carrier' => (string) ($order['shipment']['carrier'] ?? ''),
+            'tracking' => (string) ($order['shipment']['tracking_code'] ?? ''),
+        ]);
     }
 
     /** @throws SalesException the first thing the cart is missing, with the call that fixes it */
@@ -171,9 +321,9 @@ class OrderService
             ->group('vo.product_id'));
     }
 
-    private function mailPlaced(int $orderId): void
+    /** The customer's e-mail about the order: its number, items and totals, plus $vars */
+    private function mail(string $template, array $order, array $vars = []): void
     {
-        $order = $this->get($orderId);
         $money = static fn ($v) => 'R$ ' . number_format((float) $v, 2, ',', '.');
         $rows = '';
         foreach ($order['items'] as $item) {
@@ -181,7 +331,7 @@ class OrderService
             $rows .= sprintf('<tr><td>%s</td><td>%s</td><td>%s</td></tr>', $name, str_replace('.', ',', StockService::format((string) $item['quantity'])), $money($item['row_total']));
         }
         try {
-            (new MailService())->send('sales_order_placed', $order['email'], [
+            (new MailService())->send($template, $order['email'], $vars + [
                 'name' => $order['firstname'],
                 'number' => $order['increment_id'],
                 'items' => $rows,
@@ -193,7 +343,7 @@ class OrderService
             ], ['website_id' => (int) $order['website_id']]);
         } catch (MailException $e) {
             // the order stands; the admin sees the failure in the log
-            Log::error("Mail: pedido {$order['increment_id']} sem o e-mail de pedido recebido: " . $e->getMessage());
+            Log::error("Mail: pedido {$order['increment_id']} sem o e-mail {$template}: " . $e->getMessage());
         }
     }
 }

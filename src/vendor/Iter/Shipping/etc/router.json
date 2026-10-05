@@ -1,0 +1,4 @@
+[
+    { "route": "admin", "vendor": "Iter", "module_name": "Shipping", "controller_name": "shippingrate", "controller_action": "index", "method": "GET" },
+    { "route": "admin", "vendor": "Iter", "module_name": "Shipping", "controller_name": "shippingrate", "controller_action": "save", "method": "POST" }
+]
