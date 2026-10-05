@@ -92,14 +92,14 @@ final class Adapter
     /**
      * INSERT ... ON CONFLICT: Magento's insertOnDuplicate for PostgreSQL.
      *
-     * @param string[] $conflict the unique key's columns
+     * @param string[] $conflict the unique key's columns; [] = any unique key (a partial index too), always DO NOTHING
      * @param ?array<int|string, mixed> $update null = every other column takes the new value;
      *        'col' = takes the new value, 'col' => value/Expr = gets that; [] = DO NOTHING
      */
     public function insertOnConflict(string $table, array $data, array $conflict, ?array $update = null): int
     {
         $bind = [];
-        $update ??= array_values(array_diff(array_keys($data), $conflict));
+        $update = $conflict ? $update ?? array_values(array_diff(array_keys($data), $conflict)) : [];
         $set = [];
         foreach ($update as $key => $value) {
             $set[] = is_int($key)
@@ -107,10 +107,10 @@ final class Adapter
                 : $this->quoteIdentifier($key) . ' = ' . self::bindValue($value, $bind);
         }
         $sql = sprintf(
-            'INSERT INTO %s %s ON CONFLICT (%s) DO %s',
+            'INSERT INTO %s %s ON CONFLICT%s DO %s',
             $this->quoteIdentifier($table),
             $this->values([$data], $bind),
-            implode(', ', array_map($this->quoteIdentifier(...), $conflict)),
+            $conflict ? ' (' . implode(', ', array_map($this->quoteIdentifier(...), $conflict)) . ')' : '',
             $set ? 'UPDATE SET ' . implode(', ', $set) : 'NOTHING'
         );
 
@@ -221,28 +221,6 @@ final class Adapter
         $this->commit();
 
         return $result;
-    }
-
-    // --- raw SQL, kept while the hand-written queries move to Select ---------------
-
-    public function prepare(string $sql): PDOStatement
-    {
-        return $this->pdo->prepare($sql);
-    }
-
-    public function query(string $sql): PDOStatement
-    {
-        return $this->pdo->query($sql);
-    }
-
-    public function exec(string $sql): int|false
-    {
-        return $this->pdo->exec($sql);
-    }
-
-    public function lastInsertId(?string $name = null): string|false
-    {
-        return $this->pdo->lastInsertId($name);
     }
 
     // --- internals ----------------------------------------------------------------
