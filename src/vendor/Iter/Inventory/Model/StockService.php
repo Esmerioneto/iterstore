@@ -164,6 +164,61 @@ class StockService
         });
     }
 
+    /**
+     * A shipment: takes the physical quantities out of one source and gives the order's reservation
+     * back (the stock left with the parcel), all or nothing.
+     *
+     * @param array<int, int|float|string> $quantities product id => quantity
+     * @throws InventoryException INSUFFICIENT_STOCK when the source hasn't that much of a product
+     */
+    public function deduct(int $sourceId, int $websiteId, array $quantities, string $reference): void
+    {
+        ksort($quantities);
+        Connection::get()->adapter()->transaction(function ($db) use ($sourceId, $websiteId, $quantities, $reference): void {
+            foreach ($quantities as $productId => $quantity) {
+                $db->fetchOne('SELECT pg_advisory_xact_lock(hashtext(?), ?)', ['inventory_reservation', (int) $productId]);
+                $taken = $db->update('inventory_source_item', ['quantity' => new Expr('quantity - ' . (float) $quantity), 'updated_at' => new Expr('NOW()')],
+                    ['source_id = ?' => $sourceId, 'product_id = ?' => (int) $productId, 'quantity >= ?' => (float) $quantity]);
+                if (!$taken) {
+                    $name = $db->fetchOne($db->select()->from('catalog_product', ['name'])->where('product_id = ?', (int) $productId));
+                    throw new InventoryException('INSUFFICIENT_STOCK', "'{$name}': a origem não tem " . str_replace('.', ',', self::format((string) $quantity)) . '.');
+                }
+            }
+            $this->release($websiteId, $quantities, 'shipped', $reference);
+        });
+    }
+
+    /**
+     * The website's enabled sources for a shipment, the one with the most of these products first
+     * (the suggested one); 'covers' says whether it has every quantity.
+     *
+     * @param array<int, int|float|string> $quantities product id => quantity
+     * @return array<int, array{source_id: int, code: string, name: string, covers: bool}>
+     */
+    public function shipSources(int $websiteId, array $quantities): array
+    {
+        $db = Connection::get()->adapter();
+        $sources = $db->fetchAll($db->select()->from('inventory_source', ['source_id', 'code', 'name'])
+            ->where('website_id = ?', $websiteId)->where('is_enabled = 1')->order('priority, source_id'));
+        $stock = [];
+        if ($quantities) {
+            foreach ($db->fetchAll($db->select()->from('inventory_source_item', ['source_id', 'product_id', 'quantity'])
+                ->where('product_id IN (?)', array_map('intval', array_keys($quantities)))) as $row) {
+                $stock[(int) $row['source_id']][(int) $row['product_id']] = (float) $row['quantity'];
+            }
+        }
+        foreach ($sources as &$source) {
+            $have = $stock[(int) $source['source_id']] ?? [];
+            $source['source_id'] = (int) $source['source_id'];
+            $source['covers'] = !array_filter(array_keys($quantities), static fn ($id) => ($have[$id] ?? 0) < (float) $quantities[$id]);
+            $source['total'] = array_sum($have);
+        }
+        unset($source);
+        usort($sources, static fn ($a, $b) => [$b['covers'], $b['total']] <=> [$a['covers'], $a['total']]);
+
+        return $sources;
+    }
+
     /** in-stock quantities of enabled sources in the product's websites; p = the item's product */
     private static function salableSelect(): Select
     {

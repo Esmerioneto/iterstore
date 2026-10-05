@@ -35,6 +35,7 @@ use Iter\Customer\Model\CustomerService;
 use Iter\Inventory\Model\InventoryException;
 use Iter\Inventory\Model\SourceService;
 use Iter\Inventory\Model\StockService;
+use Iter\Sales\Model\OrderService;
 use Iter\Mail\Model\MailException;
 use Iter\Mail\Model\MailService;
 use Iter\Store\Model\Website;
@@ -2119,6 +2120,69 @@ assertSame('CART_HAS_ERRORS', $gqlCode([0, $place($otherCart)]), 'pedido: carrin
 $stock->save($v0, ['selftest_var_cd' => ['quantity' => '4']]);
 $next = $place($otherCart)['data']['placeOrder']['number'] ?? '';
 assertSame(sprintf('ST-%06d', (int) substr((string) ($order['number'] ?? ''), 3) + 1), $next, 'pedido: o número seguinte do website');
+
+// --- order service in the admin (COMMERCE-PLAN delivery 6) ------------------------------------------
+$nextId = (int) $pdo->query("SELECT order_id FROM sales_order WHERE increment_id = '{$next}'")->fetchColumn();
+$orderPage = static fn (Browser $b, int $id) => $b->request('/admin/order/view?id=' . $id)['body'];
+$orderStatus = static fn (int $id) => $pdo->query("SELECT status FROM sales_order WHERE order_id = {$id}")->fetchColumn();
+$orderMails = static fn (string $template) => (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = '{$template}' AND to_email LIKE '%@selftest.local'")->fetchColumn();
+$list = $admin->request('/admin/order/index?q=' . urlencode((string) $next))['body'];
+assertSame([true, false, true, 403], [
+    str_contains($list, (string) $next), str_contains($list, '>' . ($order['number'] ?? 'x') . '<'), str_contains($list, '1 pedido(s) · total R$ 24,90'),
+    $dash->request('/admin/order/index')['status'],
+], 'pedidos: a lista filtra pelo número e mostra o total do filtro; perfil sem Iter_Sales::order recebe 403');
+$page = $orderPage($admin, $orderId);
+assertSame([true, true, false, false, true], [str_contains($page, 'Confirmar pagamento'), str_contains($page, 'Cancelar pedido'), str_contains($page, 'Registrar entrega'),
+    str_contains($page, 'Concluir'), str_contains($page, 'Chave Pix: pix@selftest.local')], 'pedido: a tela mostra só as ações do status (a pagar: confirmar e cancelar)');
+$makeUser('selftest_order', ['Iter_Sales::order']);
+$seller = new Browser($base);
+$seller->login('selftest_order');
+[, $msgs] = $seller->submit('/admin/order/view?id=' . $orderId, '/admin/order/confirm', ['order_id' => $orderId]);
+assertSame([false, true, ['O seu perfil não tem permissão para esta ação.'], 'pending_payment'], [
+    str_contains($orderPage($seller, $orderId), 'Confirmar pagamento'), str_contains($orderPage($seller, $orderId), 'Comentar'), $msgs, $orderStatus($orderId),
+], 'pedido: perfil só com Iter_Sales::order vê e comenta, mas não vê nem confirma o pagamento');
+[, $msgs] = $admin->submit('/admin/order/view?id=' . $orderId, '/admin/order/confirm', ['order_id' => $orderId, 'comment' => 'Comprovante pelo WhatsApp']);
+$history = $pdo->query("SELECT status, comment, is_customer_notified, admin_user_id FROM sales_order_status_history WHERE order_id = {$orderId} ORDER BY history_id DESC LIMIT 1")->fetch(PDO::FETCH_NUM);
+assertSame([['Pagamento confirmado.'], 'processing', ['processing', 'Comprovante pelo WhatsApp', 1, $adminId], 1], [$msgs, $orderStatus($orderId), $history, $orderMails('sales_order_processing')],
+    'pedido: confirmar pagamento passa a "Pagamento confirmado", grava o histórico com o admin e avisa o cliente');
+[, $msgs] = $admin->submit('/admin/order/view?id=' . $orderId, '/admin/order/complete', ['order_id' => $orderId]);
+assertSame(['Um pedido "Pagamento confirmado" não pode passar para "Concluído".'], $msgs, 'pedido: transição fora da tabela é recusada');
+$sourceId = (int) $pdo->query("SELECT source_id FROM inventory_source WHERE code = 'selftest_var_cd'")->fetchColumn();
+$page = $orderPage($admin, $orderId);
+[, $msgs] = $admin->submit('/admin/order/view?id=' . $orderId, '/admin/order/ship', ['order_id' => $orderId, 'source_id' => $sourceId, 'carrier' => 'Correios', 'tracking_code' => 'AA123BR']);
+$shippedMail = (string) $pdo->query("SELECT body_html FROM mail_queue WHERE template_code = 'sales_order_shipped' AND to_email = 'frete@selftest.local'")->fetchColumn();
+assertSame([true, ['Entrega registrada. O cliente recebeu o rastreio por e-mail.'], 'shipped', '1', '0', ['Correios', 'AA123BR'], true], [
+    str_contains($page, 'value="' . $sourceId . '"'), $msgs, $orderStatus($orderId),
+    StockService::format((string) $pdo->query("SELECT quantity FROM inventory_source_item WHERE source_id = {$sourceId} AND product_id = {$v0}")->fetchColumn()),
+    (new StockService())->getSalable([$v0], $defaultWebsite)[$v0],
+    $pdo->query("SELECT carrier, tracking_code FROM sales_shipment WHERE order_id = {$orderId}")->fetch(PDO::FETCH_NUM),
+    str_contains($shippedMail, 'AA123BR'),
+], 'pedido: registrar entrega baixa o físico da origem (4 - 3 = 1), troca a reserva pela baixa (saldo 0 com o outro pedido), grava a entrega e manda o rastreio');
+[, $msgs] = $admin->submit('/admin/order/view?id=' . $orderId, '/admin/order/complete', ['order_id' => $orderId]);
+assertSame([['Pedido concluído.'], 'complete', []], [$msgs, $orderStatus($orderId), OrderService::actions('complete')], 'pedido: concluir; concluído não tem mais ações');
+[, $msgs] = $admin->submit('/admin/order/view?id=' . $nextId, '/admin/order/cancel', ['order_id' => $nextId, 'comment' => ' ']);
+[, $canceled] = $admin->submit('/admin/order/view?id=' . $nextId, '/admin/order/cancel', ['order_id' => $nextId, 'comment' => 'Pagamento não recebido']);
+assertSame([['Informe o motivo do cancelamento.'], ['Pedido cancelado. O estoque reservado voltou para a venda.'], 'canceled', '1', 1], [
+    $msgs, $canceled, $orderStatus($nextId), (new StockService())->getSalable([$v0], $defaultWebsite)[$v0], $orderMails('sales_order_canceled'),
+], 'pedido: cancelar pede o motivo, devolve a reserva e avisa o cliente');
+[, $msgs] = $seller->submit('/admin/order/view?id=' . $nextId, '/admin/order/comment', ['order_id' => $nextId, 'comment' => 'Cliente ligou', 'notify' => '1']);
+assertSame([['Comentário salvo.'], 1, 3, true], [$msgs, $orderMails('sales_order_comment'),
+    (int) $pdo->query("SELECT COUNT(*) FROM sales_order_status_history WHERE order_id = {$nextId}")->fetchColumn(), str_contains($orderPage($admin, $nextId), 'selftest_order')],
+    'pedido: comentário em qualquer status, com aviso por e-mail e o admin no histórico');
+$dashboard = $admin->request('/admin/index')['body'];
+$confId = (int) $pdo->query("SELECT customer_id FROM customer_flat WHERE email = 'conf@selftest.local'")->fetchColumn();
+assertSame([true, true, true], [str_contains($dashboard, 'pedido(s) hoje'), str_contains($dashboard, '/admin/order/index?status=processing'),
+    str_contains($admin->request('/admin/customer/edit?id=' . $confId)['body'], 'Nenhum pedido deste cliente.')], 'painel: card de Vendas; a tela do cliente lista os pedidos dele');
+$rateForm = $admin->request('/admin/shippingrate/index')['body'];
+[, $msgs] = $admin->submit('/admin/shippingrate/index', '/admin/shippingrate/save', ['website_id' => $defaultWebsite, 'rates' => [
+    ['postcode_from' => '01000-000', 'postcode_to' => '01999-999', 'weight_to' => '2,5', 'price' => '12,50', 'days' => '2'],
+    ['postcode_from' => '', 'postcode_to' => '', 'weight_to' => '', 'price' => '', 'days' => ''],
+]]);
+[, $bad] = $admin->submit('/admin/shippingrate/index', '/admin/shippingrate/save', ['website_id' => $defaultWebsite, 'rates' => [['postcode_from' => '1', 'postcode_to' => '2', 'price' => '1']]]);
+assertSame([true, ['Faixas de frete salvas.'], [['postcode_from' => '01000000', 'postcode_to' => '01999999', 'weight_to' => 2.5, 'price' => 12.5, 'days' => 2]], true, 403], [
+    str_contains($rateForm, 'value="01000-000"'), $msgs, (new \Iter\Shipping\Model\ShippingService())->getTableRates($defaultWebsite),
+    str_starts_with($bad[0] ?? '', 'Faixa 1:'), $seller->request('/admin/shippingrate/index')['status'],
+], 'faixas de frete: a tela mostra e grava a tabela (vírgula decimal, linha em branco ignorada), valida e exige Iter_Shipping::rates');
 
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");

@@ -1,5 +1,13 @@
 [
     { "code": "sales_order_placed", "label": "Pedido recebido", "subject": "Recebemos o seu pedido {{ number }}", "file": "sales-order-placed",
       "vars": { "name": "Maria", "number": "SP-000001", "items": "<tr><td>Camiseta (Cor: Preto, Tamanho: M)</td><td>2</td><td>R$ 99,80</td></tr>", "subtotal": "R$ 99,80",
-          "shipping": "Entrega R$ 15,00", "total": "R$ 114,80", "payment": "Pix", "instructions": "Chave Pix: loja@exemplo.com.br" } }
+          "shipping": "Entrega R$ 15,00", "total": "R$ 114,80", "payment": "Pix", "instructions": "Chave Pix: loja@exemplo.com.br" } },
+    { "code": "sales_order_processing", "label": "Pagamento confirmado", "subject": "Pagamento do pedido {{ number }} confirmado", "file": "sales-order-processing",
+      "vars": { "name": "Maria", "number": "SP-000001", "total": "R$ 114,80", "comment": "Comprovante recebido." } },
+    { "code": "sales_order_shipped", "label": "Pedido enviado", "subject": "O seu pedido {{ number }} foi enviado", "file": "sales-order-shipped",
+      "vars": { "name": "Maria", "number": "SP-000001", "carrier": "Correios", "tracking": "AA123456789BR" } },
+    { "code": "sales_order_canceled", "label": "Pedido cancelado", "subject": "O pedido {{ number }} foi cancelado", "file": "sales-order-canceled",
+      "vars": { "name": "Maria", "number": "SP-000001", "comment": "Pagamento não recebido." } },
+    { "code": "sales_order_comment", "label": "Comentário no pedido", "subject": "Novidade no pedido {{ number }}", "file": "sales-order-comment",
+      "vars": { "name": "Maria", "number": "SP-000001", "comment": "O seu pedido sai amanhã." } }
 ]

@@ -1,0 +1,4 @@
+[
+    { "id": "vendas", "label": "Vendas", "resource": "Iter_Sales::order", "url": "/admin/order/index", "sort_order": 10 },
+    { "label": "Pedidos", "resource": "Iter_Sales::order", "url": "/admin/order/index", "parent": "vendas", "sort_order": 0 }
+]

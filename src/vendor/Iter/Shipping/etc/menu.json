@@ -1,0 +1,3 @@
+[
+    { "label": "Faixas de frete", "resource": "Iter_Shipping::rates", "url": "/admin/shippingrate/index", "parent": "vendas", "sort_order": 10 }
+]
