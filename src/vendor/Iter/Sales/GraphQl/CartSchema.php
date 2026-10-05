@@ -13,12 +13,14 @@ use Iter\Core\Config;
 use Iter\Core\RateLimit;
 use Iter\Customer\Model\CustomerAuth;
 use Iter\Sales\Model\CartService;
+use Iter\Sales\Model\OrderService;
 use Iter\Store\Model\Website;
 
 /**
  * The storefront's cart (COMMERCE-PLAN §2). A guest keeps the cartId from createCart and sends it in
  * every call; a logged-in customer (Bearer token) omits it and works on their own cart. The rules are
- * in CartService; every mutation returns the cart as `cart` shows it.
+ * in CartService; every mutation returns the cart as `cart` shows it. placeOrder turns the cart into
+ * an order (OrderService).
  */
 class CartSchema
 {
@@ -132,6 +134,42 @@ class CartSchema
                 'billingSameAsShipping' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => fn ($c) => $c['billing_same_as_shipping']],
             ],
         ]);
+        $orderType = new ObjectType([
+            'name' => 'Order',
+            'fields' => [
+                'id' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($o) => $o['order_id']],
+                'number' => ['type' => Type::nonNull(Type::string()), 'description' => 'O número que o cliente vê (SP-000001).', 'resolve' => fn ($o) => $o['increment_id']],
+                'status' => ['type' => Type::nonNull(Type::string()), 'description' => 'pending_payment, processing, shipped, complete ou canceled.'],
+                'statusLabel' => ['type' => Type::nonNull(Type::string()), 'resolve' => fn ($o) => $o['status_label']],
+                'createdAt' => ['type' => Type::nonNull(Type::string()), 'resolve' => fn ($o) => $o['created_at']],
+                'email' => Type::nonNull(Type::string()),
+                'firstname' => Type::nonNull(Type::string()),
+                'lastname' => Type::nonNull(Type::string()),
+                'taxvat' => ['type' => Type::nonNull(Type::string()), 'description' => 'CPF ou CNPJ, só os dígitos.'],
+                'items' => Type::nonNull(Type::listOf(Type::nonNull(new ObjectType([
+                    'name' => 'OrderItem',
+                    'fields' => [
+                        'sku' => Type::nonNull(Type::string()),
+                        'name' => Type::nonNull(Type::string()),
+                        'options' => ['type' => Type::string(), 'description' => 'A variação comprada ("Cor: Preto, Tamanho: M").'],
+                        'quantity' => Type::nonNull(Type::float()),
+                        'price' => Type::nonNull(Type::float()),
+                        'rowTotal' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($i) => $i['row_total']],
+                    ],
+                ])))),
+                'subtotal' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($o) => (float) $o['subtotal']],
+                'shippingAmount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($o) => (float) $o['shipping_amount']],
+                'total' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($o) => (float) $o['grand_total']],
+                'shippingMethod' => ['type' => Type::string(), 'description' => 'O code do frete escolhido.', 'resolve' => fn ($o) => $o['shipping_method']],
+                'shippingLabel' => ['type' => Type::string(), 'resolve' => fn ($o) => $o['shipping_label']],
+                'shippingDays' => ['type' => Type::int(), 'description' => 'O prazo em dias úteis prometido no pedido.', 'resolve' => fn ($o) => $o['shipping_days']],
+                'paymentMethod' => ['type' => Type::string(), 'description' => 'O code do pagamento escolhido.', 'resolve' => fn ($o) => $o['payment_method']],
+                'paymentLabel' => ['type' => Type::string(), 'resolve' => fn ($o) => $o['payment_label']],
+                'paymentInstructions' => ['type' => Type::string(), 'description' => 'O que o cliente faz para pagar (a chave Pix, por exemplo), como era no pedido.', 'resolve' => fn ($o) => $o['payment_instructions']],
+                'shippingAddress' => ['type' => $addressType, 'resolve' => fn ($o) => $o['shipping_address']],
+                'billingAddress' => ['type' => $addressType, 'resolve' => fn ($o) => $o['billing_address']],
+            ],
+        ]);
         $mutate = static fn (callable $change) => static function ($root, array $args) use ($cart, $view, $change): array {
             $quoteId = $cart($args['cartId'] ?? null);
             $change($quoteId, $args);
@@ -220,6 +258,20 @@ class CartSchema
                     'resolve' => $mutate(static fn (int $q, array $a) => $service->setPaymentMethod($q, $a['code'])),
                 ],
             ] : []) + [
+                'placeOrder' => [
+                    'type' => Type::nonNull($orderType),
+                    'description' => 'Fecha o pedido: confere o carrinho (o erro diz o que falta), reserva o estoque e envia o e-mail "pedido recebido". Chamar de novo com o mesmo carrinho devolve o mesmo pedido.',
+                    'args' => $cartIdArg,
+                    'resolve' => static function ($root, array $args) use ($service): array {
+                        if (!RateLimit::hit('order_place:' . RateLimit::ip(), (int) Config::get('sales/checkout/place_per_minute'))) {
+                            http_response_code(429);
+                            throw new Error('Muitos pedidos seguidos. Aguarde um minuto.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
+                        }
+                        $orders = new OrderService();
+
+                        return $orders->get($orders->place($service->resolve($args['cartId'] ?? null, CustomerAuth::customer(), true)));
+                    },
+                ],
                 'setCartBillingAddress' => [
                     'type' => Type::nonNull($cartType),
                     'description' => 'Como o de entrega; sem address nem customerAddressId, a cobrança é no endereço de entrega.',

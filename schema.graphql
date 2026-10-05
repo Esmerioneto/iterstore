@@ -895,6 +895,12 @@ type Mutation {
     code: String!
   ): Cart!
 
+  "Fecha o pedido: confere o carrinho (o erro diz o que falta), reserva o estoque e envia o e-mail \"pedido recebido\". Chamar de novo com o mesmo carrinho devolve o mesmo pedido."
+  placeOrder(
+    "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
+    cartId: String
+  ): Order!
+
   "Como o de entrega; sem address nem customerAddressId, a cobrança é no endereço de entrega."
   setCartBillingAddress(
     "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
@@ -1019,6 +1025,61 @@ input CartAddressAttributeInput {
   code: String!
   value: String
   values: [String!]
+}
+
+type Order {
+  id: ID!
+
+  "O número que o cliente vê (SP-000001)."
+  number: String!
+
+  "pending_payment, processing, shipped, complete ou canceled."
+  status: String!
+
+  statusLabel: String!
+  createdAt: String!
+  email: String!
+  firstname: String!
+  lastname: String!
+
+  "CPF ou CNPJ, só os dígitos."
+  taxvat: String!
+
+  items: [OrderItem!]!
+  subtotal: Float!
+  shippingAmount: Float!
+  total: Float!
+
+  "O code do frete escolhido."
+  shippingMethod: String
+
+  shippingLabel: String
+
+  "O prazo em dias úteis prometido no pedido."
+  shippingDays: Int
+
+  "O code do pagamento escolhido."
+  paymentMethod: String
+
+  paymentLabel: String
+
+  "O que o cliente faz para pagar (a chave Pix, por exemplo), como era no pedido."
+  paymentInstructions: String
+
+  shippingAddress: CartAddress
+  billingAddress: CartAddress
+}
+
+type OrderItem {
+  sku: String!
+  name: String!
+
+  "A variação comprada (\"Cor: Preto, Tamanho: M\")."
+  options: String
+
+  quantity: Float!
+  price: Float!
+  rowTotal: Float!
 }
 
 input ShippingTableRateInput {
