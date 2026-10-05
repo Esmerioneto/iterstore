@@ -52,7 +52,21 @@ class AdminCartService
     }
 
     /**
-     * The order from the admin's cart. $paymentReceived (balcão, dinheiro) confirms the payment at once;
+     * An admin's cart still being built, by its id (the screen's URL)
+     *
+     * @return array the sales_quote row
+     * @throws SalesException CART_NOT_FOUND
+     */
+    public function get(int $quoteId): array
+    {
+        $db = Connection::get()->adapter();
+
+        return $db->fetchRow($db->select()->from('sales_quote')->where('quote_id = ?', $quoteId)->where('admin_user_id IS NOT NULL')->where('is_active = 1'))
+            ?: throw new SalesException('CART_NOT_FOUND', 'Pedido em montagem não encontrado (já foi fechado ou descartado).');
+    }
+
+    /**
+     * The order from the admin's cart, credited to $adminUserId. $paymentReceived (balcão, dinheiro) confirms the payment at once;
      * $comment goes to the history without telling the customer.
      *
      * @return int the order id
@@ -60,6 +74,8 @@ class AdminCartService
     public function place(int $quoteId, int $adminUserId, bool $paymentReceived = false, bool $notify = true, string $comment = ''): int
     {
         $orders = new OrderService();
+        // who closes the sale is who sold it (a colleague may have started the cart)
+        Connection::get()->adapter()->update('sales_quote', ['admin_user_id' => $adminUserId], ['quote_id = ?' => $quoteId, 'admin_user_id IS NOT NULL', 'is_active = 1']);
         $orderId = $orders->place($quoteId, $notify);
         if (trim($comment) !== '') {
             $orders->addComment($orderId, $comment, false, $adminUserId);

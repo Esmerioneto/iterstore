@@ -2341,6 +2341,61 @@ assertSame(['LOGIN_REQUIRED', 'pending_payment', 1, 2, 'CART_NOT_FOUND'], [
     (static function () use ($adminCarts, $discardId) { try { $adminCarts->resolve($discardId); } catch (Iter\Sales\Model\SalesException $e) { return $e->errorCode; } })(),
 ], 'pedido do admin: visitante só com "Vender para visitante" ligado (desligado = LOGIN_REQUIRED), avisa o cliente; pedidos em montagem listados e descartados');
 
+// --- Vendas → Novo pedido (ADMINSALES-PLAN delivery 2) ------------------------------------------------
+$startPage = $admin->request('/admin/ordercreate/index')['body'];
+[$editUrl] = $admin->submit('/admin/ordercreate/index', '/admin/ordercreate/start', ['website_id' => $defaultWebsite]);
+$screenQuote = (int) (explode('id=', $editUrl)[1] ?? 0);
+$editPage = '/admin/ordercreate/edit?id=' . $screenQuote;
+$screen = static fn (string $action, array $fields) => $admin->submit($editPage, '/admin/ordercreate/' . $action, $fields + ['quote_id' => $screenQuote])[1];
+$searchPage = $admin->request($editPage . '&q=' . urlencode($v0Sku))['body'];
+$steps = [
+    $screen('guest', ['email' => 'tela-pedido@selftest.local', 'firstname' => 'Te', 'lastname' => 'La', 'taxvat' => '529.982.247-25']),
+    $screen('additem', ['sku' => 'selftest-nada', 'quantity' => '1']),
+    $screen('additem', ['sku' => $v0Sku, 'quantity' => '2']),
+    $screen('address', ['type' => 'shipping', 'address' => ['postcode' => '01310-100', 'street' => 'Av Paulista', 'number' => '10', 'district' => 'Bela Vista', 'city' => 'São Paulo']]),
+    $screen('address', ['type' => 'shipping', 'address' => $address]),
+];
+$view = $cartService->view($screenQuote);
+$steps[] = $screen('shipping', ['code' => $view['shipping_methods'][0]['code'] ?? 'x']);
+$steps[] = $screen('payment', ['code' => $view['payment_methods'][0]['code'] ?? 'x']);
+$filled = $admin->request($editPage)['body'];
+assertSame([true, true, 403, true, true, [
+    ['Dados do cliente salvos.'], ["Produto 'selftest-nada' não encontrado."], ['Item adicionado.'], ['Endereço de entrega: escolha o estado (UF).'], ['Endereço de entrega salvo.'], ['Frete escolhido.'], ['Pagamento escolhido.'],
+], true], [
+    str_contains($startPage, 'Iniciar pedido para visitante'), str_starts_with($editUrl, '/admin/ordercreate/edit?id='), $seller->request('/admin/ordercreate/index')['status'],
+    str_contains($searchPage, $v0Sku) && str_contains($searchPage, 'Adicionar'), str_contains($admin->request('/admin/index')['body'], '/admin/ordercreate/index'),
+    $steps, str_contains($filled, 'tela-pedido@selftest.local') && str_contains($filled, '(escolhido)'),
+], 'Novo pedido: começa para visitante, busca o produto, grava dados, itens, endereço (com o erro na tela), frete e pagamento; sem a permissão, 403; o menu Vendas mostra o link');
+$makeUser('selftest_creator', ['Iter_Adminsales::create']);
+$creator = new Browser($base);
+$creator->login('selftest_creator');
+[$denied, $deniedMsgs] = $creator->submit($editPage, '/admin/ordercreate/place', ['quote_id' => $screenQuote, 'payment_received' => '1', 'notify' => '1']);
+[$placedUrl, $placedMsgs] = $creator->submit($editPage, '/admin/ordercreate/place', ['quote_id' => $screenQuote, 'notify' => '1', 'comment' => 'Pelo telefone']);
+$screenOrder = (int) $pdo->query("SELECT order_id FROM sales_order WHERE quote_id = {$screenQuote}")->fetchColumn();
+assertSame([['O seu perfil não pode confirmar pagamentos: desmarque "pagamento recebido".'], ['Pedido criado.'], '/admin/ordercreate/index', 'pending_payment',
+    (int) $pdo->query("SELECT user_id FROM admin_user WHERE username = 'selftest_creator'")->fetchColumn(), 1, false], [
+    $deniedMsgs, $placedMsgs, $placedUrl,
+    $pdo->query("SELECT status FROM sales_order WHERE order_id = {$screenOrder}")->fetchColumn(),
+    (int) $pdo->query("SELECT admin_user_id FROM sales_order WHERE order_id = {$screenOrder}")->fetchColumn(),
+    (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_placed' AND to_email = 'tela-pedido@selftest.local'")->fetchColumn(),
+    str_contains($creator->request('/admin/ordercreate/index')['body'], 'Em montagem'),
+], 'Novo pedido: "pagamento recebido" exige a permissão de confirmar pagamento; criar o pedido com o atendente, aviso ao cliente e volta à lista (sem acesso a Pedidos)');
+$setConfig(['sales/checkout/guest' => '0']);
+$noGuest = $admin->request('/admin/ordercreate/index')['body'];
+$setConfig(['sales/checkout/guest' => '1']);
+assertSame([false, true], [str_contains($noGuest, 'Iniciar pedido para visitante'), str_contains($noGuest, 'não vende para visitante')], 'Novo pedido: sem "Vender para visitante", a tela só oferece clientes cadastrados');
+$found = $admin->request('/admin/ordercreate/index?website_id=' . $confWebsite . '&q=conf%40selftest')['body'];
+[$customerUrl] = $admin->submit('/admin/ordercreate/index', '/admin/ordercreate/start', ['website_id' => $confWebsite, 'customer_id' => $confId]);
+$customerPage = $admin->request($customerUrl)['body'];
+$phpNoise = static fn (string ...$pages) => (bool) array_filter($pages, static fn ($p) => (bool) preg_match('/(Warning|Notice|Deprecated|Fatal error)<\/b>:/', $p));
+assertSame([true, true, false, false], [
+    str_contains($found, 'conf@selftest.local') && str_contains($found, 'name="customer_id" value="' . $confId . '"'),
+    str_contains($customerPage, 'conf@selftest.local') && str_contains($customerPage, 'ver cliente'),
+    str_contains($customerPage, 'Salvar dados do visitante'),
+    $phpNoise($startPage, $searchPage, $filled, $found, $customerPage),
+], 'Novo pedido: busca o cliente e começa o pedido dele (dados da conta, sem o formulário de visitante); as telas não mostram avisos do PHP');
+$adminCarts->discard((int) (explode('id=', $customerUrl)[1] ?? 0));
+
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");
 assertSame([200, 200, 429], array_map(static fn () => $custLogin('errada123')[0], [1, 2, 3]), 'API cliente: login passa do limite por IP e recebe 429');

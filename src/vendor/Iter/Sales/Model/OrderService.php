@@ -422,7 +422,7 @@ class OrderService
     }
 
     /** @return array<int, string> variant id => "Cor: Preto, Tamanho: M" */
-    private function variantOptions(array $productIds): array
+    public function variantOptions(array $productIds): array
     {
         $db = Connection::get()->adapter();
 
