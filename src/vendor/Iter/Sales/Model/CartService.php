@@ -247,10 +247,10 @@ class CartService
         Connection::get()->adapter()->update('sales_quote', ['payment_method' => $code], ['quote_id = ?' => $quoteId]);
     }
 
-    /** bin/quote-clean.php: guest carts unused for $days days; customers' carts stay */
+    /** bin/quote-clean.php: guest carts and the admin's (Iter_Adminsales, a customer's too) unused for $days days; the store's customer carts stay */
     public function cleanGuests(int $days): int
     {
-        return Connection::get()->adapter()->delete('sales_quote', ['customer_id IS NULL', 'updated_at < ?' => date('Y-m-d H:i:s', time() - max(1, $days) * 86400)]);
+        return Connection::get()->adapter()->delete('sales_quote', ['(customer_id IS NULL OR admin_user_id IS NOT NULL)', 'updated_at < ?' => date('Y-m-d H:i:s', time() - max(1, $days) * 86400)]);
     }
 
     private function customerCart(Customer $customer): int
