@@ -1321,6 +1321,19 @@ assertSame([['min' => min($activePrices), 'max' => max($activePrices)], array_fi
     array_map('floatval', $gql($guest, '{ product(sku: "selftest-var") { priceRange { min max } } }')['data']['product']['priceRange'] ?? []),
     array_map('floatval', $gql($guest, '{ product(sku: "selftest-var-az-p") { priceRange { min max } } }')['data']['product']['priceRange'] ?? []),
 ], 'GraphQL priceRange: "a partir de" do configurável vem das variações ativas (a inativa de R$ 60 fica fora); o simples tem o próprio preço');
+// the list preloads what its items read (DB-PLAN phase 5): the same answers as one product alone, in a fixed number of queries
+$listed = $gql($guest, '{ products(search: "selftest-var") { items { sku priceRange { min max } attributes { code value } variants { sku variantOptions { code value label } } } } }')['data']['products']['items'] ?? [];
+$alone = $gql($guest, '{ product(sku: "selftest-var") { sku priceRange { min max } attributes { code value } variants { sku variantOptions { code value label } } } }')['data']['product'] ?? null;
+$listSchema = Iter\Core\GraphQl\Schema::build();
+$countQueries = static function (int $pageSize) use ($listSchema): int {
+    Iter\Core\Db\Adapter::$queryCount = 0;
+    GraphQL\GraphQL::executeQuery($listSchema, "{ products(pageSize: {$pageSize}) { items { attributes { code } priceRange { min } variants { variantOptions { label } } } } }")->toArray();
+    return Iter\Core\Db\Adapter::$queryCount;
+};
+$countQueries(50); // warms the per-process caches (attributes, options)
+// ponytail: a bound, not equality: options are read once per distinct grid attribute, which grows a little with the page
+assertSame([$alone, true], [$listed[0] ?? 'x', $countQueries(50) <= 15],
+    'GraphQL: a lista pré-carrega atributos, faixa de preço e combinação das variações (mesma resposta do produto sozinho), em no máximo 15 consultas para 50 itens');
 $service->update($attrId('selftest_vcor'), ['label' => 'Cor grade', 'input_type' => '', 'is_variant' => 1, 'is_filterable' => 1]);
 $varSearch = static fn (string $args) => $gql($guest, '{ products(search: "selftest-var"' . $args . ') { total aggregations { attributes { code options { value count } } } } }')['data']['products'] ?? null;
 $activeColors = $pdo->query("SELECT DISTINCT v.value FROM catalog_product p JOIN eav_value_varchar v ON v.entity_id = p.product_id AND v.attribute_id = {$attrId('selftest_vcor')}

@@ -50,22 +50,35 @@ class VariantService
     /** @return array<int, array{attribute_id: int, code: string, label: string, options: array<int, array{value: string, label: string}>}> in grid order */
     public function getAttributes(int $parentId): array
     {
-        $resource = (new Product())->getResource();
+        return $this->getAttributesMany([$parentId])[$parentId] ?? [];
+    }
+
+    /**
+     * getAttributes() for a list's page: the grids of many products, each attribute's options read once
+     *
+     * @return array<int, array> product id => its grid attributes
+     */
+    public function getAttributesMany(array $parentIds): array
+    {
+        $grids = (new Product())->getResource()->getVariantAttributeIdsMany($parentIds);
+        if (!$grids) {
+            return [];
+        }
         $rows = array_column($this->attributeRows(), null, 'attribute_id');
         $attributes = [];
-        foreach ($resource->getVariantAttributeIds($parentId) as $id) {
-            $attributes[] = [
+        foreach (array_unique(array_merge(...array_values($grids))) as $id) {
+            $attributes[$id] = [
                 'attribute_id' => $id,
                 'code' => $rows[$id]['code'],
                 'label' => $rows[$id]['label'],
                 'options' => array_map(
                     static fn ($o) => ['value' => $o['value'], 'label' => $o['label']],
-                    (new Attribute())->getResource()->getOptions($id)
+                    (new Attribute())->getResource()->getOptions($id) // ponytail: one query per distinct grid attribute (a few: cor, tamanho)
                 ),
             ];
         }
 
-        return $attributes;
+        return array_map(static fn (array $ids) => array_map(static fn ($id) => $attributes[$id], $ids), $grids);
     }
 
     /** @return array<int, array{product_id: int, sku: string, name: string, is_active: int, options: array<string, string>, price: ?string}> */
