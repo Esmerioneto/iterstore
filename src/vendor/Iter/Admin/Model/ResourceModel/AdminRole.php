@@ -14,6 +14,9 @@ class AdminRole extends AbstractDb
         $this->init('admin_role', 'role_id');
     }
 
+    /** @var array<int, string[]> role id => granted resources, read once per process (Acl asks for every field and menu item) */
+    private static array $granted = [];
+
     /**
      * @return array<int, string>
      */
@@ -21,7 +24,7 @@ class AdminRole extends AbstractDb
     {
         $db = $this->getConnection();
 
-        return $db->fetchCol($db->select()->from('admin_role_rule', ['resource_id'])->where('role_id = ?', $roleId));
+        return self::$granted[$roleId] ??= $db->fetchCol($db->select()->from('admin_role_rule', ['resource_id'])->where('role_id = ?', $roleId));
     }
 
     /**
@@ -30,6 +33,7 @@ class AdminRole extends AbstractDb
      */
     protected function afterSave(AbstractModel $object): void
     {
+        self::$granted = [];
         $resources = $object->getData('resources');
         if ($resources === null) {
             return;

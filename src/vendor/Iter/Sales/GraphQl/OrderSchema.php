@@ -82,8 +82,7 @@ class OrderSchema
                     ],
                     'resolve' => Schema::guard('Iter_Sales::order', static function ($root, array $args) use ($service, $filters, $view): array {
                         $result = $service->search($filters($args), max(1, $args['page']), min(100, max(1, $args['pageSize'])), $args['sort'], $args['sortDir']);
-                        // ponytail: get() per row (items, addresses, history): a page of 100 is ~400 small queries; batch when it shows
-                        return ['items' => array_map(static fn ($o) => $view((int) $o['order_id']), $result['items'])] + $result;
+                        return ['items' => array_values($service->getMany(array_column($result['items'], 'order_id')))] + $result;
                     }),
                 ],
                 'order' => [
@@ -108,7 +107,7 @@ class OrderSchema
                     'args' => ['page' => ['type' => Type::int(), 'defaultValue' => 1], 'pageSize' => ['type' => Type::int(), 'defaultValue' => 20, 'description' => 'Máximo 100.']],
                     'resolve' => static function ($root, array $args) use ($service, $view, $customer): array {
                         $result = $service->search(['customer_id' => (string) $customer()->getId()], max(1, $args['page']), min(100, max(1, $args['pageSize'])));
-                        return ['items' => array_map(static fn ($o) => $view((int) $o['order_id']), $result['items']), 'total' => $result['total']];
+                        return ['items' => array_values($service->getMany(array_column($result['items'], 'order_id'))), 'total' => $result['total']];
                     },
                 ],
                 'myOrder' => [

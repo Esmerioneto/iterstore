@@ -119,26 +119,56 @@ class OrderService
      */
     public function get(int $orderId): array
     {
-        $db = Connection::get()->adapter();
-        $order = $db->fetchRow($db->select()->from('sales_order')->where('order_id = ?', $orderId))
-            ?: throw new SalesException('ORDER_NOT_FOUND', 'Pedido não encontrado.');
-        $addresses = [];
-        foreach ($db->fetchAll($db->select()->from('sales_order_address')->where('order_id = ?', $orderId)) as $row) {
-            $addresses[$row['type']] = array_intersect_key($row, array_flip(self::ADDRESS_COLUMNS)) + json_decode($row['attributes'], true);
+        return $this->getMany([$orderId])[$orderId] ?? throw new SalesException('ORDER_NOT_FOUND', 'Pedido não encontrado.');
+    }
+
+    /**
+     * get() for a list's page: one query per table for all the orders
+     *
+     * @param int[] $orderIds
+     * @return array<int, array> order id => order, in the order of $orderIds; unknown ids left out
+     */
+    public function getMany(array $orderIds): array
+    {
+        $orderIds = array_values(array_unique(array_map('intval', $orderIds)));
+        if (!$orderIds) {
+            return [];
         }
-        $items = $db->fetchAll($db->select()->from('sales_order_item')->where('order_id = ?', $orderId)->order('item_id'));
+        $db = Connection::get()->adapter();
+        $byOrder = static function (array $rows): array {
+            $grouped = [];
+            foreach ($rows as $row) {
+                $grouped[(int) $row['order_id']][] = $row;
+            }
+            return $grouped;
+        };
+        $orders = array_column($db->fetchAll($db->select()->from('sales_order')->where('order_id IN (?)', $orderIds)), null, 'order_id');
+        $items = $byOrder($db->fetchAll($db->select()->from('sales_order_item')->where('order_id IN (?)', $orderIds)->order('item_id')));
+        $addresses = $byOrder($db->fetchAll($db->select()->from('sales_order_address')->where('order_id IN (?)', $orderIds)));
+        $history = $db->select()->from(['h' => 'sales_order_status_history'])->where('h.order_id IN (?)', $orderIds)->order('h.history_id DESC');
+        $history = $byOrder($db->fetchAll($history->joinLeft(['u' => 'admin_user'], 'u.user_id = h.admin_user_id', ['admin_username' => 'username'])));
+        $shipments = array_column($db->fetchAll($db->select()->from('sales_shipment')->where('order_id IN (?)', $orderIds)), null, 'order_id');
 
-        $history = $db->select()->from(['h' => 'sales_order_status_history'])->where('h.order_id = ?', $orderId)->order('h.history_id DESC');
-        $history->joinLeft(['u' => 'admin_user'], 'u.user_id = h.admin_user_id', ['admin_username' => 'username']);
+        $result = [];
+        foreach ($orderIds as $id) {
+            if (!isset($orders[$id])) {
+                continue;
+            }
+            $address = [];
+            foreach ($addresses[$id] ?? [] as $row) {
+                $address[$row['type']] = array_intersect_key($row, array_flip(self::ADDRESS_COLUMNS)) + json_decode($row['attributes'], true);
+            }
+            $result[$id] = $orders[$id] + [
+                'status_label' => self::STATUS_LABELS[$orders[$id]['status']] ?? $orders[$id]['status'],
+                'items' => array_map(static fn (array $i) => ['quantity' => (float) $i['quantity'], 'price' => (float) $i['price'], 'row_total' => (float) $i['row_total']] + $i, $items[$id] ?? []),
+                'shipping_address' => $address['shipping'] ?? null,
+                'billing_address' => $address['billing'] ?? null,
+                'history' => $history[$id] ?? [],
+                'shipment' => $shipments[$id] ?? null,
+            ];
+        }
 
-        return $order + [
-            'status_label' => self::STATUS_LABELS[$order['status']] ?? $order['status'],
-            'items' => array_map(static fn (array $i) => ['quantity' => (float) $i['quantity'], 'price' => (float) $i['price'], 'row_total' => (float) $i['row_total']] + $i, $items),
-            'shipping_address' => $addresses['shipping'] ?? null,
-            'billing_address' => $addresses['billing'] ?? null,
-            'history' => $db->fetchAll($history),
-            'shipment' => $db->fetchRow($db->select()->from('sales_shipment')->where('order_id = ?', $orderId)) ?: null,
-        ];
+        return $result;
     }
 
     /** The actions the status allows now (the screen also checks the admin's permissions) */
