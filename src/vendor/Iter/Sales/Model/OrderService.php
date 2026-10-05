@@ -105,7 +105,7 @@ class OrderService
                     + ['attributes' => json_encode((object) array_diff_key($address, array_flip(self::ADDRESS_COLUMNS)), JSON_UNESCAPED_UNICODE)]);
             }
             $db->insert('sales_order_status_history', ['order_id' => $orderId, 'status' => 'pending_payment', 'is_customer_notified' => (int) $notify]
-                + ($cart['admin_user_id'] === null ? [] : ['comment' => 'Pedido criado no painel.', 'admin_user_id' => $cart['admin_user_id']]));
+                + ($cart['admin_user_id'] === null ? [] : ['comment' => 'Pedido criado pelo atendimento.', 'admin_user_id' => $cart['admin_user_id']]));
             $db->update('sales_quote', ['is_active' => 0], ['quote_id = ?' => $quoteId]);
 
             return [$orderId, true];

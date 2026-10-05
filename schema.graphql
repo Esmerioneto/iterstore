@@ -1142,6 +1142,29 @@ type Mutation {
     notifyCustomer: Boolean = false
   ): Order!
 
+  "Um pedido em montagem pelo admin; devolve o cartId, usado nas mutations do carrinho e no placeAdminOrder. Sem customerId, o pedido é de um visitante (setCartGuestInfo), se o website vende para visitante."
+  createAdminCart(
+    "Omitido = website padrão."
+    websiteId: ID
+
+    "Um cliente do website."
+    customerId: ID
+  ): String!
+
+  "Fecha o pedido em montagem. O pedido fica com o admin do token."
+  placeAdminOrder(
+    cartId: String!
+
+    "Já confirma o pagamento (balcão, dinheiro). Exige Iter_Sales::order_payment."
+    paymentReceived: Boolean = false
+
+    "Manda ao cliente os e-mails do pedido."
+    notifyCustomer: Boolean = true
+
+    "Comentário interno no histórico (não vai para o cliente)."
+    comment: String
+  ): Order!
+
   "A lista enviada é a tabela inteira do website (faixa ausente é removida). CEP com ou sem máscara. Para um CEP, vale a faixa com o menor \"peso até\" que comporte o carrinho."
   saveShippingTableRates(
     "Omitido = website padrão."

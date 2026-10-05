@@ -20,7 +20,8 @@ use Iter\Store\Model\Website;
 /**
  * The storefront's cart (COMMERCE-PLAN §2). A guest keeps the cartId from createCart and sends it in
  * every call; a logged-in customer (Bearer token) omits it and works on their own cart. The rules are
- * in CartService; every mutation returns the cart as `cart` shows it. placeOrder turns the cart into
+ * in CartService; every mutation returns the cart as `cart` shows it. An admin with Iter_Adminsales::create
+ * uses them on the carts of createAdminCart too (placeOrder stays the store's: placeAdminOrder). placeOrder turns the cart into
  * an order (OrderService).
  */
 class CartSchema
@@ -29,7 +30,9 @@ class CartSchema
     public static function fields(ObjectType $productType): array
     {
         $service = new CartService();
-        $cart = static fn (?string $cartId) => $service->resolve($cartId, CustomerAuth::customer());
+        // an admin who builds orders (Iter_Adminsales) also works on their carts with these mutations
+        $cart = static fn (?string $cartId) => $service->resolve($cartId, CustomerAuth::customer(), false,
+            \isModuleEnabled('iter_adminsales') && Auth::isAllowed('Iter_Adminsales::create'));
         $view = static fn (int $quoteId) => $service->view($quoteId);
         $cartIdArg = ['cartId' => ['type' => Type::string(), 'description' => 'O do createCart (visitante). Cliente logado omite: vale o carrinho dele.']];
 

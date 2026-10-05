@@ -39,14 +39,17 @@ class CartService
      * own (created on first use). $placed also finds a guest cart already turned into an order (a
      * placeOrder retry gets that order).
      *
+     * $adminCarts: an admin's cart (Iter_Adminsales) is found too; only for an admin allowed to build
+     * orders (the API's cart mutations). The store never finds one.
+     *
      * @throws SalesException CART_NOT_FOUND, UNAUTHENTICATED
      */
-    public function resolve(?string $cartId, ?Customer $customer, bool $placed = false): int
+    public function resolve(?string $cartId, ?Customer $customer, bool $placed = false, bool $adminCarts = false): int
     {
         $db = Connection::get()->adapter();
         if ($cartId !== null && $cartId !== '') {
-            // an admin's cart (Iter_Adminsales) isn't the store's: AdminCartService resolves it
-            $select = $db->select()->from('sales_quote', ['quote_id'])->where('token_hash = ?', hash('sha256', $cartId))->where('admin_user_id IS NULL');
+            $select = $db->select()->from('sales_quote', ['quote_id'])->where('token_hash = ?', hash('sha256', $cartId));
+            $adminCarts || $select->where('admin_user_id IS NULL');
             $id = $db->fetchOne($placed ? $select : $select->where('is_active = 1'));
 
             return $id !== false ? (int) $id : throw new SalesException('CART_NOT_FOUND', 'Carrinho não encontrado. Crie outro com createCart.');
