@@ -394,8 +394,8 @@ class OrderService
         $error = match (true) {
             !$cart['items'] => ['CART_EMPTY', 'O carrinho está vazio.'],
             $cart['has_errors'] => ['CART_HAS_ERRORS', current(array_filter(array_column($cart['items'], 'error')))],
-            // the admin sells to a guest even when the store requires a login (ADMINSALES-PLAN decision 3)
-            $guest && $cart['admin_user_id'] === null && !Config::get('sales/checkout/guest', $cart['website_id']) => ['LOGIN_REQUIRED', 'Esta loja só vende para clientes cadastrados: faça login.'],
+            // the admin's orders too: a guest sale needs "Vender para visitante" on (ADMINSALES-PLAN decision 3)
+            $guest && !Config::get('sales/checkout/guest', $cart['website_id']) => ['LOGIN_REQUIRED', 'Esta loja só vende para clientes cadastrados: faça login.'],
             !$cart['email'] || !$cart['firstname'] || !$cart['lastname'] || !$cart['taxvat'] => $guest
                 ? ['CUSTOMER_INFO_REQUIRED', 'Informe e-mail, nome, sobrenome e CPF/CNPJ (setCartGuestInfo).']
                 : ['CUSTOMER_INFO_REQUIRED', 'Complete nome, sobrenome e CPF/CNPJ na conta (updateMe).'],
