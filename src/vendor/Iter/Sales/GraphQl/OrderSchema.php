@@ -9,13 +9,17 @@ use GraphQL\Type\Definition\EnumType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use Iter\Admin\Auth;
+use Iter\Core\Config;
 use Iter\Core\GraphQl\Schema;
+use Iter\Core\RateLimit;
+use Iter\Customer\Model\CustomerAuth;
 use Iter\Sales\Model\OrderService;
 use Iter\Sales\Model\SalesException;
 
 /**
- * Order service for an external admin app (COMMERCE-PLAN §8): the admin screen's list and actions, with
- * the same permissions. Every change goes to the history with the token's admin.
+ * Orders in the API (COMMERCE-PLAN §8). For an external admin app: the admin screen's list and actions,
+ * with the same permissions; every change goes to the history with the token's admin. For the
+ * storefront: the logged-in customer's orders (myOrders, myOrder) and a guest's lookup by number + e-mail.
  */
 class OrderSchema
 {
@@ -25,6 +29,7 @@ class OrderSchema
         $service = new OrderService();
         $userId = static fn (): int => (int) Auth::user()->getId();
         $view = static fn (int $id): array => $service->get($id);
+        $customer = static fn () => CustomerAuth::customer() ?? throw new Error('Faça login como cliente.', extensions: ['code' => 'UNAUTHENTICATED']);
         $date = static function (?string $value, string $name): string {
             if ($value !== null && $value !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
                 throw new Error("{$name}: use AAAA-MM-DD.", extensions: ['code' => 'BAD_USER_INPUT']);
@@ -93,6 +98,42 @@ class OrderSchema
                             return null;
                         }
                     }),
+                ],
+                'myOrders' => [
+                    'type' => Type::nonNull(new ObjectType([
+                        'name' => 'MyOrderList',
+                        'fields' => ['items' => Type::nonNull(Type::listOf(Type::nonNull($orderType))), 'total' => Type::nonNull(Type::int())],
+                    ])),
+                    'description' => 'Os pedidos do cliente do token, o mais novo primeiro.',
+                    'args' => ['page' => ['type' => Type::int(), 'defaultValue' => 1], 'pageSize' => ['type' => Type::int(), 'defaultValue' => 20, 'description' => 'Máximo 100.']],
+                    'resolve' => static function ($root, array $args) use ($service, $view, $customer): array {
+                        $result = $service->search(['customer_id' => (string) $customer()->getId()], max(1, $args['page']), min(100, max(1, $args['pageSize'])));
+                        return ['items' => array_map(static fn ($o) => $view((int) $o['order_id']), $result['items']), 'total' => $result['total']];
+                    },
+                ],
+                'myOrder' => [
+                    'type' => $orderType,
+                    'description' => 'Um pedido do cliente do token pelo número; null se não for dele.',
+                    'args' => ['number' => Type::nonNull(Type::string())],
+                    'resolve' => static function ($root, array $args) use ($service, $view, $customer): ?array {
+                        $me = $customer();
+                        $id = $service->findIdByNumber($args['number'], (int) $me->getData('website_id'), ['customer_id' => (int) $me->getId()]);
+                        return $id === null ? null : $view($id);
+                    },
+                ],
+                'guestOrder' => [
+                    'type' => $orderType,
+                    'description' => 'Consulta sem login: o número e o e-mail do pedido. null se não baterem. Limite de consultas por minuto por IP.',
+                    'args' => ['number' => Type::nonNull(Type::string()), 'email' => Type::nonNull(Type::string()), 'websiteId' => ['type' => Type::id(), 'description' => 'Quando dois websites usam o mesmo prefixo.']],
+                    'resolve' => static function ($root, array $args) use ($service, $view): ?array {
+                        // number + e-mail is a weak secret: the limit keeps it from being guessed
+                        if (!RateLimit::hit('order_lookup:' . RateLimit::ip(), (int) Config::get('sales/order/guest_lookup_per_minute'))) {
+                            http_response_code(429);
+                            throw new Error('Muitas consultas seguidas. Aguarde um minuto.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
+                        }
+                        $id = $service->findIdByNumber($args['number'], isset($args['websiteId']) ? (int) $args['websiteId'] : null, ['email' => $args['email']]);
+                        return $id === null ? null : $view($id);
+                    },
                 ],
                 'salesSummary' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull(new ObjectType([

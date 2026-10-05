@@ -2227,6 +2227,24 @@ assertSame(['complete', 'ORDER_STATUS_INVALID', ['complete', 'Obrigado!', true],
     (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_comment' AND to_email = 'api-pedido@selftest.local'")->fetchColumn(),
 ], 'API pedidos: concluir; cancelar depois do envio é recusado; comentário com aviso ao cliente');
 
+// --- the customer's and the guest's orders (COMMERCE-PLAN delivery 7) --------------------------------
+$pdo->exec("UPDATE sales_order SET customer_id = {$confId} WHERE order_id = {$apiOrder}"); // as if conf@ had bought it logged in
+$mine = $api('{ myOrders { total items { number history { status } } } }', $ct)[1]['data']['myOrders'] ?? [];
+assertSame(['UNAUTHENTICATED', 1, $placed['number'] ?? 'x', null, $placed['number'] ?? 'x', null], [
+    $gqlCode($api('{ myOrders { total } }')),
+    $mine['total'] ?? null, $mine['items'][0]['number'] ?? null, array_key_exists('history', $mine['items'][0] ?? []) ? $mine['items'][0]['history'] : 'x',
+    $api('{ myOrder(number: "' . strtolower($placed['number'] ?? 'x') . '") { number } }', $ct)[1]['data']['myOrder']['number'] ?? null,
+    array_key_exists('myOrder', $api('{ myOrder(number: "' . ($order['number'] ?? 'x') . '") { number } }', $ct)[1]['data'] ?? []) ? null : 'x',
+], 'pedidos do cliente: só com login; a lista e o pedido dele pelo número (sem o histórico do admin); pedido de outro dá null');
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'order_lookup:%'");
+$setConfig(['sales/order/guest_lookup_per_minute' => '2']);
+$lookup = static fn (string $email) => $api('{ guestOrder(number: "' . ($order['number'] ?? 'x') . '", email: "' . $email . '") { number status } }');
+assertSame([['number' => $order['number'] ?? 'x', 'status' => 'complete'], null, 'TOO_MANY_REQUESTS'], [
+    $lookup('FRETE@selftest.local')[1]['data']['guestOrder'] ?? null,
+    array_key_exists('guestOrder', $lookup('outro@selftest.local')[1]['data'] ?? []) ? null : 'x',
+    $gqlCode($lookup('frete@selftest.local')),
+], 'pedido do visitante: número + e-mail (sem diferença de maiúsculas); e-mail errado dá null; limite por IP');
+
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");
 assertSame([200, 200, 429], array_map(static fn () => $custLogin('errada123')[0], [1, 2, 3]), 'API cliente: login passa do limite por IP e recebe 429');
