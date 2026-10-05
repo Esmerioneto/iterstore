@@ -1322,18 +1322,18 @@ assertSame([['min' => min($activePrices), 'max' => max($activePrices)], array_fi
     array_map('floatval', $gql($guest, '{ product(sku: "selftest-var-az-p") { priceRange { min max } } }')['data']['product']['priceRange'] ?? []),
 ], 'GraphQL priceRange: "a partir de" do configurável vem das variações ativas (a inativa de R$ 60 fica fora); o simples tem o próprio preço');
 // the list preloads what its items read (DB-PLAN phase 5): the same answers as one product alone, in a fixed number of queries
-$listed = $gql($guest, '{ products(search: "selftest-var") { items { sku priceRange { min max } attributes { code value } variants { sku variantOptions { code value label } } } } }')['data']['products']['items'] ?? [];
-$alone = $gql($guest, '{ product(sku: "selftest-var") { sku priceRange { min max } attributes { code value } variants { sku variantOptions { code value label } } } }')['data']['product'] ?? null;
+$listed = $gql($guest, '{ products(search: "selftest-var") { items { sku priceRange { min max } attributes { code value } websiteIds categories { id } variantAttributes { code options { value } } variants { sku variantOptions { code value label } } } } }')['data']['products']['items'] ?? [];
+$alone = $gql($guest, '{ product(sku: "selftest-var") { sku priceRange { min max } attributes { code value } websiteIds categories { id } variantAttributes { code options { value } } variants { sku variantOptions { code value label } } } }')['data']['product'] ?? null;
 $listSchema = Iter\Core\GraphQl\Schema::build();
 $countQueries = static function (int $pageSize) use ($listSchema): int {
     Iter\Core\Db\Adapter::$queryCount = 0;
-    GraphQL\GraphQL::executeQuery($listSchema, "{ products(pageSize: {$pageSize}) { items { attributes { code } priceRange { min } variants { variantOptions { label } } } } }")->toArray();
+    GraphQL\GraphQL::executeQuery($listSchema, "{ products(pageSize: {$pageSize}) { items { attributes { code } priceRange { min } websiteIds categories { id } variantAttributes { code } variants { variantOptions { label } } } } }")->toArray();
     return Iter\Core\Db\Adapter::$queryCount;
 };
 $countQueries(50); // warms the per-process caches (attributes, options)
 // ponytail: a bound, not equality: options are read once per distinct grid attribute, which grows a little with the page
 assertSame([$alone, true], [$listed[0] ?? 'x', $countQueries(50) <= 15],
-    'GraphQL: a lista pré-carrega atributos, faixa de preço e combinação das variações (mesma resposta do produto sozinho), em no máximo 15 consultas para 50 itens');
+    'GraphQL: a lista pré-carrega atributos, faixa de preço, websites, categorias, grade e combinação das variações (mesma resposta do produto sozinho), em no máximo 15 consultas para 50 itens');
 $service->update($attrId('selftest_vcor'), ['label' => 'Cor grade', 'input_type' => '', 'is_variant' => 1, 'is_filterable' => 1]);
 $varSearch = static fn (string $args) => $gql($guest, '{ products(search: "selftest-var"' . $args . ') { total aggregations { attributes { code options { value count } } } } }')['data']['products'] ?? null;
 $activeColors = $pdo->query("SELECT DISTINCT v.value FROM catalog_product p JOIN eav_value_varchar v ON v.entity_id = p.product_id AND v.attribute_id = {$attrId('selftest_vcor')}
@@ -2239,6 +2239,18 @@ assertSame(['complete', 'ORDER_STATUS_INVALID', ['complete', 'Obrigado!', true],
     [$commented['status'] ?? null, $commented['comment'] ?? null, $commented['customerNotified'] ?? null],
     (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_comment' AND to_email = 'api-pedido@selftest.local'")->fetchColumn(),
 ], 'API pedidos: concluir; cancelar depois do envio é recusado; comentário com aviso ao cliente');
+$fullOrder = '{ id number status total items { sku quantity } shippingAddress { city } billingAddress { postcode } shipment { carrier trackingCode } history { status comment adminUsername } }';
+$listedOrders = array_column($gql($admin, "{ orders(pageSize: 50) { items {$fullOrder} } }")['data']['orders']['items'] ?? [], null, 'id');
+// the list assembles every order with one query per table: in-process, as the admin
+Closure::bind(static fn () => \Iter\Admin\Auth::$user = (new \Iter\Admin\Model\AdminUser())->load($adminId), null, \Iter\Admin\Auth::class)();
+$orderSchema = Iter\Core\GraphQl\Schema::build();
+GraphQL\GraphQL::executeQuery($orderSchema, "{ orders(pageSize: 50) { items {$fullOrder} } }"); // warms the caches
+Iter\Core\Db\Adapter::$queryCount = 0;
+$inProcess = GraphQL\GraphQL::executeQuery($orderSchema, "{ orders(pageSize: 50) { items {$fullOrder} } }")->toArray();
+$orderQueries = Iter\Core\Db\Adapter::$queryCount;
+Closure::bind(static fn () => \Iter\Admin\Auth::$user = null, null, \Iter\Admin\Auth::class)();
+assertSame([$gql($admin, "{ order(id: \"{$apiOrder}\") {$fullOrder} }")['data']['order'] ?? 'x', true, true], [$listedOrders[(string) $apiOrder] ?? null, count($inProcess['data']['orders']['items'] ?? []) === count($listedOrders) && count($listedOrders) >= 3, $orderQueries <= 10],
+    'API pedidos: a lista monta os pedidos em lote (mesma resposta do pedido sozinho, no máximo 10 consultas para a página)');
 
 // --- the customer's and the guest's orders (COMMERCE-PLAN delivery 7) --------------------------------
 $pdo->exec("UPDATE sales_order SET customer_id = {$confId} WHERE order_id = {$apiOrder}"); // as if conf@ had bought it logged in

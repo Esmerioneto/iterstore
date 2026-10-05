@@ -135,10 +135,20 @@ class Product extends AbstractDb
     /** @return int[] websites of the product */
     public function getWebsiteIds(int $productId): array
     {
-        $db = $this->getConnection();
+        return $this->getWebsiteIdsMany([$productId])[$productId] ?? [];
+    }
 
-        return array_map('intval', $db->fetchCol($db->select()->from('catalog_product_website', ['website_id'])
-            ->where('product_id = ?', $productId)->order('website_id')));
+    /** @return array<int, int[]> product id => its websites, for a list's page in one query */
+    public function getWebsiteIdsMany(array $productIds): array
+    {
+        $db = $this->getConnection();
+        $ids = [];
+        foreach ($productIds ? $db->fetchAll($db->select()->from('catalog_product_website', ['product_id', 'website_id'])
+            ->where('product_id IN (?)', array_map('intval', $productIds))->order(['product_id', 'website_id'])) : [] as $row) {
+            $ids[(int) $row['product_id']][] = (int) $row['website_id'];
+        }
+
+        return $ids;
     }
 
     /** @param int[] $websiteIds replaces the product's websites */

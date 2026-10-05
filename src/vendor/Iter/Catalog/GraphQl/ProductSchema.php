@@ -171,24 +171,37 @@ class ProductSchema
         ]);
         $variants = new VariantService();
         /**
-         * A list's page with what its items' resolvers read (DB-PLAN phase 5, no N+1), in a few queries for the
-         * whole page: each row gets 'attributes' (code => value); with $variants, '_variants' (rows with their
-         * 'attributes'); with $grids, each variant also gets the parent's grid in '_grid'. A product that comes
-         * alone (product(id), route) goes through it too.
+         * A list's page with what its items' resolvers read (DB-PLAN phase 5, no N+1), one query per part for the
+         * whole page. $parts:
+         * - values: 'attributes' (code => value);
+         * - variants: '_variants' (rows with their 'attributes'; implies values, for priceRange);
+         * - grids: '_grid' (the grid's attributes and options) on the row, '_parent_grid' on its variants;
+         * - websites: '_website_ids'; categories: '_category_ids'.
+         * A product that comes alone (product(id), route, the cart) goes through it too ($loaded).
          */
-        $preload = static function (array $rows, bool $withVariants = true, bool $grids = true) use ($variants): array {
-            if (!$rows) {
+        $preload = static function (array $rows, array $parts) use ($variants): array {
+            if (!$rows || !$parts) {
                 return $rows;
             }
+            $has = static fn (string $part): bool => in_array($part, $parts, true);
+            $resource = (new Product())->getResource();
             $ids = array_map('intval', array_column($rows, 'product_id'));
-            $children = $withVariants ? (new Product())->getResource()->getVariantRowsMany($ids) : [];
-            $values = (new ValueService())->loadMany(Product::ENTITY_TYPE, [...$ids, ...array_map('intval', array_column(array_merge([], ...array_values($children)), 'product_id'))]);
-            $gridOf = $grids && $children ? $variants->getAttributesMany(array_keys($children)) : [];
+            $children = $has('variants') ? $resource->getVariantRowsMany($ids) : [];
+            $values = $has('values') || $has('variants')
+                ? (new ValueService())->loadMany(Product::ENTITY_TYPE, [...$ids, ...array_map('intval', array_column(array_merge([], ...array_values($children)), 'product_id'))])
+                : null;
+            $grids = $has('grids') ? $variants->getAttributesMany($ids) : null;
+            $websites = $has('websites') ? $resource->getWebsiteIdsMany($ids) : null;
+            $categoryIds = $has('categories') ? (new Category())->getResource()->getProductsCategoryIds($ids) : null;
             foreach ($rows as &$row) {
                 $id = (int) $row['product_id'];
-                $row['attributes'] = $values[$id] ?? [];
-                if ($withVariants) {
-                    $row['_variants'] = array_map(static fn (array $v) => $v + ['attributes' => $values[(int) $v['product_id']] ?? []] + ($grids ? ['_grid' => $gridOf[$id] ?? []] : []), $children[$id] ?? []);
+                $values === null || $row['attributes'] = $values[$id] ?? [];
+                $grids === null || $row['_grid'] = $grids[$id] ?? [];
+                $websites === null || $row['_website_ids'] = $websites[$id] ?? [];
+                $categoryIds === null || $row['_category_ids'] = $categoryIds[$id] ?? [];
+                if ($has('variants')) {
+                    $row['_variants'] = array_map(static fn (array $v) => $v + ['attributes' => $values[(int) $v['product_id']] ?? []]
+                        + ($grids === null ? [] : ['_parent_grid' => $grids[$id] ?? []]), $children[$id] ?? []);
                 }
             }
 
@@ -197,14 +210,18 @@ class ProductSchema
         // what the list's items will read, from the query: no preload for a list of names
         $preloadFor = static function (array $rows, ResolveInfo $info) use ($preload): array {
             $fields = $info->getFieldSelection(3)['items'] ?? [];
-            $withVariants = isset($fields['priceRange']) || isset($fields['variants']);
+            $parts = array_keys(array_filter([
+                'values' => isset($fields['attributes']),
+                'variants' => isset($fields['priceRange']) || isset($fields['variants']) || isset($fields['variantAttributes']),
+                'grids' => isset($fields['variants']['variantOptions']) || isset($fields['variantAttributes']),
+                'websites' => isset($fields['websiteIds']),
+                'categories' => isset($fields['categories']),
+            ]));
 
-            return $withVariants || isset($fields['attributes'])
-                ? $preload($rows, $withVariants, isset($fields['variants']['variantOptions']))
-                : $rows;
+            return $preload($rows, $parts);
         };
-        // a row not from a list with variants (or read alone): loads what the list would have
-        $loaded = static fn (array $p): array => array_key_exists('_variants', $p) ? $p : $preload([$p], true, false)[0];
+        // a row not from a list that preloaded $key (or read alone): loads those $parts now
+        $loaded = static fn (array $p, string $key, array $parts): array => array_key_exists($key, $p) ? $p : $preload([$p], $parts)[0];
         $productType = new ObjectType([
             'name' => 'Product',
             // a closure: variants and parent are Products too, and $load is set below
@@ -215,22 +232,23 @@ class ProductSchema
                 'variantAttributes' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($variantAttributeType))),
                     'description' => 'Os atributos da grade (produto com grade).',
-                    'resolve' => static function ($p) use ($variants): array {
-                        $used = array_column($variants->getVariants((int) $p['product_id']), 'options');
-                        return array_map(static fn ($a) => ['options' => array_values(array_filter($a['options'], static fn ($o) => in_array($o['value'], array_column($used, $a['code']), true)))] + $a,
-                            $variants->getAttributes((int) $p['product_id']));
+                    'resolve' => static function ($p) use ($loaded): array {
+                        $p = $loaded($loaded($p, '_variants', ['variants']), '_grid', ['grids']);
+                        $used = array_column($p['_variants'], 'attributes'); // every variant, active or not
+                        return array_map(static fn ($a) => ['options' => array_values(array_filter($a['options'],
+                            static fn ($o) => in_array($o['value'], array_map('strval', array_column($used, $a['code'])), true)))] + $a, $p['_grid']);
                     },
                 ],
                 'variants' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($productType))),
                     'description' => 'As variações (produto com grade); fora do admin, só as ativas.',
-                    'resolve' => static fn ($p) => array_values(array_filter($loaded($p)['_variants'], static fn ($v) => $v['is_active'] || $isAdmin())),
+                    'resolve' => static fn ($p) => array_values(array_filter($loaded($p, '_variants', ['variants'])['_variants'], static fn ($v) => $v['is_active'] || $isAdmin())),
                 ],
                 'priceRange' => [
                     'type' => Type::nonNull($priceRangeType),
                     'description' => 'Para a vitrine: o preço do produto; num produto com grade, o menor e o maior das variações ativas ("a partir de" = min).',
                     'resolve' => static function ($p) use ($loaded): array {
-                        $p = $loaded($p);
+                        $p = $loaded($p, '_variants', ['variants']);
                         $prices = $p['type'] === 'configurable'
                             ? array_column(array_column(array_filter($p['_variants'], static fn ($v) => (bool) $v['is_active']), 'attributes'), 'price')
                             : (isset($p['attributes']['price']) ? [$p['attributes']['price']] : []);
@@ -249,7 +267,7 @@ class ProductSchema
                         // a variant from the parent's list has its values and grid preloaded
                         $values = array_key_exists('attributes', $p) ? $p['attributes'] : $service->getValues((int) $p['product_id']);
                         return array_map(static fn ($a) => ['code' => $a['code'], 'value' => (string) ($values[$a['code']] ?? ''), 'label' => array_column($a['options'], 'label', 'value')[$values[$a['code']] ?? ''] ?? ''],
-                            $p['_grid'] ?? $variants->getAttributes((int) $p['parent_id']));
+                            $p['_parent_grid'] ?? $variants->getAttributes((int) $p['parent_id']));
                     },
                 ],
                 'parent' => ['type' => $productType, 'description' => 'O produto com grade, numa variação.', 'resolve' => static fn ($p) => empty($p['parent_id']) ? null : $load((int) $p['parent_id'])],
@@ -285,12 +303,11 @@ class ProductSchema
                 ],
                 'websiteIds' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull(Type::id()))),
-                    'resolve' => static fn ($p) => array_map('strval', $service->getWebsiteIds((int) $p['product_id'])),
+                    'resolve' => static fn ($p) => array_map('strval', $loaded($p, '_website_ids', ['websites'])['_website_ids']),
                 ],
                 'categories' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($categoryType))),
-                    // ponytail: one query per product (N+1), capped by pageSize
-                    'resolve' => static fn ($p) => array_values(array_intersect_key($categories(), array_flip($service->getCategoryIds((int) $p['product_id'])))),
+                    'resolve' => static fn ($p) => array_values(array_intersect_key($categories(), array_flip($loaded($p, '_category_ids', ['categories'])['_category_ids']))),
                 ],
             ] + $productFields;
             },

@@ -30,6 +30,8 @@ $cases = [
     'products + attributes' => "{ products(pageSize: {$pageSize}) { items { sku attributes { code value } } } }",
     'products + priceRange + variantOptions' => "{ products(pageSize: {$pageSize}) { items { sku priceRange { min max } variants { variantOptions { label } } } } }",
     'products filtro de preço + aggregations' => "{ products(pageSize: {$pageSize}, priceFrom: 10, priceTo: 200) { total items { sku } aggregations { price { min max } attributes { code options { value count } } } } }",
+    'products + websiteIds + categories + variantAttributes' => "{ products(pageSize: {$pageSize}) { items { sku websiteIds categories { id } variantAttributes { code options { value } } } } }",
+    'orders (pedido completo)' => "{ orders(pageSize: {$pageSize}) { items { number items { sku } shippingAddress { city } history { status } shipment { carrier } } } }",
     'customers + attributes' => "{ customers(pageSize: {$pageSize}) { items { email attributes { code value } } } }",
 ];
 printf("%-40s %8s %10s %10s\n", 'consulta', 'itens', 'statements', 'ms (média)');
