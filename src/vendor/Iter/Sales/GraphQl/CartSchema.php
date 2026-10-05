@@ -8,6 +8,7 @@ use GraphQL\Error\Error;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
+use Iter\Admin\Auth;
 use Iter\Catalog\Model\Product;
 use Iter\Core\Config;
 use Iter\Core\RateLimit;
@@ -24,7 +25,7 @@ use Iter\Store\Model\Website;
  */
 class CartSchema
 {
-    /** @return array{query: array, mutation: array} */
+    /** @return array{query: array, mutation: array, types: array{order: ObjectType}} the Order type is reused by OrderSchema */
     public static function fields(ObjectType $productType): array
     {
         $service = new CartService();
@@ -168,6 +169,32 @@ class CartSchema
                 'paymentInstructions' => ['type' => Type::string(), 'description' => 'O que o cliente faz para pagar (a chave Pix, por exemplo), como era no pedido.', 'resolve' => fn ($o) => $o['payment_instructions']],
                 'shippingAddress' => ['type' => $addressType, 'resolve' => fn ($o) => $o['shipping_address']],
                 'billingAddress' => ['type' => $addressType, 'resolve' => fn ($o) => $o['billing_address']],
+                'websiteId' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($o) => $o['website_id']],
+                'customerId' => ['type' => Type::id(), 'description' => 'null = visitante.', 'resolve' => fn ($o) => $o['customer_id']],
+                'shipment' => ['type' => new ObjectType([
+                    'name' => 'OrderShipment',
+                    'fields' => [
+                        'carrier' => ['type' => Type::string(), 'resolve' => fn ($s) => $s['carrier']],
+                        'trackingCode' => ['type' => Type::string(), 'resolve' => fn ($s) => $s['tracking_code']],
+                        'createdAt' => ['type' => Type::nonNull(Type::string()), 'resolve' => fn ($s) => $s['created_at']],
+                        'sourceName' => ['type' => Type::string(), 'description' => 'De onde saiu (só para o admin com Iter_Sales::order).',
+                            'resolve' => fn ($s) => Auth::isAllowed('Iter_Sales::order') ? $s['source_name'] : null],
+                    ],
+                ]), 'description' => 'A entrega; null antes do envio.', 'resolve' => fn ($o) => $o['shipment']],
+                'history' => [
+                    'type' => Type::listOf(Type::nonNull(new ObjectType([
+                        'name' => 'OrderHistory',
+                        'fields' => [
+                            'status' => Type::nonNull(Type::string()),
+                            'comment' => Type::string(),
+                            'customerNotified' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => fn ($h) => (bool) $h['is_customer_notified']],
+                            'adminUsername' => ['type' => Type::string(), 'description' => 'Quem fez; null = o próprio pedido (placeOrder).', 'resolve' => fn ($h) => $h['admin_username']],
+                            'createdAt' => ['type' => Type::nonNull(Type::string()), 'resolve' => fn ($h) => $h['created_at']],
+                        ],
+                    ]))),
+                    'description' => 'Situações e comentários, o mais novo primeiro. Só para o admin com Iter_Sales::order; para os outros, null.',
+                    'resolve' => fn ($o) => Auth::isAllowed('Iter_Sales::order') ? $o['history'] : null,
+                ],
             ],
         ]);
         $mutate = static fn (callable $change) => static function ($root, array $args) use ($cart, $view, $change): array {
@@ -279,6 +306,7 @@ class CartSchema
                     'resolve' => $mutate(static fn (int $q, array $a) => $service->setAddress($q, 'billing', $addressArg($a), isset($a['customerAddressId']) ? (int) $a['customerAddressId'] : null)),
                 ],
             ],
+            'types' => ['order' => $orderType],
         ];
     }
 }

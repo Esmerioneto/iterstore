@@ -92,6 +92,49 @@ type Query {
     "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
     cartId: String
   ): Cart!
+  orders(
+    status: OrderStatus
+    websiteId: ID
+    customerId: ID
+
+    "Parte do número, do e-mail ou do nome."
+    search: String
+
+    "Feitos a partir deste dia (AAAA-MM-DD)."
+    from: String
+
+    "Até este dia, inclusive (AAAA-MM-DD)."
+    to: String
+
+    page: Int = 1
+
+    "Máximo 100."
+    pageSize: Int = 20
+
+    sort: OrderSort = CREATED_AT
+    sortDir: SortDirection = DESC
+  ): OrderList!
+
+  "Pelo id ou pelo número (SP-000001). null se não existir."
+  order(
+    id: ID
+    number: String
+
+    "Com number, quando dois websites usam o mesmo prefixo."
+    websiteId: ID
+  ): Order
+
+  "Quantos pedidos e quanto em cada situação, no período (todas as situações vêm, mesmo com 0)."
+  salesSummary(
+    websiteId: ID
+
+    "Feitos a partir deste dia (AAAA-MM-DD)."
+    from: String
+
+    "Até este dia, inclusive (AAAA-MM-DD)."
+    to: String
+  ): [SalesSummaryRow!]!
+
   shippingTableRates(
     "Omitido = website padrão."
     websiteId: ID
@@ -549,6 +592,136 @@ type CartAddressAttribute {
   values: [String!]
 }
 
+enum OrderStatus {
+  "Aguardando pagamento"
+  pending_payment
+
+  "Pagamento confirmado"
+  processing
+
+  "Enviado"
+  shipped
+
+  "Concluído"
+  complete
+
+  "Cancelado"
+  canceled
+}
+
+enum OrderSort {
+  CREATED_AT
+  NUMBER
+  CUSTOMER
+  TOTAL
+  STATUS
+}
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+type OrderList {
+  items: [Order!]!
+  total: Int!
+
+  "Soma dos pedidos filtrados, sem os cancelados."
+  amount: Float!
+}
+
+type Order {
+  id: ID!
+
+  "O número que o cliente vê (SP-000001)."
+  number: String!
+
+  "pending_payment, processing, shipped, complete ou canceled."
+  status: String!
+
+  statusLabel: String!
+  createdAt: String!
+  email: String!
+  firstname: String!
+  lastname: String!
+
+  "CPF ou CNPJ, só os dígitos."
+  taxvat: String!
+
+  items: [OrderItem!]!
+  subtotal: Float!
+  shippingAmount: Float!
+  total: Float!
+
+  "O code do frete escolhido."
+  shippingMethod: String
+
+  shippingLabel: String
+
+  "O prazo em dias úteis prometido no pedido."
+  shippingDays: Int
+
+  "O code do pagamento escolhido."
+  paymentMethod: String
+
+  paymentLabel: String
+
+  "O que o cliente faz para pagar (a chave Pix, por exemplo), como era no pedido."
+  paymentInstructions: String
+
+  shippingAddress: CartAddress
+  billingAddress: CartAddress
+  websiteId: ID!
+
+  "null = visitante."
+  customerId: ID
+
+  "A entrega; null antes do envio."
+  shipment: OrderShipment
+
+  "Situações e comentários, o mais novo primeiro. Só para o admin com Iter_Sales::order; para os outros, null."
+  history: [OrderHistory!]
+}
+
+type OrderItem {
+  sku: String!
+  name: String!
+
+  "A variação comprada (\"Cor: Preto, Tamanho: M\")."
+  options: String
+
+  quantity: Float!
+  price: Float!
+  rowTotal: Float!
+}
+
+type OrderShipment {
+  carrier: String
+  trackingCode: String
+  createdAt: String!
+
+  "De onde saiu (só para o admin com Iter_Sales::order)."
+  sourceName: String
+}
+
+type OrderHistory {
+  status: String!
+  comment: String
+  customerNotified: Boolean!
+
+  "Quem fez; null = o próprio pedido (placeOrder)."
+  adminUsername: String
+
+  createdAt: String!
+}
+
+type SalesSummaryRow {
+  status: OrderStatus!
+  statusLabel: String!
+  count: Int!
+  amount: Float!
+}
+
 type ShippingTableRate {
   postcodeFrom: String!
   postcodeTo: String!
@@ -910,6 +1083,40 @@ type Mutation {
     customerAddressId: ID
   ): Cart!
 
+  "Aguardando pagamento → Pagamento confirmado. Avisa o cliente. Exige Iter_Sales::order_payment."
+  confirmOrderPayment(
+    id: ID!
+
+    "Ex.: comprovante recebido pelo WhatsApp."
+    comment: String
+  ): Order!
+
+  "Pagamento confirmado → Enviado: baixa o estoque da origem e manda o rastreio ao cliente. Exige Iter_Sales::order_ship."
+  shipOrder(
+    id: ID!
+
+    "A origem de onde sai. Omitida = a sugerida (a que tem tudo e mais estoque)."
+    sourceCode: String
+
+    carrier: String
+    trackingCode: String
+  ): Order!
+
+  "Enviado → Concluído (o cliente recebeu). Exige Iter_Sales::order_ship."
+  completeOrder(id: ID!): Order!
+
+  "Antes do envio: devolve a reserva e avisa o cliente com o motivo. Exige Iter_Sales::order_cancel."
+  cancelOrder(id: ID!, reason: String!): Order!
+
+  "Comentário no histórico, em qualquer situação."
+  addOrderComment(
+    id: ID!
+    comment: String!
+
+    "Manda o comentário ao cliente por e-mail."
+    notifyCustomer: Boolean = false
+  ): Order!
+
   "A lista enviada é a tabela inteira do website (faixa ausente é removida). CEP com ou sem máscara. Para um CEP, vale a faixa com o menor \"peso até\" que comporte o carrinho."
   saveShippingTableRates(
     "Omitido = website padrão."
@@ -1025,61 +1232,6 @@ input CartAddressAttributeInput {
   code: String!
   value: String
   values: [String!]
-}
-
-type Order {
-  id: ID!
-
-  "O número que o cliente vê (SP-000001)."
-  number: String!
-
-  "pending_payment, processing, shipped, complete ou canceled."
-  status: String!
-
-  statusLabel: String!
-  createdAt: String!
-  email: String!
-  firstname: String!
-  lastname: String!
-
-  "CPF ou CNPJ, só os dígitos."
-  taxvat: String!
-
-  items: [OrderItem!]!
-  subtotal: Float!
-  shippingAmount: Float!
-  total: Float!
-
-  "O code do frete escolhido."
-  shippingMethod: String
-
-  shippingLabel: String
-
-  "O prazo em dias úteis prometido no pedido."
-  shippingDays: Int
-
-  "O code do pagamento escolhido."
-  paymentMethod: String
-
-  paymentLabel: String
-
-  "O que o cliente faz para pagar (a chave Pix, por exemplo), como era no pedido."
-  paymentInstructions: String
-
-  shippingAddress: CartAddress
-  billingAddress: CartAddress
-}
-
-type OrderItem {
-  sku: String!
-  name: String!
-
-  "A variação comprada (\"Cor: Preto, Tamanho: M\")."
-  options: String
-
-  quantity: Float!
-  price: Float!
-  rowTotal: Float!
 }
 
 input ShippingTableRateInput {
