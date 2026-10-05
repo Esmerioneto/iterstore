@@ -160,7 +160,8 @@ abstract class AbstractCollection implements \IteratorAggregate, \Countable
         return count($this->getData());
     }
 
-    private function condition(string|Expr $field, mixed $condition): string
+    /** the SQL of one addFieldToFilter() condition on $field */
+    protected function condition(string|Expr $field, mixed $condition): string
     {
         $sql = $this->field($field, true);
         if (!is_array($condition)) {

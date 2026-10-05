@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Iter\Eav\Model\ResourceModel;
 
+use Iter\Core\Db\Adapter;
+
 use Iter\Core\Db\Expr;
 use Iter\Core\Model\ResourceModel\AbstractDb;
 use Iter\Eav\Model\ResourceModel\Attribute\Collection;
@@ -41,12 +43,13 @@ class Attribute extends AbstractDb
         return ['items' => $collection->getData(), 'total' => $collection->getSize()];
     }
 
-    /** @return array<string, array{entity_type_id: int, label: string}> code => row */
+    /** @return array<string, array{entity_type_id: int, label: string}> code => row; read once per process (types come only from migrations) */
     public function getEntityTypes(): array
     {
+        static $types = null;
         $db = $this->getConnection();
 
-        return array_column($db->fetchAll($db->select()->from('eav_entity_type', ['code', 'entity_type_id', 'label'])->order('label')), null, 'code');
+        return $types ??= array_column($db->fetchAll($db->select()->from('eav_entity_type', ['code', 'entity_type_id', 'label'])->order('label')), null, 'code');
     }
 
     /** @return array<int, array{value: string, label: string, sort_order: int, is_default: int}> */
@@ -86,17 +89,35 @@ class Attribute extends AbstractDb
     /** @return array<int, array{code: string, storage_type: string, input_type: string, value: string}> raw values, as text */
     public function getValues(int $entityTypeId, int $entityId): array
     {
+        return $this->getValuesMany($entityTypeId, [$entityId]);
+    }
+
+    /**
+     * The values of many entities in one query (a list's page)
+     *
+     * @param int[] $entityIds
+     * @param ?string[] $codes only these attributes; null = every one
+     * @return array<int, array{entity_id: int, code: string, storage_type: string, input_type: string, value: string}> raw values, as text
+     */
+    public function getValuesMany(int $entityTypeId, array $entityIds, ?array $codes = null): array
+    {
+        if (!$entityIds || $codes === []) {
+            return [];
+        }
         // ponytail: UNION over the value tables stays SQL, Select has no UNION
         $union = implode(' UNION ALL ', array_map(
             static fn ($storage) => "SELECT attribute_id, entity_id, value::text FROM eav_value_{$storage}",
             InputTypeRegistry::STORAGE_TYPES
         ));
+        $bind = ['entity_type_id' => $entityTypeId];
+        $ids = Adapter::bindInto('?', array_map('intval', $entityIds), $bind);
+        $only = $codes === null ? '' : ' AND a.code IN (' . Adapter::bindInto('?', array_map('strval', $codes), $bind) . ')';
 
         return $this->getConnection()->fetchAll(
-            "SELECT a.code, a.storage_type, a.input_type, v.value FROM ({$union}) v
+            "SELECT v.entity_id, a.code, a.storage_type, a.input_type, v.value FROM ({$union}) v
              JOIN eav_attribute a ON a.attribute_id = v.attribute_id
-             WHERE a.entity_type_id = :entity_type_id AND v.entity_id = :entity_id",
-            ['entity_type_id' => $entityTypeId, 'entity_id' => $entityId]
+             WHERE a.entity_type_id = :entity_type_id AND v.entity_id IN ({$ids}){$only}",
+            $bind
         );
     }
 
