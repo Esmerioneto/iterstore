@@ -137,3 +137,62 @@ $items = $page->getItems();
 assertSame([2, 1, Iter\Eav\Model\Attribute::class, 'price'], [$page->getSize(), count($page), $items[0]::class, $items[0]->getData('code')], 'Collection: página, getSize ignora a página, getItems devolve models');
 assertSame(0, (new Iter\Eav\Model\ResourceModel\Attribute\Collection())->addFieldToFilter('code', ['in' => []])->getSize(), 'Collection: in com lista vazia não devolve nada');
 assertThrows(fn () => (new Iter\Eav\Model\ResourceModel\Attribute\Collection())->addFieldToFilter('code', ['regex' => 'x']), 'Collection: condição desconhecida é recusada');
+
+// --- EAV collection (DB-PLAN phase 5) --------------------------------------------
+// its own products and attributes in a transaction undone at the end: nothing to clean up
+$db->beginTransaction();
+$productType = (int) $db->fetchOne("SELECT entity_type_id FROM eav_entity_type WHERE code = 'product'");
+$attr = static fn (string $code, string $input, string $storage) => (int) $db->insert('eav_attribute', ['entity_type_id' => $productType, 'code' => $code,
+    'label' => 'Dbselftest ' . $code, 'input_type' => $input, 'storage_type' => $storage])['attribute_id'];
+[$cor, $tags, $peso] = [$attr('dbst_cor', 'text', 'varchar'), $attr('dbst_tags', 'multiselect', 'text'), $attr('dbst_peso', 'number', 'decimal')];
+$set = (int) $db->fetchOne('SELECT attribute_set_id FROM eav_attribute_set WHERE entity_type_id = ? ORDER BY attribute_set_id LIMIT 1', [$productType]);
+$ids = [];
+foreach (['a' => ['azul', '["x","y"]', '1.5000'], 'b' => ['verde', '["y"]', '3.0000'], 'c' => [null, null, '2.2500'], 'd' => [null, null, null]] as $sku => [$c, $t, $p]) {
+    $id = $ids[$sku] = (int) $db->insert('catalog_product', ['attribute_set_id' => $set, 'sku' => 'dbselftest-' . $sku, 'name' => 'Dbst ' . $sku])['product_id'];
+    $c === null || $db->insert('eav_value_varchar', ['attribute_id' => $cor, 'entity_id' => $id, 'value' => $c]);
+    $t === null || $db->insert('eav_value_text', ['attribute_id' => $tags, 'entity_id' => $id, 'value' => $t]);
+    $p === null || $db->insert('eav_value_decimal', ['attribute_id' => $peso, 'entity_id' => $id, 'value' => $p]);
+}
+$entities = static fn () => (new class extends Iter\Eav\Model\ResourceModel\AbstractEntityCollection {
+    protected function _construct(): void
+    {
+        $this->init(Iter\Catalog\Model\Product::class, Iter\Catalog\Model\ResourceModel\Product::class);
+    }
+
+    protected function entityType(): string
+    {
+        return 'product';
+    }
+})->addFieldToFilter('sku', ['like' => 'dbselftest-%']);
+$skus = static fn ($c) => array_map(static fn ($r) => substr($r['sku'], -1), $c->getData());
+
+$selected = $entities()->addAttributeToSelect(['dbst_cor', 'dbst_tags'])->addAttributeToSelect('dbst_peso')->setOrder('sku', 'ASC');
+(new Iter\Eav\Model\Attribute())->getResource()->getEntityTypes(); // read once per process
+Iter\Core\Db\Adapter::$queryCount = 0;
+$rows = $selected->getData();
+assertSame([['dbst_cor' => 'azul', 'dbst_tags' => ['x', 'y'], 'dbst_peso' => '1.5'], [], 2], [$rows[0]['attributes'], $rows[3]['attributes'], Iter\Core\Db\Adapter::$queryCount],
+    'EAV: addAttributeToSelect traz os valores da página numa consulta só, convertidos como no load()');
+assertSame(['dbst_peso' => '3'], $entities()->addAttributeToSelect('dbst_peso')->addFieldToFilter('sku', 'dbselftest-b')->getData()[0]['attributes'], 'EAV: só os atributos pedidos');
+assertSame(true, isset($entities()->addAttributeToSelect('*')->setOrder('sku', 'ASC')->getData()[0]['attributes']['dbst_tags']), "EAV: '*' traz todos");
+assertSame(false, array_key_exists('attributes', $entities()->getData()[0]), 'EAV: sem addAttributeToSelect, a linha não ganha attributes');
+assertSame([
+    ['b', 'c'], ['a'], ['c', 'd'], ['a', 'b', 'c'], ['a', 'b'], ['b'], ['b'], ['a', 'b'],
+], [
+    $skus($entities()->addAttributeToFilter('dbst_peso', ['gt' => 2])->setOrder('sku', 'ASC')),
+    $skus($entities()->addAttributeToFilter('dbst_cor', 'azul')),
+    $skus($entities()->addAttributeToFilter('dbst_cor', ['null' => true])->setOrder('sku', 'ASC')),
+    $skus($entities()->addAttributeToFilter('dbst_peso', ['notnull' => true])->setOrder('sku', 'ASC')),
+    $skus($entities()->addAttributeToFilter('dbst_cor', ['in' => ['azul', 'verde']])->setOrder('sku', 'ASC')),
+    $skus($entities()->addAttributeToFilter('dbst_cor', ['neq' => 'azul'])),
+    $skus($entities()->addAttributeToFilter('dbst_peso', ['gteq' => 2])->addAttributeToFilter('dbst_cor', ['like' => 'ver%'])),
+    $skus($entities()->addAttributeToFilter('dbst_tags', ['in' => ['y', 'z']])->setOrder('sku', 'ASC')),
+], 'EAV: addAttributeToFilter (gt, valor, null, notnull, in, neq sem os vazios, várias em AND, lista "tem um de")');
+assertSame([['a', 'c', 'b', 'd'], ['b', 'c', 'a', 'd'], ['a', 'b', 'c', 'd']], [
+    $skus($entities()->addAttributeToSort('dbst_peso')),
+    $skus($entities()->addAttributeToSort('dbst_peso', 'DESC')),
+    $skus($entities()->addAttributeToSort('dbst_cor')->addAttributeToSort('dbst_peso', 'DESC')), // c and d have no color: the weight decides
+], 'EAV: addAttributeToSort nos dois sentidos e por duas chaves; sem valor fica por último');
+assertThrows(fn () => $entities()->addAttributeToFilter('dbst_nada', 1), 'EAV: atributo desconhecido é recusado');
+assertSame(['dbst_cor' => 'verde', 'dbst_tags' => ['y'], 'dbst_peso' => '3'], array_intersect_key((new Iter\Eav\Model\ValueService())->load('product', $ids['b']), array_flip(['dbst_cor', 'dbst_tags', 'dbst_peso'])),
+    'EAV: load() de um item continua igual (agora via loadMany)');
+$db->rollBack();

@@ -44,6 +44,11 @@ abstract class AbstractDb
         return $this->mainTable;
     }
 
+    public function getIdFieldName(): string
+    {
+        return $this->idFieldName;
+    }
+
     public function getConnection(): Adapter
     {
         return Connection::get()->adapter();

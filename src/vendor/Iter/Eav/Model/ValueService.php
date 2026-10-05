@@ -70,20 +70,38 @@ class ValueService
     /** @return array<string, string|int|bool|array> code => value (multiple types give arrays) */
     public function load(string $entityType, int $entityId): array
     {
-        $resource = (new Attribute())->getResource();
+        return $this->loadMany($entityType, [$entityId])[$entityId] ?? [];
+    }
+
+    /**
+     * load() for a list's page: one query for every entity.
+     *
+     * @param int[] $entityIds
+     * @param ?string[] $codes only these attributes; null = all
+     * @return array<int, array<string, string|int|bool|array>> entity id => code => value (entities without values are left out)
+     */
+    public function loadMany(string $entityType, array $entityIds, ?array $codes = null): array
+    {
         $values = [];
-        foreach ($resource->getValues($this->entityTypeId($entityType), $entityId) as $row) {
-            $value = $row['value'];
-            $values[$row['code']] = match (true) {
-                $this->type($row)['multiple'] => json_decode($value, true) ?? [],
-                $row['storage_type'] === 'int' => (int) $value,
-                $row['storage_type'] === 'boolean' => $value === '1',
-                $row['storage_type'] === 'decimal' => rtrim(rtrim($value, '0'), '.'),
-                default => $value,
-            };
+        foreach ((new Attribute())->getResource()->getValuesMany($this->entityTypeId($entityType), $entityIds, $codes) as $row) {
+            $values[(int) $row['entity_id']][$row['code']] = $this->cast($row);
         }
 
         return $values;
+    }
+
+    /** a stored value (text) as the code uses it: lists, integers, Sim/Não, decimals without trailing zeros */
+    private function cast(array $row): string|int|bool|array
+    {
+        $value = $row['value'];
+
+        return match (true) {
+            $this->type($row)['multiple'] => json_decode($value, true) ?? [],
+            $row['storage_type'] === 'int' => (int) $value,
+            $row['storage_type'] === 'boolean' => $value === '1',
+            $row['storage_type'] === 'decimal' => rtrim(rtrim($value, '0'), '.'),
+            default => $value,
+        };
     }
 
     /** @param array<string, mixed> $values code => value */
