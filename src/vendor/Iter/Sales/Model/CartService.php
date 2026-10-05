@@ -256,7 +256,7 @@ class CartService
         $id = $find();
         if ($id === false) {
             // a concurrent first request creates it too; the partial unique index keeps one
-            $db->prepare('INSERT INTO sales_quote (customer_id, website_id) VALUES (?, ?) ON CONFLICT DO NOTHING')->execute([(int) $customer->getId(), (int) $customer->getData('website_id')]);
+            $db->insertOnConflict('sales_quote', ['customer_id' => (int) $customer->getId(), 'website_id' => (int) $customer->getData('website_id')], []);
             $id = $find();
         }
 

@@ -75,7 +75,7 @@ assertThrows(fn () => $db->select()->from('t')->order('a; DROP TABLE x'), 'orden
 assertThrows(fn () => $db->select()->from('t', ['a b']), 'coluna com espaço é recusada');
 
 // --- Adapter no banco (tabela temporária) ------------------------------------------
-$db->exec('CREATE TEMP TABLE selftest_db (id SERIAL PRIMARY KEY, code VARCHAR(20) UNIQUE, qty INT NOT NULL DEFAULT 0, note TEXT, updated_at TIMESTAMP)');
+Connection::get()->connect()->exec('CREATE TEMP TABLE selftest_db (id SERIAL PRIMARY KEY, code VARCHAR(20) UNIQUE, qty INT NOT NULL DEFAULT 0, note TEXT, updated_at TIMESTAMP)');
 $row = $db->insert('selftest_db', ['code' => 'a', 'qty' => 1]);
 assertSame(['id' => $row['id'], 'code' => 'a', 'qty' => 1, 'note' => null], array_diff_key($row, ['updated_at' => 0]), 'insert devolve a linha gravada (RETURNING *)');
 assertSame(2, $db->insertMultiple('selftest_db', [['code' => 'b', 'qty' => 2], ['code' => 'c', 'qty' => 3]]), 'insertMultiple grava várias linhas numa consulta');
@@ -109,10 +109,27 @@ assertThrows(static fn () => $db->transaction(static function ($db): void {
     }
 }), 'transação interna desfeita impede o commit da de fora');
 assertSame([4, false], [$count(), $db->inTransaction()], 'e a de fora é desfeita inteira');
+assertSame([false, false, false], [method_exists($db, 'prepare'), method_exists($db, 'query'), method_exists($db, 'exec')], 'o Adapter não repassa SQL solto (DB-PLAN fase 6)');
 $db->beginTransaction();
-$db->prepare("INSERT INTO selftest_db (code) VALUES ('h')")->execute();
+$inserted = [$db->insertOnConflict('selftest_db', ['code' => 'a'], []), $db->insertOnConflict('selftest_db', ['code' => 'h'], [])];
 $db->rollBack();
-assertSame(4, $count(), 'prepare() continua funcionando e respeita a transação do Adapter');
+assertSame([[0, 1], 4], [$inserted, $count()], 'insertOnConflict sem colunas: DO NOTHING em qualquer chave única (a existente fica, a nova entra)');
+
+// --- no loose SQL outside Core/Db and the migrations (DB-PLAN phase 6) ----------
+// queries go through the Adapter (select, insert, update, delete, fetch*); a migration gets its own PDO
+$loose = [];
+foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator(SRC, FilesystemIterator::SKIP_DOTS)) as $file) {
+    $path = str_replace('\\', '/', $file->getPathname());
+    if ($file->getExtension() !== 'php' || str_contains($path, '/Setup/') || str_contains($path, '/Core/Db/')) {
+        continue;
+    }
+    foreach (file($path) as $n => $line) {
+        if (preg_match('/->(prepare|query|exec)\(|->connect\(\)/', $line)) {
+            $loose[] = substr($path, strlen(SRC)) . ':' . ($n + 1);
+        }
+    }
+}
+assertSame([], $loose, 'nenhum prepare/query/exec/connect() fora de Core/Db e das migrações');
 
 // --- Collection ------------------------------------------------------------------
 $attributes = (new Iter\Eav\Model\ResourceModel\Attribute\Collection())
