@@ -1719,7 +1719,7 @@ assertSame([['Cliente removido com sucesso.'], false, [], [], 0], [$msgs, $custR
 $toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];
 $configPage = $admin->request('/admin/config/index')['body'];
 assertSame([true, true, true, true], [
-    (bool) preg_match('/name="module" value="iter_shipping">\s*<input type="hidden" name="enabled" value="0">/', $configPage),
+    (bool) preg_match('/name="module" value="iter_payment">\s*<input type="hidden" name="enabled" value="0">/', $configPage),
     str_contains($configPage, 'Essencial'),
     str_contains($configPage, 'Usado por Catalog'),
     str_contains($configPage, 'Usado por Inventory'),
@@ -1727,7 +1727,9 @@ assertSame([true, true, true, true], [
 assertSame(['O módulo Core é essencial e não pode ser desativado.'], $toggle('iter_core', 0), 'módulo essencial não é desativado');
 assertSame(['Desative antes os módulos que dependem de Eav: Catalog, Customer.'], $toggle('iter_eav', 0), 'módulo com dependentes ativos não é desativado');
 assertSame(['Desative antes os módulos que dependem de Catalog: Inventory, Sales.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com Inventory e Sales ativos');
-assertSame(['Desative antes os módulos que dependem de Sales: Shipping.'], $toggle('iter_sales', 0), 'Sales não é desativado com o Shipping ativo');
+assertSame(['Desative antes os módulos que dependem de Sales: Shipping, Payment.'], $toggle('iter_sales', 0), 'Sales não é desativado com Shipping e Payment ativos');
+assertSame(['Módulo Payment desativado. Os dados dele continuam no banco.'], $toggle('iter_payment', 0), 'Payment desativado pelo admin');
+assertSame(true, str_starts_with($gql($admin, '{ cart { paymentMethod { code } } }')['errors'][0]['message'] ?? '', 'Cannot query field "paymentMethod" on type "Cart".'), 'Payment desativado: sem pagamento no carrinho');
 assertSame(['Módulo Shipping desativado. Os dados dele continuam no banco.'], $toggle('iter_shipping', 0), 'Shipping desativado pelo admin');
 assertSame([true, true], [
     str_starts_with($gql($admin, '{ cart { shippingMethod { code } } }')['errors'][0]['message'] ?? '', 'Cannot query field "shippingMethod" on type "Cart".'),
@@ -1760,6 +1762,7 @@ $toggle('iter_inventory', 1);
 $toggle('iter_customer', 1);
 $toggle('iter_sales', 1);
 $toggle('iter_shipping', 1);
+$toggle('iter_payment', 1);
 assertSame('7', (new StockService())->getSalable([$estId])[$estId], 'Inventory reativado: o estoque continua lá');
 assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
 assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Configurações não chega aos módulos');
@@ -2030,6 +2033,27 @@ assertSame([null, 0.0, (float) ($far['subtotal'] ?? -1), 'Nenhum frete atende o 
     $far['shippingMethod'] ?? null, (float) ($far['shippingAmount'] ?? -1), (float) ($far['total'] ?? 0),
     $ship("setCartShippingMethod(cartId: {$sc}, code: \"tablerate\")")['errors'][0]['message'] ?? null,
 ], 'frete: endereço fora das faixas tira o frete escolhido e o total volta ao subtotal; sem nenhuma opção, a mensagem diz isso');
+
+// --- payment (COMMERCE-PLAN delivery 4) --------------------------------------------------------------
+$payFields = '{ availablePaymentMethods { code label instructions } paymentMethod { code } }';
+$pay = static fn (string $call) => $api("mutation { {$call} {$payFields} }")[1];
+$setConfig(['payment/pix/active' => '1', 'payment/pix/key' => '', 'payment/pix/instructions' => 'Envie o comprovante.', 'payment/offline/active' => '0']);
+assertSame([[], 'PAYMENT_METHOD_UNAVAILABLE', 'Nenhuma forma de pagamento está ativa nesta loja.'], [
+    $api("{ cart(cartId: {$sc}) {$payFields} }")[1]['data']['cart']['availablePaymentMethods'] ?? null,
+    $gqlCode([0, $pay("setCartPaymentMethod(cartId: {$sc}, code: \"pix\")")]),
+    $pay("setCartPaymentMethod(cartId: {$sc}, code: \"pix\")")['errors'][0]['message'] ?? null,
+], 'pagamento: Pix ligado sem chave não é oferecido');
+$setConfig(['payment/pix/key' => 'pix@selftest.local', 'payment/offline/active' => '1', 'payment/offline/label' => 'Pagar na retirada', 'payment/offline/instructions' => '']);
+$chosenPay = $pay("setCartPaymentMethod(cartId: {$sc}, code: \"pix\")")['data']['setCartPaymentMethod'] ?? [];
+assertSame([[['pix', 'Pix', "Chave Pix: pix@selftest.local\nEnvie o comprovante."], ['offline', 'Pagar na retirada', null]], 'pix', 'PAYMENT_METHOD_UNAVAILABLE'], [
+    array_map(static fn ($m) => array_values($m), $chosenPay['availablePaymentMethods'] ?? []),
+    $chosenPay['paymentMethod']['code'] ?? null,
+    $gqlCode([0, $pay("setCartPaymentMethod(cartId: {$sc}, code: \"boleto\")")]),
+], 'pagamento: Pix com a chave e as instruções, "combinar" com o nome da loja; código fora das opções é recusado');
+$setConfig(['payment/pix/active' => '0']);
+assertSame(null, $api("{ cart(cartId: {$sc}) {$payFields} }")[1]['data']['cart']['paymentMethod'] ?? null, 'pagamento: forma desligada depois de escolhida sai do carrinho');
+$settings = $admin->request('/admin/config/index')['body'];
+assertSame([true, true, true], [str_contains($settings, 'payment/pix/key'), str_contains($settings, 'shipping/tablerate/active'), str_contains($settings, 'sales/quote/guest_days')], 'Configurações mostra os grupos Vendas, Frete e Pagamento');
 
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");

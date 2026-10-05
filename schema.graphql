@@ -455,6 +455,11 @@ type Cart {
   shippingMethod: ShippingMethod
 
   shippingAmount: Float!
+  availablePaymentMethods: [PaymentMethod!]!
+
+  "O escolhido; null se nenhum ou se foi desligado."
+  paymentMethod: PaymentMethod
+
   websiteId: ID!
   isGuest: Boolean!
   email: String
@@ -491,6 +496,16 @@ type ShippingMethod {
 
   "Prazo em dias úteis."
   days: Int!
+}
+
+type PaymentMethod {
+  "pix ou offline."
+  code: String!
+
+  label: String!
+
+  "O que o cliente faz para pagar (a chave Pix, por exemplo). Também vai no pedido."
+  instructions: String
 }
 
 type CartItem {
@@ -866,6 +881,14 @@ type Mutation {
 
   "Um code de availableShippingMethods."
   setCartShippingMethod(
+    "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
+    cartId: String
+
+    code: String!
+  ): Cart!
+
+  "Um code de availablePaymentMethods."
+  setCartPaymentMethod(
     "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
     cartId: String
 

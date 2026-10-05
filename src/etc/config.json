@@ -11,7 +11,8 @@
         "iter_inventory": "1",
         "iter_customer": "1",
         "iter_sales": "1",
-        "iter_shipping": "1"
+        "iter_shipping": "1",
+        "iter_payment": "1"
     },
     "customized": {
         "egsn_user": "1"
