@@ -1748,7 +1748,8 @@ assertSame([true, true, true, true], [
 assertSame(['O módulo Core é essencial e não pode ser desativado.'], $toggle('iter_core', 0), 'módulo essencial não é desativado');
 assertSame(['Desative antes os módulos que dependem de Eav: Catalog, Customer.'], $toggle('iter_eav', 0), 'módulo com dependentes ativos não é desativado');
 assertSame(['Desative antes os módulos que dependem de Catalog: Inventory, Sales.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com Inventory e Sales ativos');
-assertSame(['Desative antes os módulos que dependem de Sales: Shipping, Payment.'], $toggle('iter_sales', 0), 'Sales não é desativado com Shipping e Payment ativos');
+assertSame(['Desative antes os módulos que dependem de Sales: Shipping, Payment, Adminsales.'], $toggle('iter_sales', 0), 'Sales não é desativado com Shipping, Payment e Adminsales ativos');
+assertSame(['Módulo Adminsales desativado. Os dados dele continuam no banco.'], $toggle('iter_adminsales', 0), 'Adminsales desativado pelo admin');
 assertSame(['Módulo Payment desativado. Os dados dele continuam no banco.'], $toggle('iter_payment', 0), 'Payment desativado pelo admin');
 assertSame(true, str_starts_with($gql($admin, '{ cart { paymentMethod { code } } }')['errors'][0]['message'] ?? '', 'Cannot query field "paymentMethod" on type "Cart".'), 'Payment desativado: sem pagamento no carrinho');
 assertSame(['Módulo Shipping desativado. Os dados dele continuam no banco.'], $toggle('iter_shipping', 0), 'Shipping desativado pelo admin');
@@ -1784,6 +1785,7 @@ $toggle('iter_customer', 1);
 $toggle('iter_sales', 1);
 $toggle('iter_shipping', 1);
 $toggle('iter_payment', 1);
+$toggle('iter_adminsales', 1);
 assertSame('7', (new StockService())->getSalable([$estId])[$estId], 'Inventory reativado: o estoque continua lá');
 assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
 assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Configurações não chega aos módulos');
@@ -2001,12 +2003,8 @@ assertSame([true, 'CART_NOT_FOUND', false], [
 ], 'limpeza: carrinho de visitante sem uso há mais de 30 dias é apagado; o do cliente fica');
 
 // --- shipping (COMMERCE-PLAN delivery 3) ------------------------------------------------------------
-$setConfig = static function (array $values) use ($pdo): void {
-    $stmt = $pdo->prepare("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, ?, ?) ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = EXCLUDED.value");
-    foreach ($values as $path => $value) {
-        $stmt->execute([$path, $value]);
-    }
-};
+// Config::save(): the default scope, and this process's Config cache is reset (the services called here read it too)
+$setConfig = static fn (array $values) => Config::save(array_map('strval', $values));
 $setConfig(['shipping/tablerate/active' => '1', 'shipping/tablerate/label' => 'Transportadora', 'shipping/freeshipping/active' => '1', 'shipping/freeshipping/min_subtotal' => '100',
     'shipping/freeshipping/days' => '9', 'shipping/pickup/active' => '1', 'shipping/pickup/days' => '1']);
 $ratesGql = 'mutation ($r: [ShippingTableRateInput!]!) { saveShippingTableRates(rates: $r) { postcodeFrom postcodeTo weightTo price days } }';
@@ -2292,6 +2290,54 @@ assertSame([true, false, 'canceled', 'pending_payment', '1', 'Pagamento não rec
     $pdo->query("SELECT h.comment FROM sales_order_status_history h JOIN sales_order o USING (order_id) WHERE o.increment_id = '{$pixUnpaid}' ORDER BY h.history_id DESC LIMIT 1")->fetchColumn(),
     (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_canceled' AND to_email = 'nao-pago@selftest.local'")->fetchColumn(),
 ], 'cron de não pagos: o Pix passou de 1 hora e é cancelado (reserva devolvida, motivo no histórico, cliente avisado); "combinar" com 0 horas fica');
+
+// --- orders created by the admin (ADMINSALES-PLAN delivery 1) ----------------------------------------
+$stock->save($v0, ['selftest_var_cd' => ['quantity' => '10']]);
+$adminCarts = new Iter\Adminsales\Model\AdminCartService();
+$cartService = new Iter\Sales\Model\CartService();
+$confWebsite = (int) $pdo->query("SELECT website_id FROM customer_flat WHERE customer_id = {$confId}")->fetchColumn();
+$confStoreCart = $cartService->resolve(null, (new Iter\Customer\Model\Customer())->load($confId));
+$adminCartId = $adminCarts->create($confWebsite, $confId, $adminId);
+$adminQuote = $adminCarts->resolve($adminCartId);
+$address = ['postcode' => '01310-100', 'street' => 'Av Paulista', 'number' => '1000', 'district' => 'Bela Vista', 'city' => 'São Paulo', 'region' => 'SP'];
+$fill = static function (int $quote) use ($cartService, $v0Sku, $address): void {
+    $cartService->addItem($quote, $v0Sku, 2);
+    $cartService->setAddress($quote, 'shipping', $address);
+    $cartService->setShippingMethod($quote, $cartService->view($quote)['shipping_methods'][0]['code'] ?? 'nenhum'); // whatever the website offers
+    $cartService->setPaymentMethod($quote, $cartService->view($quote)['payment_methods'][0]['code'] ?? 'nenhum');
+};
+$fill($adminQuote);
+assertSame(['CART_NOT_FOUND', $confStoreCart, 'CUSTOMER_NOT_FOUND', 'conf@selftest.local'], [
+    $gqlCode($api('{ cart(cartId: "' . $adminCartId . '") { total } }')),
+    $cartService->resolve(null, (new Iter\Customer\Model\Customer())->load($confId)),
+    (static function () use ($adminCarts, $confWebsite, $adminId) { try { $adminCarts->create($confWebsite, 999999, $adminId); } catch (Iter\Sales\Model\SalesException $e) { return $e->errorCode; } })(),
+    $cartService->view($adminQuote)['email'],
+], 'pedido do admin: carrinho próprio, que a loja não enxerga e não troca o carrinho do cliente; cliente de outro website é recusado; os dados vêm da conta');
+$adminOrder = $adminCarts->place($adminQuote, $adminId, paymentReceived: true, notify: false, comment: 'Venda por telefone');
+$adminHistory = $pdo->query("SELECT status, comment, admin_user_id, is_customer_notified FROM sales_order_status_history WHERE order_id = {$adminOrder} ORDER BY history_id")->fetchAll(PDO::FETCH_NUM);
+assertSame(['processing', $adminId, $confId, [['pending_payment', 'Pedido criado no painel.', $adminId, 0], ['pending_payment', 'Venda por telefone', $adminId, 0], ['processing', 'Pagamento recebido no atendimento.', $adminId, 0]], 0, $adminOrder], [
+    $pdo->query("SELECT status FROM sales_order WHERE order_id = {$adminOrder}")->fetchColumn(),
+    (int) $pdo->query("SELECT admin_user_id FROM sales_order WHERE order_id = {$adminOrder}")->fetchColumn(),
+    (int) $pdo->query("SELECT customer_id FROM sales_order WHERE order_id = {$adminOrder}")->fetchColumn(),
+    $adminHistory,
+    (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code IN ('sales_order_placed', 'sales_order_processing') AND to_email = 'conf@selftest.local'")->fetchColumn(),
+    $adminCarts->place($adminQuote, $adminId, paymentReceived: true, notify: false),
+], 'pedido do admin: com o admin no pedido e no histórico, comentário interno, pagamento recebido já confirmado, sem e-mail quando não é para avisar; repetir devolve o mesmo pedido');
+$setConfig(['sales/checkout/guest' => '0']);
+$guestQuote = $adminCarts->resolve($adminCarts->create($defaultWebsite, null, $adminId));
+$cartService->setGuestInfo($guestQuote, 'admin-visitante@selftest.local', 'Bal', 'Cão', '529.982.247-25');
+$fill($guestQuote);
+$discardQuote = $adminCarts->resolve($discardId = $adminCarts->create($defaultWebsite, null, $adminId));
+$openBefore = count($adminCarts->openCarts($adminId));
+$adminCarts->discard($discardQuote);
+$guestOrder = $adminCarts->place($guestQuote, $adminId);
+$setConfig(['sales/checkout/guest' => '1']);
+assertSame(['pending_payment', 1, 2, 'CART_NOT_FOUND'], [
+    $pdo->query("SELECT status FROM sales_order WHERE order_id = {$guestOrder}")->fetchColumn(),
+    (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_placed' AND to_email = 'admin-visitante@selftest.local'")->fetchColumn(),
+    $openBefore,
+    (static function () use ($adminCarts, $discardId) { try { $adminCarts->resolve($discardId); } catch (Iter\Sales\Model\SalesException $e) { return $e->errorCode; } })(),
+], 'pedido do admin: vende para visitante mesmo com a loja exigindo login, avisa o cliente; pedidos em montagem listados e descartados');
 
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");
