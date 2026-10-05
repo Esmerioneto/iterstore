@@ -24,6 +24,7 @@ class Connection
         }
 
         $params = parse_ini_file(ETC . 'database.ini');
+        $params['database'] = getenv('ITER_DB_NAME') ?: $params['database']; // a throwaway copy (bin/db-bench.php)
 
         $conStr = sprintf(
             "pgsql:host=%s;port=%d;dbname=%s;user=%s;password=%s",

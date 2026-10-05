@@ -279,8 +279,12 @@ final class Adapter
         return ':' . $name;
     }
 
+    /** statements run in this process; the selftests and DB-PLAN's benchmark read it to catch N+1 */
+    public static int $queryCount = 0;
+
     private function run(Select|string $sql, array $bind): PDOStatement
     {
+        self::$queryCount++;
         if ($sql instanceof Select) {
             $bind = $sql->getBind() + $bind;
         }
