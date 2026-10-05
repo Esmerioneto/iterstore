@@ -1,0 +1,4 @@
+[
+    { "route": "admin", "vendor": "Iter", "module_name": "Adminsales", "controller_name": "ordercreate", "controller_action": "index,edit", "method": "GET" },
+    { "route": "admin", "vendor": "Iter", "module_name": "Adminsales", "controller_name": "ordercreate", "controller_action": "start,guest,additem,updateitem,address,shipping,payment,place,discard", "method": "POST" }
+]

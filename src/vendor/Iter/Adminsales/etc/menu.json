@@ -1,0 +1,3 @@
+[
+    { "label": "Novo pedido", "resource": "Iter_Adminsales::create", "url": "/admin/ordercreate/index", "parent": "vendas", "sort_order": 5 }
+]
