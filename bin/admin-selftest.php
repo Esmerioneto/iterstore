@@ -2315,7 +2315,7 @@ assertSame(['CART_NOT_FOUND', $confStoreCart, 'CUSTOMER_NOT_FOUND', 'conf@selfte
 ], 'pedido do admin: carrinho próprio, que a loja não enxerga e não troca o carrinho do cliente; cliente de outro website é recusado; os dados vêm da conta');
 $adminOrder = $adminCarts->place($adminQuote, $adminId, paymentReceived: true, notify: false, comment: 'Venda por telefone');
 $adminHistory = $pdo->query("SELECT status, comment, admin_user_id, is_customer_notified FROM sales_order_status_history WHERE order_id = {$adminOrder} ORDER BY history_id")->fetchAll(PDO::FETCH_NUM);
-assertSame(['processing', $adminId, $confId, [['pending_payment', 'Pedido criado no painel.', $adminId, 0], ['pending_payment', 'Venda por telefone', $adminId, 0], ['processing', 'Pagamento recebido no atendimento.', $adminId, 0]], 0, $adminOrder], [
+assertSame(['processing', $adminId, $confId, [['pending_payment', 'Pedido criado pelo atendimento.', $adminId, 0], ['pending_payment', 'Venda por telefone', $adminId, 0], ['processing', 'Pagamento recebido no atendimento.', $adminId, 0]], 0, $adminOrder], [
     $pdo->query("SELECT status FROM sales_order WHERE order_id = {$adminOrder}")->fetchColumn(),
     (int) $pdo->query("SELECT admin_user_id FROM sales_order WHERE order_id = {$adminOrder}")->fetchColumn(),
     (int) $pdo->query("SELECT customer_id FROM sales_order WHERE order_id = {$adminOrder}")->fetchColumn(),
@@ -2395,6 +2395,38 @@ assertSame([true, true, false, false], [
     $phpNoise($startPage, $searchPage, $filled, $found, $customerPage),
 ], 'Novo pedido: busca o cliente e começa o pedido dele (dados da conta, sem o formulário de visitante); as telas não mostram avisos do PHP');
 $adminCarts->discard((int) (explode('id=', $customerUrl)[1] ?? 0));
+
+// --- orders created by the admin through the API (ADMINSALES-PLAN delivery 3) -------------------------
+$apiAdminCart = $gql($admin, 'mutation { createAdminCart }')['data']['createAdminCart'] ?? '';
+$aac = '"' . $apiAdminCart . '"';
+$adminCall = static fn (string $call, ?Browser $b = null) => $gql($b ?? $admin, "mutation { {$call} { total isGuest items { sku } } }");
+$adminCall("setCartGuestInfo(cartId: {$aac}, email: \"api-admin@selftest.local\", firstname: \"Api\", lastname: \"Admin\", taxvat: \"529.982.247-25\")");
+$adminCall("addToCart(cartId: {$aac}, sku: \"{$v0Sku}\", quantity: 1)");
+$adminCall('setCartShippingAddress(cartId: ' . $aac . ', ' . $addr . ')');
+$apiCartView = $cartService->view($adminCarts->resolve($apiAdminCart));
+$adminCall("setCartShippingMethod(cartId: {$aac}, code: \"" . ($apiCartView['shipping_methods'][0]['code'] ?? 'x') . '")');
+$adminCall("setCartPaymentMethod(cartId: {$aac}, code: \"" . ($apiCartView['payment_methods'][0]['code'] ?? 'x') . '")');
+assertSame([64, 'FORBIDDEN', true, 'CART_NOT_FOUND', 'CART_NOT_FOUND', 'CART_NOT_FOUND', 'FORBIDDEN'], [
+    strlen($apiAdminCart),
+    $gql($dash, 'mutation { createAdminCart }')['errors'][0]['extensions']['code'] ?? null,
+    ($gql($admin, "{ cart(cartId: {$aac}) { items { sku } } }")['data']['cart']['items'][0]['sku'] ?? null) === $v0Sku,
+    $gqlCode($api("{ cart(cartId: {$aac}) { total } }")),
+    $gql($seller, "{ cart(cartId: {$aac}) { total } }")['errors'][0]['extensions']['code'] ?? null,
+    $gql($admin, "mutation { placeOrder(cartId: {$aac}) { number } }")['errors'][0]['extensions']['code'] ?? null,
+    $gql($creator, "mutation { placeAdminOrder(cartId: {$aac}, paymentReceived: true) { number } }")['errors'][0]['extensions']['code'] ?? null,
+], 'API pedido do admin: createAdminCart só com a permissão; o admin preenche pelas mutations do carrinho; a loja e um admin sem a permissão não enxergam; placeOrder não fecha; "pagamento recebido" exige a permissão');
+$apiAdminOrder = $gql($creator, "mutation { placeAdminOrder(cartId: {$aac}, notifyCustomer: false, comment: \"Pelo app\") { id number status history { status comment adminUsername } } }")['data']['placeAdminOrder'] ?? [];
+$apiAdminAgain = $gql($creator, "mutation { placeAdminOrder(cartId: {$aac}, comment: \"Pelo app\") { id } }")['data']['placeAdminOrder']['id'] ?? null;
+$apiHistory = $pdo->query('SELECT h.comment, u.username FROM sales_order_status_history h JOIN admin_user u ON u.user_id = h.admin_user_id WHERE h.order_id = '
+    . (int) ($apiAdminOrder['id'] ?? 0) . ' ORDER BY h.history_id')->fetchAll(PDO::FETCH_NUM);
+assertSame(['pending_payment', null, [['Pedido criado pelo atendimento.', 'selftest_creator'], ['Pelo app', 'selftest_creator']], $apiAdminOrder['id'] ?? 'x', 0, 'selftest_creator'], [
+    $apiAdminOrder['status'] ?? null,
+    array_key_exists('history', $apiAdminOrder) ? $apiAdminOrder['history'] : 'x', // the history needs Iter_Sales::order
+    $apiHistory,
+    $apiAdminAgain,
+    (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE to_email = 'api-admin@selftest.local'")->fetchColumn(),
+    $pdo->query('SELECT u.username FROM sales_order o JOIN admin_user u ON u.user_id = o.admin_user_id WHERE o.order_id = ' . (int) ($apiAdminOrder['id'] ?? 0))->fetchColumn(),
+], 'API pedido do admin: placeAdminOrder com o admin do token, comentário interno e sem e-mail (histórico só para quem vê pedidos); repetir devolve o mesmo pedido sem repetir o comentário');
 
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");

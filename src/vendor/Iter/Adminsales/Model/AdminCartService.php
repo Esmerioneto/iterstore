@@ -38,15 +38,15 @@ class AdminCartService
     }
 
     /**
-     * An admin's cart still being built (any admin's: a colleague can finish it)
+     * An admin's cart still being built (any admin's: a colleague can finish it); with $placed, also one already ordered
      *
      * @throws SalesException CART_NOT_FOUND
      */
-    public function resolve(string $cartId): int
+    public function resolve(string $cartId, bool $placed = false): int
     {
         $db = Connection::get()->adapter();
-        $id = $db->fetchOne($db->select()->from('sales_quote', ['quote_id'])->where('token_hash = ?', hash('sha256', $cartId))
-            ->where('admin_user_id IS NOT NULL')->where('is_active = 1'));
+        $select = $db->select()->from('sales_quote', ['quote_id'])->where('token_hash = ?', hash('sha256', $cartId))->where('admin_user_id IS NOT NULL');
+        $id = $db->fetchOne($placed ? $select : $select->where('is_active = 1')); // $placed: a closed one too (a retry gets its order)
 
         return $id !== false ? (int) $id : throw new SalesException('CART_NOT_FOUND', 'Pedido em montagem não encontrado.');
     }
@@ -73,14 +73,19 @@ class AdminCartService
      */
     public function place(int $quoteId, int $adminUserId, bool $paymentReceived = false, bool $notify = true, string $comment = ''): int
     {
+        $db = Connection::get()->adapter();
+        $placed = $db->fetchOne($db->select()->from('sales_order', ['order_id'])->where('quote_id = ?', $quoteId));
+        if ($placed !== false) { // a retry: the order as it was placed, no second comment or confirmation
+            return (int) $placed;
+        }
         $orders = new OrderService();
-        // who closes the sale is who sold it (a colleague may have started the cart)
+        // who closes the sale is who sold it (a colleague may have started the cart); a closed cart keeps its seller
         Connection::get()->adapter()->update('sales_quote', ['admin_user_id' => $adminUserId], ['quote_id = ?' => $quoteId, 'admin_user_id IS NOT NULL', 'is_active = 1']);
         $orderId = $orders->place($quoteId, $notify);
         if (trim($comment) !== '') {
             $orders->addComment($orderId, $comment, false, $adminUserId);
         }
-        if ($paymentReceived && $orders->get($orderId)['status'] === 'pending_payment') { // a retry finds it confirmed
+        if ($paymentReceived) {
             $orders->confirmPayment($orderId, 'Pagamento recebido no atendimento.', $adminUserId, $notify);
         }
 
