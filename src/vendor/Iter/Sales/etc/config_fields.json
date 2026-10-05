@@ -3,5 +3,6 @@
     { "path": "sales/quote/create_per_minute", "group": "Vendas", "label": "Carrinhos de visitante criados por minuto, por IP (0 = sem limite)", "type": "number", "default": 30, "min": 0, "max": 1000 },
     { "path": "sales/order/prefix", "group": "Vendas", "label": "Prefixo do número do pedido (ex.: SP- dá SP-000001)", "type": "text", "default": "", "required": false, "scope": "website" },
     { "path": "sales/checkout/guest", "group": "Vendas", "label": "Vender para visitante (sem cadastro); desligado, o pedido pede login", "type": "boolean", "default": 1, "scope": "website" },
-    { "path": "sales/checkout/place_per_minute", "group": "Vendas", "label": "Pedidos fechados por minuto, por IP (0 = sem limite)", "type": "number", "default": 10, "min": 0, "max": 1000 }
+    { "path": "sales/checkout/place_per_minute", "group": "Vendas", "label": "Pedidos fechados por minuto, por IP (0 = sem limite)", "type": "number", "default": 10, "min": 0, "max": 1000 },
+    { "path": "sales/order/guest_lookup_per_minute", "group": "Vendas", "label": "Consultas de pedido por número + e-mail (guestOrder) por minuto, por IP (0 = sem limite)", "type": "number", "default": 10, "min": 0, "max": 1000 }
 ]

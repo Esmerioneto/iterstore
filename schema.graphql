@@ -124,6 +124,26 @@ type Query {
     websiteId: ID
   ): Order
 
+  "Os pedidos do cliente do token, o mais novo primeiro."
+  myOrders(
+    page: Int = 1
+
+    "Máximo 100."
+    pageSize: Int = 20
+  ): MyOrderList!
+
+  "Um pedido do cliente do token pelo número; null se não for dele."
+  myOrder(number: String!): Order
+
+  "Consulta sem login: o número e o e-mail do pedido. null se não baterem. Limite de consultas por minuto por IP."
+  guestOrder(
+    number: String!
+    email: String!
+
+    "Quando dois websites usam o mesmo prefixo."
+    websiteId: ID
+  ): Order
+
   "Quantos pedidos e quanto em cada situação, no período (todas as situações vêm, mesmo com 0)."
   salesSummary(
     websiteId: ID
@@ -713,6 +733,11 @@ type OrderHistory {
   adminUsername: String
 
   createdAt: String!
+}
+
+type MyOrderList {
+  items: [Order!]!
+  total: Int!
 }
 
 type SalesSummaryRow {

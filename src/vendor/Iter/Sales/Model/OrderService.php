@@ -45,7 +45,7 @@ class OrderService
      * The checkout. A second call for the same cart (double click, retry) waits for the first and gets
      * the order it placed. The "pedido recebido" e-mail is queued after the commit.
      * ponytail: a logged-in customer retrying after the first call finished gets the new, empty cart
-     * (CART_EMPTY); the storefront then reads the order from the customer's orders (delivery 7)
+     * (CART_EMPTY); the storefront then reads it with myOrders
      *
      * @return int the order id
      * @throws SalesException what the cart is missing; InventoryException INSUFFICIENT_STOCK when another order took the stock first
@@ -259,12 +259,18 @@ class OrderService
         return $select;
     }
 
-    /** @return ?int the order with this number; $websiteId when two websites share a prefix */
-    public function findIdByNumber(string $number, ?int $websiteId = null): ?int
+    /**
+     * @param array<string, int|string> $match more conditions: customer_id (the customer's own) or email (a guest's lookup, any case)
+     * @return ?int the order with this number; $websiteId when two websites share a prefix
+     */
+    public function findIdByNumber(string $number, ?int $websiteId = null, array $match = []): ?int
     {
         $db = Connection::get()->adapter();
         $select = $db->select()->from('sales_order', ['order_id'])->where('UPPER(increment_id) = UPPER(?)', trim($number))->order('order_id')->limit(1);
-        $id = $db->fetchOne($websiteId === null ? $select : $select->where('website_id = ?', $websiteId));
+        $websiteId === null || $select->where('website_id = ?', $websiteId);
+        isset($match['customer_id']) && $select->where('customer_id = ?', (int) $match['customer_id']);
+        isset($match['email']) && $select->where('email = ?', mb_strtolower(trim((string) $match['email'])));
+        $id = $db->fetchOne($select);
 
         return $id === false ? null : (int) $id;
     }
