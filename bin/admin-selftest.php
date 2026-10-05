@@ -144,7 +144,14 @@ $savedTemplates = $pdo->query('SELECT code, subject, body_html, body_text FROM m
 // the shipping tests replace the default website's table rate: it's put back as it was
 $savedRates = $pdo->query("SELECT to_regclass('shipping_table_rate') IS NOT NULL")->fetchColumn()
     ? $pdo->query('SELECT website_id, postcode_from, postcode_to, weight_to, price, days FROM shipping_table_rate')->fetchAll(PDO::FETCH_ASSOC) : null;
-$purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTemplates, $savedRates): void {
+$savedSequences = $pdo->query('SELECT website_id, last_value FROM sales_order_sequence')->fetchAll(PDO::FETCH_NUM); // the test orders take real numbers
+$purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTemplates, $savedRates, $savedSequences): void {
+    $pdo->exec("DELETE FROM sales_order WHERE email LIKE '%@selftest.local'"); // before the websites, which they hold
+    $pdo->exec('DELETE FROM sales_order_sequence');
+    $restoreSequence = $pdo->prepare('INSERT INTO sales_order_sequence (website_id, last_value) VALUES (?, ?)');
+    foreach ($savedSequences as $row) {
+        $restoreSequence->execute($row);
+    }
     if ($savedRates !== null) {
         $pdo->exec('DELETE FROM shipping_table_rate');
         $restoreRate = $pdo->prepare('INSERT INTO shipping_table_rate (website_id, postcode_from, postcode_to, weight_to, price, days) VALUES (?, ?, ?, ?, ?, ?)');
@@ -2054,6 +2061,64 @@ $setConfig(['payment/pix/active' => '0']);
 assertSame(null, $api("{ cart(cartId: {$sc}) {$payFields} }")[1]['data']['cart']['paymentMethod'] ?? null, 'pagamento: forma desligada depois de escolhida sai do carrinho');
 $settings = $admin->request('/admin/config/index')['body'];
 assertSame([true, true, true], [str_contains($settings, 'payment/pix/key'), str_contains($settings, 'shipping/tablerate/active'), str_contains($settings, 'sales/quote/guest_days')], 'Configurações mostra os grupos Vendas, Frete e Pagamento');
+
+// --- order + placeOrder (COMMERCE-PLAN delivery 5) ---------------------------------------------------
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'order_place:%'");
+$orderFields = '{ id number status statusLabel email taxvat total subtotal shippingAmount shippingMethod paymentMethod paymentInstructions items { sku name options quantity price rowTotal } shippingAddress { postcode city } billingAddress { postcode } }';
+$place = static fn (string $cartId) => $api('mutation { placeOrder(cartId: "' . $cartId . '") ' . $orderFields . ' }')[1];
+$emptyCart = $api('mutation { createCart }')[1]['data']['createCart'] ?? '';
+// a second guest cart wanting the last unit, complete, placed after $sc took the 3
+$otherCart = $api('mutation { createCart }')[1]['data']['createCart'] ?? '';
+$oc = '"' . $otherCart . '"';
+$api("mutation { addToCart(cartId: {$oc}, sku: \"{$v0Sku}\") { total } }");
+$noInfo = $place($otherCart);
+$setConfig(['sales/checkout/guest' => '0']);
+$noLogin = $place($otherCart);
+$setConfig(['sales/checkout/guest' => '1']);
+$api("mutation { setCartGuestInfo(cartId: {$oc}, email: \"outro@selftest.local\", firstname: \"Ou\", lastname: \"Tro\", taxvat: \"529.982.247-25\") { total } }");
+$noAddress = $place($otherCart);
+$api("mutation { setCartShippingAddress(cartId: {$oc}, {$addr}) { total } }");
+assertSame(['CART_EMPTY', 'CUSTOMER_INFO_REQUIRED', 'LOGIN_REQUIRED', 'SHIPPING_ADDRESS_REQUIRED', 'SHIPPING_METHOD_REQUIRED'], [
+    $gqlCode([0, $place($emptyCart)]), $gqlCode([0, $noInfo]), $gqlCode([0, $noLogin]), $gqlCode([0, $noAddress]), $gqlCode([0, $place($shipCart)]),
+], 'pedido: o placeOrder diz o que falta (itens, dados do visitante, login exigido pela loja, endereço, frete)');
+$setConfig(['shipping/pickup/active' => '1', 'sales/order/prefix' => 'ST-']);
+$api("mutation { setCartShippingMethod(cartId: {$sc}, code: \"pickup\") { total } }");
+$api("mutation { setCartShippingMethod(cartId: {$oc}, code: \"pickup\") { total } }");
+$api("mutation { setCartPaymentMethod(cartId: {$oc}, code: \"offline\") { total } }");
+assertSame('PAYMENT_METHOD_REQUIRED', $gqlCode([0, $place($shipCart)]), 'pedido: sem forma de pagamento escolhida é recusado');
+$setConfig(['payment/pix/active' => '1']);
+$api("mutation { setCartPaymentMethod(cartId: {$sc}, code: \"pix\") { total } }");
+$order = $place($shipCart)['data']['placeOrder'] ?? [];
+$again = $place($shipCart)['data']['placeOrder'] ?? [];
+assertSame([1, 'pending_payment', 'Aguardando pagamento', 'frete@selftest.local', '52998224725', 74.7, 0, 'pickup', 'pix', "Chave Pix: pix@selftest.local\nEnvie o comprovante.",
+    [['sku' => $v0Sku, 'name' => 'Caneca', 'options' => null, 'quantity' => 3, 'price' => 24.9, 'rowTotal' => 74.7]], ['postcode' => '30130000', 'city' => 'São Paulo'], '30130000'], [
+    preg_match('/^ST-\d{6}$/', (string) ($order['number'] ?? '')), $order['status'] ?? null, $order['statusLabel'] ?? null, $order['email'] ?? null, $order['taxvat'] ?? null,
+    $order['total'] ?? null, $order['shippingAmount'] ?? null, $order['shippingMethod'] ?? null, $order['paymentMethod'] ?? null, $order['paymentInstructions'] ?? null,
+    $order['items'] ?? null, $order['shippingAddress'] ?? null, $order['billingAddress']['postcode'] ?? null,
+], 'pedido: número com o prefixo, aguardando pagamento, com dados, itens, frete, pagamento e endereços copiados do carrinho');
+$orderId = (int) ($order['id'] ?? 0);
+assertSame([$order['number'] ?? 'x', '0', 'CART_NOT_FOUND', 1, 1], [
+    $again['number'] ?? null,
+    (new StockService())->getSalable([$v0], $defaultWebsite)[$v0],
+    $gqlCode($api("{ cart(cartId: {$sc}) { total } }")),
+    (int) $pdo->query("SELECT COUNT(*) FROM sales_order WHERE quote_id = (SELECT quote_id FROM sales_order WHERE order_id = {$orderId})")->fetchColumn(),
+    (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_placed' AND to_email = 'frete@selftest.local'")->fetchColumn(),
+], 'pedido: placeOrder de novo devolve o mesmo pedido (um pedido, um e-mail); o estoque fica reservado e o carrinho fechado');
+$mailBody = (string) $pdo->query("SELECT subject || body_html FROM mail_queue WHERE template_code = 'sales_order_placed' AND to_email = 'frete@selftest.local'")->fetchColumn();
+assertSame([true, true, true], [str_contains($mailBody, 'Recebemos o seu pedido ' . ($order['number'] ?? 'x')), str_contains($mailBody, 'R$ 74,70'), str_contains($mailBody, 'pix@selftest.local')],
+    'pedido: o e-mail "pedido recebido" traz o número, o total e a chave Pix');
+$pdo->exec("UPDATE catalog_product SET name = 'Caneca nova' WHERE product_id = {$v0}");
+$pdo->exec("UPDATE eav_value_decimal SET value = 99 WHERE entity_id = {$v0} AND attribute_id = {$attrId('price')}");
+$copied = (new \Iter\Sales\Model\OrderService())->get($orderId);
+$pdo->exec("UPDATE catalog_product SET name = 'Caneca' WHERE product_id = {$v0}");
+$pdo->exec("UPDATE eav_value_decimal SET value = 24.9 WHERE entity_id = {$v0} AND attribute_id = {$attrId('price')}");
+assertSame(['Caneca', 24.9, 'INSUFFICIENT_STOCK'], [$copied['items'][0]['name'] ?? null, $copied['items'][0]['price'] ?? null,
+    $api("{ cart(cartId: {$oc}) { items { errorCode } } }")[1]['data']['cart']['items'][0]['errorCode'] ?? null],
+    'pedido: nome e preço não mudam com o catálogo; a reserva tira a unidade do outro carrinho');
+assertSame('CART_HAS_ERRORS', $gqlCode([0, $place($otherCart)]), 'pedido: carrinho com item sem estoque é recusado');
+$stock->save($v0, ['selftest_var_cd' => ['quantity' => '4']]);
+$next = $place($otherCart)['data']['placeOrder']['number'] ?? '';
+assertSame(sprintf('ST-%06d', (int) substr((string) ($order['number'] ?? ''), 3) + 1), $next, 'pedido: o número seguinte do website');
 
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");

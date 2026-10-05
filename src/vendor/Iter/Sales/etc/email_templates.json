@@ -1,0 +1,5 @@
+[
+    { "code": "sales_order_placed", "label": "Pedido recebido", "subject": "Recebemos o seu pedido {{ number }}", "file": "sales-order-placed",
+      "vars": { "name": "Maria", "number": "SP-000001", "items": "<tr><td>Camiseta (Cor: Preto, Tamanho: M)</td><td>2</td><td>R$ 99,80</td></tr>", "subtotal": "R$ 99,80",
+          "shipping": "Entrega R$ 15,00", "total": "R$ 114,80", "payment": "Pix", "instructions": "Chave Pix: loja@exemplo.com.br" } }
+]

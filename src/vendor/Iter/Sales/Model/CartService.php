@@ -39,15 +39,17 @@ class CartService
 
     /**
      * The cart an API call works on: with $cartId, that active guest cart; without it, the customer's
-     * own (created on first use).
+     * own (created on first use). $placed also finds a guest cart already turned into an order (a
+     * placeOrder retry gets that order).
      *
      * @throws SalesException CART_NOT_FOUND, UNAUTHENTICATED
      */
-    public function resolve(?string $cartId, ?Customer $customer): int
+    public function resolve(?string $cartId, ?Customer $customer, bool $placed = false): int
     {
         $db = Connection::get()->adapter();
         if ($cartId !== null && $cartId !== '') {
-            $id = $db->fetchOne($db->select()->from('sales_quote', ['quote_id'])->where('token_hash = ?', hash('sha256', $cartId))->where('is_active = 1'));
+            $select = $db->select()->from('sales_quote', ['quote_id'])->where('token_hash = ?', hash('sha256', $cartId));
+            $id = $db->fetchOne($placed ? $select : $select->where('is_active = 1'));
 
             return $id !== false ? (int) $id : throw new SalesException('CART_NOT_FOUND', 'Carrinho não encontrado. Crie outro com createCart.');
         }

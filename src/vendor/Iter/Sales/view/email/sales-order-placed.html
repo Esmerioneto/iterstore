@@ -1,0 +1,9 @@
+<p>Olá, {{ name }}.</p>
+<p>Recebemos o seu pedido <strong>{{ number }}</strong>. Ele aguarda a confirmação do pagamento.</p>
+<table cellpadding="6" style="border-collapse: collapse;">
+    <tr><th align="left">Produto</th><th align="left">Qtd.</th><th align="left">Total</th></tr>
+    {{{ items }}}
+</table>
+<p>Subtotal: {{ subtotal }}<br>Frete: {{ shipping }}<br><strong>Total: {{ total }}</strong></p>
+<p>Pagamento: {{ payment }}</p>
+<p style="white-space: pre-line;">{{ instructions }}</p>
