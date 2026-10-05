@@ -11,6 +11,7 @@ use Iter\Customer\Model\AddressService;
 use Iter\Customer\Model\Customer;
 use Iter\Eav\Model\Taxvat;
 use Iter\Inventory\Model\StockService;
+use Iter\Payment\Model\PaymentService;
 use Iter\Shipping\Model\ShippingService;
 
 /**
@@ -64,7 +65,7 @@ class CartService
      * @return array{quote_id: int, website_id: int, customer_id: ?int, email: ?string, firstname: ?string, lastname: ?string,
      *               taxvat: ?string, shipping_address: ?array, billing_address: ?array, billing_same_as_shipping: bool,
      *               items: array<int, array>, items_quantity: float, subtotal: float, shipping_methods: array, shipping_method: ?array,
-     *               shipping_amount: float, total: float, has_errors: bool}
+     *               shipping_amount: float, payment_methods: array, payment_method: ?array, total: float, has_errors: bool}
      */
     public function view(int $quoteId): array
     {
@@ -87,6 +88,7 @@ class CartService
         // the shipping module is optional: without it the cart has no shipping (a store that only sells on pickup could switch it off)
         $rates = \isModuleEnabled('iter_shipping') ? (new ShippingService())->rates($view) : [];
         $method = $rates[(string) $quote['shipping_method']] ?? null; // a method that stopped fitting (new address) is dropped
+        $payments = \isModuleEnabled('iter_payment') ? (new PaymentService())->methods($view) : [];
 
         return [
             'quote_id' => $quoteId,
@@ -105,6 +107,8 @@ class CartService
             'shipping_methods' => array_values($rates),
             'shipping_method' => $method,
             'shipping_amount' => $method['amount'] ?? 0.0,
+            'payment_methods' => array_values($payments),
+            'payment_method' => $payments[(string) $quote['payment_method']] ?? null, // switched off since: dropped
             'total' => round($subtotal + ($method['amount'] ?? 0.0), 2), // ponytail: discounts join with the promotions plan
             'has_errors' => (bool) array_filter(array_column($items, 'error')),
         ];
@@ -225,6 +229,18 @@ class CartService
             });
         }
         Connection::get()->adapter()->update('sales_quote', ['shipping_method' => $code], ['quote_id = ?' => $quoteId]);
+    }
+
+    /** @throws SalesException PAYMENT_METHOD_UNAVAILABLE when $code isn't among the cart's options now */
+    public function setPaymentMethod(int $quoteId, string $code): void
+    {
+        $available = array_column($this->view($quoteId)['payment_methods'], 'code');
+        if (!in_array($code, $available, true)) {
+            throw new SalesException('PAYMENT_METHOD_UNAVAILABLE', $available
+                ? "Pagamento '{$code}' indisponível. Opções: " . implode(', ', $available) . '.'
+                : 'Nenhuma forma de pagamento está ativa nesta loja.');
+        }
+        Connection::get()->adapter()->update('sales_quote', ['payment_method' => $code], ['quote_id = ?' => $quoteId]);
     }
 
     /** bin/quote-clean.php: guest carts unused for $days days; customers' carts stay */

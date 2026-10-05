@@ -100,9 +100,22 @@ class CartSchema
             'shippingMethod' => ['type' => $rateType, 'description' => 'O escolhido; null se nenhum ou se deixou de valer (endereço mudou).', 'resolve' => fn ($c) => $c['shipping_method']],
             'shippingAmount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($c) => $c['shipping_amount']],
         ] : [];
+        $payment = \isModuleEnabled('iter_payment');
+        $paymentType = new ObjectType([
+            'name' => 'PaymentMethod',
+            'fields' => [
+                'code' => ['type' => Type::nonNull(Type::string()), 'description' => 'pix ou offline.'],
+                'label' => Type::nonNull(Type::string()),
+                'instructions' => ['type' => Type::string(), 'description' => 'O que o cliente faz para pagar (a chave Pix, por exemplo). Também vai no pedido.'],
+            ],
+        ]);
+        $paymentFields = $payment ? [
+            'availablePaymentMethods' => ['type' => Type::nonNull(Type::listOf(Type::nonNull($paymentType))), 'resolve' => fn ($c) => $c['payment_methods']],
+            'paymentMethod' => ['type' => $paymentType, 'description' => 'O escolhido; null se nenhum ou se foi desligado.', 'resolve' => fn ($c) => $c['payment_method']],
+        ] : [];
         $cartType = new ObjectType([
             'name' => 'Cart',
-            'fields' => $shippingFields + [
+            'fields' => $shippingFields + $paymentFields + [
                 'websiteId' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($c) => $c['website_id']],
                 'isGuest' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => fn ($c) => $c['customer_id'] === null],
                 'email' => Type::string(),
@@ -198,6 +211,13 @@ class CartSchema
                     'description' => 'Um code de availableShippingMethods.',
                     'args' => $cartIdArg + ['code' => Type::nonNull(Type::string())],
                     'resolve' => $mutate(static fn (int $q, array $a) => $service->setShippingMethod($q, $a['code'])),
+                ],
+            ] : []) + ($payment ? [
+                'setCartPaymentMethod' => [
+                    'type' => Type::nonNull($cartType),
+                    'description' => 'Um code de availablePaymentMethods.',
+                    'args' => $cartIdArg + ['code' => Type::nonNull(Type::string())],
+                    'resolve' => $mutate(static fn (int $q, array $a) => $service->setPaymentMethod($q, $a['code'])),
                 ],
             ] : []) + [
                 'setCartBillingAddress' => [
