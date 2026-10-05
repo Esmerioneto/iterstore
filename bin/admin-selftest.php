@@ -2184,6 +2184,49 @@ assertSame([true, ['Faixas de frete salvas.'], [['postcode_from' => '01000000', 
     str_starts_with($bad[0] ?? '', 'Faixa 1:'), $seller->request('/admin/shippingrate/index')['status'],
 ], 'faixas de frete: a tela mostra e grava a tabela (vírgula decimal, linha em branco ignorada), valida e exige Iter_Shipping::rates');
 
+// --- orders in the admin API (COMMERCE-PLAN delivery 6b) --------------------------------------------
+$apiCart = $api('mutation { createCart }')[1]['data']['createCart'] ?? '';
+$ac = '"' . $apiCart . '"';
+foreach (["addToCart(cartId: {$ac}, sku: \"{$v0Sku}\")", "setCartGuestInfo(cartId: {$ac}, email: \"api-pedido@selftest.local\", firstname: \"Api\", lastname: \"Pedido\", taxvat: \"529.982.247-25\")",
+    "setCartShippingAddress(cartId: {$ac}, {$addr})", "setCartShippingMethod(cartId: {$ac}, code: \"pickup\")", "setCartPaymentMethod(cartId: {$ac}, code: \"offline\")"] as $call) {
+    $api("mutation { {$call} { total } }");
+}
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'order_place:%'"); // the delivery 5 tests used up the minute's orders
+$placed = $api("mutation { placeOrder(cartId: {$ac}) { id number history { status } } }")[1]['data']['placeOrder'] ?? [];
+$apiOrder = (int) ($placed['id'] ?? 0);
+$adminOrderFields = '{ id number status customerId websiteId shipment { carrier trackingCode sourceName } history { status comment customerNotified adminUsername } }';
+$adminGql = static fn (string $call, ?Browser $b = null) => $gql($b ?? $admin, "mutation { {$call} {$adminOrderFields} }");
+$found = $gql($admin, '{ orders(search: "' . ($placed['number'] ?? 'x') . '") { total amount items { number status history { status } } } }')['data']['orders'] ?? [];
+$summary = array_column($gql($admin, '{ salesSummary { status statusLabel count amount } }')['data']['salesSummary'] ?? [], null, 'status');
+assertSame([null, 1, 24.9, 'pending_payment', 1, (string) $apiOrder, null, ['complete', 'Concluído'], true, 'BAD_USER_INPUT'], [
+    array_key_exists('history', $placed) ? $placed['history'] : 'x', $found['total'] ?? null, $found['amount'] ?? null, $found['items'][0]['status'] ?? null, count($found['items'][0]['history'] ?? []),
+    $gql($admin, '{ order(number: "' . strtolower($placed['number'] ?? 'x') . '") { id } }')['data']['order']['id'] ?? null,
+    array_key_exists('order', $gql($admin, '{ order(id: "999999") { id } }')['data'] ?? []) ? null : 'x',
+    [$summary['complete']['status'] ?? null, $summary['complete']['statusLabel'] ?? null], count($summary) === 5,
+    $gql($admin, '{ orders(from: "ontem") { total } }')['errors'][0]['extensions']['code'] ?? null,
+], 'API pedidos: o cliente não vê o histórico; o admin busca por número, lê um pedido (inexistente = null) e o resumo por situação; data inválida é recusada');
+assertSame(['UNAUTHENTICATED', 'FORBIDDEN', 'FORBIDDEN'], [
+    $gql($guest, '{ orders { total } }')['errors'][0]['extensions']['code'] ?? null,
+    $gql($dash, '{ orders { total } }')['errors'][0]['extensions']['code'] ?? null,
+    $adminGql("confirmOrderPayment(id: \"{$apiOrder}\")", $seller)['errors'][0]['extensions']['code'] ?? null,
+], 'API pedidos: sem login, sem Iter_Sales::order ou sem Iter_Sales::order_payment é recusado');
+$confirmed = $adminGql("confirmOrderPayment(id: \"{$apiOrder}\", comment: \"Pago na loja\")")['data']['confirmOrderPayment'] ?? [];
+$badSource = $adminGql("shipOrder(id: \"{$apiOrder}\", sourceCode: \"selftest-nada\")")['errors'][0]['extensions']['code'] ?? null;
+$shipped = $adminGql("shipOrder(id: \"{$apiOrder}\", carrier: \"Motoboy\", trackingCode: \"MB-1\")")['data']['shipOrder'] ?? [];
+$sourceName = (string) $pdo->query("SELECT name FROM inventory_source WHERE code = 'selftest_var_cd'")->fetchColumn();
+assertSame([['processing', 'Pago na loja', true, 'selftest_admin'], 'SOURCE_INVALID', ['shipped', 'Motoboy', 'MB-1', $sourceName]], [
+    [$confirmed['status'] ?? null, $confirmed['history'][0]['comment'] ?? null, $confirmed['history'][0]['customerNotified'] ?? null, $confirmed['history'][0]['adminUsername'] ?? null],
+    $badSource,
+    [$shipped['status'] ?? null, $shipped['shipment']['carrier'] ?? null, $shipped['shipment']['trackingCode'] ?? null, $shipped['shipment']['sourceName'] ?? null],
+], 'API pedidos: confirmar pagamento com o admin do histórico; enviar sem origem usa a sugerida, origem desconhecida é recusada');
+$completed = $adminGql("completeOrder(id: \"{$apiOrder}\")")['data']['completeOrder']['status'] ?? null;
+$commented = $adminGql("addOrderComment(id: \"{$apiOrder}\", comment: \"Obrigado!\", notifyCustomer: true)")['data']['addOrderComment']['history'][0] ?? [];
+assertSame(['complete', 'ORDER_STATUS_INVALID', ['complete', 'Obrigado!', true], 1], [
+    $completed, $adminGql("cancelOrder(id: \"{$apiOrder}\", reason: \"x\")")['errors'][0]['extensions']['code'] ?? null,
+    [$commented['status'] ?? null, $commented['comment'] ?? null, $commented['customerNotified'] ?? null],
+    (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_comment' AND to_email = 'api-pedido@selftest.local'")->fetchColumn(),
+], 'API pedidos: concluir; cancelar depois do envio é recusado; comentário com aviso ao cliente');
+
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");
 assertSame([200, 200, 429], array_map(static fn () => $custLogin('errada123')[0], [1, 2, 3]), 'API cliente: login passa do limite por IP e recebe 429');

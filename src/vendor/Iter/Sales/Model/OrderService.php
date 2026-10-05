@@ -7,6 +7,7 @@ namespace Iter\Sales\Model;
 use Iter\Core\Config;
 use Iter\Core\Db\Connection;
 use Iter\Core\Db\Expr;
+use Iter\Core\Db\Select;
 use Iter\Core\Log;
 use Iter\Inventory\Model\StockService;
 use Iter\Mail\Model\MailException;
@@ -170,6 +171,12 @@ class OrderService
         });
     }
 
+    /** The website's sources for shipping the order, the suggested one first (StockService::shipSources) */
+    public function shipSources(int $orderId): array
+    {
+        return (new StockService())->shipSources((int) $this->get($orderId)['website_id'], $this->reserved($orderId));
+    }
+
     /** shipped → complete: delivered */
     public function complete(int $orderId, ?int $adminUserId): void
     {
@@ -205,25 +212,61 @@ class OrderService
     public function search(array $filters, int $page, int $limit, string $sort = 'created_at', string $dir = 'desc'): array
     {
         $db = Connection::get()->adapter();
-        $select = $db->select()->from(['o' => 'sales_order']);
-        foreach (['status' => 'o.status = ?', 'website_id' => 'o.website_id = ?', 'customer_id' => 'o.customer_id = ?', 'from' => 'o.created_at >= ?'] as $key => $where) {
-            if (($filters[$key] ?? '') !== '') {
-                $select->where($where, $filters[$key]);
-            }
-        }
-        if (($filters['to'] ?? '') !== '') {
-            $select->where("o.created_at < CAST(? AS date) + 1", $filters['to']);
-        }
-        if (($filters['q'] ?? '') !== '') {
-            $like = '%' . addcslashes(mb_strtolower($filters['q']), '%_\\') . '%';
-            $select->where("(LOWER(o.increment_id) LIKE ? OR o.email LIKE ? OR LOWER(o.firstname || ' ' || o.lastname) LIKE ?)", $like); // every ? gets $like
-        }
+        $select = $this->filtered($filters);
         $totals = $db->fetchRow((clone $select)->reset('columns')->columns(['total' => new Expr('COUNT(*)'),
             'amount' => new Expr("COALESCE(SUM(o.grand_total) FILTER (WHERE o.status <> 'canceled'), 0)")]));
         $column = ['number' => 'o.increment_id', 'customer' => 'o.firstname', 'total' => 'o.grand_total', 'status' => 'o.status'][$sort] ?? 'o.created_at';
         $items = $db->fetchAll($select->order($column . ($dir === 'asc' ? ' ASC' : ' DESC'))->order('o.order_id DESC')->limit($limit, ($page - 1) * $limit));
 
         return ['items' => $items, 'total' => (int) $totals['total'], 'amount' => (float) $totals['amount']];
+    }
+
+    /**
+     * Count and amount per status of the filtered orders (search()'s filters)
+     *
+     * @return array<string, array{count: int, amount: float}> status => totals, every status present
+     */
+    public function totalsByStatus(array $filters): array
+    {
+        $db = Connection::get()->adapter();
+        $rows = $db->fetchAll($this->filtered($filters)->reset('columns')
+            ->columns(['o.status', 'count' => new Expr('COUNT(*)'), 'amount' => new Expr('COALESCE(SUM(o.grand_total), 0)')])->group('o.status'));
+        $totals = array_fill_keys(array_keys(self::STATUS_LABELS), ['count' => 0, 'amount' => 0.0]);
+        foreach ($rows as $row) {
+            $totals[$row['status']] = ['count' => (int) $row['count'], 'amount' => (float) $row['amount']];
+        }
+
+        return $totals;
+    }
+
+    /** sales_order o with search()'s filters */
+    private function filtered(array $filters): Select
+    {
+        $select = Connection::get()->adapter()->select()->from(['o' => 'sales_order']);
+        foreach (['status' => 'o.status = ?', 'website_id' => 'o.website_id = ?', 'customer_id' => 'o.customer_id = ?', 'from' => 'o.created_at >= ?'] as $key => $where) {
+            if (($filters[$key] ?? '') !== '') {
+                $select->where($where, $filters[$key]);
+            }
+        }
+        if (($filters['to'] ?? '') !== '') {
+            $select->where('o.created_at < CAST(? AS date) + 1', $filters['to']);
+        }
+        if (($filters['q'] ?? '') !== '') {
+            $like = '%' . addcslashes(mb_strtolower($filters['q']), '%_\\') . '%';
+            $select->where("(LOWER(o.increment_id) LIKE ? OR o.email LIKE ? OR LOWER(o.firstname || ' ' || o.lastname) LIKE ?)", $like); // every ? gets $like
+        }
+
+        return $select;
+    }
+
+    /** @return ?int the order with this number; $websiteId when two websites share a prefix */
+    public function findIdByNumber(string $number, ?int $websiteId = null): ?int
+    {
+        $db = Connection::get()->adapter();
+        $select = $db->select()->from('sales_order', ['order_id'])->where('UPPER(increment_id) = UPPER(?)', trim($number))->order('order_id')->limit(1);
+        $id = $db->fetchOne($websiteId === null ? $select : $select->where('website_id = ?', $websiteId));
+
+        return $id === false ? null : (int) $id;
     }
 
     /** The dashboard card: orders today, waiting for payment, to ship, and this month's sales (canceled left out) */

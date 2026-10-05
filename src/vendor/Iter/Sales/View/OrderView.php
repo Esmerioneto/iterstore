@@ -6,7 +6,6 @@ namespace Iter\Sales\View;
 
 use Iter\Admin\Auth;
 use Iter\Core\View\ViewComponentInterface;
-use Iter\Inventory\Model\StockService;
 use Iter\Sales\Model\OrderService;
 
 class OrderView implements ViewComponentInterface
@@ -23,17 +22,11 @@ class OrderView implements ViewComponentInterface
     {
         $order = (new OrderService())->get((int) ($_GET['id'] ?? 0));
         $actions = array_values(array_filter(OrderService::actions($order['status']), static fn ($a) => Auth::isAllowed(self::RESOURCES[$a])));
-        $quantities = [];
-        foreach ($order['items'] as $item) {
-            if ($item['product_id'] !== null) {
-                $quantities[(int) $item['product_id']] = ($quantities[(int) $item['product_id']] ?? 0) + $item['quantity'];
-            }
-        }
 
         return [
             'order' => $order,
             'actions' => $actions,
-            'sources' => in_array('ship', $actions, true) ? (new StockService())->shipSources((int) $order['website_id'], $quantities) : [],
+            'sources' => in_array('ship', $actions, true) ? (new OrderService())->shipSources((int) $order['order_id']) : [],
         ];
     }
 }
