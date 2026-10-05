@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 namespace Iter\Customer\Model\ResourceModel\Customer;
 
-use Iter\Core\Model\ResourceModel\AbstractCollection;
+use Iter\Eav\Model\ResourceModel\AbstractEntityCollection;
 use Iter\Customer\Model\Customer;
 use Iter\Customer\Model\ResourceModel\Customer as CustomerResource;
 
-/** @extends AbstractCollection<Customer> rows + group_name, website_name */
-class Collection extends AbstractCollection
+/** @extends AbstractEntityCollection<Customer> rows + group_name, website_name */
+class Collection extends AbstractEntityCollection
 {
     protected function _construct(): void
     {
         $this->init(Customer::class, CustomerResource::class);
+    }
+
+    protected function entityType(): string
+    {
+        return Customer::ENTITY_TYPE;
     }
 
     /** from customer_flat, so the registration fields (EAV) filter and sort like columns */

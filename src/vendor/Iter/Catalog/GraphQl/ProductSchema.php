@@ -8,6 +8,7 @@ use GraphQL\Error\Error;
 use GraphQL\Type\Definition\EnumType;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
+use GraphQL\Type\Definition\ResolveInfo;
 use GraphQL\Type\Definition\Type;
 use Iter\Admin\Auth;
 use Iter\Catalog\Model\Category;
@@ -101,7 +102,7 @@ class ProductSchema
         $productList = null; // ProductList, set below; Category.products uses it
         $categoryType = new ObjectType([
             'name' => 'Category',
-            'fields' => static function () use (&$categoryType, &$productList, $categories, $isAdmin): array {
+            'fields' => static function () use (&$categoryType, &$productList, &$preloadFor, $categories, $isAdmin): array {
                 return [
                     'id' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($c) => $c['category_id']],
                     'websiteId' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($c) => $c['website_id']],
@@ -122,10 +123,14 @@ class ProductSchema
                             'page' => ['type' => Type::int(), 'defaultValue' => 1],
                             'pageSize' => ['type' => Type::int(), 'defaultValue' => 20, 'description' => 'Máximo 100.'],
                         ],
-                        'resolve' => static fn ($c, array $args) => (new Product())->getResource()->search($filters = [
-                            'category_id' => (string) $c['category_id'],
-                            'is_active' => $isAdmin() ? '' : '1',
-                        ], max(1, $args['page']), min(100, max(1, $args['pageSize']))) + ['filters' => $filters],
+                        'resolve' => static function ($c, array $args, $context, ResolveInfo $info) use ($isAdmin, &$preloadFor): array {
+                            $result = (new Product())->getResource()->search($filters = [
+                                'category_id' => (string) $c['category_id'],
+                                'is_active' => $isAdmin() ? '' : '1',
+                            ], max(1, $args['page']), min(100, max(1, $args['pageSize'])));
+
+                            return ['items' => $preloadFor($result['items'], $info)] + $result + ['filters' => $filters];
+                        },
                     ],
                     'created_at' => Type::nonNull(Type::string()),
                     'updated_at' => Type::nonNull(Type::string()),
@@ -165,10 +170,45 @@ class ProductSchema
             'fields' => ['min' => Type::float(), 'max' => Type::float()],
         ]);
         $variants = new VariantService();
+        /**
+         * A list's page with what its items' resolvers read (DB-PLAN phase 5, no N+1), in a few queries for the
+         * whole page: each row gets 'attributes' (code => value); with $variants, '_variants' (rows with their
+         * 'attributes'); with $grids, each variant also gets the parent's grid in '_grid'. A product that comes
+         * alone (product(id), route) goes through it too.
+         */
+        $preload = static function (array $rows, bool $withVariants = true, bool $grids = true) use ($variants): array {
+            if (!$rows) {
+                return $rows;
+            }
+            $ids = array_map('intval', array_column($rows, 'product_id'));
+            $children = $withVariants ? (new Product())->getResource()->getVariantRowsMany($ids) : [];
+            $values = (new ValueService())->loadMany(Product::ENTITY_TYPE, [...$ids, ...array_map('intval', array_column(array_merge([], ...array_values($children)), 'product_id'))]);
+            $gridOf = $grids && $children ? $variants->getAttributesMany(array_keys($children)) : [];
+            foreach ($rows as &$row) {
+                $id = (int) $row['product_id'];
+                $row['attributes'] = $values[$id] ?? [];
+                if ($withVariants) {
+                    $row['_variants'] = array_map(static fn (array $v) => $v + ['attributes' => $values[(int) $v['product_id']] ?? []] + ($grids ? ['_grid' => $gridOf[$id] ?? []] : []), $children[$id] ?? []);
+                }
+            }
+
+            return $rows;
+        };
+        // what the list's items will read, from the query: no preload for a list of names
+        $preloadFor = static function (array $rows, ResolveInfo $info) use ($preload): array {
+            $fields = $info->getFieldSelection(3)['items'] ?? [];
+            $withVariants = isset($fields['priceRange']) || isset($fields['variants']);
+
+            return $withVariants || isset($fields['attributes'])
+                ? $preload($rows, $withVariants, isset($fields['variants']['variantOptions']))
+                : $rows;
+        };
+        // a row not from a list with variants (or read alone): loads what the list would have
+        $loaded = static fn (array $p): array => array_key_exists('_variants', $p) ? $p : $preload([$p], true, false)[0];
         $productType = new ObjectType([
             'name' => 'Product',
             // a closure: variants and parent are Products too, and $load is set below
-            'fields' => static function () use (&$productType, &$load, $productFields, $service, $variants, $isAdmin, $typeEnum, $variantAttributeType, $optionType, $attributeType, $typeOf, $optionsOf, $labelOf, $categories, $categoryType, $priceRangeType): array {
+            'fields' => static function () use (&$productType, &$load, $productFields, $service, $variants, $isAdmin, $loaded, $typeEnum, $variantAttributeType, $optionType, $attributeType, $typeOf, $optionsOf, $labelOf, $categories, $categoryType, $priceRangeType): array {
                 return [
                 'id' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($p) => $p['product_id']],
                 'type' => ['type' => Type::nonNull($typeEnum), 'resolve' => fn ($p) => $p['type']],
@@ -184,22 +224,19 @@ class ProductSchema
                 'variants' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($productType))),
                     'description' => 'As variações (produto com grade); fora do admin, só as ativas.',
-                    'resolve' => static fn ($p) => array_values(array_filter((new Product())->getResource()->getVariantRows((int) $p['product_id']), static fn ($v) => $v['is_active'] || $isAdmin())),
+                    'resolve' => static fn ($p) => array_values(array_filter($loaded($p)['_variants'], static fn ($v) => $v['is_active'] || $isAdmin())),
                 ],
                 'priceRange' => [
                     'type' => Type::nonNull($priceRangeType),
                     'description' => 'Para a vitrine: o preço do produto; num produto com grade, o menor e o maior das variações ativas ("a partir de" = min).',
-                    'resolve' => static function ($p): array {
-                        $db = Connection::get()->adapter();
-                        $ids = $p['type'] === 'configurable'
-                            ? 'SELECT product_id FROM catalog_product WHERE parent_id = ' . (int) $p['product_id'] . ' AND is_active = 1'
-                            : (string) (int) $p['product_id'];
-                        $row = $db->fetchRow("SELECT MIN(v.value) AS min, MAX(v.value) AS max FROM eav_value_decimal v
-                            JOIN eav_attribute a ON a.attribute_id = v.attribute_id AND a.code = 'price'
-                            JOIN eav_entity_type et ON et.entity_type_id = a.entity_type_id AND et.code = 'product'
-                            WHERE v.entity_id IN ({$ids})") ?: [];
+                    'resolve' => static function ($p) use ($loaded): array {
+                        $p = $loaded($p);
+                        $prices = $p['type'] === 'configurable'
+                            ? array_column(array_column(array_filter($p['_variants'], static fn ($v) => (bool) $v['is_active']), 'attributes'), 'price')
+                            : (isset($p['attributes']['price']) ? [$p['attributes']['price']] : []);
+                        $prices = array_map('floatval', $prices);
 
-                        return ['min' => isset($row['min']) ? (float) $row['min'] : null, 'max' => isset($row['max']) ? (float) $row['max'] : null];
+                        return ['min' => $prices ? min($prices) : null, 'max' => $prices ? max($prices) : null];
                     },
                 ],
                 'variantOptions' => [
@@ -209,9 +246,10 @@ class ProductSchema
                         if (empty($p['parent_id'])) {
                             return [];
                         }
-                        $values = $service->getValues((int) $p['product_id']);
+                        // a variant from the parent's list has its values and grid preloaded
+                        $values = array_key_exists('attributes', $p) ? $p['attributes'] : $service->getValues((int) $p['product_id']);
                         return array_map(static fn ($a) => ['code' => $a['code'], 'value' => (string) ($values[$a['code']] ?? ''), 'label' => array_column($a['options'], 'label', 'value')[$values[$a['code']] ?? ''] ?? ''],
-                            $variants->getAttributes((int) $p['parent_id']));
+                            $p['_grid'] ?? $variants->getAttributes((int) $p['parent_id']));
                     },
                 ],
                 'parent' => ['type' => $productType, 'description' => 'O produto com grade, numa variação.', 'resolve' => static fn ($p) => empty($p['parent_id']) ? null : $load((int) $p['parent_id'])],
@@ -224,10 +262,10 @@ class ProductSchema
                 'updated_at' => Type::nonNull(Type::string()),
                 'attributes' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($attributeType))),
-                    // ponytail: one values query per product (N+1), capped by pageSize; batch if lists get slow
+                    // a list's rows come with the values (preload); a product read alone loads them
                     'resolve' => static function ($p) use ($service, $typeOf, $optionsOf, $labelOf): array {
                         $rows = [];
-                        foreach ($service->getValues((int) $p['product_id']) as $code => $value) {
+                        foreach (array_key_exists('attributes', $p) ? $p['attributes'] : $service->getValues((int) $p['product_id']) as $code => $value) {
                             $options = $optionsOf($code);
                             // an option removed after being chosen shows its value
                             $labels = $options === null ? null : array_map(static fn ($v) => $options[$v] ?? (string) $v, (array) $value);
@@ -456,7 +494,7 @@ class ProductSchema
                         'page' => ['type' => Type::int(), 'defaultValue' => 1],
                         'pageSize' => ['type' => Type::int(), 'defaultValue' => 20, 'description' => 'Máximo 100.'],
                     ],
-                    'resolve' => static function ($root, array $args) use ($isAdmin, $filterable): array {
+                    'resolve' => static function ($root, array $args, $context, ResolveInfo $info) use ($isAdmin, $filterable, $preloadFor): array {
                         $active = $isAdmin() ? ($args['isActive'] ?? null) : true;
                         $attributes = [];
                         foreach ($args['filters'] ?? [] as $filter) {
@@ -466,7 +504,7 @@ class ProductSchema
                             }
                             $attributes[$filter['code']] = ['attribute' => $attribute, 'values' => array_merge($attributes[$filter['code']]['values'] ?? [], $filter['values'])];
                         }
-                        return (new Product())->getResource()->search($filters = [
+                        $result = (new Product())->getResource()->search($filters = [
                             'attributes' => $attributes,
                             'price_from' => $args['priceFrom'] ?? null,
                             'price_to' => $args['priceTo'] ?? null,
@@ -475,7 +513,9 @@ class ProductSchema
                             'category_id' => (string) ($args['categoryId'] ?? ''),
                             'website_id' => (string) ($args['websiteId'] ?? ''),
                             'is_active' => $active === null ? '' : ($active ? '1' : '0'),
-                        ], max(1, $args['page']), min(100, max(1, $args['pageSize']))) + ['filters' => $filters];
+                        ], max(1, $args['page']), min(100, max(1, $args['pageSize'])));
+
+                        return ['items' => $preloadFor($result['items'], $info)] + $result + ['filters' => $filters];
                     },
                 ],
             ],

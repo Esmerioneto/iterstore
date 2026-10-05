@@ -134,10 +134,11 @@ class CustomerSchema
                 'updated_at' => Type::nonNull(Type::string()),
                 'attributes' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($attributeType))),
-                    // ponytail: one values query per customer (N+1), capped by pageSize
+                    // the customers list preloads the page's values (addAttributeToSelect); a customer read alone loads them
                     'resolve' => static function ($c) use ($service, $optionsOf): array {
                         $rows = [];
-                        foreach ($service->getValues((int) $c['customer_id']) as $code => $value) {
+                        $values = array_key_exists('attributes', $c) ? array_diff_key($c['attributes'], array_flip(Customer::FIELDS)) : $service->getValues((int) $c['customer_id']);
+                        foreach ($values as $code => $value) {
                             $options = $optionsOf($code);
                             $labels = $options === null ? null : array_map(static fn ($v) => $options[$v] ?? (string) $v, (array) $value);
                             $rows[] = [
@@ -338,7 +339,7 @@ class CustomerSchema
                         'group_id' => (string) ($args['groupId'] ?? ''),
                         'website_id' => (string) ($args['websiteId'] ?? ''),
                         'is_active' => isset($args['isActive']) ? ($args['isActive'] ? '1' : '0') : '',
-                    ], max(1, $args['page']), min(100, max(1, $args['pageSize'])))),
+                    ], max(1, $args['page']), min(100, max(1, $args['pageSize'])), ['*'])),
                 ],
             ],
             'mutation' => [

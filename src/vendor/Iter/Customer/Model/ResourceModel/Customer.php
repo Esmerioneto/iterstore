@@ -30,11 +30,13 @@ class Customer extends AbstractDb
 
     /**
      * @param array{customer_type?: string, group_id?: string, website_id?: string, is_active?: string, q?: string} $filters
+     * @param ?string[] $attributes addAttributeToSelect(): each row gets 'attributes' (code => value); '*' = all
      * @return array{items: array<int, array<string, mixed>>, total: int} rows + group_name, website_name
      */
-    public function search(array $filters, int $page, int $perPage): array
+    public function search(array $filters, int $page, int $perPage, ?array $attributes = null): array
     {
         $collection = (new Collection())->setOrder('customer_id')->setPageSize($perPage)->setCurPage($page);
+        $attributes === null || $collection->addAttributeToSelect($attributes);
         if (in_array($filters['customer_type'] ?? '', ['pf', 'pj'], true)) {
             $collection->addFieldToFilter('customer_type', $filters['customer_type']);
         }

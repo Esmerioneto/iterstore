@@ -156,10 +156,20 @@ class Product extends AbstractDb
     /** @return int[] the configurable product's variant attributes, in grid order */
     public function getVariantAttributeIds(int $productId): array
     {
-        $db = $this->getConnection();
+        return $this->getVariantAttributeIdsMany([$productId])[$productId] ?? [];
+    }
 
-        return array_map('intval', $db->fetchCol($db->select()->from('catalog_product_variant_attribute', ['attribute_id'])
-            ->where('product_id = ?', $productId)->order('position')));
+    /** @return array<int, int[]> product id => its grid's attribute ids in order, for many products in one query */
+    public function getVariantAttributeIdsMany(array $productIds): array
+    {
+        $db = $this->getConnection();
+        $ids = [];
+        foreach ($productIds ? $db->fetchAll($db->select()->from('catalog_product_variant_attribute', ['product_id', 'attribute_id'])
+            ->where('product_id IN (?)', array_map('intval', $productIds))->order(['product_id', 'position'])) : [] as $row) {
+            $ids[(int) $row['product_id']][] = (int) $row['attribute_id'];
+        }
+
+        return $ids;
     }
 
     /** @param int[] $attributeIds in grid order */
@@ -191,8 +201,18 @@ class Product extends AbstractDb
     /** @return array<int, array<string, mixed>> the variants' catalog_product rows */
     public function getVariantRows(int $parentId): array
     {
-        $db = $this->getConnection();
+        return $this->getVariantRowsMany([$parentId])[$parentId] ?? [];
+    }
 
-        return $db->fetchAll($db->select()->from('catalog_product')->where('parent_id = ?', $parentId)->order('product_id'));
+    /** @return array<int, array<int, array>> parent id => its variants' rows, for a list's page in one query */
+    public function getVariantRowsMany(array $parentIds): array
+    {
+        $db = $this->getConnection();
+        $rows = [];
+        foreach ($parentIds ? $db->fetchAll($db->select()->from('catalog_product')->where('parent_id IN (?)', array_map('intval', $parentIds))->order('product_id')) : [] as $row) {
+            $rows[(int) $row['parent_id']][] = $row;
+        }
+
+        return $rows;
     }
 }
