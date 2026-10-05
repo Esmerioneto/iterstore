@@ -47,12 +47,15 @@ class OrderService
      * ponytail: a logged-in customer retrying after the first call finished gets the new, empty cart
      * (CART_EMPTY); the storefront then reads it with myOrders
      *
+     * An admin's cart (Iter_Adminsales) keeps who sold it on the order and in the first history line;
+     * $notify = false places it without the e-mail.
+     *
      * @return int the order id
      * @throws SalesException what the cart is missing; InventoryException INSUFFICIENT_STOCK when another order took the stock first
      */
-    public function place(int $quoteId): int
+    public function place(int $quoteId, bool $notify = true): int
     {
-        [$orderId, $placed] = Connection::get()->adapter()->transaction(function ($db) use ($quoteId): array {
+        [$orderId, $placed] = Connection::get()->adapter()->transaction(function ($db) use ($quoteId, $notify): array {
             $db->fetchOne($db->select()->from('sales_quote', ['quote_id'])->where('quote_id = ?', $quoteId)->forUpdate());
             $existing = $db->fetchOne($db->select()->from('sales_order', ['order_id'])->where('quote_id = ?', $quoteId));
             if ($existing !== false) {
@@ -69,6 +72,7 @@ class OrderService
                 'website_id' => $websiteId,
                 'quote_id' => $quoteId,
                 'customer_id' => $cart['customer_id'],
+                'admin_user_id' => $cart['admin_user_id'],
                 'email' => $cart['email'],
                 'firstname' => $cart['firstname'],
                 'lastname' => $cart['lastname'],
@@ -100,12 +104,13 @@ class OrderService
                     + array_map(static fn ($v) => $v === '' ? null : $v, array_intersect_key($address, array_flip(self::ADDRESS_COLUMNS)))
                     + ['attributes' => json_encode((object) array_diff_key($address, array_flip(self::ADDRESS_COLUMNS)), JSON_UNESCAPED_UNICODE)]);
             }
-            $db->insert('sales_order_status_history', ['order_id' => $orderId, 'status' => 'pending_payment']);
+            $db->insert('sales_order_status_history', ['order_id' => $orderId, 'status' => 'pending_payment', 'is_customer_notified' => (int) $notify]
+                + ($cart['admin_user_id'] === null ? [] : ['comment' => 'Pedido criado no painel.', 'admin_user_id' => $cart['admin_user_id']]));
             $db->update('sales_quote', ['is_active' => 0], ['quote_id = ?' => $quoteId]);
 
             return [$orderId, true];
         });
-        if ($placed) {
+        if ($placed && $notify) {
             $this->mail('sales_order_placed', $this->get($orderId));
         }
 
@@ -178,9 +183,9 @@ class OrderService
     }
 
     /** pending_payment → processing: the payment arrived (manual Pix, deposit, a gateway that didn't confirm by itself) */
-    public function confirmPayment(int $orderId, ?string $comment, ?int $adminUserId): void
+    public function confirmPayment(int $orderId, ?string $comment, ?int $adminUserId, bool $notify = true): void
     {
-        $this->transition($orderId, 'processing', $comment, $adminUserId);
+        $this->transition($orderId, 'processing', $comment, $adminUserId, notify: $notify);
     }
 
     /**
@@ -356,11 +361,12 @@ class OrderService
 
     /**
      * Moves the order to $to when its current status allows it (ORDER_STATUS_INVALID otherwise), running
-     * $change in the same transaction, then e-mails the customer (not on complete: delivered, they know).
+     * $change in the same transaction, then e-mails the customer (not on complete: delivered, they know; not when !$notify).
      */
-    private function transition(int $orderId, string $to, ?string $comment, ?int $adminUserId, ?callable $change = null): void
+    private function transition(int $orderId, string $to, ?string $comment, ?int $adminUserId, ?callable $change = null, bool $notify = true): void
     {
-        Connection::get()->adapter()->transaction(function ($db) use ($orderId, $to, $comment, $adminUserId, $change): void {
+        $notify = $notify && $to !== 'complete';
+        Connection::get()->adapter()->transaction(function ($db) use ($orderId, $to, $comment, $adminUserId, $change, $notify): void {
             $order = $db->fetchRow($db->select()->from('sales_order')->where('order_id = ?', $orderId)->forUpdate())
                 ?: throw new SalesException('ORDER_NOT_FOUND', 'Pedido não encontrado.');
             if (!in_array($to, self::TRANSITIONS[$order['status']] ?? [], true)) {
@@ -368,9 +374,9 @@ class OrderService
             }
             $change && $change($db, $order);
             $db->update('sales_order', ['status' => $to], ['order_id = ?' => $orderId]);
-            $db->insert('sales_order_status_history', ['order_id' => $orderId, 'status' => $to, 'comment' => $comment ?: null, 'is_customer_notified' => (int) ($to !== 'complete'), 'admin_user_id' => $adminUserId]);
+            $db->insert('sales_order_status_history', ['order_id' => $orderId, 'status' => $to, 'comment' => $comment ?: null, 'is_customer_notified' => (int) $notify, 'admin_user_id' => $adminUserId]);
         });
-        if ($to === 'complete') {
+        if (!$notify) {
             return;
         }
         $order = $this->get($orderId);
@@ -388,7 +394,8 @@ class OrderService
         $error = match (true) {
             !$cart['items'] => ['CART_EMPTY', 'O carrinho está vazio.'],
             $cart['has_errors'] => ['CART_HAS_ERRORS', current(array_filter(array_column($cart['items'], 'error')))],
-            $guest && !Config::get('sales/checkout/guest', $cart['website_id']) => ['LOGIN_REQUIRED', 'Esta loja só vende para clientes cadastrados: faça login.'],
+            // the admin sells to a guest even when the store requires a login (ADMINSALES-PLAN decision 3)
+            $guest && $cart['admin_user_id'] === null && !Config::get('sales/checkout/guest', $cart['website_id']) => ['LOGIN_REQUIRED', 'Esta loja só vende para clientes cadastrados: faça login.'],
             !$cart['email'] || !$cart['firstname'] || !$cart['lastname'] || !$cart['taxvat'] => $guest
                 ? ['CUSTOMER_INFO_REQUIRED', 'Informe e-mail, nome, sobrenome e CPF/CNPJ (setCartGuestInfo).']
                 : ['CUSTOMER_INFO_REQUIRED', 'Complete nome, sobrenome e CPF/CNPJ na conta (updateMe).'],

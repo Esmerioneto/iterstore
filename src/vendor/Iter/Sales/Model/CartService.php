@@ -45,7 +45,8 @@ class CartService
     {
         $db = Connection::get()->adapter();
         if ($cartId !== null && $cartId !== '') {
-            $select = $db->select()->from('sales_quote', ['quote_id'])->where('token_hash = ?', hash('sha256', $cartId));
+            // an admin's cart (Iter_Adminsales) isn't the store's: AdminCartService resolves it
+            $select = $db->select()->from('sales_quote', ['quote_id'])->where('token_hash = ?', hash('sha256', $cartId))->where('admin_user_id IS NULL');
             $id = $db->fetchOne($placed ? $select : $select->where('is_active = 1'));
 
             return $id !== false ? (int) $id : throw new SalesException('CART_NOT_FOUND', 'Carrinho não encontrado. Crie outro com createCart.');
@@ -61,7 +62,7 @@ class CartService
      * The cart as the storefront shows it: guest or customer data, addresses, items with the current
      * price and stock, totals.
      *
-     * @return array{quote_id: int, website_id: int, customer_id: ?int, email: ?string, firstname: ?string, lastname: ?string,
+     * @return array{quote_id: int, website_id: int, customer_id: ?int, admin_user_id: ?int, email: ?string, firstname: ?string, lastname: ?string,
      *               taxvat: ?string, shipping_address: ?array, billing_address: ?array, billing_same_as_shipping: bool,
      *               items: array<int, array>, items_quantity: float, subtotal: float, shipping_methods: array, shipping_method: ?array,
      *               shipping_amount: float, payment_methods: array, payment_method: ?array, total: float, has_errors: bool}
@@ -93,6 +94,7 @@ class CartService
             'quote_id' => $quoteId,
             'website_id' => (int) $quote['website_id'],
             'customer_id' => $quote['customer_id'] === null ? null : (int) $quote['customer_id'],
+            'admin_user_id' => $quote['admin_user_id'] === null ? null : (int) $quote['admin_user_id'], // built by an admin (Iter_Adminsales)
             'email' => $quote['email'],
             'firstname' => $quote['firstname'],
             'lastname' => $quote['lastname'],
@@ -252,7 +254,7 @@ class CartService
     {
         $db = Connection::get()->adapter();
         $find = static fn () => $db->fetchOne($db->select()->from('sales_quote', ['quote_id'])
-            ->where('customer_id = ?', (int) $customer->getId())->where('website_id = ?', (int) $customer->getData('website_id'))->where('is_active = 1'));
+            ->where('customer_id = ?', (int) $customer->getId())->where('website_id = ?', (int) $customer->getData('website_id'))->where('is_active = 1')->where('admin_user_id IS NULL'));
         $id = $find();
         if ($id === false) {
             // a concurrent first request creates it too; the partial unique index keeps one

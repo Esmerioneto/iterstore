@@ -1,0 +1,3 @@
+[
+    { "id": "Iter_Adminsales::create", "parent": "Iter_Admin::root", "title": "Pedidos: criar pelo painel (venda por telefone, balcão)" }
+]
