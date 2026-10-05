@@ -31,8 +31,14 @@ abstract class AbstractEntityCollection extends AbstractCollection
 
     private ?array $loaded = null;
 
-    /** @var ?array<string, array> the entity type's attributes by code */
-    private ?array $attributes = null;
+    /** @var array<string, array<string, array>> entity type => its attributes by code, read once per process */
+    private static array $attributes = [];
+
+    /** Attribute's save and delete call it, so a new attribute is seen at once */
+    public static function clearAttributeCache(): void
+    {
+        self::$attributes = [];
+    }
 
     /** the entity type's code (eav_entity_type.code): 'product', 'customer'... */
     abstract protected function entityType(): string;
@@ -61,7 +67,7 @@ abstract class AbstractEntityCollection extends AbstractCollection
      */
     public function addAttributeToFilter(string $code, mixed $condition): static
     {
-        $attribute = $this->attribute($code);
+        $attribute = $this->getAttribute($code);
         $exists = 'SELECT 1 FROM eav_value_' . $attribute['storage_type'] . ' v WHERE v.attribute_id = ' . (int) $attribute['attribute_id']
             . ' AND v.entity_id = ' . $this->entityIdField();
         if (is_array($condition) && isset($condition['null']) && count($condition) === 1) {
@@ -95,13 +101,16 @@ abstract class AbstractEntityCollection extends AbstractCollection
         return $this;
     }
 
-    /** the attribute's value for main_table's entity, as a scalar subquery (for a column or a custom order) */
-    public function valueSql(string $code): string
+    /**
+     * The attribute's value as a scalar subquery: by default main_table's entity; $entity is the SQL that
+     * follows "v.entity_id" (e.g. "IN (SELECT ...)") and $select what is read (e.g. "MIN(v.value)").
+     */
+    public function valueSql(string $code, ?string $entity = null, string $select = 'v.value'): string
     {
-        $attribute = $this->attribute($code);
+        $attribute = $this->getAttribute($code);
 
-        return 'SELECT v.value FROM eav_value_' . $attribute['storage_type'] . ' v WHERE v.attribute_id = ' . (int) $attribute['attribute_id']
-            . ' AND v.entity_id = ' . $this->entityIdField();
+        return "SELECT {$select} FROM eav_value_" . $attribute['storage_type'] . ' v WHERE v.attribute_id = ' . (int) $attribute['attribute_id']
+            . ' AND v.entity_id ' . ($entity ?? '= ' . $this->entityIdField());
     }
 
     /** the page's rows, each with 'attributes' (code => value) when addAttributeToSelect() was called */
@@ -120,14 +129,18 @@ abstract class AbstractEntityCollection extends AbstractCollection
         return $this->loaded;
     }
 
-    /** @throws AttributeException ATTRIBUTE_NOT_FOUND */
-    private function attribute(string $code): array
+    /**
+     * @return array the eav_attribute row of the entity type's attribute
+     * @throws AttributeException ATTRIBUTE_NOT_FOUND
+     */
+    public function getAttribute(string $code): array
     {
-        if ($this->attributes === null) {
+        $type = $this->entityType();
+        if (!isset(self::$attributes[$type])) {
             $resource = new Attribute();
-            $this->attributes = array_column($resource->getByEntityType((int) $resource->getEntityTypes()[$this->entityType()]['entity_type_id']), null, 'code');
+            self::$attributes[$type] = array_column($resource->getByEntityType((int) $resource->getEntityTypes()[$type]['entity_type_id']), null, 'code');
         }
 
-        return $this->attributes[$code] ?? throw new AttributeException('ATTRIBUTE_NOT_FOUND', "Atributo '{$code}' não encontrado.");
+        return self::$attributes[$type][$code] ?? throw new AttributeException('ATTRIBUTE_NOT_FOUND', "Atributo '{$code}' não encontrado.");
     }
 }

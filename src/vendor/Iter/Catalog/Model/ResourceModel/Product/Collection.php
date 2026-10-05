@@ -7,15 +7,15 @@ namespace Iter\Catalog\Model\ResourceModel\Product;
 use Iter\Catalog\Model\Product;
 use Iter\Catalog\Model\ResourceModel\Product as ProductResource;
 use Iter\Core\Db\Expr;
-use Iter\Core\Model\ResourceModel\AbstractCollection;
+use Iter\Eav\Model\ResourceModel\AbstractEntityCollection;
 
-/** @extends AbstractCollection<Product> rows + set_label, price, and a configurable product's price_min/max and variant_count */
-class Collection extends AbstractCollection
+/**
+ * @extends AbstractEntityCollection<Product> rows + set_label, price, a configurable product's price_min/max and
+ * variant_count, and price_sort (the price, or a configurable's lowest variant price)
+ */
+class Collection extends AbstractEntityCollection
 {
-    // price is the system EAV attribute created along with the table; a configurable product's comes from its variants
-    public const PRICE_SQL = "(SELECT %s FROM eav_value_decimal v JOIN eav_attribute pa ON pa.attribute_id = v.attribute_id
-        WHERE pa.entity_type_id = s.entity_type_id AND pa.code = 'price' AND v.entity_id %s)";
-    public const VARIANTS_SQL = 'IN (SELECT product_id FROM catalog_product c WHERE c.parent_id = main_table.product_id)';
+    private const VARIANTS_SQL = 'IN (SELECT product_id FROM catalog_product c WHERE c.parent_id = main_table.product_id)';
 
     /**
      * Parent products whose own row or an active variant's has a value matching %3$s in table %1$s, attribute %2$s.
@@ -29,15 +29,24 @@ class Collection extends AbstractCollection
         $this->init(Product::class, ProductResource::class);
     }
 
+    protected function entityType(): string
+    {
+        return Product::ENTITY_TYPE;
+    }
+
     protected function _initSelect(): void
     {
+        $price = '(' . $this->valueSql('price') . ')';
+        $minPrice = '(' . $this->valueSql('price', self::VARIANTS_SQL, 'MIN(v.value)') . ')';
         $this->select
             ->join(['s' => 'eav_attribute_set'], 's.attribute_set_id = main_table.attribute_set_id', [
                 'set_label' => 'label',
-                'price' => new Expr(sprintf(self::PRICE_SQL, 'v.value', '= main_table.product_id')),
-                'price_min' => new Expr(sprintf(self::PRICE_SQL, 'MIN(v.value)', self::VARIANTS_SQL)),
-                'price_max' => new Expr(sprintf(self::PRICE_SQL, 'MAX(v.value)', self::VARIANTS_SQL)),
+                'price' => new Expr($price),
+                'price_min' => new Expr($minPrice),
+                'price_max' => new Expr('(' . $this->valueSql('price', self::VARIANTS_SQL, 'MAX(v.value)') . ')'),
                 'variant_count' => new Expr('(SELECT COUNT(*) FROM catalog_product c WHERE c.parent_id = main_table.product_id)'),
+                // the admin list's "Preço" column sorts by it (ORDER BY its name)
+                'price_sort' => new Expr("COALESCE({$price}, {$minPrice})"),
             ]);
     }
 
@@ -54,6 +63,7 @@ class Collection extends AbstractCollection
      */
     public function addAttributeValueFilter(array $attribute, array $values): static
     {
+        // ponytail: not addAttributeToFilter: the match is on the product or an active variant (MATCHING_SQL)
         $in = implode(', ', array_map(fn ($v) => $this->select->bindValue((string) $v), $values));
         $match = match ($attribute['storage_type']) {
             'text' => "jsonb_exists_any(v.value::jsonb, ARRAY[{$in}]::text[])", // Múltipla seleção: a JSON list
@@ -68,12 +78,9 @@ class Collection extends AbstractCollection
     /** the price (a configurable's: one of its variants') within the range; null = open end */
     public function addPriceFilter(?float $from, ?float $to): static
     {
-        $range = implode(' AND ', array_filter([
-            $from === null ? null : 'v.value >= ' . $this->select->bindValue($from),
-            $to === null ? null : 'v.value <= ' . $this->select->bindValue($to),
-        ]));
-        if ($range !== '') {
-            $this->select->where(sprintf(self::MATCHING_SQL, 'eav_value_decimal', "(SELECT attribute_id FROM eav_attribute JOIN eav_entity_type et USING (entity_type_id) WHERE et.code = 'product' AND eav_attribute.code = 'price')", $range));
+        $range = array_filter(['gteq' => $from, 'lteq' => $to], static fn ($v) => $v !== null);
+        if ($range) {
+            $this->select->where(sprintf(self::MATCHING_SQL, 'eav_value_decimal', (int) $this->getAttribute('price')['attribute_id'], $this->condition(new Expr('v.value'), $range)));
         }
 
         return $this;

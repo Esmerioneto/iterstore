@@ -6,7 +6,6 @@ namespace Iter\Catalog\View;
 
 use Iter\Catalog\Model\Category;
 use Iter\Catalog\Model\Product;
-use Iter\Catalog\Model\ResourceModel\Product\Collection;
 use Iter\Core\Db\Expr;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Store\Model\Website;
@@ -78,8 +77,8 @@ class ProductList implements ViewComponentInterface
             'set' => new Expr('s.label'),
             'categories' => new Expr('(SELECT string_agg(c.name, \', \' ORDER BY c.name) FROM catalog_category_product cp
                 JOIN catalog_category c ON c.category_id = cp.category_id WHERE cp.product_id = main_table.product_id)'),
-            // a configurable product sorts by its lowest variant price
-            'price' => new Expr('COALESCE(' . sprintf(Collection::PRICE_SQL, 'v.value', '= main_table.product_id') . ', ' . sprintf(Collection::PRICE_SQL, 'MIN(v.value)', Collection::VARIANTS_SQL) . ')'),
+            // a configurable product sorts by its lowest variant price (the collection's price_sort column)
+            'price' => new Expr('price_sort'),
             'is_active' => 'is_active',
         ];
         foreach ($columns as $key => $column) {
