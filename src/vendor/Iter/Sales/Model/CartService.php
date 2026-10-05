@@ -10,6 +10,7 @@ use Iter\Core\Db\Expr;
 use Iter\Customer\Model\AddressService;
 use Iter\Customer\Model\Customer;
 use Iter\Eav\Model\Taxvat;
+use Iter\Eav\Model\ValueService;
 use Iter\Inventory\Model\StockService;
 use Iter\Payment\Model\PaymentService;
 use Iter\Shipping\Model\ShippingService;
@@ -24,10 +25,6 @@ use Iter\Shipping\Model\ShippingService;
  */
 class CartService
 {
-    /** a product's system decimal attribute (%s = its code) */
-    private const DECIMAL_SQL = "(SELECT v.value FROM eav_value_decimal v JOIN eav_attribute a ON a.attribute_id = v.attribute_id AND a.code = '%s'
-        JOIN eav_entity_type et ON et.entity_type_id = a.entity_type_id AND et.code = 'product' WHERE v.entity_id = p.product_id)";
-
     /** @return string the cartId the storefront keeps (a guest's cart) */
     public function create(int $websiteId): string
     {
@@ -304,14 +301,12 @@ class CartService
         $db = Connection::get()->adapter();
         $select = $db->select()->from(['p' => 'catalog_product'], ['product_id', 'sku', 'name', 'type', 'is_active']);
         $select->joinLeft(['pp' => 'catalog_product'], 'pp.product_id = p.parent_id', ['parent_active' => new Expr('COALESCE(pp.is_active, 1)')])
-            ->columns([
-                'in_website' => new Expr('EXISTS (SELECT 1 FROM catalog_product_website w WHERE w.product_id = p.product_id AND w.website_id = ' . $select->bindValue($websiteId) . ')'),
-                'price' => new Expr(sprintf(self::DECIMAL_SQL, 'price')),
-                'weight' => new Expr(sprintf(self::DECIMAL_SQL, 'weight')),
-            ])
+            ->columns(['in_website' => new Expr('EXISTS (SELECT 1 FROM catalog_product_website w WHERE w.product_id = p.product_id AND w.website_id = ' . $select->bindValue($websiteId) . ')')])
             ->where('p.product_id IN (?)', array_map('intval', $ids));
+        $values = (new ValueService())->loadMany(Product::ENTITY_TYPE, $ids, ['price', 'weight']);
 
-        return array_column($db->fetchAll($select), null, 'product_id');
+        return array_map(static fn (array $p) => $p + ['price' => $values[(int) $p['product_id']]['price'] ?? null, 'weight' => $values[(int) $p['product_id']]['weight'] ?? null],
+            array_column($db->fetchAll($select), null, 'product_id'));
     }
 
     /** @return ?array{0: string, 1: string} [code, message] when the item can't be bought as it is */

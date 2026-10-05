@@ -7,6 +7,7 @@ namespace Iter\Eav\Model\ResourceModel;
 use Iter\Core\Db\Adapter;
 
 use Iter\Core\Db\Expr;
+use Iter\Core\Model\AbstractModel;
 use Iter\Core\Model\ResourceModel\AbstractDb;
 use Iter\Eav\Model\ResourceModel\Attribute\Collection;
 use Iter\Eav\InputTypeRegistry;
@@ -76,6 +77,17 @@ class Attribute extends AbstractDb
                 $db->insertOnConflict('eav_attribute_option', ['attribute_id' => $attributeId] + $option, ['attribute_id', 'value'], ['label', 'sort_order', 'is_default']);
             }
         });
+    }
+
+    protected function afterSave(AbstractModel $object): void
+    {
+        AbstractEntityCollection::clearAttributeCache();
+    }
+
+    public function delete(AbstractModel $object): void
+    {
+        parent::delete($object);
+        AbstractEntityCollection::clearAttributeCache();
     }
 
     /** @return array<int, array<string, mixed>> the entity type's attributes by position */
