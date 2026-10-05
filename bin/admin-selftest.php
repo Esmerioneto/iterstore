@@ -2245,6 +2245,29 @@ assertSame([['number' => $order['number'] ?? 'x', 'status' => 'complete'], null,
     $gqlCode($lookup('frete@selftest.local')),
 ], 'pedido do visitante: número + e-mail (sem diferença de maiúsculas); e-mail errado dá null; limite por IP');
 
+// --- unpaid orders canceled by cron (COMMERCE-PLAN delivery 8) ---------------------------------------
+$stock->save($v0, ['selftest_var_cd' => ['quantity' => '2']]);
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'order_place:%'");
+$setConfig(['payment/pix/active' => '1', 'payment/pix/cancel_hours' => '1', 'payment/offline/cancel_hours' => '0']);
+$unpaid = static function (string $payment) use ($api, $v0Sku, $addr): string {
+    $cart = '"' . ($api('mutation { createCart }')[1]['data']['createCart'] ?? '') . '"';
+    foreach (["addToCart(cartId: {$cart}, sku: \"{$v0Sku}\")", "setCartGuestInfo(cartId: {$cart}, email: \"nao-pago@selftest.local\", firstname: \"Nao\", lastname: \"Pago\", taxvat: \"529.982.247-25\")",
+        "setCartShippingAddress(cartId: {$cart}, {$addr})", "setCartShippingMethod(cartId: {$cart}, code: \"pickup\")", "setCartPaymentMethod(cartId: {$cart}, code: \"{$payment}\")"] as $call) {
+        $api("mutation { {$call} { total } }");
+    }
+    return $api("mutation { placeOrder(cartId: {$cart}) { number } }")[1]['data']['placeOrder']['number'] ?? '';
+};
+[$pixUnpaid, $offlineUnpaid] = [$unpaid('pix'), $unpaid('offline')];
+$pdo->exec("UPDATE sales_order SET created_at = NOW() - INTERVAL '2 hours' WHERE increment_id IN ('{$pixUnpaid}', '{$offlineUnpaid}')");
+$cronOut = (string) shell_exec(PHP_BINARY . ' ' . escapeshellarg(__DIR__ . '/order-clean.php') . ' 2>&1');
+$unpaidStatus = static fn (string $n) => $pdo->query("SELECT status FROM sales_order WHERE increment_id = '{$n}'")->fetchColumn();
+assertSame([true, false, 'canceled', 'pending_payment', '1', 'Pagamento não recebido em 1 hora(s).', 1], [
+    str_contains($cronOut, $pixUnpaid), str_contains($cronOut, $offlineUnpaid), $unpaidStatus($pixUnpaid), $unpaidStatus($offlineUnpaid),
+    (new StockService())->getSalable([$v0], $defaultWebsite)[$v0],
+    $pdo->query("SELECT h.comment FROM sales_order_status_history h JOIN sales_order o USING (order_id) WHERE o.increment_id = '{$pixUnpaid}' ORDER BY h.history_id DESC LIMIT 1")->fetchColumn(),
+    (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_canceled' AND to_email = 'nao-pago@selftest.local'")->fetchColumn(),
+], 'cron de não pagos: o Pix passou de 1 hora e é cancelado (reserva devolvida, motivo no histórico, cliente avisado); "combinar" com 0 horas fica');
+
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");
 assertSame([200, 200, 429], array_map(static fn () => $custLogin('errada123')[0], [1, 2, 3]), 'API cliente: login passa do limite por IP e recebe 429');

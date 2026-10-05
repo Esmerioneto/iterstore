@@ -192,6 +192,33 @@ class OrderService
         });
     }
 
+    /**
+     * bin/order-clean.php: cancels the orders still waiting for payment after the hours set for their
+     * payment method (Configurações → Pagamento, per website; 0 = never), giving the stock back.
+     *
+     * @return string[] the canceled orders' numbers
+     */
+    public function cancelUnpaid(): array
+    {
+        $db = Connection::get()->adapter();
+        $canceled = [];
+        foreach ($db->fetchAll($db->select()->from('sales_order', ['order_id', 'increment_id', 'website_id', 'payment_method', 'created_at'])
+            ->where("status = 'pending_payment'")->where('payment_method IS NOT NULL')->order('order_id')) as $order) {
+            $hours = (int) Config::get("payment/{$order['payment_method']}/cancel_hours", (int) $order['website_id']);
+            if ($hours <= 0 || strtotime((string) $order['created_at']) > time() - $hours * 3600) {
+                continue;
+            }
+            try {
+                $this->cancel((int) $order['order_id'], "Pagamento não recebido em {$hours} hora(s).", null);
+                $canceled[] = $order['increment_id'];
+            } catch (SalesException) {
+                // paid by the admin in the meantime: ORDER_STATUS_INVALID, nothing to do
+            }
+        }
+
+        return $canceled;
+    }
+
     /** A note in the history, in any status; $notify e-mails it to the customer */
     public function addComment(int $orderId, string $comment, bool $notify, ?int $adminUserId): void
     {
