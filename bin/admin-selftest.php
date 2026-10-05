@@ -2330,14 +2330,16 @@ $fill($guestQuote);
 $discardQuote = $adminCarts->resolve($discardId = $adminCarts->create($defaultWebsite, null, $adminId));
 $openBefore = count($adminCarts->openCarts($adminId));
 $adminCarts->discard($discardQuote);
-$guestOrder = $adminCarts->place($guestQuote, $adminId);
+$guestRefused = (static function () use ($adminCarts, $guestQuote, $adminId) { try { $adminCarts->place($guestQuote, $adminId); } catch (Iter\Sales\Model\SalesException $e) { return $e->errorCode; } })();
 $setConfig(['sales/checkout/guest' => '1']);
-assertSame(['pending_payment', 1, 2, 'CART_NOT_FOUND'], [
+$guestOrder = $adminCarts->place($guestQuote, $adminId);
+assertSame(['LOGIN_REQUIRED', 'pending_payment', 1, 2, 'CART_NOT_FOUND'], [
+    $guestRefused,
     $pdo->query("SELECT status FROM sales_order WHERE order_id = {$guestOrder}")->fetchColumn(),
     (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_placed' AND to_email = 'admin-visitante@selftest.local'")->fetchColumn(),
     $openBefore,
     (static function () use ($adminCarts, $discardId) { try { $adminCarts->resolve($discardId); } catch (Iter\Sales\Model\SalesException $e) { return $e->errorCode; } })(),
-], 'pedido do admin: vende para visitante mesmo com a loja exigindo login, avisa o cliente; pedidos em montagem listados e descartados');
+], 'pedido do admin: visitante só com "Vender para visitante" ligado (desligado = LOGIN_REQUIRED), avisa o cliente; pedidos em montagem listados e descartados');
 
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'customer/security/api_login_per_minute', '2') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '2'");
