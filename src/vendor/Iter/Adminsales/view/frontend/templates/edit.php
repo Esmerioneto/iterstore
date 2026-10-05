@@ -153,10 +153,21 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
 
     <h3>Fechar</h3>
     <p>Subtotal <?= $money($cart['subtotal']) ?> · Frete <?= $money($cart['shipping_amount']) ?> · <strong>Total <?= $money($cart['total']) ?></strong></p>
-    <?= $form('place', ($can_confirm_payment ? '<p><label><input type="checkbox" name="payment_received" value="1"> Pagamento recebido (já confirma o pagamento)</label></p>' : '')
+<?php if ($missing): ?>
+    <p><strong>Antes de criar o pedido:</strong></p>
+    <ul class="adminsales-missing">
+    <?php foreach ($missing as $text): ?>
+        <li><?= $e($text) ?></li>
+    <?php endforeach; ?>
+    </ul>
+<?php endif; ?>
+    <?= $missing ? '' : $form('place', ($can_confirm_payment ? '<p><label><input type="checkbox" name="payment_received" value="1"> Pagamento recebido (já confirma o pagamento)</label></p>' : '')
         . '<p><label><input type="checkbox" name="notify" value="1" checked> Avisar o cliente por e-mail</label></p>'
         . '<p><label>Comentário interno (não vai para o cliente)<br><textarea name="comment" rows="2" maxlength="5000"></textarea></label></p>'
         . '<p><button type="submit">Criar pedido</button></p>') ?>
+<?php if ($missing): ?>
+    <p><button type="button" disabled>Criar pedido</button></p>
+<?php endif; ?>
     <?= $form('discard', '<button type="submit">Descartar</button>', ' data-confirm="Descartar este pedido em montagem?"') ?>
     <p><a href="/admin/ordercreate/index">Voltar</a></p>
 </section>

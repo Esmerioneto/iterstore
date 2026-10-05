@@ -33,9 +33,12 @@ class Edit implements ViewComponentInterface
         $attributes = new Attribute();
         $types = $attributes->getResource()->getEntityTypes();
 
+        $cart = (new CartService())->view((int) $quote['quote_id']);
+
         return [
             'quote' => $quote,
-            'cart' => (new CartService())->view((int) $quote['quote_id']),
+            'cart' => $cart,
+            'missing' => self::missing($cart),
             'website_name' => (new Website())->load($websiteId)->getData('name'),
             'q' => $q,
             'products' => $q === '' ? [] : $this->products($q, $websiteId),
@@ -46,6 +49,36 @@ class Edit implements ViewComponentInterface
             'guest_allowed' => (bool) Config::get('sales/checkout/guest', $websiteId),
             'can_confirm_payment' => Auth::isAllowed('Iter_Sales::order_payment'),
         ];
+    }
+
+    /**
+     * What the order still lacks, in this screen's words (OrderService::missing() speaks the API's)
+     *
+     * @return array<string, string> code => what to do on this page
+     */
+    public static function missing(array $cart): array
+    {
+        $texts = [];
+        foreach (OrderService::missing($cart) as [$code, $message]) {
+            $texts[$code] = match ($code) {
+                'CART_EMPTY' => 'Adicione um item (seção Itens).',
+                'CART_HAS_ERRORS' => $message,
+                'LOGIN_REQUIRED' => 'Este website não vende para visitante (Configurações → Vendas): descarte e comece com um cliente cadastrado.',
+                'CUSTOMER_INFO_REQUIRED' => $cart['customer_id'] === null
+                    ? 'Salve os dados do visitante (seção Cliente).'
+                    : 'O cadastro do cliente está sem nome, sobrenome ou CPF/CNPJ: complete-o em Clientes.',
+                'SHIPPING_ADDRESS_REQUIRED' => 'Informe o endereço de entrega.',
+                'SHIPPING_METHOD_REQUIRED' => $cart['shipping_methods']
+                    ? 'Escolha o frete (seção Frete).'
+                    : 'Nenhum frete atende este pedido: confira o endereço, as faixas de frete e Configurações → Frete.',
+                'PAYMENT_METHOD_REQUIRED' => $cart['payment_methods']
+                    ? 'Escolha a forma de pagamento (seção Pagamento).'
+                    : 'Nenhuma forma de pagamento está ativa neste website: ative uma em Configurações → Pagamento.',
+                default => $message,
+            };
+        }
+
+        return $texts;
     }
 
     /**

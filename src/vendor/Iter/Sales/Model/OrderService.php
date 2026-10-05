@@ -390,23 +390,36 @@ class OrderService
     /** @throws SalesException the first thing the cart is missing, with the call that fixes it */
     private static function assertComplete(array $cart): void
     {
-        $guest = $cart['customer_id'] === null;
-        $error = match (true) {
-            !$cart['items'] => ['CART_EMPTY', 'O carrinho está vazio.'],
-            $cart['has_errors'] => ['CART_HAS_ERRORS', current(array_filter(array_column($cart['items'], 'error')))],
-            // the admin's orders too: a guest sale needs "Vender para visitante" on (ADMINSALES-PLAN decision 3)
-            $guest && !Config::get('sales/checkout/guest', $cart['website_id']) => ['LOGIN_REQUIRED', 'Esta loja só vende para clientes cadastrados: faça login.'],
-            !$cart['email'] || !$cart['firstname'] || !$cart['lastname'] || !$cart['taxvat'] => $guest
-                ? ['CUSTOMER_INFO_REQUIRED', 'Informe e-mail, nome, sobrenome e CPF/CNPJ (setCartGuestInfo).']
-                : ['CUSTOMER_INFO_REQUIRED', 'Complete nome, sobrenome e CPF/CNPJ na conta (updateMe).'],
-            $cart['shipping_address'] === null => ['SHIPPING_ADDRESS_REQUIRED', 'Informe o endereço de entrega (setCartShippingAddress).'],
-            \isModuleEnabled('iter_shipping') && $cart['shipping_method'] === null => ['SHIPPING_METHOD_REQUIRED', 'Escolha o frete (setCartShippingMethod).'],
-            \isModuleEnabled('iter_payment') && $cart['payment_method'] === null => ['PAYMENT_METHOD_REQUIRED', 'Escolha a forma de pagamento (setCartPaymentMethod).'],
-            default => null,
-        };
-        if ($error !== null) {
-            throw new SalesException(...$error);
+        $missing = self::missing($cart);
+        if ($missing) {
+            throw new SalesException(...$missing[0]);
         }
+    }
+
+    /**
+     * Everything the cart still lacks to become an order, in the order to fix it (a screen lists them
+     * before the button; place() refuses with the first)
+     *
+     * @param array $cart CartService::view()
+     * @return array<int, array{0: string, 1: string}> [code, message] each
+     */
+    public static function missing(array $cart): array
+    {
+        $guest = $cart['customer_id'] === null;
+        $customerInfo = $cart['email'] && $cart['firstname'] && $cart['lastname'] && $cart['taxvat'];
+
+        return array_values(array_filter([
+            !$cart['items'] ? ['CART_EMPTY', 'O carrinho está vazio.'] : null,
+            $cart['has_errors'] ? ['CART_HAS_ERRORS', current(array_filter(array_column($cart['items'], 'error')))] : null,
+            // the admin's orders too: a guest sale needs "Vender para visitante" on (ADMINSALES-PLAN decision 3)
+            $guest && !Config::get('sales/checkout/guest', $cart['website_id']) ? ['LOGIN_REQUIRED', 'Esta loja só vende para clientes cadastrados: faça login.'] : null,
+            !$customerInfo ? ($guest
+                ? ['CUSTOMER_INFO_REQUIRED', 'Informe e-mail, nome, sobrenome e CPF/CNPJ (setCartGuestInfo).']
+                : ['CUSTOMER_INFO_REQUIRED', 'Complete nome, sobrenome e CPF/CNPJ na conta (updateMe).']) : null,
+            $cart['shipping_address'] === null ? ['SHIPPING_ADDRESS_REQUIRED', 'Informe o endereço de entrega (setCartShippingAddress).'] : null,
+            \isModuleEnabled('iter_shipping') && $cart['shipping_method'] === null ? ['SHIPPING_METHOD_REQUIRED', 'Escolha o frete (setCartShippingMethod).'] : null,
+            \isModuleEnabled('iter_payment') && $cart['payment_method'] === null ? ['PAYMENT_METHOD_REQUIRED', 'Escolha a forma de pagamento (setCartPaymentMethod).'] : null,
+        ]));
     }
 
     /** "SP-000001": the website's prefix (Configurações → Vendas) + its next number */
