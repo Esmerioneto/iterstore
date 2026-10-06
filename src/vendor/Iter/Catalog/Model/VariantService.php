@@ -6,9 +6,11 @@ namespace Iter\Catalog\Model;
 
 use Iter\Core\Db\Connection;
 use Iter\Eav\Form\FormSchemaGenerator;
+use Iter\Eav\InputTypeRegistry;
 use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\ValueService;
+use Iter\Inventory\Model\StockService;
 
 /**
  * Variants of a configurable product: simple products with parent_id, one per
@@ -17,6 +19,7 @@ use Iter\Eav\Model\ValueService;
  * (price, description, images); name, websites and categories come from the parent.
  * The combination is stored in the variant's EAV values; variant_key (a hash of it)
  * lets the database refuse a repeated one.
+ * The parent has no images of its own: it shows those of the variant in image_variant_id (PARENT-IMAGE-PLAN).
  */
 class VariantService
 {
@@ -138,8 +141,9 @@ class VariantService
      * A variant's combination is fixed once created.
      *
      * @param array<int, array{product_id?: int, options?: array<string, string>, sku?: string, price?: string, is_active?: int}> $variants
+     * @param int|false|null $imageVariantId the variant that gives the parent its images (imageCandidates); null clears, false keeps
      */
-    public function save(int $parentId, array $variants): void
+    public function save(int $parentId, array $variants, int|false|null $imageVariantId = false): void
     {
         $parent = (new ProductService())->get($parentId);
         if ($parent->getData('type') !== 'configurable') {
@@ -188,11 +192,14 @@ class VariantService
             ];
         }
         $removed = array_diff(array_keys($current), array_column($rows, 'id'));
+        if ($imageVariantId && (in_array($imageVariantId, $removed, true) || !in_array($imageVariantId, $this->imageCandidates($parentId), true))) {
+            throw new AttributeException('VARIANT_PARENT_INVALID', 'A imagem do produto vem de uma variação dele, com imagem ou saldo.');
+        }
         $productService = new ProductService();
         $websiteIds = $productService->getWebsiteIds($parentId);
         $categoryIds = $productService->getCategoryIds($parentId);
 
-        Connection::get()->adapter()->transaction(function () use ($parent, $rows, $removed, $values, $websiteIds, $categoryIds): void {
+        Connection::get()->adapter()->transaction(function () use ($parent, $rows, $removed, $values, $websiteIds, $categoryIds, $imageVariantId): void {
             foreach ($removed as $id) {
                 (new Product())->load($id)->delete();
                 $values->deleteEntity(Product::ENTITY_TYPE, $id);
@@ -212,7 +219,47 @@ class VariantService
                 }
                 $values->write($id, $row['values']);
             }
+            $imageVariantId === false || $parent->addData(['image_variant_id' => $imageVariantId])->save();
         });
+    }
+
+    /**
+     * The variants that may give the parent its images: those with an image or salable stock
+     *
+     * @return int[]
+     */
+    public function imageCandidates(int $parentId): array
+    {
+        $ids = array_map('intval', array_column((new Product())->getResource()->getVariantRows($parentId), 'product_id'));
+        $images = array_keys(array_filter((new ValueService())->loadMany(Product::ENTITY_TYPE, $ids, $this->imageCodes()), static fn ($v) => array_filter($v, 'strlen')));
+        // ponytail: Catalog doesn't depend on Inventory; without it, only images count
+        $stocked = \isModuleEnabled('iter_inventory') ? array_keys(array_filter((new StockService())->getSalable($ids), static fn ($q) => (float) $q > 0)) : [];
+
+        return array_values(array_intersect($ids, [...$images, ...$stocked]));
+    }
+
+    /**
+     * The images of each parent's chosen variant, for a list's page in two queries
+     *
+     * @return array<int, array<string, string>> parent id => image code => file (parents without a choice are left out)
+     */
+    public function imageValues(array $parentIds): array
+    {
+        if (!$parentIds) {
+            return [];
+        }
+        $db = Connection::get()->adapter();
+        $chosen = $db->fetchPairs($db->select()->from('catalog_product', ['product_id', 'image_variant_id'])
+            ->where('product_id IN (?)', array_map('intval', $parentIds))->where('image_variant_id IS NOT NULL'));
+        $values = (new ValueService())->loadMany(Product::ENTITY_TYPE, array_map('intval', $chosen), $this->imageCodes());
+
+        return array_filter(array_map(static fn ($variantId) => $values[(int) $variantId] ?? [], $chosen));
+    }
+
+    /** @return string[] the product attributes of a file type (image) */
+    private function imageCodes(): array
+    {
+        return array_column(array_filter($this->attributeRows(), static fn ($a) => InputTypeRegistry::has($a['input_type']) && (InputTypeRegistry::get($a['input_type'])['accept'] ?? false)), 'code');
     }
 
     /** the parent's name, websites and categories, copied to its variants (call inside the parent's save) */

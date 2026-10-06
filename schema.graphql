@@ -211,6 +211,9 @@ type Product {
   "A combinação da variação (ex.: Cor = Azul, Tamanho = P)."
   variantOptions: [ProductOption!]!
 
+  "Num produto com grade, a variação que dá as imagens dele (em attributes)."
+  imageVariant: Product
+
   "O produto com grade, numa variação."
   parent: Product
 
@@ -818,7 +821,13 @@ type Mutation {
   ): Product!
 
   "A lista enviada é a lista final: variação ausente é removida, com o estoque dela."
-  saveVariants(productId: ID!, variants: [VariantInput!]!): [Product!]!
+  saveVariants(
+    productId: ID!
+    variants: [VariantInput!]!
+
+    "A variação (com imagem ou saldo) que dá as imagens do produto; null limpa, omitido mantém."
+    imageVariantSku: String
+  ): [Product!]!
 
   deleteProduct(id: ID!): Boolean!
 
