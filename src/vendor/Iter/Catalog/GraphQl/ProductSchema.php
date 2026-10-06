@@ -247,13 +247,12 @@ class ProductSchema
                 ],
                 'priceRange' => [
                     'type' => Type::nonNull($priceRangeType),
-                    'description' => 'Para a vitrine: o preço do produto; num produto com grade, o menor e o maior das variações ativas ("a partir de" = min).',
+                    'description' => 'Para a vitrine: o preço do produto (o promocional, quando abaixo do preço); num produto com grade, o menor e o maior das variações ativas ("a partir de" = min).',
                     'resolve' => static function ($p) use ($loaded): array {
                         $p = $loaded($p, '_variants', ['variants']);
-                        $prices = $p['type'] === 'configurable'
-                            ? array_column(array_column(array_filter($p['_variants'], static fn ($v) => (bool) $v['is_active']), 'attributes'), 'price')
-                            : (isset($p['attributes']['price']) ? [$p['attributes']['price']] : []);
-                        $prices = array_map('floatval', $prices);
+                        $prices = array_filter(array_map([Product::class, 'finalPrice'], $p['type'] === 'configurable'
+                            ? array_column(array_filter($p['_variants'], static fn ($v) => (bool) $v['is_active']), 'attributes')
+                            : [$p['attributes'] ?? []]), static fn ($price) => $price !== null);
 
                         return ['min' => $prices ? min($prices) : null, 'max' => $prices ? max($prices) : null];
                     },

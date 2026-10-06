@@ -56,9 +56,8 @@ class Product extends AbstractDb
         $collection = $this->filtered(['price_from' => null, 'price_to' => null] + $filters);
         $ids = $this->idsSql($collection);
         $price = $db->fetchRow(
-            'SELECT MIN(v.value) AS min, MAX(v.value) AS max FROM catalog_product p
-             JOIN eav_value_decimal v ON v.entity_id = p.product_id AND v.attribute_id = ' . (int) $collection->getAttribute('price')['attribute_id'] . "
-             WHERE (p.parent_id IS NULL OR p.is_active = 1) AND COALESCE(p.parent_id, p.product_id) IN ({$ids[0]})",
+            "SELECT MIN(v.price) AS min, MAX(v.price) AS max FROM (SELECT ({$collection->finalPriceSql('p.product_id')}) AS price FROM catalog_product p
+             WHERE (p.parent_id IS NULL OR p.is_active = 1) AND COALESCE(p.parent_id, p.product_id) IN ({$ids[0]})) v",
             $ids[1]
         ) ?: [];
 

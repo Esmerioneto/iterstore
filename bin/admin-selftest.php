@@ -789,6 +789,19 @@ assertSame([1, 0, 1, 0, ['min' => 19.9, 'max' => 19.9], 'ATTRIBUTE_NOT_FILTERABL
     $search(', priceFrom: 20')['aggregations']['price'] ?? null,
     $gql($admin, '{ products(filters: [{code: "selftest_obs", values: ["x"]}]) { total } }')['errors'][0]['extensions']['code'] ?? null,
 ], 'filtros da loja: por opção (qualquer uma das escolhidas) e por preço; a faixa de preço ignora o próprio filtro de preço; atributo sem a marca é recusado');
+$gqlProductId = (int) $pdo->query("SELECT product_id FROM catalog_product WHERE sku = 'selftest-gql'")->fetchColumn();
+$promoSearch = static function (array $promo) use ($search, $gqlProductId): array {
+    (new ValueService())->save('product', $gqlProductId, $promo);
+
+    return [$search(', priceTo: 16')['total'] ?? null, $search('')['aggregations']['price'] ?? null];
+};
+assertSame([[1, ['min' => 15, 'max' => 15]], [0, ['min' => 19.9, 'max' => 19.9]], [0, ['min' => 19.9, 'max' => 19.9]], [1, ['min' => 15, 'max' => 15]]], [
+    $promoSearch(['price_promo' => '15', 'price_promo_from' => '', 'price_promo_to' => '']),
+    $promoSearch(['price_promo_to' => date('Y-m-d', strtotime('-1 day'))]),
+    $promoSearch(['price_promo_to' => '', 'price_promo_from' => date('Y-m-d', strtotime('+1 day'))]),
+    $promoSearch(['price_promo_from' => date('Y-m-d'), 'price_promo_to' => date('Y-m-d')]),
+], 'filtros da loja: o filtro e a faixa de preço usam o promocional só dentro do período (o dia de início e o de fim contam)');
+(new ValueService())->save('product', $gqlProductId, ['price_promo' => '', 'price_promo_from' => '', 'price_promo_to' => '']);
 // category mutations (API-PLAN delivery 11)
 $catGql = static fn ($client, string $mutation) => $gql($client, 'mutation { ' . $mutation . ' }');
 $catFields = '{ id name url_key is_active level parent_id websiteId }';
@@ -1390,6 +1403,12 @@ assertSame([['min' => min($activePrices), 'max' => max($activePrices)], array_fi
     array_map('floatval', $gql($guest, '{ product(sku: "selftest-var") { priceRange { min max } } }')['data']['product']['priceRange'] ?? []),
     array_map('floatval', $gql($guest, '{ product(sku: "selftest-var-az-p") { priceRange { min max } } }')['data']['product']['priceRange'] ?? []),
 ], 'GraphQL priceRange: "a partir de" do configurável vem das variações ativas (a inativa de R$ 60 fica fora); o simples tem o próprio preço');
+$promo = ['price' => '8.50', 'price_promo' => '5.90'];
+assertSame([5.9, 8.5, 8.5, 8.5, 8.5, null, 5.9, 5.9, 8.5, 8.5], array_map(static fn (array $v) => Iter\Catalog\Model\Product::finalPrice($v, '2026-10-06'), [
+    $promo, ['price' => '8.50'], ['price' => '8.50', 'price_promo' => ''], ['price' => '8.50', 'price_promo' => '0'], ['price' => '8.50', 'price_promo' => '9.00'], ['price_promo' => '5.90'],
+    $promo + ['price_promo_from' => '2026-10-06 00:00:00', 'price_promo_to' => '2026-10-06 00:00:00'], $promo + ['price_promo_from' => '', 'price_promo_to' => '2026-12-31'],
+    $promo + ['price_promo_from' => '2026-10-07'], $promo + ['price_promo_to' => '2026-10-05'],
+]), 'Preço final: o promocional quando acima de zero, abaixo do preço e dentro do período (início e fim contam, vazio deixa aberto); sem preço, null (o carrinho, o priceRange e o Novo pedido usam)');
 // the list preloads what its items read (DB-PLAN phase 5): the same answers as one product alone, in a fixed number of queries
 $listed = $gql($guest, '{ products(search: "selftest-var") { items { sku priceRange { min max } attributes { code value } websiteIds categories { id } variantAttributes { code options { value } } variants { sku variantOptions { code value label } } } } }')['data']['products']['items'] ?? [];
 $alone = $gql($guest, '{ product(sku: "selftest-var") { sku priceRange { min max } attributes { code value } websiteIds categories { id } variantAttributes { code options { value } } variants { sku variantOptions { code value label } } } }')['data']['product'] ?? null;

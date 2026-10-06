@@ -75,12 +75,24 @@ class Collection extends AbstractEntityCollection
         return $this;
     }
 
-    /** the price (a configurable's: one of its variants') within the range; null = open end */
+    /** Product::finalPrice() in SQL, of the product whose id is $entity (a column) */
+    public function finalPriceSql(string $entity): string
+    {
+        $value = fn (string $code): string => '(' . $this->valueSql($code, '= ' . $entity) . ')';
+        $today = "'" . date('Y-m-d') . "'::date"; // ponytail: PHP's day (the store's timezone), not the database's
+
+        return "CASE WHEN {$value('price_promo')} > 0 AND {$value('price_promo')} < {$value('price')}
+            AND COALESCE({$value('price_promo_from')}::date <= {$today}, TRUE) AND COALESCE({$value('price_promo_to')}::date >= {$today}, TRUE)
+            THEN {$value('price_promo')} ELSE {$value('price')} END";
+    }
+
+    /** the final price (a configurable's: one of its variants') within the range; null = open end */
     public function addPriceFilter(?float $from, ?float $to): static
     {
         $range = array_filter(['gteq' => $from, 'lteq' => $to], static fn ($v) => $v !== null);
         if ($range) {
-            $this->select->where(sprintf(self::MATCHING_SQL, 'eav_value_decimal', (int) $this->getAttribute('price')['attribute_id'], $this->condition(new Expr('v.value'), $range)));
+            $this->select->where('main_table.product_id IN (SELECT COALESCE(p.parent_id, p.product_id) FROM catalog_product p
+                WHERE (p.parent_id IS NULL OR p.is_active = 1) AND ' . $this->condition(new Expr('(' . $this->finalPriceSql('p.product_id') . ')'), $range) . ')');
         }
 
         return $this;

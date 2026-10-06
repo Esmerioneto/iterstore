@@ -205,7 +205,7 @@ type Product {
   "As variações (produto com grade); fora do admin, só as ativas."
   variants: [Product!]!
 
-  "Para a vitrine: o preço do produto; num produto com grade, o menor e o maior das variações ativas (\"a partir de\" = min)."
+  "Para a vitrine: o preço do produto (o promocional, quando abaixo do preço); num produto com grade, o menor e o maior das variações ativas (\"a partir de\" = min)."
   priceRange: PriceRange!
 
   "A combinação da variação (ex.: Cor = Azul, Tamanho = P)."
