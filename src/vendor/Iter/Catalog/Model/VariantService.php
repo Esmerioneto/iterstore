@@ -192,7 +192,9 @@ class VariantService
             ];
         }
         $removed = array_diff(array_keys($current), array_column($rows, 'id'));
-        if ($imageVariantId && (in_array($imageVariantId, $removed, true) || !in_array($imageVariantId, $this->imageCandidates($parentId), true))) {
+        // the current choice may stay after losing its image and stock
+        $kept = $imageVariantId === (int) $parent->getData('image_variant_id');
+        if ($imageVariantId && (in_array($imageVariantId, $removed, true) || (!$kept && !in_array($imageVariantId, $this->imageCandidates($parentId), true)))) {
             throw new AttributeException('VARIANT_PARENT_INVALID', 'A imagem do produto vem de uma variação dele, com imagem ou saldo.');
         }
         $productService = new ProductService();
@@ -223,19 +225,33 @@ class VariantService
         });
     }
 
+    /** @return int[] the variants that may give the parent its images (imageChoices) */
+    public function imageCandidates(int $parentId): array
+    {
+        return array_keys($this->imageChoices($parentId));
+    }
+
     /**
      * The variants that may give the parent its images: those with an image or salable stock
      *
-     * @return int[]
+     * @return array<int, ?string> variant id => its first image file (null: stock only), in variant order
      */
-    public function imageCandidates(int $parentId): array
+    public function imageChoices(int $parentId): array
     {
         $ids = array_map('intval', array_column((new Product())->getResource()->getVariantRows($parentId), 'product_id'));
-        $images = array_keys(array_filter((new ValueService())->loadMany(Product::ENTITY_TYPE, $ids, $this->imageCodes()), static fn ($v) => array_filter($v, 'strlen')));
+        $codes = $this->imageCodes();
+        $values = (new ValueService())->loadMany(Product::ENTITY_TYPE, $ids, $codes);
         // ponytail: Catalog doesn't depend on Inventory; without it, only images count
-        $stocked = \isModuleEnabled('iter_inventory') ? array_keys(array_filter((new StockService())->getSalable($ids), static fn ($q) => (float) $q > 0)) : [];
+        $salable = \isModuleEnabled('iter_inventory') ? (new StockService())->getSalable($ids) : [];
+        $choices = [];
+        foreach ($ids as $id) {
+            $image = current(array_filter(array_map(static fn ($code) => (string) ($values[$id][$code] ?? ''), $codes), 'strlen')) ?: null;
+            if ($image !== null || (float) ($salable[$id] ?? 0) > 0) {
+                $choices[$id] = $image;
+            }
+        }
 
-        return array_values(array_intersect($ids, [...$images, ...$stocked]));
+        return $choices;
     }
 
     /**

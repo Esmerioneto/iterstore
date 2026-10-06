@@ -52,6 +52,9 @@ class ProductForm implements ViewComponentInterface
             'parent' => $parent,
             'grid' => $grid,
             'variants' => $type === 'configurable' && $id ? $variantService->getVariants($id) : [],
+            // variant id => its first image (null: stock only); the parent shows the chosen one's images
+            'image_choices' => $type === 'configurable' && $id ? $variantService->imageChoices($id) : [],
+            'image_variant_id' => (int) ($product['image_variant_id'] ?? 0),
             // new configurable product: the set's select fields it can pick
             'variant_candidates' => $type === 'configurable' && !$id ? $variantService->candidates($sets[$setId]['code']) : [],
             'variant_attributes' => array_map('strval', (array) ($old['variant_attributes'] ?? [])),
