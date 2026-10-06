@@ -1302,6 +1302,44 @@ assertSame([true, true, 1, true], [str_contains($gridPage, 'Estoque por grade'),
     'painel da grade: célula por variação, hífen onde não há combinação, total');
 [, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId . '&source=selftest_var_cd', '/admin/stock/grid', ['product_id' => $parentId, 'source' => 'selftest_var_cd', 'grid' => [$v[0]['product_id'] => '1']]);
 assertSame([['Estoque atualizado com sucesso.'], true], [$msgs, str_contains($admin->request('/admin/product/index?q=selftest-var')['body'], '<td>4,5</td>')], 'tela: salva a grade; lista mostra o saldo somado');
+// the parent's images come from a chosen variant (PARENT-IMAGE-PLAN): one with an image or salable stock
+imagepng(imagecreatetruecolor(2, 2), $varPng = sys_get_temp_dir() . '/selftest-var.png');
+$values->write($v[0]['product_id'], $values->validate('product', ['selftest_foto' => ['path' => $varPng, 'name' => 'var.png']], $v[0]['product_id']));
+@unlink($varPng);
+$stock->saveGrid($parentId, 'selftest_var_cd', [$v[1]['product_id'] => '0']);
+$keepAll = array_map(static fn ($x) => ['product_id' => $x['product_id'], 'sku' => $x['sku'], 'is_active' => $x['is_active']], $varService->getVariants($parentId)); // $v[2] is inactive by now
+$imageOf = static fn (string $sku, $client = null) => $gql($client ?? $guest, '{ product(sku: "' . $sku . '") { attributes { code url } imageVariant { sku } } }')['data']['product'] ?? null;
+$fotoUrl = ValueService::MEDIA_URL . $values->load('product', $v[0]['product_id'])['selftest_foto'];
+assertSame([[$v[0]['product_id'], $v[2]['product_id']], 'VARIANT_PARENT_INVALID', 'VARIANT_PARENT_INVALID', 'VARIANT_PARENT_INVALID', null], [
+    $varService->imageCandidates($parentId),
+    $throws(static fn () => $varService->save($parentId, $keepAll, $v[1]['product_id'])),
+    $throws(static fn () => $varService->save($parentId, array_slice($keepAll, 0, 2), $v[2]['product_id'])),
+    $throws(static fn () => $varService->save($parentId, $keepAll, (int) $productRow('selftest-img-jpg')['product_id'])),
+    $imageOf('selftest-var')['imageVariant'],
+], 'imagem do pai: só variação dele, com imagem ou saldo (a sem os dois, a removida e a de outro produto são recusadas); sem escolha, nenhuma');
+$varService->save($parentId, $keepAll, $v[0]['product_id']);
+$varService->save($parentId, $keepAll); // keeps the choice
+$listedImage = array_column($gql($guest, '{ products(search: "selftest-var") { items { sku attributes { code url } } } }')['data']['products']['items'] ?? [], 'attributes', 'sku')['selftest-var'] ?? [];
+assertSame([$fotoUrl, 'selftest-var-az-p', $fotoUrl], [
+    array_column($imageOf('selftest-var')['attributes'] ?? [], 'url', 'code')['selftest_foto'] ?? null,
+    $imageOf('selftest-var')['imageVariant']['sku'] ?? null,
+    array_column($listedImage, 'url', 'code')['selftest_foto'] ?? null,
+], 'imagem do pai: as imagens da variação escolhida aparecem no pai, sozinho e na lista');
+$varService->save($parentId, $keepAll, $v[2]['product_id']);
+assertSame([null, 'selftest-var-PRETO-M', null], [array_column($imageOf('selftest-var')['attributes'] ?? [], 'url', 'code')['selftest_foto'] ?? null, $imageOf('selftest-var', $admin)['imageVariant']['sku'] ?? null, $imageOf('selftest-var')['imageVariant']],
+    'imagem do pai: variação inativa com saldo e sem imagem pode ser escolhida; o pai fica sem imagem; fora do admin, imageVariant não mostra a inativa');
+$imageGql = 'mutation ($id: ID!, $vs: [VariantInput!]!, $img: String) { saveVariants(productId: $id, variants: $vs, imageVariantSku: $img) { sku } }';
+$imageVs = array_map(static fn ($x) => ['id' => (string) $x['product_id'], 'isActive' => (bool) $x['is_active']], $keepAll);
+$gql($admin, $imageGql, ['id' => (string) $parentId, 'vs' => $imageVs, 'img' => 'selftest-var-az-p']);
+$afterSet = $imageOf('selftest-var')['imageVariant']['sku'] ?? null;
+$gql($admin, 'mutation ($id: ID!, $vs: [VariantInput!]!) { saveVariants(productId: $id, variants: $vs) { sku } }', ['id' => (string) $parentId, 'vs' => $imageVs]);
+$afterKeep = $imageOf('selftest-var')['imageVariant']['sku'] ?? null;
+$invalid = $gql($admin, $imageGql, ['id' => (string) $parentId, 'vs' => $imageVs, 'img' => 'selftest-var-PRETO-P'])['errors'][0]['extensions']['code'] ?? null;
+$gql($admin, $imageGql, ['id' => (string) $parentId, 'vs' => $imageVs, 'img' => null]);
+assertSame(['selftest-var-az-p', 'selftest-var-az-p', 'VARIANT_PARENT_INVALID', null], [$afterSet, $afterKeep, $invalid, $imageOf('selftest-var')['imageVariant']],
+    'GraphQL: saveVariants(imageVariantSku) escolhe; omitido mantém; null limpa; variação sem imagem nem saldo é recusada');
+$varService->save($parentId, $keepAll, $v[0]['product_id']);
+$stock->saveGrid($parentId, 'selftest_var_cd', [$v[1]['product_id'] => '3,5']);
 $r = $gql($guest, '{ product(sku: "selftest-var") { type variantAttributes { code options { value label } } variants { sku variantOptions { code value label } parent { sku } } } }')['data']['product'] ?? null;
 $opt = static fn ($c, $v, $l) => ['code' => $c, 'value' => $v, 'label' => $l];
 assertSame([
@@ -1361,6 +1399,9 @@ assertSame(['OPTION_IN_USE', 'OPTION_IN_USE', ['az', 'pr']], [
     $throws(static fn () => $service->update($attrId('selftest_vcor'), ['label' => 'Cor grade', 'input_type' => 'text'])),
     array_column($service->getOptions($attrId('selftest_vcor')), 'value'),
 ], 'opção usada por variação não é removida (nem trocando o tipo); a sem uso pode');
+$chosen = (int) $productRow('selftest-var')['image_variant_id'];
+$varService->save($parentId, array_map(static fn ($x) => ['product_id' => $x['product_id'], 'sku' => $x['sku'], 'is_active' => $x['is_active']], array_slice($varService->getVariants($parentId), 1)));
+assertSame([(int) $v[0]['product_id'], null], [$chosen, $productRow('selftest-var')['image_variant_id']], 'imagem do pai: remover a variação escolhida limpa a escolha');
 $productService->delete($parentId);
 assertSame([false, []], [$productRow('selftest-var-az-p'), $values->load('product', $variants[0]['product_id'])], 'apagar o pai apaga as variações e os valores delas');
 $corOptions(['az']);

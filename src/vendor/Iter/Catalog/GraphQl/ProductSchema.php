@@ -173,7 +173,7 @@ class ProductSchema
         /**
          * A list's page with what its items' resolvers read (DB-PLAN phase 5, no N+1), one query per part for the
          * whole page. $parts:
-         * - values: 'attributes' (code => value);
+         * - values: 'attributes' (code => value; a configurable product's images are its chosen variant's);
          * - variants: '_variants' (rows with their 'attributes'; implies values, for priceRange);
          * - grids: '_grid' (the grid's attributes and options) on the row, '_parent_grid' on its variants;
          * - websites: '_website_ids'; categories: '_category_ids'.
@@ -191,11 +191,12 @@ class ProductSchema
                 ? (new ValueService())->loadMany(Product::ENTITY_TYPE, [...$ids, ...array_map('intval', array_column(array_merge([], ...array_values($children)), 'product_id'))])
                 : null;
             $grids = $has('grids') ? $variants->getAttributesMany($ids) : null;
+            $images = $values === null ? [] : $variants->imageValues(array_map('intval', array_column(array_filter($rows, static fn ($r) => ($r['type'] ?? '') === 'configurable'), 'product_id')));
             $websites = $has('websites') ? $resource->getWebsiteIdsMany($ids) : null;
             $categoryIds = $has('categories') ? (new Category())->getResource()->getProductsCategoryIds($ids) : null;
             foreach ($rows as &$row) {
                 $id = (int) $row['product_id'];
-                $values === null || $row['attributes'] = $values[$id] ?? [];
+                $values === null || $row['attributes'] = ($images[$id] ?? []) + ($values[$id] ?? []);
                 $grids === null || $row['_grid'] = $grids[$id] ?? [];
                 $websites === null || $row['_website_ids'] = $websites[$id] ?? [];
                 $categoryIds === null || $row['_category_ids'] = $categoryIds[$id] ?? [];
@@ -270,6 +271,11 @@ class ProductSchema
                             $p['_parent_grid'] ?? $variants->getAttributes((int) $p['parent_id']));
                     },
                 ],
+                'imageVariant' => [
+                    'type' => $productType,
+                    'description' => 'Num produto com grade, a variação que dá as imagens dele (em attributes).',
+                    'resolve' => static fn ($p) => empty($p['image_variant_id']) ? null : $load((int) $p['image_variant_id']),
+                ],
                 'parent' => ['type' => $productType, 'description' => 'O produto com grade, numa variação.', 'resolve' => static fn ($p) => empty($p['parent_id']) ? null : $load((int) $p['parent_id'])],
                 'sku' => Type::nonNull(Type::string()),
                 'name' => Type::nonNull(Type::string()),
@@ -281,9 +287,9 @@ class ProductSchema
                 'attributes' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($attributeType))),
                     // a list's rows come with the values (preload); a product read alone loads them
-                    'resolve' => static function ($p) use ($service, $typeOf, $optionsOf, $labelOf): array {
+                    'resolve' => static function ($p) use ($loaded, $typeOf, $optionsOf, $labelOf): array {
                         $rows = [];
-                        foreach (array_key_exists('attributes', $p) ? $p['attributes'] : $service->getValues((int) $p['product_id']) as $code => $value) {
+                        foreach ($loaded($p, 'attributes', ['values'])['attributes'] as $code => $value) {
                             $options = $optionsOf($code);
                             // an option removed after being chosen shows its value
                             $labels = $options === null ? null : array_map(static fn ($v) => $options[$v] ?? (string) $v, (array) $value);
@@ -589,14 +595,23 @@ class ProductSchema
                 'saveVariants' => [
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($productType))),
                     'description' => 'A lista enviada é a lista final: variação ausente é removida, com o estoque dela.',
-                    'args' => ['productId' => Type::nonNull(Type::id()), 'variants' => Type::nonNull(Type::listOf(Type::nonNull($variantInput)))],
+                    'args' => [
+                        'productId' => Type::nonNull(Type::id()),
+                        'variants' => Type::nonNull(Type::listOf(Type::nonNull($variantInput))),
+                        'imageVariantSku' => ['type' => Type::string(), 'description' => 'A variação (com imagem ou saldo) que dá as imagens do produto; null limpa, omitido mantém.'],
+                    ],
                     'resolve' => $guard(static function ($root, array $args) use ($variants): array {
+                        $image = false;
+                        if (array_key_exists('imageVariantSku', $args)) {
+                            $image = $args['imageVariantSku'] === null ? null : ((new Product())->getResource()->findIdBySku($args['imageVariantSku'])
+                                ?? throw new AttributeException('VARIANT_PARENT_INVALID', "A variação '{$args['imageVariantSku']}' não existe."));
+                        }
                         $variants->save((int) $args['productId'], array_map(static fn ($v) => array_filter([
                             'product_id' => (int) ($v['id'] ?? 0),
                             'options' => array_column($v['options'] ?? [], 'value', 'code'),
                             'sku' => $v['sku'] ?? null,
                             'price' => $v['price'] ?? null,
-                        ], static fn ($x) => $x !== null) + ['is_active' => $v['isActive'] ? 1 : 0], $args['variants']));
+                        ], static fn ($x) => $x !== null) + ['is_active' => $v['isActive'] ? 1 : 0], $args['variants']), $image);
 
                         return (new Product())->getResource()->getVariantRows((int) $args['productId']);
                     }),
