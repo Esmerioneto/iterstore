@@ -286,7 +286,7 @@ class CartService
                 'sku' => $product['sku'],
                 'name' => $product['name'],
                 'quantity' => $quantity,
-                'price' => $product['price'] === null ? null : (float) $product['price'],
+                'price' => $product['price'],
                 'row_total' => round((float) $product['price'] * $quantity, 2),
                 'weight' => $product['weight'] === null ? 0.0 : (float) $product['weight'],
                 'error' => $error,
@@ -308,9 +308,9 @@ class CartService
         $select->joinLeft(['pp' => 'catalog_product'], 'pp.product_id = p.parent_id', ['parent_active' => new Expr('COALESCE(pp.is_active, 1)')])
             ->columns(['in_website' => new Expr('EXISTS (SELECT 1 FROM catalog_product_website w WHERE w.product_id = p.product_id AND w.website_id = ' . $select->bindValue($websiteId) . ')')])
             ->where('p.product_id IN (?)', array_map('intval', $ids));
-        $values = (new ValueService())->loadMany(Product::ENTITY_TYPE, $ids, ['price', 'weight']);
+        $values = (new ValueService())->loadMany(Product::ENTITY_TYPE, $ids, [...Product::PRICE_CODES, 'weight']);
 
-        return array_map(static fn (array $p) => $p + ['price' => $values[(int) $p['product_id']]['price'] ?? null, 'weight' => $values[(int) $p['product_id']]['weight'] ?? null],
+        return array_map(static fn (array $p) => $p + ['price' => Product::finalPrice($values[(int) $p['product_id']] ?? []), 'weight' => $values[(int) $p['product_id']]['weight'] ?? null],
             array_column($db->fetchAll($select), null, 'product_id'));
     }
 

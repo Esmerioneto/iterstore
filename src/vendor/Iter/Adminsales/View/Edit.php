@@ -103,14 +103,14 @@ class Edit implements ViewComponentInterface
         }
         $ids = array_keys($sellable);
         $salable = (new StockService())->getSalable($ids, $websiteId);
-        $prices = (new ValueService())->loadMany(Product::ENTITY_TYPE, $ids, ['price']);
+        $prices = (new ValueService())->loadMany(Product::ENTITY_TYPE, $ids, Product::PRICE_CODES);
         $options = (new OrderService())->variantOptions($ids);
         $result = [];
         foreach ($parents as $parent) {
             $result[] = ['sku' => $parent['sku'], 'name' => $parent['name'], 'variants' => array_values(array_map(static fn ($row) => [
                 'sku' => $row['sku'],
                 'options' => $options[(int) $row['product_id']] ?? null,
-                'price' => $prices[(int) $row['product_id']]['price'] ?? null,
+                'price' => Product::finalPrice($prices[(int) $row['product_id']] ?? []),
                 'salable' => (float) ($salable[(int) $row['product_id']] ?? 0),
             ], array_filter($sellable, static fn ($row) => $row['parent'] === (int) $parent['product_id'])))];
         }
