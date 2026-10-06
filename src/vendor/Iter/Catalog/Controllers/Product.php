@@ -118,7 +118,9 @@ class Product
         foreach ($service->generate($parentId, (array) ($_POST['grade'] ?? [])) as $options) {
             $variants[] = ['options' => $options, 'price' => (string) ($_POST['grade_price'] ?? ''), 'is_active' => 1];
         }
-        $service->save($parentId, $variants);
+        // the radio is only there when the product has variants; absent = keep the choice
+        $image = array_key_exists('image_variant_id', $_POST) ? ((int) $_POST['image_variant_id'] ?: null) : false;
+        $service->save($parentId, $variants, $image);
     }
 
     public function Delete(): void

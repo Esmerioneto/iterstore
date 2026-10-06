@@ -1338,6 +1338,37 @@ $invalid = $gql($admin, $imageGql, ['id' => (string) $parentId, 'vs' => $imageVs
 $gql($admin, $imageGql, ['id' => (string) $parentId, 'vs' => $imageVs, 'img' => null]);
 assertSame(['selftest-var-az-p', 'selftest-var-az-p', 'VARIANT_PARENT_INVALID', null], [$afterSet, $afterKeep, $invalid, $imageOf('selftest-var')['imageVariant']],
     'GraphQL: saveVariants(imageVariantSku) escolhe; omitido mantém; null limpa; variação sem imagem nem saldo é recusada');
+$imagePost = ['product_id' => $parentId, 'attribute_set_id' => $roupa, 'sku' => 'selftest-var', 'name' => 'Camisa', 'is_active' => 1, 'website_ids' => [$defaultWebsite, $websiteId], 'category_ids' => [$baseCategory, $siteWCat],
+    'variants' => array_map(static fn ($x) => ['sku' => $x['sku'], 'price' => $x['price'], 'is_active' => $x['is_active']], array_column($varService->getVariants($parentId), null, 'product_id'))];
+$radio = static fn (int $id) => 'type="radio" name="image_variant_id" value="' . $id . '"';
+$page = $admin->request('/admin/product/edit?id=' . $parentId)['body'];
+assertSame([true, true, false, true, true, false], [
+    str_contains($page, 'name="image_variant_id" value="" checked> Nenhuma'),
+    (bool) preg_match('/' . preg_quote($radio($v[0]['product_id']), '/') . ' >\s*<img class="eav-file-preview" src="' . preg_quote($fotoUrl, '/') . '"/', $page),
+    str_contains($page, $radio($v[1]['product_id'])),
+    (bool) preg_match('/' . preg_quote($radio($v[2]['product_id']), '/') . ' >\s*<img class="eav-file-preview eav-file-placeholder"/', $page),
+    str_contains($page, '<th>Imagem do produto</th>'),
+    str_contains($page, 'Imagem do produto:'),
+], 'tela: coluna "Imagem do produto" com miniatura (logo cinza sem imagem), sem opção na variação sem imagem nem saldo; "Nenhuma" marcada');
+[, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId, '/admin/product/save', $imagePost + ['image_variant_id' => $v[0]['product_id']]);
+$page = $admin->request('/admin/product/edit?id=' . $parentId)['body'];
+$afterKeep = $admin->submit('/admin/product/edit?id=' . $parentId, '/admin/product/save', $imagePost)[1];
+assertSame([['Produto atualizado com sucesso.'], true, true, ['Produto atualizado com sucesso.'], (int) $v[0]['product_id']], [
+    $msgs,
+    str_contains($page, $radio($v[0]['product_id']) . ' checked'),
+    (bool) preg_match('/Imagem do produto:\s*<img class="eav-file-preview" src="' . preg_quote($fotoUrl, '/') . '" alt="Imagem do produto">\s*\(da variação Azul Marinho \/ p\)/', $page),
+    $afterKeep,
+    (int) $productRow('selftest-var')['image_variant_id'],
+], 'tela: escolhe a variação e mostra a prévia; um envio sem o campo mantém a escolha');
+$varService->save($parentId, $keepAll, $v[2]['product_id']); // chosen while it has stock
+$stock->saveGrid($parentId, 'selftest_var_cd', [$v[2]['product_id'] => '0']);
+$page = $admin->request('/admin/product/edit?id=' . $parentId)['body'];
+[, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId, '/admin/product/save', $imagePost + ['image_variant_id' => $v[2]['product_id']]);
+assertSame([true, true, ['Produto atualizado com sucesso.']], [str_contains($page, $radio($v[2]['product_id']) . ' checked'), str_contains($page, '(da variação Preto / m, sem imagem)'), $msgs],
+    'tela: a escolha atual continua oferecida e pode ser mantida depois de perder o saldo');
+[, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId, '/admin/product/save', $imagePost + ['image_variant_id' => '']);
+assertSame([['Produto atualizado com sucesso.'], null], [$msgs, $productRow('selftest-var')['image_variant_id']], 'tela: "Nenhuma" limpa a escolha');
+$stock->saveGrid($parentId, 'selftest_var_cd', [$v[2]['product_id'] => '4']);
 $varService->save($parentId, $keepAll, $v[0]['product_id']);
 $stock->saveGrid($parentId, 'selftest_var_cd', [$v[1]['product_id'] => '3,5']);
 $r = $gql($guest, '{ product(sku: "selftest-var") { type variantAttributes { code options { value label } } variants { sku variantOptions { code value label } parent { sku } } } }')['data']['product'] ?? null;

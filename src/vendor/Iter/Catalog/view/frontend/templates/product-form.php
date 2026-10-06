@@ -96,8 +96,11 @@ if ($type === 'configurable' && $is_edit) {
         <button type="submit" form="product-form">Gerar variações</button>
         <small>Cria as combinações marcadas que ainda não existem, com o SKU sugerido; o produto é salvo junto.</small></p>
     <table>
-        <thead><tr><th>Variação</th><th>SKU</th><th>Preço</th><th>Ativo</th><th>Remover</th><th></th></tr></thead>
+        <thead><tr><th>Variação</th><th>SKU</th><th>Preço</th><th>Ativo</th><th>Remover</th><th>Imagem do produto</th><th></th></tr></thead>
         <tbody>
+    <?php if ($variants): ?>
+            <tr><td colspan="5"></td><td><label><input form="product-form" type="radio" name="image_variant_id" value="" <?= $image_variant_id ? '' : 'checked' ?>> Nenhuma</label></td><td></td></tr>
+    <?php endif; ?>
     <?php foreach ($variants as $variant): $n = 'variants[' . $variant['product_id'] . ']'; ?>
             <tr>
                 <td><?= $e(implode(' / ', array_map(static fn ($a) => array_column($a['options'], 'label', 'value')[$variant['options'][$a['code']]] ?? '', $grid))) ?></td>
@@ -105,15 +108,25 @@ if ($type === 'configurable' && $is_edit) {
                 <td><input form="product-form" type="text" name="<?= $n ?>[price]" inputmode="decimal" size="10" value="<?= $e($variant['price'] ?? '') ?>"></td>
                 <td><input form="product-form" type="checkbox" name="<?= $n ?>[is_active]" value="1" <?= $variant['is_active'] ? 'checked' : '' ?>></td>
                 <td><input form="product-form" type="checkbox" name="<?= $n ?>[remove]" value="1"></td>
+                <td><?php if (array_key_exists($variant['product_id'], $image_choices) || $variant['product_id'] === $image_variant_id): $file = $image_choices[$variant['product_id']] ?? null; ?>
+                    <label><input form="product-form" type="radio" name="image_variant_id" value="<?= (int) $variant['product_id'] ?>" <?= $variant['product_id'] === $image_variant_id ? 'checked' : '' ?>>
+                    <?php if ($file !== null): ?><img class="eav-file-preview" src="<?= $e(\Iter\Eav\Model\ValueService::MEDIA_URL . $file) ?>" alt="Imagem da variação"><?php else: ?><img class="eav-file-preview eav-file-placeholder" src="/imagem/logo.png" alt="Sem imagem" title="Sem imagem"><?php endif; ?></label>
+                <?php else: ?>–<?php endif; ?></td>
                 <td><a href="/admin/product/edit?id=<?= (int) $variant['product_id'] ?>">Editar</a></td>
             </tr>
     <?php endforeach; ?>
     <?php if (!$variants): ?>
-            <tr><td colspan="6">Nenhuma variação ainda: marque as opções acima e clique em "Gerar variações".</td></tr>
+            <tr><td colspan="7">Nenhuma variação ainda: marque as opções acima e clique em "Gerar variações".</td></tr>
     <?php endif; ?>
         </tbody>
     </table>
-    <small>Fotos e descrição de cada variação ficam em "Editar". Uma variação removida perde o estoque dela.</small>
+    <small>Fotos e descrição de cada variação ficam em "Editar". Uma variação removida perde o estoque dela.
+        "Imagem do produto": o produto mostra as imagens da variação escolhida (só as que têm imagem ou saldo).</small>
+    <?php foreach ($variants as $variant): if ($variant['product_id'] === $image_variant_id): $file = $image_choices[$image_variant_id] ?? null; ?>
+    <p>Imagem do produto:
+        <?php if ($file !== null): ?><img class="eav-file-preview" src="<?= $e(\Iter\Eav\Model\ValueService::MEDIA_URL . $file) ?>" alt="Imagem do produto"><?php endif; ?>
+        (da variação <?= $e(implode(' / ', array_map(static fn ($a) => array_column($a['options'], 'label', 'value')[$variant['options'][$a['code']]] ?? '', $grid))) ?><?= $file === null ? ', sem imagem' : '' ?>)</p>
+    <?php endif; endforeach; ?>
 </fieldset>
 <?php $blocks['grid'] = ['title' => 'Grade', 'html' => ob_get_clean()];
 }
