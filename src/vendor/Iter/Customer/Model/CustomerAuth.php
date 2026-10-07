@@ -25,7 +25,7 @@ class CustomerAuth
     /**
      * Sign-up from the storefront: general group, default attribute set. With
      * customer/account/confirm_email on, the account waits for confirm() and the
-     * e-mail with the link is queued.
+     * e-mail with the link is queued; the welcome e-mail goes now, or on confirm().
      *
      * @param array $data as CustomerService::create() (EAV values in 'attributes'), without the group
      * @return array{customer: Customer, confirmation_required: bool}
@@ -41,7 +41,7 @@ class CustomerAuth
         $token = $confirm ? bin2hex(random_bytes(32)) : null;
 
         $customer = $db->transaction(static function () use ($data, $groupId, $password, $token): Customer {
-            $customer = (new CustomerService())->create(['group_id' => $groupId, 'is_active' => 1] + $data, $data['attributes'] ?? []);
+            $customer = (new CustomerService())->create(['group_id' => $groupId, 'is_active' => 1] + $data, $data['attributes'] ?? [], welcome: $token === null);
             $customer->addData(['password_hash' => password_hash($password, PASSWORD_DEFAULT), 'confirmation_hash' => $token === null ? null : hash('sha256', $token)])->save();
 
             return $customer;
@@ -66,7 +66,10 @@ class CustomerAuth
             return null;
         }
 
-        return $customer->addData(['confirmation_hash' => null])->save();
+        $customer->addData(['confirmation_hash' => null])->save();
+        CustomerService::welcome($customer);
+
+        return $customer;
     }
 
     /**

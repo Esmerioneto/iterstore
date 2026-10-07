@@ -13,9 +13,12 @@ use GraphQL\Type\Definition\Type;
 use Iter\Admin\Auth;
 use Iter\Catalog\Model\Category;
 use Iter\Catalog\Model\CategoryService;
+use Iter\Catalog\Model\MobileService;
 use Iter\Catalog\Model\Product;
 use Iter\Catalog\Model\ProductService;
+use Iter\Catalog\Model\ResourceModel\Product\Collection as ProductCollection;
 use Iter\Catalog\Model\VariantService;
+use Iter\Core\Config;
 use Iter\Core\Db\Connection;
 use Iter\Core\GraphQl\Schema;
 use Iter\Eav\Form\FormSchemaGenerator;
@@ -209,8 +212,8 @@ class ProductSchema
             return $rows;
         };
         // what the list's items will read, from the query: no preload for a list of names
-        $preloadFor = static function (array $rows, ResolveInfo $info) use ($preload): array {
-            $fields = $info->getFieldSelection(3)['items'] ?? [];
+        $preloadFor = static function (array $rows, ResolveInfo $info, string $key = 'items') use ($preload): array {
+            $fields = $info->getFieldSelection(3)[$key] ?? [];
             $parts = array_keys(array_filter([
                 'values' => isset($fields['attributes']),
                 'variants' => isset($fields['priceRange']) || isset($fields['variants']) || isset($fields['variantAttributes']),
@@ -361,6 +364,75 @@ class ProductSchema
                         return ['attributes' => $attributes, 'price' => $result['price']];
                     },
                 ],
+            ],
+        ]);
+        // the app's home (MOBILE-PLAN): product rows as a list gives them, in the order of $ids
+        $mobile = new MobileService();
+        $rowsOf = static function (array $ids): array {
+            $rows = $ids ? array_column((new ProductCollection())->addFieldToFilter('main_table.product_id', ['in' => $ids])->getData(), null, 'product_id') : [];
+
+            return array_values(array_filter(array_map(static fn ($id) => $rows[$id] ?? null, $ids)));
+        };
+        $mobileSectionType = new ObjectType([
+            'name' => 'MobileSection',
+            'fields' => [
+                'category' => Type::nonNull($categoryType),
+                'products' => ['type' => Type::nonNull(Type::listOf(Type::nonNull($productType))), 'description' => 'Os primeiros: os escolhidos à mão, depois os mais novos.'],
+                'total' => ['type' => Type::nonNull(Type::int()), 'description' => 'Produtos da categoria no app.'],
+                'hasMore' => ['type' => Type::nonNull(Type::boolean()), 'description' => 'Mostrar o "mostrar mais" (mobileCategoryProducts).', 'resolve' => static fn ($s) => $s['total'] > count($s['products'])],
+            ],
+        ]);
+        $mobileProductsType = new ObjectType([
+            'name' => 'MobileProducts',
+            'fields' => [
+                'items' => Type::nonNull(Type::listOf(Type::nonNull($productType))),
+                'total' => ['type' => Type::nonNull(Type::int()), 'description' => 'Produtos da categoria no app, contando os primeiros da seção.'],
+            ],
+        ]);
+        // Catálogo → Mobile through the API (admin): the same data and rules as the screen
+        $mobileGuard = static fn (callable $resolve) => Schema::guard('Iter_Catalog::mobile', $resolve);
+        $mobileOrderType = new ObjectType([
+            'name' => 'MobileOrder',
+            'fields' => [
+                'websiteId' => Type::nonNull(Type::id()),
+                'enabled' => ['type' => Type::nonNull(Type::boolean()), 'description' => '"Usar esta ordem no app".'],
+                'categories' => Type::nonNull(Type::listOf(Type::nonNull(new ObjectType([
+                    'name' => 'MobileOrderCategory',
+                    'description' => 'Todas as categorias do website: as que estão no app na ordem dele, depois as outras.',
+                    'fields' => [
+                        'category' => Type::nonNull($categoryType),
+                        'path' => ['type' => Type::nonNull(Type::string()), 'description' => 'Ex.: "Vestuário › Bermuda".'],
+                        'active' => ['type' => Type::nonNull(Type::boolean()), 'description' => 'Ela e as categorias pai ativas; inativa nunca aparece no app.'],
+                        'visible' => ['type' => Type::nonNull(Type::boolean()), 'description' => '"Mostrar no app".'],
+                        'perCategory' => ['type' => Type::nonNull(Type::int()), 'description' => '"Exibir de início".'],
+                        'chosen' => ['type' => Type::nonNull(Type::listOf(Type::nonNull($productType))), 'description' => 'Escolhidos à mão, na ordem.'],
+                        'productCount' => ['type' => Type::nonNull(Type::int()), 'description' => 'Produtos ativos da categoria no website.'],
+                    ],
+                ])))),
+            ],
+        ]);
+        $mobileOrder = static function (int $websiteId, ResolveInfo $info) use ($mobile, $rowsOf, $preload, $categories): array {
+            $screen = $mobile->screen($websiteId);
+            $wants = $info->getFieldSelection(3)['categories']['chosen'] ?? [];
+            $rows = array_column($preload($rowsOf(array_merge([], ...array_column($screen, 'chosen'))), array_keys(array_filter(['values' => isset($wants['attributes'])]))), null, 'product_id');
+
+            return ['websiteId' => $websiteId, 'enabled' => $mobile->isEnabled($websiteId), 'categories' => array_map(static fn ($c) => [
+                'category' => $categories()[$c['category_id']],
+                'path' => $c['path'],
+                'active' => $c['active'],
+                'visible' => $c['visible'],
+                'perCategory' => $c['per_category'],
+                'chosen' => array_map(static fn ($id) => $rows[$id], $c['chosen']),
+                'productCount' => count(array_filter($c['products'], static fn ($p) => $p['is_active'])),
+            ], $screen)];
+        };
+        $mobileCategoryInput = new InputObjectType([
+            'name' => 'MobileCategoryInput',
+            'fields' => [
+                'id' => Type::nonNull(Type::id()),
+                'visible' => ['type' => Type::boolean(), 'defaultValue' => true, 'description' => '"Mostrar no app".'],
+                'perCategory' => ['type' => Type::int(), 'defaultValue' => MobileService::DEFAULT_PER_CATEGORY, 'description' => '"Exibir de início", de 1 a ' . MobileService::MAX_PER_CATEGORY . '.'],
+                'productIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Escolhidos à mão, na ordem (até ' . MobileService::MAX_PER_CATEGORY . ', produtos pai ligados à categoria). Omitido = nenhum.'],
             ],
         ]);
         $filterInput = new InputObjectType([
@@ -540,8 +612,74 @@ class ProductSchema
                         return ['items' => $preloadFor($result['items'], $info)] + $result + ['filters' => $filters];
                     },
                 ],
+                'mobileHome' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($mobileSectionType))),
+                    'description' => 'A tela inicial do app: uma seção por categoria (o nome dela e os primeiros produtos), na ordem de Catálogo → Mobile quando ela está ligada; senão, todas as categorias na ordem do catálogo com os 10 mais novos. Só produtos ligados direto à categoria.',
+                    'args' => ['websiteId' => ['type' => Type::id(), 'description' => 'Omitido = website padrão.']],
+                    'resolve' => static function ($root, array $args, $context, ResolveInfo $info) use ($mobile, $rowsOf, $preloadFor, $categories): array {
+                        $sections = $mobile->sections((int) ($args['websiteId'] ?? (new Website())->getResource()->getDefaultId()));
+                        $rows = array_column($preloadFor($rowsOf(array_merge([], ...array_column($sections, 'product_ids'))), $info, 'products'), null, 'product_id');
+
+                        return array_map(static fn ($s) => [
+                            'category' => $categories()[$s['category_id']],
+                            'products' => array_map(static fn ($id) => $rows[$id], $s['product_ids']),
+                            'total' => $s['total'],
+                        ], $sections);
+                    },
+                ],
+                'mobileCategoryProducts' => [
+                    'type' => $mobileProductsType,
+                    'description' => 'O "mostrar mais" de uma seção de mobileHome: os produtos depois dos primeiros, na mesma ordem. null quando a categoria não está no app.',
+                    'args' => [
+                        'categoryId' => Type::nonNull(Type::id()),
+                        'page' => ['type' => Type::int(), 'defaultValue' => 1],
+                        'pageSize' => ['type' => Type::int(), 'defaultValue' => 20, 'description' => 'Máximo 100.'],
+                    ],
+                    'resolve' => static function ($root, array $args, $context, ResolveInfo $info) use ($mobile, $rowsOf, $preloadFor): ?array {
+                        $result = $mobile->categoryProducts((int) $args['categoryId'], max(1, $args['page']), min(100, max(1, $args['pageSize'])));
+
+                        return $result === null ? null : ['items' => $preloadFor($rowsOf($result['product_ids']), $info), 'total' => $result['total']];
+                    },
+                ],
+                'mobileOrder' => [
+                    'type' => Type::nonNull($mobileOrderType),
+                    'description' => 'Catálogo → Mobile (admin): a ordem do app gravada para o website.',
+                    'args' => ['websiteId' => ['type' => Type::id(), 'description' => 'Omitido = website padrão.']],
+                    'resolve' => $mobileGuard(static function ($root, array $args, $context, ResolveInfo $info) use ($mobileOrder): array {
+                        $websiteId = (int) ($args['websiteId'] ?? (new Website())->getResource()->getDefaultId());
+                        if (!Config::websiteExists($websiteId)) {
+                            throw new AttributeException('WEBSITE_NOT_FOUND', 'Website não encontrado.');
+                        }
+
+                        return $mobileOrder($websiteId, $info);
+                    }),
+                ],
             ],
             'mutation' => [
+                'saveMobileOrder' => [
+                    'type' => Type::nonNull($mobileOrderType),
+                    'description' => 'Catálogo → Mobile (admin), como o "Salvar" da tela: categories é a lista final, na ordem do app; as categorias do website fora dela saem do app. Erros: MOBILE_CATEGORY_INVALID, MOBILE_PER_CATEGORY_INVALID, MOBILE_PRODUCT_INVALID.',
+                    'args' => [
+                        'websiteId' => Type::nonNull(Type::id()),
+                        'enabled' => ['type' => Type::boolean(), 'description' => '"Usar esta ordem no app"; omitido = mantém.'],
+                        'categories' => Type::nonNull(Type::listOf(Type::nonNull($mobileCategoryInput))),
+                    ],
+                    'resolve' => $mobileGuard(static function ($root, array $args, $context, ResolveInfo $info) use ($mobile, $mobileOrder): array {
+                        $websiteId = (int) $args['websiteId'];
+                        if (!Config::websiteExists($websiteId)) {
+                            throw new AttributeException('WEBSITE_NOT_FOUND', 'Website não encontrado.');
+                        }
+                        $mobile->save($websiteId, array_map(static fn ($c) => [
+                            'id' => (int) $c['id'],
+                            'visible' => $c['visible'] ?? true,
+                            'per_category' => $c['perCategory'] ?? MobileService::DEFAULT_PER_CATEGORY,
+                            'product_ids' => array_map('intval', $c['productIds'] ?? []),
+                        ], $args['categories']));
+                        isset($args['enabled']) && $mobile->setEnabled($websiteId, $args['enabled']);
+
+                        return $mobileOrder($websiteId, $info);
+                    }),
+                ],
                 'createProduct' => [
                     'type' => Type::nonNull($productType),
                     'args' => [

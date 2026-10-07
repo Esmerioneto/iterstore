@@ -1,5 +1,6 @@
 [
     { "id": "catalogo", "label": "Catálogo", "resource": "Iter_Catalog::product", "url": "/admin/product/index", "sort_order": 20 },
     { "label": "Produtos", "resource": "Iter_Catalog::product", "url": "/admin/product/index", "parent": "catalogo", "sort_order": 0 },
-    { "label": "Categorias", "resource": "Iter_Catalog::category", "url": "/admin/category/index", "parent": "catalogo", "sort_order": 5 }
+    { "label": "Categorias", "resource": "Iter_Catalog::category", "url": "/admin/category/index", "parent": "catalogo", "sort_order": 5 },
+    { "label": "Mobile", "resource": "Iter_Catalog::mobile", "url": "/admin/mobile/index", "parent": "catalogo", "sort_order": 10 }
 ]

@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "mobile": "catalog/mobile-order"
+        }
+    }
+}

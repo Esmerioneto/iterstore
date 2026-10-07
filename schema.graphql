@@ -56,6 +56,28 @@ type Query {
     "Máximo 100."
     pageSize: Int = 20
   ): ProductList!
+
+  "A tela inicial do app: uma seção por categoria (o nome dela e os primeiros produtos), na ordem de Catálogo → Mobile quando ela está ligada; senão, todas as categorias na ordem do catálogo com os 10 mais novos. Só produtos ligados direto à categoria."
+  mobileHome(
+    "Omitido = website padrão."
+    websiteId: ID
+  ): [MobileSection!]!
+
+  "O \"mostrar mais\" de uma seção de mobileHome: os produtos depois dos primeiros, na mesma ordem. null quando a categoria não está no app."
+  mobileCategoryProducts(
+    categoryId: ID!
+    page: Int = 1
+
+    "Máximo 100."
+    pageSize: Int = 20
+  ): MobileProducts
+
+  "Catálogo → Mobile (admin): a ordem do app gravada para o website."
+  mobileOrder(
+    "Omitido = website padrão."
+    websiteId: ID
+  ): MobileOrder!
+
   inventorySources: [InventorySource!]!
   inventorySource(code: String!): InventorySource
 
@@ -369,6 +391,58 @@ input ProductFilterInput {
 
   "Valores das opções; Sim/Não = \"1\"/\"0\"."
   values: [String!]!
+}
+
+type MobileSection {
+  category: Category!
+
+  "Os primeiros: os escolhidos à mão, depois os mais novos."
+  products: [Product!]!
+
+  "Produtos da categoria no app."
+  total: Int!
+
+  "Mostrar o \"mostrar mais\" (mobileCategoryProducts)."
+  hasMore: Boolean!
+}
+
+type MobileProducts {
+  items: [Product!]!
+
+  "Produtos da categoria no app, contando os primeiros da seção."
+  total: Int!
+}
+
+type MobileOrder {
+  websiteId: ID!
+
+  "\"Usar esta ordem no app\"."
+  enabled: Boolean!
+
+  categories: [MobileOrderCategory!]!
+}
+
+"Todas as categorias do website: as que estão no app na ordem dele, depois as outras."
+type MobileOrderCategory {
+  category: Category!
+
+  "Ex.: \"Vestuário › Bermuda\"."
+  path: String!
+
+  "Ela e as categorias pai ativas; inativa nunca aparece no app."
+  active: Boolean!
+
+  "\"Mostrar no app\"."
+  visible: Boolean!
+
+  "\"Exibir de início\"."
+  perCategory: Int!
+
+  "Escolhidos à mão, na ordem."
+  chosen: [Product!]!
+
+  "Produtos ativos da categoria no website."
+  productCount: Int!
 }
 
 type InventorySource {
@@ -775,6 +849,17 @@ type Mutation {
   createStore(storeName: String!, webview: String!, theme: String!, groupId: ID): Store!
   updateStore(id: ID!, storeName: String!, webview: String!, theme: String!, groupId: ID): Store
   deleteStore(id: ID!): Boolean!
+
+  "Catálogo → Mobile (admin), como o \"Salvar\" da tela: categories é a lista final, na ordem do app; as categorias do website fora dela saem do app. Erros: MOBILE_CATEGORY_INVALID, MOBILE_PER_CATEGORY_INVALID, MOBILE_PRODUCT_INVALID."
+  saveMobileOrder(
+    websiteId: ID!
+
+    "\"Usar esta ordem no app\"; omitido = mantém."
+    enabled: Boolean
+
+    categories: [MobileCategoryInput!]!
+  ): MobileOrder!
+
   createProduct(
     sku: String!
     name: String!
@@ -1187,6 +1272,19 @@ type Mutation {
 
   "Logout: o token enviado deixa de valer. false sem token."
   revokeAdminToken: Boolean!
+}
+
+input MobileCategoryInput {
+  id: ID!
+
+  "\"Mostrar no app\"."
+  visible: Boolean = true
+
+  "\"Exibir de início\", de 1 a 50."
+  perCategory: Int = 10
+
+  "Escolhidos à mão, na ordem (até 50, produtos pai ligados à categoria). Omitido = nenhum."
+  productIds: [ID!]
 }
 
 input ProductAttributeInput {
