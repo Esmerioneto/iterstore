@@ -273,7 +273,7 @@ class VariantService
     }
 
     /** @return string[] the product attributes of a file type (image) */
-    private function imageCodes(): array
+    public function imageCodes(): array
     {
         return array_column(array_filter($this->attributeRows(), static fn ($a) => InputTypeRegistry::has($a['input_type']) && (InputTypeRegistry::get($a['input_type'])['accept'] ?? false)), 'code');
     }

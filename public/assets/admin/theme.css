@@ -690,3 +690,83 @@ a {
   .config-settings-form .config-fields { grid-template-columns: 1fr; }
   .admin-shell { height: auto; min-height: 100vh; }
 }
+
+/* Catálogo → Mobile */
+.mobile-categories {
+  padding-left: var(--spacing-32);
+}
+
+.mobile-products {
+  padding-left: 0;
+  list-style: none;
+}
+
+.mobile-category {
+  margin-bottom: var(--spacing-8);
+  padding: var(--spacing-8);
+  border: 1px solid var(--color-linen);
+  background: var(--color-paper);
+}
+
+/* unchecked: not in the app */
+.mobile-category:has(> .mobile-bar [data-mobile-visible]:not(:checked)) > .mobile-bar .mobile-category-name {
+  color: var(--color-stone);
+}
+
+.mobile-bar,
+.mobile-product {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.mobile-bar small {
+  color: var(--color-stone);
+}
+
+.mobile-bar small[data-mobile-summary] {
+  margin-left: auto;
+}
+
+.mobile-product {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-linen);
+}
+
+.mobile-product-name {
+  flex: 1;
+}
+
+/* a flex item has no list marker: the position comes from a counter */
+.mobile-products {
+  counter-reset: mobile-product;
+}
+
+.mobile-product::before {
+  counter-increment: mobile-product;
+  content: counter(mobile-product) ".";
+  min-width: 2em;
+  text-align: right;
+}
+
+.mobile-handle {
+  cursor: move;
+  color: var(--color-stone);
+}
+
+.mobile-bar button,
+.mobile-product button {
+  padding: 2px 8px;
+}
+
+.mobile-thumb {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+}
+
+.mobile-order .is-dragging {
+  opacity: 0.4;
+}

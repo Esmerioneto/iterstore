@@ -540,3 +540,119 @@ document.querySelectorAll('select[data-customer-type]').forEach(function (select
     });
   });
 });
+
+// Catálogo → Mobile ([data-mobile-order]): categories and their chosen products ([data-sort-item] in a
+// [data-sortable]) are reordered by native drag and drop from the ⠿ handle, or by ↑ ↓; the form posts them
+// in page order. "Adicionar" moves a product from the category's hidden pool to the chosen ones (its
+// input enabled), ✕ moves it back. The counts, the note and "depois do mostrar mais" follow the changes.
+document.addEventListener('DOMContentLoaded', function () {
+  var form = document.querySelector('[data-mobile-order]');
+  if (!form) {
+    return;
+  }
+  var dragged = null;
+
+  function refresh(category) {
+    var limit = Number(category.querySelector('[data-mobile-limit]').value) || 0;
+    var chosen = category.querySelectorAll('[data-mobile-chosen] > li');
+    var shown = 0;
+    chosen.forEach(function (item) {
+      var active = item.dataset.active === '1';
+      item.querySelector('[data-mobile-after]').hidden = !active || shown < limit;
+      shown += active ? 1 : 0;
+    });
+    var products = category.querySelectorAll('[data-product-id][data-active="1"]').length;
+    var newest = Math.max(0, Math.min(limit - shown, category.querySelectorAll('[data-mobile-pool] > li').length));
+    category.querySelector('[data-mobile-summary]').textContent = (category.querySelector('[data-mobile-visible]').checked ? '' : 'fora do app · ') + products + ' produtos · exibe ' + limit + ' · ' + chosen.length + ' escolhidos';
+    category.querySelector('[data-mobile-count]').textContent = 'Escolhidos à mão (' + chosen.length + ' de ' + limit + ')';
+    category.querySelector('[data-mobile-note]').textContent = newest ? '+ ' + newest + ' mais novos da categoria completam os ' + limit + ' iniciais' : '';
+    category.querySelector('[data-mobile-add-select]').disabled = chosen.length >= limit;
+    category.querySelector('[data-mobile-add]').disabled = chosen.length >= limit;
+  }
+
+  function move(item, list, chosen) {
+    list.appendChild(item);
+    item.querySelector('input').disabled = !chosen;
+    var option = item.closest('[data-mobile-category]').querySelector('[data-mobile-add-select] option[value="' + item.dataset.productId + '"]');
+    option.hidden = chosen;
+    option.disabled = chosen;
+  }
+
+  form.querySelectorAll('[data-mobile-category]').forEach(refresh);
+  form.addEventListener('input', function (event) {
+    if ('mobileLimit' in event.target.dataset || 'mobileVisible' in event.target.dataset) {
+      refresh(event.target.closest('[data-mobile-category]'));
+    }
+  });
+  form.addEventListener('click', function (event) {
+    var button = event.target.closest('button[type="button"]');
+    var category = button && button.closest('[data-mobile-category]');
+    if (!button) {
+      return;
+    }
+    var item = button.closest('[data-sort-item]');
+    if ('mobileAdd' in button.dataset) {
+      var select = category.querySelector('[data-mobile-add-select]');
+      var pooled = select.value && category.querySelector('[data-mobile-pool] > [data-product-id="' + select.value + '"]');
+      if (pooled) {
+        move(pooled, category.querySelector('[data-mobile-chosen]'), true);
+        select.value = '';
+      }
+    } else if ('mobileRemove' in button.dataset) {
+      move(item, category.querySelector('[data-mobile-pool]'), false);
+    } else if (button.dataset.move === '-1' && item.previousElementSibling) {
+      item.parentNode.insertBefore(item, item.previousElementSibling);
+    } else if (button.dataset.move === '1' && item.nextElementSibling) {
+      item.parentNode.insertBefore(item.nextElementSibling, item);
+    } else {
+      return;
+    }
+    refresh(category);
+    button.isConnected && button.focus();
+  });
+
+  // only the handle starts a drag, so the inputs inside an item still take clicks and text selection
+  form.addEventListener('mousedown', function (event) {
+    var handle = event.target.closest('[data-drag-handle]');
+    if (handle) {
+      handle.closest('[data-sort-item]').draggable = true;
+    }
+  });
+  form.addEventListener('mouseup', function (event) { // a click on the handle, without dragging
+    var handle = event.target.closest('[data-drag-handle]');
+    if (handle && !dragged) {
+      handle.closest('[data-sort-item]').draggable = false;
+    }
+  });
+  form.addEventListener('dragstart', function (event) {
+    dragged = event.target.closest('[data-sort-item]');
+    dragged.classList.add('is-dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', ''); // Firefox only drags with some data
+  });
+  form.addEventListener('dragend', function () {
+    dragged.classList.remove('is-dragging');
+    dragged.draggable = false;
+    refresh(dragged.closest('[data-mobile-category]'));
+    dragged = null;
+  });
+  // an item only moves among its own list's items (a product inside its category, a category among the categories)
+  form.addEventListener('dragover', function (event) {
+    if (!dragged) {
+      return;
+    }
+    var over = event.target.closest('[data-sort-item]');
+    while (over && over.parentNode !== dragged.parentNode) {
+      over = over.parentNode.closest('[data-sort-item]');
+    }
+    if (!over) {
+      return;
+    }
+    event.preventDefault();
+    if (over !== dragged) {
+      var siblings = Array.prototype.slice.call(over.parentNode.children);
+      over.parentNode.insertBefore(dragged, siblings.indexOf(dragged) < siblings.indexOf(over) ? over.nextSibling : over);
+    }
+  });
+  form.addEventListener('drop', function (event) { event.preventDefault(); });
+});

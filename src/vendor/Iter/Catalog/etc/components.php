@@ -5,4 +5,5 @@ return [
     'catalog/product-form' => \Iter\Catalog\View\ProductForm::class,
     'catalog/category-list' => \Iter\Catalog\View\CategoryList::class,
     'catalog/category-form' => \Iter\Catalog\View\CategoryForm::class,
+    'catalog/mobile-order' => \Iter\Catalog\View\MobileOrder::class,
 ];

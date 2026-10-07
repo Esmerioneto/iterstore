@@ -1930,6 +1930,10 @@ assertSame([['INVALID_CREDENTIALS', 'E-mail ou senha inválidos.'], 'loja@selfte
     [$custLogin('errada123')[1]['errors'][0]['extensions']['code'] ?? null, $custLogin('errada123')[1]['errors'][0]['message'] ?? null],
     $custLogin('segredo123')[1]['data']['generateCustomerToken']['customer']['email'] ?? null,
 ], 'API cliente: login com senha errada é recusado, com a certa entra (e-mail sem diferenciar maiúsculas)');
+$welcomeMails = static fn (string $email) => $pdo->query("SELECT subject, body_html FROM mail_queue WHERE to_email = " . $pdo->quote($email) . " AND template_code = 'customer_welcome'")->fetchAll(PDO::FETCH_ASSOC);
+$welcome = $welcomeMails('loja@selftest.local');
+assertSame([1, true, true], [count($welcome), str_contains($welcome[0]['body_html'] ?? '', 'Olá, Lu.'), str_contains($welcome[0]['body_html'] ?? '', 'loja@selftest.local')],
+    'boas-vindas: o cadastro pela loja enfileira um e-mail de boas-vindas com o nome e o e-mail do cliente');
 $old = $custLogin('segredo123')[1]['data']['generateCustomerToken']['token'] ?? '';
 $new = $api('mutation { refreshCustomerToken { token } }', $old)[1]['data']['refreshCustomerToken']['token'] ?? '';
 assertSame([64, 401, 200], [strlen($new), $api('{ me { id } }', $old)[0], $api('{ me { id } }', $new)[0]], 'API cliente: refresh troca o token e o antigo deixa de valer');
@@ -1991,11 +1995,17 @@ preg_match('#https://front\.selftest/confirmar\?token=([0-9a-f]{64})#', $confMai
 assertSame([true, true, 64], [array_key_exists('token', $reg) && $reg['token'] === null, $reg['confirmationRequired'] ?? null, strlen($m[1] ?? '')], 'API cliente: com a confirmação ligada, o cadastro não traz token e o e-mail leva o link do frontend');
 $confLogin = static fn () => $api('mutation { generateCustomerToken(email: "conf@selftest.local", password: "segredo123") { token } }')[1];
 assertSame('EMAIL_NOT_CONFIRMED', $confLogin()['errors'][0]['extensions']['code'] ?? null, 'API cliente: sem confirmar o e-mail não entra');
+$welcomeBeforeConfirm = count($welcomeMails('conf@selftest.local'));
 $confirmed = $api('mutation { confirmCustomerEmail(token: "' . ($m[1] ?? '') . '") { token customer { email } } }')[1]['data']['confirmCustomerEmail'] ?? [];
 assertSame([64, 'conf@selftest.local', 64, 'TOKEN_INVALID'], [
     strlen((string) ($confirmed['token'] ?? '')), $confirmed['customer']['email'] ?? null, strlen((string) ($confLogin()['data']['generateCustomerToken']['token'] ?? '')),
     $api('mutation { confirmCustomerEmail(token: "' . ($m[1] ?? '') . '") { token } }')[1]['errors'][0]['extensions']['code'] ?? null,
 ], 'API cliente: o link confirma e já entra; depois o login funciona e o link não vale de novo');
+Config::save(['customer/account/welcome_email' => '0']);
+Iter\Customer\Model\CustomerService::welcome((new Iter\Customer\Model\Customer())->load((int) $pdo->query("SELECT customer_id FROM customer_flat WHERE email = 'conf@selftest.local'")->fetchColumn()));
+assertSame([0, 1, 1], [$welcomeBeforeConfirm, count($welcomeMails('conf@selftest.local')), count($welcomeMails('conf@selftest.local'))],
+    'boas-vindas: com a confirmação ligada, só sai depois de confirmar; desligado em Configurações, não sai');
+Config::save(['customer/account/welcome_email' => '1']);
 
 // forgot password (API-PLAN delivery 8)
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
@@ -2570,6 +2580,105 @@ $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES (
 assertSame([[204, 'https://front.selftest'], [204, ''], [200, 'https://front.selftest']], [$cors('https://front.selftest'), $cors('https://outro.selftest'), $cors('https://front.selftest', 'POST')], 'CORS: só as origens configuradas');
 $pdo->exec("UPDATE core_config_data SET value = '*' WHERE path = 'web/cors_origins'");
 assertSame([204, 'https://outro.selftest'], $cors('https://outro.selftest'), 'CORS: * libera qualquer origem');
+
+// --- the mobile app's home (MOBILE-PLAN delivery 1) ----------------------------------------------
+$pdo->exec("INSERT INTO store_website (code, name) VALUES ('selftest_mob', 'Selftest Mobile')"); // its own website: only these categories
+$mobWebsite = (int) $pdo->query("SELECT website_id FROM store_website WHERE code = 'selftest_mob'")->fetchColumn();
+$mobCat = static fn (string $key, array $data = []) => (int) (new CategoryService())->create($data + ['website_id' => $mobWebsite, 'name' => strtoupper($key), 'url_key' => "selftest-mob-{$key}", 'is_active' => 1])->getId();
+$mA = $mobCat('a', ['position' => 1]);
+$mB = $mobCat('b', ['parent_id' => $mA]);
+$mC = $mobCat('c', ['position' => 2, 'is_active' => 0]);
+$mD = $mobCat('d', ['position' => 3]);
+$mobProduct = static fn (string $key, int $category, int $active = 1) => (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => "selftest-mob-{$key}", 'name' => $key,
+    'is_active' => $active, 'website_ids' => [$mobWebsite], 'category_ids' => [$category]], ['price' => '1'])->getId();
+[$m1, $m2, $m3, $m4] = array_map(static fn ($k) => $mobProduct((string) $k, $mA), [1, 2, 3, 4]);
+$mobProduct('off', $mA, 0);
+$mB1 = $mobProduct('b1', $mB); // in A too: a subcategory brings its parent
+$mobProduct('c1', $mC);
+$mobile = new Iter\Catalog\Model\MobileService();
+$home = static fn () => array_map(static fn ($s) => [$s['category']['name'], $s['total'], $s['hasMore'], array_map(static fn ($p) => substr($p['sku'], 13), $s['products'])],
+    $gql($guest, '{ mobileHome(websiteId: "' . $mobWebsite . '") { category { name } total hasMore products { sku } } }')['data']['mobileHome'] ?? []);
+$more = static fn (int $category, int $page, int $size) => ($r = $gql($guest, "{ mobileCategoryProducts(categoryId: \"{$category}\", page: {$page}, pageSize: {$size}) { total items { sku } } }")['data']['mobileCategoryProducts'] ?? null)
+    === null ? null : [$r['total'], array_map(static fn ($p) => substr($p['sku'], 13), $r['items'])];
+assertSame([[['A', 5, false, ['b1', '4', '3', '2', '1']], ['B', 1, false, ['b1']]], [5, []]], [$home(), $more($mA, 1, 10)],
+    'app desligado: categorias ativas na ordem do catálogo, os 10 mais novos ativos de cada; a inativa e a vazia ficam fora; nada para "mostrar mais"');
+assertSame(['MOBILE_CATEGORY_INVALID', 'MOBILE_CATEGORY_INVALID', 'MOBILE_PER_CATEGORY_INVALID', 'MOBILE_PER_CATEGORY_INVALID', 'MOBILE_PRODUCT_INVALID', 'MOBILE_PRODUCT_INVALID'], [
+    $throws(static fn () => $mobile->save($mobWebsite, [['id' => $baseCategory]])),
+    $throws(static fn () => $mobile->save($mobWebsite, [['id' => $mA], ['id' => $mA]])),
+    $throws(static fn () => $mobile->save($mobWebsite, [['id' => $mA, 'per_category' => 0]])),
+    $throws(static fn () => $mobile->save($mobWebsite, [['id' => $mA, 'per_category' => 51]])),
+    $throws(static fn () => $mobile->save($mobWebsite, [['id' => $mA, 'product_ids' => [$m1, $m1]]])),
+    $throws(static fn () => $mobile->save($mobWebsite, [['id' => $mD, 'product_ids' => [$m1]]])),
+], 'ordem do app: recusa categoria de outro website ou repetida, quantidade fora de 1 a 50, produto repetido ou fora da categoria');
+$mobile->setEnabled($mobWebsite, true);
+$mobile->save($mobWebsite, [['id' => $mB, 'per_category' => 1], ['id' => $mA, 'per_category' => 3, 'product_ids' => [$m1, $m3]], ['id' => $mC], ['id' => $mD]]);
+assertSame([[['B', 1, false, ['b1']], ['A', 5, true, ['1', '3', 'b1']]], [5, ['4']], [5, ['2']], [5, []], null], [$home(), $more($mA, 1, 1), $more($mA, 2, 1), $more($mA, 3, 1), $more($mC, 1, 10)],
+    'app ligado: a ordem da tela; os escolhidos à mão e os mais novos completam a quantidade da categoria; "mostrar mais" segue a mesma ordem; categoria inativa fica fora');
+$mobile->save($mobWebsite, [['id' => $mA, 'per_category' => 1, 'product_ids' => [$m1, $m3]], ['id' => $mB, 'visible' => false]]);
+assertSame([[['A', 5, true, ['1']]], [5, ['3', 'b1', '4', '2']], null], [$home(), $more($mA, 1, 10), $more($mB, 1, 10)],
+    'app ligado: escolhidos além da quantidade vêm primeiro no "mostrar mais"; categoria desmarcada fica fora');
+(new Iter\Catalog\Model\Category())->getResource()->setProductCategories($m1, [$mD]); // what saving the product does
+$mobile->save($mobWebsite, [['id' => $mA, 'per_category' => 2, 'product_ids' => [$m3, $m2]], ['id' => $mD]]);
+(new Iter\Catalog\Model\Category())->getResource()->setProductCategories($m3, [$mD]);
+assertSame([['A', 3, true, ['2', 'b1']], ['D', 2, false, ['3', '1']]], $home(), 'app ligado: o escolhido que saiu da categoria é ignorado, sem apagar a ordem do resto');
+$mobile->setEnabled($mobWebsite, false);
+assertSame([['A', 3, false, ['b1', '4', '2']], ['B', 1, false, ['b1']], ['D', 2, false, ['3', '1']]], $home(), 'app desligado de novo: a ordem gravada não vale');
+
+// --- Catálogo → Mobile (MOBILE-PLAN delivery 2) --------------------------------------------------
+$mobUrl = '/admin/mobile/index?website_id=' . $mobWebsite;
+$mobPage = $admin->request($mobUrl)['body'];
+preg_match_all('/name="categories\[(\d+)\]\[visible\]" value="1" (checked)? data-mobile-visible> Mostrar no app/', $mobPage, $mobRows);
+$chosenInput = static fn (int $c, int $p) => 'name="categories[' . $c . '][product_ids][]" value="' . $p . '"';
+assertSame([[$mA, $mD, $mB, $mC], ['checked', 'checked', '', ''], true, true, true, true, true, 403, true], [
+    array_map('intval', $mobRows[1]),
+    $mobRows[2],
+    str_contains($mobPage, '>C</strong>') && str_contains($mobPage, '(inativa, não aparece no app)'),
+    str_contains($mobPage, '>A › B</strong>') && str_contains($mobPage, '<small data-mobile-summary>fora do app · 1 produtos'),
+    str_contains($mobPage, $chosenInput($mA, $m2) . '>') && !str_contains($mobPage, $chosenInput($mA, $m3)),
+    str_contains($mobPage, $chosenInput($mA, $m4) . ' disabled>') && str_contains($mobPage, $chosenInput($mA, $mB1) . ' disabled>'),
+    str_contains($admin->request('/admin/index')['body'], 'href="/admin/mobile/index"'),
+    $dash->request($mobUrl)['status'],
+    !str_contains($mobPage, 'value="1" checked> Usar esta ordem no app'),
+], 'tela Mobile: as marcadas na ordem do app, depois as outras na ordem do catálogo, com o caminho e "Mostrar no app" (a desmarcada diz "fora do app"); a inativa avisada; o escolhido que saiu da categoria some; os outros produtos ficam para "Adicionar"; no menu; exige a permissão');
+$mobEnabled = static fn (): string => (string) $pdo->query("SELECT value FROM core_config_data WHERE scope = 'websites' AND scope_id = {$mobWebsite} AND path = 'catalog/mobile/enabled'")->fetchColumn(); // saved by the server: Config's cache here is stale
+$mobPost = static fn (array $fields) => $admin->submit($mobUrl, '/admin/mobile/save', ['website_id' => $mobWebsite] + $fields)[1];
+$mobFields = ['enabled' => '1', 'categories' => [
+    $mD => ['visible' => '1', 'per_category' => '1', 'product_ids' => [$m1]],
+    $mA => ['visible' => '1', 'per_category' => '2', 'product_ids' => [$m4, $m2]],
+    $mB => ['per_category' => '10'],
+    $mC => ['per_category' => '10'],
+]];
+$msgs = $mobPost($mobFields);
+assertSame([['Ordem do app salva.'], '1', [['D', 2, true, ['1']], ['A', 3, true, ['4', '2']]]], [$msgs, $mobEnabled(), $home()],
+    'tela Mobile: "Salvar" grava a ordem, a quantidade de cada categoria, os escolhidos e a chave; as desmarcadas ficam fora do app');
+$msgs = $mobPost(['categories' => [$mA => ['visible' => '1', 'per_category' => '0']]] + $mobFields);
+assertSame([['Exiba de 1 a 50 produtos por categoria.'], [['D', 2, true, ['1']], ['A', 3, true, ['4', '2']]]], [$msgs, $home()], 'tela Mobile: quantidade fora de 1 a 50 é recusada sem mudar nada');
+$msgs = $mobPost(['categories' => $mobFields['categories']]);
+$mobOrderGql = '{ mobileOrder(websiteId: "' . $mobWebsite . '") { enabled categories { category { id } path active visible perCategory productCount chosen { sku attributes { code } } } } }';
+$mobOrder = $gql($admin, $mobOrderGql)['data']['mobileOrder'] ?? [];
+$mobSaveGql = 'mutation ($w: ID!, $e: Boolean, $c: [MobileCategoryInput!]!) { saveMobileOrder(websiteId: $w, enabled: $e, categories: $c) { enabled categories { path visible perCategory chosen { sku } } } }';
+assertSame([false, [(string) $mD, 'D', true, true, 1, 2, ['selftest-mob-1']], [(string) $mB, 'A › B', true, false, 10, 1, []], 'UNAUTHENTICATED', 'FORBIDDEN', 'WEBSITE_NOT_FOUND'], [
+    $mobOrder['enabled'] ?? null,
+    array_merge([$mobOrder['categories'][0]['category']['id'] ?? null], array_values(array_diff_key($mobOrder['categories'][0] ?? [], ['category' => 0, 'chosen' => 0])), [array_column($mobOrder['categories'][0]['chosen'] ?? [], 'sku')]),
+    array_merge([$mobOrder['categories'][2]['category']['id'] ?? null], array_values(array_diff_key($mobOrder['categories'][2] ?? [], ['category' => 0, 'chosen' => 0])), [array_column($mobOrder['categories'][2]['chosen'] ?? [], 'sku')]),
+    $gql($guest, $mobOrderGql)['errors'][0]['extensions']['code'] ?? null,
+    $gql($dash, $mobOrderGql)['errors'][0]['extensions']['code'] ?? null,
+    $gql($admin, '{ mobileOrder(websiteId: "32000") { enabled } }')['errors'][0]['extensions']['code'] ?? null,
+], 'API mobileOrder: a ordem gravada como a tela mostra (caminho, ativa, "Mostrar no app", quantidade, escolhidos); só com a permissão; website inexistente é recusado');
+$mobSaved = $gql($admin, $mobSaveGql, ['w' => (string) $mobWebsite, 'e' => true, 'c' => [['id' => (string) $mA, 'perCategory' => 1, 'productIds' => [(string) $m2]], ['id' => (string) $mB, 'visible' => false]]])['data']['saveMobileOrder'] ?? [];
+$mobRow = static fn (array $c) => [$c['path'] ?? null, $c['visible'] ?? null, $c['perCategory'] ?? null, array_column($c['chosen'] ?? [], 'sku')];
+$mobKept = $gql($admin, $mobSaveGql, ['w' => (string) $mobWebsite, 'c' => [['id' => (string) $mA, 'perCategory' => 1, 'productIds' => [(string) $m2]]]])['data']['saveMobileOrder']['enabled'] ?? null;
+assertSame([true, ['A', true, 1, ['selftest-mob-2']], ['A › B', false, 10, []], true, [['A', 3, true, ['2']]], 'MOBILE_PRODUCT_INVALID', 'FORBIDDEN'], [
+    $mobSaved['enabled'] ?? null,
+    $mobRow($mobSaved['categories'][0] ?? []),
+    $mobRow($mobSaved['categories'][1] ?? []),
+    $mobKept,
+    $home(),
+    $gql($admin, $mobSaveGql, ['w' => (string) $mobWebsite, 'c' => [['id' => (string) $mA, 'productIds' => [(string) $m1]]]])['errors'][0]['extensions']['code'] ?? null,
+    $gql($dash, $mobSaveGql, ['w' => (string) $mobWebsite, 'c' => []])['errors'][0]['extensions']['code'] ?? null,
+], 'API saveMobileOrder: grava como o "Salvar" da tela e devolve a ordem; enabled omitido mantém a chave; a lista é a final (D saiu do app); produto fora da categoria é recusado; só com a permissão');
+$gql($admin, $mobSaveGql, ['w' => (string) $mobWebsite, 'e' => false, 'c' => [['id' => (string) $mA]]]);
+assertSame([['Ordem do app salva.'], '0'], [$msgs, $mobEnabled()], 'tela Mobile: desmarcar "Usar esta ordem no app" desliga');
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());

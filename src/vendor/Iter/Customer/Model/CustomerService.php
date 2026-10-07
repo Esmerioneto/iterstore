@@ -4,13 +4,17 @@ declare(strict_types=1);
 
 namespace Iter\Customer\Model;
 
+use Iter\Core\Config;
 use Iter\Core\Db\Connection;
+use Iter\Core\Log;
 use Iter\Eav\Form\FormSchemaGenerator;
 use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\AttributeSet;
 use Iter\Eav\Model\Taxvat;
 use Iter\Eav\Model\ValueService;
+use Iter\Mail\Model\MailException;
+use Iter\Mail\Model\MailService;
 use Iter\Store\Model\Website;
 
 /**
@@ -27,24 +31,44 @@ class CustomerService
      *              dob?: string, is_active?: int, attribute_set_id?: int} $data taxvat: CPF when pf, CNPJ when pj (mask optional)
      * @param array<string, mixed> $attributes code => value
      * @param array<int, array<string, mixed>>|null $addresses see AddressService::save(); null leaves them as they are
+     * @param bool $welcome queue the welcome e-mail (false while the sign-up waits for the e-mail confirmation)
      */
-    public function create(array $data, array $attributes = [], ?array $addresses = null): Customer
+    public function create(array $data, array $attributes = [], ?array $addresses = null, bool $welcome = true): Customer
     {
         $set = $this->set((int) ($data['attribute_set_id'] ?? 0));
         $fields = $this->fields($data);
         $values = new ValueService();
         $rows = $this->rows($values, $fields, $this->setValues($set, $attributes));
 
-        return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $addresses): Customer {
+        return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $addresses, $welcome): Customer {
             $this->assertUnique($fields);
             $model = (new Customer())->addData($fields + ['attribute_set_id' => (int) $set->getId()])->save();
             if ($addresses !== null) {
                 (new AddressService())->save((int) $model->getId(), $addresses);
             }
             $values->write((int) $model->getId(), $rows, $fields['website_id']);
+            $welcome && self::welcome($model);
 
             return $model;
         });
+    }
+
+    /** queues the welcome e-mail, when Configurações → Clientes has it on for the customer's website */
+    public static function welcome(Customer $customer): void
+    {
+        $websiteId = (int) $customer->getData('website_id');
+        if (!Config::get('customer/account/welcome_email', $websiteId)) {
+            return;
+        }
+        try {
+            (new MailService())->send('customer_welcome', (string) $customer->getData('email'), [
+                'name' => $customer->getData('firstname'),
+                'email' => $customer->getData('email'),
+            ], ['website_id' => $websiteId]);
+        } catch (MailException $e) {
+            // the customer is created all the same; a mail setup problem only goes to the log
+            Log::error('Mail: boas-vindas do cliente não enfileirado: ' . $e->getMessage());
+        }
     }
 
     /** the attribute set is chosen on creation and doesn't change */

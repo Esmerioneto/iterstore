@@ -2,5 +2,7 @@
     { "code": "customer_confirm_email", "label": "Confirmação de e-mail do cliente", "subject": "Confirme o seu e-mail", "file": "customer-confirm-email", "private": true,
       "vars": { "name": "Maria", "link": "https://loja.com.br/confirmar?token=exemplo" } },
     { "code": "customer_password_reset", "label": "Redefinição de senha do cliente", "subject": "Redefina a sua senha", "file": "customer-password-reset", "private": true,
-      "vars": { "name": "Maria", "link": "https://loja.com.br/nova-senha?token=exemplo", "hours": "2" } }
+      "vars": { "name": "Maria", "link": "https://loja.com.br/nova-senha?token=exemplo", "hours": "2" } },
+    { "code": "customer_welcome", "label": "Boas-vindas ao cliente novo", "subject": "Bem-vindo(a) à {{ store_name }}", "file": "customer-welcome", "private": true,
+      "vars": { "name": "Maria", "email": "maria@exemplo.com.br", "store_name": "Iterstore" } }
 ]

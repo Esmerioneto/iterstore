@@ -35,6 +35,22 @@
         "route": "admin",
         "vendor": "Iter",
         "module_name": "Catalog",
+        "controller_name": "mobile",
+        "controller_action": "index",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Catalog",
+        "controller_name": "mobile",
+        "controller_action": "save",
+        "method": "POST"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Catalog",
         "controller_name": "productlayout",
         "controller_action": "save,reset",
         "method": "POST"
