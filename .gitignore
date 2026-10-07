@@ -17,6 +17,7 @@
 
 # Local docs, not versioned
 *.md
+!/README.md
 
 # Uploaded files (EAV image attributes)
 /public/media/
