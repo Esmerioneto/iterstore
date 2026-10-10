@@ -63,12 +63,12 @@ class Browser
     }
 
     /** @return array{status: int, location: string, body: string} */
-    public function request(string $path, ?array $post = null, ?string $json = null): array
+    public function request(string $path, ?array $post = null, ?string $json = null, array $headers = []): array
     {
         curl_setopt_array($this->ch, [
             CURLOPT_URL => $this->baseUrl . $path,
             CURLOPT_HTTPGET => true,
-            CURLOPT_HTTPHEADER => [],
+            CURLOPT_HTTPHEADER => $headers,
         ]);
         if ($post !== null) {
             // with a CURLFile inside, send multipart: curl wants flat "a[b][c]" keys
@@ -150,12 +150,14 @@ $port = (static function (): int {
 })();
 $logDir = sys_get_temp_dir() . '/selftest_log_' . bin2hex(random_bytes(4)) . '/';
 putenv('ITER_LOG_DIR=' . $logDir); // this process and the server log there, not in var/log
+$dashDir = $logDir . 'dashboard/';
+putenv('ITER_DASHBOARD_DIR=' . $dashDir); // the sales dashboard's cache, away from var/cache
 $server = proc_open(
     [PHP_BINARY, '-S', "127.0.0.1:{$port}", '-t', dirname(__DIR__) . '/public'],
     [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']],
     $pipes,
     null,
-    ['XDEBUG_MODE' => 'off', 'ITER_LOG_DIR' => $logDir] + getenv()
+    ['XDEBUG_MODE' => 'off', 'ITER_LOG_DIR' => $logDir, 'ITER_DASHBOARD_DIR' => $dashDir] + getenv()
 );
 
 $savedModules = file_get_contents(ETC . 'config.json'); // module on/off tests write it; shared with a running dev server
@@ -233,8 +235,9 @@ $purge = static function () use ($pdo, $savedConfig, $savedMedia, $savedModules,
 register_shutdown_function(static function () use ($purge, $server, $logDir): void {
     proc_terminate($server);
     $purge();
-    array_map('unlink', glob($logDir . '{,unit/}*', GLOB_BRACE) ?: []);
+    array_map('unlink', glob($logDir . '{,unit/,dashboard/}*.*', GLOB_BRACE) ?: []);
     @rmdir($logDir . 'unit');
+    @rmdir($logDir . 'dashboard');
     @rmdir($logDir);
 });
 $purge(); // leftovers from an interrupted run
@@ -3007,6 +3010,103 @@ assertSame([null, $mobOnlyUrl, 0], [$mobBannerKept['errors'] ?? null, $mobBanner
 $gql($admin, $mobSaveGql, ['w' => (string) $mobWebsite, 'e' => false, 'c' => [['id' => (string) $mA]]]);
 $mobBanners->save($mA, [], []);
 unlink($mobBannerPng);
+
+// --- sales dashboard: numbers, cache, check (DASHBOARD-PLAN delivery 2) ------------------------------
+$pdo->exec("INSERT INTO store_website (code, name) VALUES ('selftest_dash', 'Selftest Painel')"); // its own website: only these orders
+$dw = (int) $pdo->query("SELECT website_id FROM store_website WHERE code = 'selftest_dash'")->fetchColumn();
+$dashParent = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-dash', 'name' => 'Vestido painel', 'is_active' => 1,
+    'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '40'])->getId();
+$dashChild = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-dash-p', 'name' => 'Vestido painel P', 'is_active' => 1,
+    'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '40'])->getId();
+$pdo->exec("UPDATE catalog_product SET parent_id = {$dashParent}, variant_key = 'p' WHERE product_id = {$dashChild}");
+$dashOrder = static function (string $at, string $status, float $total, string $payment, string $channel, array $items) use ($pdo, $dw): int {
+    $id = (int) $pdo->query("INSERT INTO sales_order (increment_id, website_id, email, firstname, lastname, taxvat, status, subtotal, grand_total, payment_label, sales_channel, created_at, updated_at)
+        VALUES ('PN-' || nextval('sales_order_order_id_seq'), {$dw}, 'painel@selftest.local', 'Pa', 'Inel', '52998224725', '{$status}', {$total}, {$total}, '{$payment}', '{$channel}', {$at}, LEAST(NOW(), {$at})) RETURNING order_id")->fetchColumn();
+    foreach ($items as [$product, $quantity, $row]) {
+        $pdo->exec("INSERT INTO sales_order_item (order_id, product_id, sku, name, quantity, price, row_total) VALUES ({$id}, {$product}, 'x', 'x', {$quantity}, {$row}, {$row})");
+    }
+    return $id;
+};
+$yesterday = date('Y-m-d', strtotime('-1 day'));
+$dashOrder("CURRENT_DATE - 1 + TIME '10:15'", 'complete', 100, 'Pix', 'App mobile', [[$dashChild, 2, 80]]);
+$dashToday = $dashOrder("CURRENT_DATE + TIME '00:30'", 'pending_payment', 50, 'Cartão de crédito', 'Web', [[$dashParent, 1, 50]]);
+$dashOld = $dashOrder("CURRENT_DATE - 40 + TIME '12:00'", 'canceled', 30, 'Pix', 'App mobile', [[$dashChild, 1, 30]]);
+$dashboard = new \Iter\Sales\Model\DashboardService();
+$d = $dashboard->data($dw, 30);
+$categoryName = (string) $pdo->query("SELECT name FROM catalog_category WHERE category_id = {$baseCategory}")->fetchColumn();
+assertSame([
+    ['orders' => 2, 'revenue' => 150.0], ['orders' => 1, 'revenue' => 100.0], ['orders' => 1, 'revenue' => 50.0], ['orders' => 0, 'revenue' => 0.0], ['orders' => 1, 'revenue' => 30.0], ['orders' => 1, 'revenue' => 50.0],
+    30, ['date' => $yesterday, 'orders' => 1, 'revenue' => 100.0, 'paid' => ['orders' => 1, 'revenue' => 100.0], 'pending' => ['orders' => 0, 'revenue' => 0.0], 'canceled' => ['orders' => 0, 'revenue' => 0.0]],
+    1, [['label' => 'Pix', 'orders' => 1, 'revenue' => 100.0], ['label' => 'Cartão de crédito', 'orders' => 1, 'revenue' => 50.0]], ['Pix' => 1],
+    [['name' => 'App mobile', 'orders' => 1, 'revenue' => 100.0], ['name' => 'Web', 'orders' => 1, 'revenue' => 50.0]],
+    [['id' => $dashParent, 'name' => 'Vestido painel', 'quantity' => 3.0, 'revenue' => 130.0]], [['name' => $categoryName, 'revenue' => 130.0]],
+], [
+    $d['totals']['created'], $d['totals']['paid'], $d['totals']['pending'], $d['totals']['canceled'], $d['totals']['previous'], $d['totals']['today'],
+    count($d['days']), $d['days'][28], $d['heat'][(int) date('w', strtotime($yesterday))][10], $d['payment']['methods'], $d['payment']['days'][12]['orders'], $d['channels'], $d['products'], $d['categories'],
+], 'painel de vendas: criados, pagos, aguardando, cancelados, período anterior e hoje; dia a dia, hora, pagamento, canal; variação somada no produto pai e na categoria dele');
+
+// a bucket the next refresh must leave alone (only the changed days are redone) and the check must fix
+$dashFile = $dashDir . "website-{$dw}.json";
+$dashCache = static fn () => json_decode((string) file_get_contents($dashFile), true);
+$dashWrite = static fn (array $c) => file_put_contents($dashFile, json_encode($c));
+$c = $dashCache();
+$c['days'][$yesterday]['revenue'] = 999;
+$c['days'][$yesterday]['fp'] = 'adulterado';
+$dashWrite($c);
+$dashOrder("CURRENT_DATE + TIME '00:45'", 'pending_payment', 20, 'Pix', 'App mobile', []);
+$pdo->exec("UPDATE sales_order SET status = 'processing' WHERE order_id = {$dashToday}");
+$pdo->exec("UPDATE catalog_product SET name = 'Vestido renomeado' WHERE product_id = {$dashParent}");
+$d = $dashboard->data($dw, 30);
+assertSame([['orders' => 3, 'revenue' => 1069.0], ['orders' => 2, 'revenue' => 70.0], ['orders' => 1, 'revenue' => 20.0], 'Vestido renomeado'],
+    [$d['totals']['created'], $d['totals']['today'], $d['totals']['pending'], $d['products'][0]['name'] ?? null],
+    'painel de vendas: pedido novo e pedido pago entram na apuração seguinte sem refazer os outros dias; o nome do produto é o de agora');
+
+// the hourly check: 30 days per refresh, 6 refreshes for the 180 days; the deleted order and the tampered day are fixed and logged
+$logWas = Config::get('system/log/enabled');
+Config::save(['system/log/enabled' => '1']);
+$c = $dashCache();
+$c['checked']['at'] -= 3601;
+$dashWrite($c);
+$pdo->exec("DELETE FROM sales_order WHERE order_id = {$dashOld}");
+$checks = [];
+for ($i = 0; $i < 6; $i++) {
+    $d = $dashboard->data($dw, 30);
+    $checks[] = $dashCache()['check'] === null;
+}
+Config::save(['system/log/enabled' => (string) $logWas]);
+$dashLog = (string) @file_get_contents(Log::file());
+assertSame([[false, false, false, false, false, true], ['at' => date('H:i'), 'fixed' => 2], ['orders' => 3, 'revenue' => 170.0], ['orders' => 0, 'revenue' => 0.0], 2, true], [
+    $checks, $d['check'], $d['totals']['created'], $d['totals']['previous'],
+    substr_count($dashLog, "Painel de vendas: website {$dw}, dia "), str_contains($dashLog, "dia {$yesterday} diferente do banco; apurado de novo {\"cache\":\"adulterado\""),
+], 'painel de vendas: a conferência de hora em hora, fatiada em 6 buscas, corrige o dia adulterado e o pedido apagado direto no banco e registra no log');
+$dashDb = Connection::get()->adapter();
+$dashDb->beginTransaction();
+foreach (['enable_seqscan', 'enable_bitmapscan'] as $scan) { // a table this small is read whole; the index must be enough for when it isn't
+    $dashDb->fetchAll("SET LOCAL {$scan} = off");
+}
+$plan = implode("\n", $dashDb->fetchCol("EXPLAIN SELECT created_at::date, COUNT(*), SUM(grand_total), MAX(updated_at), SUM(CASE status WHEN 'canceled' THEN 1 ELSE 0 END)
+    FROM sales_order WHERE website_id = {$dw} AND created_at >= CURRENT_DATE - 30 AND created_at < CURRENT_DATE + 1 GROUP BY 1"));
+$dashDb->rollBack();
+assertSame(true, str_contains($plan, 'Index Only Scan using sales_order_dashboard'), "painel de vendas: a impressão digital lê só o índice (Index Only Scan)\n{$plan}");
+
+// the route: the permission, the JSON, and the automatic refresh doesn't keep the session alive
+$makeUser('selftest_painel', ['Iter_Sales::dashboard', 'Iter_Admin::dashboard']);
+$painel = new Browser($base);
+$painel->login('selftest_painel');
+$painelFile = getPath('var') . 'sessions' . DIRECTORY_SEPARATOR . 'sess_' . $painel->cookie(session_name());
+$painelSeen = static fn () => (int) (preg_match('/iter_admin_seen\|i:(\d+);/', (string) file_get_contents($painelFile), $m) ? $m[1] : 0);
+file_put_contents($painelFile, preg_replace('/iter_admin_seen\|i:\d+;/', 'iter_admin_seen|i:' . (time() - 100) . ';', (string) file_get_contents($painelFile)));
+$seenBefore = $painelSeen();
+$json = $painel->request("/admin/salesdashboard/data?website_id={$dw}&period=7", headers: ['X-Admin-Poll: 1']);
+$seenAfterPoll = $painelSeen();
+$painel->request("/admin/salesdashboard/data?website_id={$dw}&period=999");
+$anonymous = (new Browser($base))->request('/admin/salesdashboard/data', headers: ['X-Admin-Poll: 1']);
+assertSame([200, 7, ['orders' => 3, 'revenue' => 170], true, true, 403, [401, ['error' => 'UNAUTHENTICATED']], '/admin/auth/login'], [
+    $json['status'], json_decode($json['body'], true)['period'] ?? null, json_decode($json['body'], true)['totals']['created'] ?? null,
+    $seenAfterPoll === $seenBefore, $painelSeen() > $seenBefore,
+    $dash->request('/admin/salesdashboard/data')['status'],
+    [$anonymous['status'], json_decode($anonymous['body'], true)], (new Browser($base))->request('/admin/salesdashboard/data')['location'],
+], 'painel de vendas: /admin/salesdashboard/data devolve o JSON só com a permissão; a busca automática (X-Admin-Poll) não renova a sessão; sem login, 401 em vez do login');
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());

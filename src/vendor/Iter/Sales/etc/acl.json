@@ -2,5 +2,6 @@
     { "id": "Iter_Sales::order", "parent": "Iter_Admin::root", "title": "Pedidos (ver e comentar)" },
     { "id": "Iter_Sales::order_payment", "parent": "Iter_Admin::root", "title": "Pedidos: confirmar pagamento" },
     { "id": "Iter_Sales::order_ship", "parent": "Iter_Admin::root", "title": "Pedidos: registrar entrega e concluir" },
-    { "id": "Iter_Sales::order_cancel", "parent": "Iter_Admin::root", "title": "Pedidos: cancelar" }
+    { "id": "Iter_Sales::order_cancel", "parent": "Iter_Admin::root", "title": "Pedidos: cancelar" },
+    { "id": "Iter_Sales::dashboard", "parent": "Iter_Admin::root", "title": "Painel de vendas (gráficos)" }
 ]

@@ -20,6 +20,8 @@ class Auth
     private const SESSION_KEY = 'iter_admin_user_id';
     /** the time of the last request: the session ends after admin/security/session_minutes without one */
     private const SEEN_KEY = 'iter_admin_seen';
+    /** request header of a screen's automatic refresh (Painel de vendas): it isn't use, so it doesn't keep the session alive */
+    public const POLL_HEADER = 'HTTP_X_ADMIN_POLL';
 
     private static ?AdminUser $user = null;
     /** the API token of this request (useToken), null on a session */
@@ -154,7 +156,9 @@ class Auth
                 Messages::addError("Sua sessão expirou depois de {$minutes} minutos sem uso. Entre de novo.");
                 return null;
             }
-            $_SESSION[self::SEEN_KEY] = time();
+            if (empty($_SERVER[self::POLL_HEADER])) {
+                $_SESSION[self::SEEN_KEY] = time();
+            }
             $user = (new AdminUser())->load((int) $_SESSION[self::SESSION_KEY]);
             if ($user->getId() && $user->getData('is_active')) {
                 self::$user = $user;
@@ -201,6 +205,12 @@ class Auth
         }
 
         if (self::user() === null) {
+            if (!empty($_SERVER[self::POLL_HEADER])) { // a script, not a page: it tells the screen, which links to the login
+                http_response_code(401);
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'UNAUTHENTICATED']);
+                return false;
+            }
             header('Location: /admin/auth/login');
             return false;
         }
