@@ -1,4 +1,4 @@
-// Vendas → Painel de vendas (DASHBOARD-PLAN): asks /admin/salesdashboard/data on open and every 60 s and
+// The sales dashboard on the admin Dashboard (DASHBOARD-PLAN): asks /admin/salesdashboard/data on open and every 60 s and
 // redraws in place. SVG by hand, no library. One screen: each chart measures its cell and draws in it.
 (function () {
   var root = document.getElementById('sales-dash');

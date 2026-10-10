@@ -1,5 +1,4 @@
 [
     { "id": "vendas", "label": "Vendas", "resource": "Iter_Sales::order", "url": "/admin/order/index", "sort_order": 10 },
-    { "label": "Pedidos", "resource": "Iter_Sales::order", "url": "/admin/order/index", "parent": "vendas", "sort_order": 0 },
-    { "label": "Painel de vendas", "resource": "Iter_Sales::dashboard", "url": "/admin/salesdashboard/index", "parent": "vendas", "sort_order": 2 }
+    { "label": "Pedidos", "resource": "Iter_Sales::order", "url": "/admin/order/index", "parent": "vendas", "sort_order": 0 }
 ]
