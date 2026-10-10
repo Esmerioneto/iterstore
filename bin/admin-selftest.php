@@ -2442,7 +2442,10 @@ assertSame([['Informe o motivo do cancelamento.'], ['Pedido cancelado. O estoque
 assertSame([['Comentário salvo.'], 1, 3, true], [$msgs, $orderMails('sales_order_comment'),
     (int) $pdo->query("SELECT COUNT(*) FROM sales_order_status_history WHERE order_id = {$nextId}")->fetchColumn(), str_contains($orderPage($admin, $nextId), 'selftest_order')],
     'pedido: comentário em qualquer status, com aviso por e-mail e o admin no histórico');
-$dashboard = $admin->request('/admin/index')['body'];
+$makeUser('selftest_cards', ['Iter_Admin::dashboard', 'Iter_Sales::order']); // without Iter_Sales::dashboard: the counts card, not the sales dashboard
+$cards = new Browser($base);
+$cards->login('selftest_cards');
+$dashboard = $cards->request('/admin/index')['body'];
 $confId = (int) $pdo->query("SELECT customer_id FROM customer_flat WHERE email = 'conf@selftest.local'")->fetchColumn();
 assertSame([true, true, true], [str_contains($dashboard, 'pedido(s) hoje'), str_contains($dashboard, '/admin/order/index?status=processing'),
     str_contains($admin->request('/admin/customer/edit?id=' . $confId)['body'], 'Nenhum pedido deste cliente.')], 'painel: card de Vendas; a tela do cliente lista os pedidos dele');
@@ -3107,22 +3110,20 @@ assertSame([200, 7, ['orders' => 3, 'revenue' => 170], true, true, 403, [401, ['
     $dash->request('/admin/salesdashboard/data')['status'],
     [$anonymous['status'], json_decode($anonymous['body'], true)], (new Browser($base))->request('/admin/salesdashboard/data')['location'],
 ], 'painel de vendas: /admin/salesdashboard/data devolve o JSON só com a permissão; a busca automática (X-Admin-Poll) não renova a sessão; sem login, 401 em vez do login');
-$painelPage = $painel->request('/admin/salesdashboard/index')['body'];
-$painelHome = $painel->request('/admin/index')['body'];
-$adminHome = $admin->request('/admin/index')['body'];
+$painelPage = $painel->request('/admin/index')['body'];
+$dashHome = $dash->request('/admin/index')['body'];
 $jsFile = dirname(__DIR__) . '/public/assets/admin/sales-dashboard.js';
-assertSame([true, true, true, true, true, 403, true, false, true, true, true], [
+assertSame([true, true, true, true, false, false, false, 404, true, true], [
     str_contains($painelPage, '<section class="sales-dash" id="sales-dash" data-url="/admin/salesdashboard/data">'),
     str_contains($painelPage, '<script src="/assets/admin/sales-dashboard.js?v='),
     str_contains($painelPage, '<button type="button" data-v="30" aria-pressed="true">30 dias</button>') && str_contains($painelPage, 'data-table="chan"'),
-    str_contains($painelPage, 'href="/admin/salesdashboard/index"'), // Vendas → Painel de vendas, even without Pedidos
     str_contains($painelPage, '<option value="">Todos os websites</option>'),
-    $dash->request('/admin/salesdashboard/index')['status'],
-    str_contains($painelHome, 'Ver o painel de vendas'), str_contains($painelHome, 'a pagar</a>'), // the card: the link, not the order counts
-    str_contains($adminHome, 'Ver o painel de vendas') && str_contains($adminHome, 'a pagar</a>'),
+    str_contains($painelPage, 'a pagar</a>'), // the counts card gives way to the dashboard
+    str_contains($dashHome, 'sales-dash'), str_contains($dashHome . $painelPage, 'salesdashboard/index'),
+    $admin->request('/admin/salesdashboard/index')['status'],
     is_file($jsFile) && str_contains((string) file_get_contents($jsFile), "'X-Admin-Poll': '1'"),
     str_contains((string) file_get_contents($jsFile), 'setInterval(load, 60000)'),
-], 'painel de vendas: a tela (Vendas → Painel de vendas) só com a permissão, com filtros e o script que busca a cada minuto sem renovar a sessão; o card Vendas do Dashboard leva até ela');
+], 'painel de vendas: fica no Dashboard do admin (Painel) para quem tem a permissão, no lugar dos cards, com filtros e o script que busca a cada minuto sem renovar a sessão; sem ela, o Dashboard de antes');
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());

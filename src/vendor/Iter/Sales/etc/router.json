@@ -1,5 +1,5 @@
 [
     { "route": "admin", "vendor": "Iter", "module_name": "Sales", "controller_name": "order", "controller_action": "index,view", "method": "GET" },
     { "route": "admin", "vendor": "Iter", "module_name": "Sales", "controller_name": "order", "controller_action": "confirm,ship,complete,cancel,comment", "method": "POST" },
-    { "route": "admin", "vendor": "Iter", "module_name": "Sales", "controller_name": "salesdashboard", "controller_action": "index,data", "method": "GET" }
+    { "route": "admin", "vendor": "Iter", "module_name": "Sales", "controller_name": "salesdashboard", "controller_action": "data", "method": "GET" }
 ]

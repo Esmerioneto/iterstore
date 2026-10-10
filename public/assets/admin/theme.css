@@ -1371,8 +1371,10 @@ input[type="checkbox"].admin-switch:disabled {
   cursor: not-allowed;
 }
 
-/* Vendas → Painel de vendas: one screen, no scroll; every chart takes the height its cell has */
+/* The sales dashboard on the admin Dashboard: one screen, no scroll; every chart takes the height its cell has */
 .admin-dashboard:has(> .sales-dash) { overflow: hidden; padding: 12px 24px 16px; }
+/* ponytail: the other cards are hidden, not left out: they still render (a few counts) */
+.admin-dashboard:has(> .sales-dash) > :not(.sales-dash) { display: none; }
 .sales-dash {
   --text-primary: #121212; --text-secondary: #484847; --text-muted: #898989; --grid: #eaeae6;
   --seq: #2a78d6; --deemph: #bababa;
