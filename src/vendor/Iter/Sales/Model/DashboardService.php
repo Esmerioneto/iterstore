@@ -97,7 +97,7 @@ class DashboardService
             'payment' => [
                 'methods' => self::ranked($total['payment'] ?? [], 0, PHP_INT_MAX, static fn ($label, array $p) => ['label' => (string) $label] + $pair($p)),
                 // the last 14 days: method => orders
-                'days' => array_map(static fn (string $d) => ['date' => $d, 'orders' => array_map(static fn (array $p) => (int) $p[0], $days[$d]['payment'] ?? [])], array_slice($current, -14)),
+                'days' => array_map(static fn (string $d) => ['date' => $d, 'orders' => array_map(static fn (array $p) => (int) $p[0], $days[$d]['payment'] ?? [])], array_slice($window, -14)),
             ],
             'channels' => self::ranked($total['channel'] ?? [], 1, PHP_INT_MAX, static fn ($name, array $p) => ['name' => (string) $name] + $pair($p)),
             ...$this->catalog($total['products'] ?? []),
