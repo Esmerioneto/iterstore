@@ -1370,3 +1370,70 @@ input[type="checkbox"].admin-switch:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Vendas → Painel de vendas: one screen, no scroll; every chart takes the height its cell has */
+.admin-dashboard:has(> .sales-dash) { overflow: hidden; padding: 12px 24px 16px; }
+.sales-dash {
+  --text-primary: #121212; --text-secondary: #484847; --text-muted: #898989; --grid: #eaeae6;
+  --seq: #2a78d6; --deemph: #bababa;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  height: 100%; display: grid; gap: 10px; grid-template-rows: auto auto minmax(0, 1fr) minmax(0, 1fr);
+}
+.sales-dash .dash-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sales-dash .dash-bar h2 { margin: 0 12px 0 0; font-size: 20px; }
+.sales-dash .dash-bar select, .sales-dash .seg button { height: 30px; font: inherit; font-size: 12px; }
+.sales-dash .dash-bar select { width: auto; border: 1px solid var(--color-pebble); background: #fff; padding: 0 10px; border-radius: 15px; }
+.sales-dash .seg { display: inline-flex; border: 1px solid var(--color-pebble); border-radius: 15px; overflow: hidden; }
+.sales-dash .seg button { border: 0; background: #fff; padding: 0 12px; cursor: pointer; color: var(--text-secondary); text-transform: none; letter-spacing: 0; }
+.sales-dash .seg button[aria-pressed="true"] { background: var(--color-ink); color: #fff; }
+.sales-dash .dash-updated { margin-left: auto; font-size: 11px; color: var(--text-muted); }
+.sales-dash .dash-updated b { color: var(--text-secondary); font-weight: 600; }
+.sales-dash .dash-updated .live { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--series-3); margin-right: 6px; }
+.sales-dash .dash-updated.is-stale .live { background: var(--critical); }
+.sales-dash .dash-updated.is-stale { color: var(--critical); }
+.sales-dash .dash-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+.sales-dash .dash-kpi { border-top: 1px solid var(--color-ink); padding-top: 6px; display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: baseline; }
+.sales-dash .dash-kpi small { grid-column: 1 / -1; font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--text-muted); }
+.sales-dash .dash-kpi strong { font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.sales-dash .dash-kpi span { font-size: 11px; color: var(--text-secondary); }
+.sales-dash .dash-kpi-status { font-size: 11px; font-weight: 600; margin-right: 4px; }
+.sales-dash .dash-row { display: grid; gap: 20px; min-height: 0; }
+.sales-dash .dash-row-a { grid-template-columns: 2fr 1fr; }
+.sales-dash .dash-row-b { grid-template-columns: 1.2fr 1fr 1fr; }
+.sales-dash .dash-card { border-top: 1px solid var(--color-linen); padding-top: 8px; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.sales-dash .dash-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.sales-dash .dash-card h3 { margin: 0; padding: 0; border: 0; display: inline; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .8px; white-space: nowrap; }
+.sales-dash .dash-sub { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.sales-dash .dash-tools { display: flex; gap: 6px; align-items: center; }
+.sales-dash .dash-tools .seg button { height: 22px; font-size: 11px; padding: 0 9px; }
+.sales-dash .dash-as-table { border: 0; background: none; font: inherit; font-size: 11px; color: var(--text-muted); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; padding: 0; text-transform: none; letter-spacing: 0; }
+.sales-dash .dash-plot { flex: 1; min-height: 0; position: relative; }
+.sales-dash .dash-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.sales-dash .dash-plot svg text { font-family: var(--font-sans); }
+.sales-dash .dash-plot-share { height: 40px; flex: none; }
+.sales-dash .dash-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--text-muted); }
+.sales-dash .dash-split { flex: 1; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 6px; }
+.sales-dash .dash-split .dash-plot { height: 100%; }
+.sales-dash .dash-split .dash-plot-share { height: 40px; }
+.sales-dash .dash-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11px; color: var(--text-secondary); margin: 2px 0 4px; }
+.sales-dash .dash-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.sales-dash .dash-legend b { color: var(--text-primary); font-weight: 600; }
+.sales-dash .dash-tip { position: fixed; pointer-events: none; background: #fff; border: 1px solid var(--color-pebble); padding: 6px 9px; font-size: 12px; line-height: 1.5; display: none; z-index: 10; }
+.sales-dash .dash-tip b { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sales-dash .dash-tip .k { display: inline-block; width: 12px; border-top: 2px solid; margin-right: 6px; vertical-align: 3px; }
+.sales-dash .dash-tip .muted { color: var(--text-muted); }
+.sales-dash .mark { transition: opacity .1s; }
+.sales-dash .mark:hover, .sales-dash .mark:focus { opacity: .7; outline: none; }
+.sales-dash dialog { border: 1px solid var(--color-pebble); padding: 16px 20px; max-height: 70vh; font-size: 12px; }
+.sales-dash dialog table { border-collapse: collapse; margin-bottom: 12px; }
+.sales-dash dialog td, .sales-dash dialog th { padding: 3px 14px 3px 0; text-align: left; font-variant-numeric: tabular-nums; }
+.sales-dash dialog h3 { margin: 0 0 8px; padding: 0; border: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .8px; }
+/* narrower than 1100px: the rows stack and the page scrolls */
+@media (max-width: 1100px) {
+  .admin-dashboard:has(> .sales-dash) { overflow-y: auto; }
+  .sales-dash { height: auto; grid-template-rows: none; }
+  .sales-dash .dash-kpis { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+  .sales-dash .dash-row-a, .sales-dash .dash-row-b { grid-template-columns: 1fr; }
+  .sales-dash .dash-card { height: 300px; }
+}

@@ -17,6 +17,6 @@ class DashboardSummary implements ViewComponentInterface
 
     public function getData(): array
     {
-        return ['counts' => Auth::isAllowed('Iter_Sales::order') ? (new OrderService())->summary() : null];
+        return ['counts' => Auth::isAllowed('Iter_Sales::order') ? (new OrderService())->summary() : null, 'chart' => Auth::isAllowed('Iter_Sales::dashboard')];
     }
 }
