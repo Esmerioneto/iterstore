@@ -22,7 +22,7 @@ class OrderList implements ViewComponentInterface
     public function getData(): array
     {
         $filters = [];
-        foreach (['status', 'website_id', 'customer_id', 'q', 'from', 'to'] as $key) {
+        foreach (['status', 'website_id', 'customer_id', 'sales_channel', 'q', 'from', 'to'] as $key) {
             $filters[$key] = trim((string) ($_GET[$key] ?? ''));
         }
         foreach (['from', 'to'] as $key) { // a bad date would break the query
@@ -47,6 +47,7 @@ class OrderList implements ViewComponentInterface
             'total_pages' => $pager['total_pages'],
             'pager' => $pager,
             'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
+            'channels' => (new OrderService())->channels(),
         ];
     }
 }

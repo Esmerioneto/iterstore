@@ -122,6 +122,9 @@ type Query {
     websiteId: ID
     customerId: ID
 
+    "Só os deste canal (\"App mobile\", \"Atendimento\"...)."
+    salesChannel: String
+
     "Parte do número, do e-mail ou do nome."
     search: String
 
@@ -813,6 +816,9 @@ type Order {
   "A loja (website) que fechou o pedido."
   websiteName: String
 
+  "Por onde veio: o cabeçalho X-Sales-Channel do placeOrder (sem ele, \"App mobile\"); \"Atendimento\" no pedido feito pelo admin."
+  salesChannel: String!
+
   "null = visitante."
   customerId: ID
 
@@ -1249,7 +1255,7 @@ type Mutation {
     code: String!
   ): Cart!
 
-  "Fecha o pedido: confere o carrinho (o erro diz o que falta), reserva o estoque e envia o e-mail \"pedido recebido\". Chamar de novo com o mesmo carrinho devolve o mesmo pedido."
+  "Fecha o pedido: confere o carrinho (o erro diz o que falta), reserva o estoque e envia o e-mail \"pedido recebido\". Chamar de novo com o mesmo carrinho devolve o mesmo pedido. O canal de venda vem do cabeçalho X-Sales-Channel (ex.: \"App mobile\", \"Web\"; sem ele, \"App mobile\")."
   placeOrder(
     "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
     cartId: String

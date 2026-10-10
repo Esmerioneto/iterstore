@@ -39,6 +39,12 @@ class OrderService
     /** the admin's actions and the status each one leads to */
     private const ACTIONS = ['confirm' => 'processing', 'ship' => 'shipped', 'complete' => 'complete', 'cancel' => 'canceled'];
 
+    /** the channel of an order without the X-Sales-Channel header (the app, the only one before the header existed) */
+    public const CHANNEL_DEFAULT = 'App mobile';
+
+    /** the channel of the admin's orders (Iter_Adminsales) */
+    public const CHANNEL_ADMIN = 'Atendimento';
+
     /** address fields with a column in sales_order_address; the set's other fields go to its attributes (JSON) */
     private const ADDRESS_COLUMNS = ['postcode', 'street', 'number', 'complement', 'district', 'city', 'region', 'recipient', 'telephone'];
 
@@ -74,6 +80,7 @@ class OrderService
                 'quote_id' => $quoteId,
                 'customer_id' => $cart['customer_id'],
                 'admin_user_id' => $cart['admin_user_id'],
+                'sales_channel' => $cart['admin_user_id'] === null ? self::channel() : self::CHANNEL_ADMIN,
                 'email' => $cart['email'],
                 'firstname' => $cart['firstname'],
                 'lastname' => $cart['lastname'],
@@ -116,6 +123,25 @@ class OrderService
         }
 
         return $orderId;
+    }
+
+    /**
+     * The request's X-Sales-Channel header ("App mobile", "Web"...): free text, one line, up to 64
+     * characters; none or blank = CHANNEL_DEFAULT
+     */
+    public static function channel(): string
+    {
+        $channel = mb_substr(trim((string) preg_replace('/[\x00-\x1F\x7F]+/', ' ', mb_scrub((string) ($_SERVER['HTTP_X_SALES_CHANNEL'] ?? ''), 'UTF-8'))), 0, 64);
+
+        return $channel === '' ? self::CHANNEL_DEFAULT : $channel;
+    }
+
+    /** @return string[] the channels that have orders, for the list's filter */
+    public function channels(): array
+    {
+        $db = Connection::get()->adapter();
+
+        return $db->fetchCol($db->select()->from('sales_order', ['sales_channel'])->distinct()->order('sales_channel'));
     }
 
     /**
@@ -291,7 +317,7 @@ class OrderService
     }
 
     /**
-     * The admin list: filters status, website_id, customer_id, q (number, e-mail or name), from, to (dates).
+     * The admin list: filters status, website_id, customer_id, sales_channel, q (number, e-mail or name), from, to (dates).
      *
      * @return array{items: array, total: int, amount: float} amount = the filtered orders' total, canceled ones left out
      */
@@ -329,7 +355,7 @@ class OrderService
     private function filtered(array $filters): Select
     {
         $select = Connection::get()->adapter()->select()->from(['o' => 'sales_order']);
-        foreach (['status' => 'o.status = ?', 'website_id' => 'o.website_id = ?', 'customer_id' => 'o.customer_id = ?', 'from' => 'o.created_at >= ?'] as $key => $where) {
+        foreach (['status' => 'o.status = ?', 'website_id' => 'o.website_id = ?', 'customer_id' => 'o.customer_id = ?', 'sales_channel' => 'o.sales_channel = ?', 'from' => 'o.created_at >= ?'] as $key => $where) {
             if (($filters[$key] ?? '') !== '') {
                 $select->where($where, $filters[$key]);
             }

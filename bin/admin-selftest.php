@@ -2027,10 +2027,10 @@ assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Con
 assertSame(file_get_contents(__DIR__ . '/../schema.graphql'), GraphQL\Utils\SchemaPrinter::doPrint(Iter\Core\GraphQl\Schema::build()), 'schema.graphql em dia com a API (rode php bin/schema-dump.php)');
 
 // --- GraphQL: admin login by token ------------------------------------------------------------
-$api = static function (string $query, ?string $token = null) use ($base): array { // no cookies: a separate app
+$api = static function (string $query, ?string $token = null, array $headers = []) use ($base): array { // no cookies: a separate app
     $ch = curl_init($base . '/core/graphql/index');
     curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POSTFIELDS => json_encode(['query' => $query]),
-        CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $token === null ? [] : ["Authorization: Bearer {$token}"])]);
+        CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $token === null ? [] : ["Authorization: Bearer {$token}"], $headers)]);
     $body = json_decode((string) curl_exec($ch), true);
 
     return [curl_getinfo($ch, CURLINFO_RESPONSE_CODE), $body];
@@ -2381,8 +2381,11 @@ assertSame(['Caneca', 24.9, 'INSUFFICIENT_STOCK'], [$copied['items'][0]['name'] 
     'pedido: nome e preço não mudam com o catálogo; a reserva tira a unidade do outro carrinho');
 assertSame('CART_HAS_ERRORS', $gqlCode([0, $place($otherCart)]), 'pedido: carrinho com item sem estoque é recusado');
 $stock->save($v0, ['selftest_var_cd' => ['quantity' => '4']]);
-$next = $place($otherCart)['data']['placeOrder']['number'] ?? '';
+$nextOrder = $api('mutation { placeOrder(cartId: "' . $otherCart . '") { number salesChannel } }', null, ['X-Sales-Channel:   Web   '])[1]['data']['placeOrder'] ?? [];
+$next = $nextOrder['number'] ?? '';
 assertSame(sprintf('ST-%06d', (int) substr((string) ($order['number'] ?? ''), 3) + 1), $next, 'pedido: o número seguinte do website');
+assertSame(['App mobile', 'Web'], [$pdo->query("SELECT sales_channel FROM sales_order WHERE order_id = {$orderId}")->fetchColumn(), $nextOrder['salesChannel'] ?? null],
+    'canal de venda: sem o cabeçalho X-Sales-Channel o pedido é do "App mobile"; com ele, o nome enviado (sem os espaços)');
 
 // --- order service in the admin (COMMERCE-PLAN delivery 6) ------------------------------------------
 $nextId = (int) $pdo->query("SELECT order_id FROM sales_order WHERE increment_id = '{$next}'")->fetchColumn();
@@ -2394,6 +2397,10 @@ assertSame([true, false, true, 403], [
     str_contains($list, (string) $next), str_contains($list, '>' . ($order['number'] ?? 'x') . '<'), str_contains($list, '1 pedido(s) · total R$ 24,90'),
     $dash->request('/admin/order/index')['status'],
 ], 'pedidos: a lista filtra pelo número e mostra o total do filtro; perfil sem Iter_Sales::order recebe 403');
+$byChannel = $admin->request('/admin/order/index?sales_channel=Web')['body'];
+assertSame([true, false, true, true], [str_contains($byChannel, '>' . $next . '<'), str_contains($byChannel, '>' . ($order['number'] ?? 'x') . '<'),
+    str_contains($byChannel, '<option value="Web" selected'), str_contains($orderPage($admin, $nextId), '<th>Canal</th><td>Web</td>')],
+    'canal de venda: a lista filtra pelo canal e o pedido mostra o seu');
 $page = $orderPage($admin, $orderId);
 assertSame([true, true, false, false, true], [str_contains($page, 'Confirmar pagamento'), str_contains($page, 'Cancelar pedido'), str_contains($page, 'Registrar entrega'),
     str_contains($page, 'Concluir'), str_contains($page, 'Chave Pix: pix@selftest.local')], 'pedido: a tela mostra só as ações do status (a pagar: confirmar e cancelar)');
@@ -2706,6 +2713,7 @@ assertSame(['processing', $adminId, $confId, [['pending_payment', 'Pedido criado
     (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code IN ('sales_order_placed', 'sales_order_processing') AND to_email = 'conf@selftest.local'")->fetchColumn(),
     $adminCarts->place($adminQuote, $adminId, paymentReceived: true, notify: false),
 ], 'pedido do admin: com o admin no pedido e no histórico, comentário interno, pagamento recebido já confirmado, sem e-mail quando não é para avisar; repetir devolve o mesmo pedido');
+assertSame('Atendimento', $pdo->query("SELECT sales_channel FROM sales_order WHERE order_id = {$adminOrder}")->fetchColumn(), 'canal de venda: o pedido feito pelo admin é do "Atendimento"');
 $setConfig(['sales/checkout/guest' => '0']);
 $guestQuote = $adminCarts->resolve($adminCarts->create($defaultWebsite, null, $adminId));
 $cartService->setGuestInfo($guestQuote, 'admin-visitante@selftest.local', 'Bal', 'Cão', '529.982.247-25');
