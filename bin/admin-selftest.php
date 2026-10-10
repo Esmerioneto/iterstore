@@ -1792,6 +1792,13 @@ assertSame([true, true, true], [
     str_contains($menu, 'href="/admin/attribute/index?entity_type=customer"'),
     str_contains($menu, 'href="/admin/attribute/index?entity_type=product"'),
 ], 'menu Clientes, com os atributos de cliente e de produto separados');
+$accordion = $admin->request('/admin/attribute/index?entity_type=customer')['body'];
+preg_match_all('/<details name="admin-menu"( open)?>\s*<summary>([^<]+)</', $accordion, $sections, PREG_SET_ORDER);
+assertSame([['Clientes'], true, 1], [
+    array_column(array_filter($sections, static fn ($m) => $m[1] !== ''), 2),
+    str_contains($accordion, '<a href="/admin/attribute/index?entity_type=customer" aria-current="page">'),
+    substr_count($accordion, 'aria-current="page"'),
+], 'menu em accordion: seções com o mesmo name (uma aberta por vez), só a da página atual aberta, e a página atual marcada');
 $custForm = $admin->request('/admin/customer/create?set=' . $custSet)['body'];
 assertSame([true, true, true, true, false], [
     str_contains($custForm, 'name="attributes[gender]"'),
