@@ -177,6 +177,8 @@ class CartSchema
                 'billingAddress' => ['type' => $addressType, 'resolve' => fn ($o) => $o['billing_address']],
                 'websiteId' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($o) => $o['website_id']],
                 'websiteName' => ['type' => Type::string(), 'description' => 'A loja (website) que fechou o pedido.', 'resolve' => fn ($o) => $o['website_name'] ?? null],
+                'salesChannel' => ['type' => Type::nonNull(Type::string()), 'description' => 'Por onde veio: o cabeçalho X-Sales-Channel do placeOrder (sem ele, "App mobile"); "Atendimento" no pedido feito pelo admin.',
+                    'resolve' => fn ($o) => $o['sales_channel']],
                 'customerId' => ['type' => Type::id(), 'description' => 'null = visitante.', 'resolve' => fn ($o) => $o['customer_id']],
                 'shipment' => ['type' => new ObjectType([
                     'name' => 'OrderShipment',
@@ -294,7 +296,7 @@ class CartSchema
             ] : []) + [
                 'placeOrder' => [
                     'type' => Type::nonNull($orderType),
-                    'description' => 'Fecha o pedido: confere o carrinho (o erro diz o que falta), reserva o estoque e envia o e-mail "pedido recebido". Chamar de novo com o mesmo carrinho devolve o mesmo pedido.',
+                    'description' => 'Fecha o pedido: confere o carrinho (o erro diz o que falta), reserva o estoque e envia o e-mail "pedido recebido". Chamar de novo com o mesmo carrinho devolve o mesmo pedido. O canal de venda vem do cabeçalho X-Sales-Channel (ex.: "App mobile", "Web"; sem ele, "App mobile").',
                     'args' => $cartIdArg,
                     'resolve' => static function ($root, array $args) use ($service): array {
                         if (!RateLimit::hit('order_place:' . RateLimit::ip(), (int) Config::get('sales/checkout/place_per_minute'))) {

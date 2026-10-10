@@ -25,6 +25,7 @@ $form = static fn (string $action, string $inner, string $confirm = '') => '<for
     <h2>Pedido <?= $e($order['increment_id']) ?> · <?= $e($order['status_label']) ?></h2>
     <table class="sales-order-info">
         <tr><th>Loja</th><td><?= $e($order['website_name'] ?? '—') ?></td></tr>
+        <tr><th>Canal</th><td><?= $e($order['sales_channel']) ?></td></tr>
         <tr><th>Data</th><td><?= $e(substr((string) $order['created_at'], 0, 16)) ?></td></tr>
         <tr><th>Cliente</th><td><?= $e($order['firstname'] . ' ' . $order['lastname']) ?> · <?= $e($order['email']) ?> · CPF/CNPJ <?= $e($order['taxvat']) ?>
             <?= $order['customer_id'] === null ? ' (visitante)' : ' · <a href="/admin/customer/edit?id=' . (int) $order['customer_id'] . '">ver cliente</a>' ?></td></tr>
