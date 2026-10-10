@@ -246,6 +246,15 @@ class CustomerSchema
                 throw new Error('Muitas tentativas. Aguarde um minuto e tente de novo.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
             }
         };
+        // the websiteId sent, or every website with the default first
+        $websiteIds = static function (array $args): array {
+            if (isset($args['websiteId'])) {
+                return [(int) $args['websiteId']];
+            }
+            $resource = (new Website())->getResource();
+
+            return array_values(array_unique([(int) $resource->getDefaultId(), ...array_map('intval', array_column($resource->getList(), 'website_id'))]));
+        };
         $sessionType = new ObjectType([
             'name' => 'CustomerSession',
             'fields' => [
@@ -372,10 +381,20 @@ class CustomerSchema
                 'generateCustomerToken' => [
                     'type' => Type::nonNull($sessionType),
                     'description' => 'Login do cliente pela loja.',
-                    'args' => ['email' => Type::nonNull(Type::string()), 'password' => Type::nonNull(Type::string()), 'websiteId' => ['type' => Type::id(), 'description' => 'Omitido = website padrão.']],
-                    'resolve' => static function ($root, array $args) use ($limit, $session): array {
+                    'args' => ['email' => Type::nonNull(Type::string()), 'password' => Type::nonNull(Type::string()), 'websiteId' => ['type' => Type::id(), 'description' => 'Omitido = procura em todos os websites, o padrão primeiro (o app não sabe a loja do cliente antes do login).']],
+                    'resolve' => static function ($root, array $args) use ($limit, $session, $websiteIds): array {
                         $limit();
-                        return $session(CustomerAuth::checkCredentials($args['email'], $args['password'], (int) ($args['websiteId'] ?? (new Website())->getResource()->getDefaultId())));
+                        // the same e-mail may exist in two websites: the password picks the account
+                        foreach ($websiteIds($args) as $websiteId) {
+                            try {
+                                return $session(CustomerAuth::checkCredentials($args['email'], $args['password'], $websiteId));
+                            } catch (AttributeException $e) {
+                                if ($e->errorCode !== 'INVALID_CREDENTIALS') {
+                                    throw $e;
+                                }
+                            }
+                        }
+                        throw $e;
                     },
                 ],
                 'refreshCustomerToken' => [
@@ -395,10 +414,12 @@ class CustomerSchema
                 'requestCustomerPasswordReset' => [
                     'type' => Type::nonNull(Type::boolean()),
                     'description' => 'Senha esquecida: manda o e-mail com o link do frontend (Configurações → Clientes → link de nova senha). Sempre true, exista ou não o e-mail.',
-                    'args' => ['email' => Type::nonNull(Type::string()), 'websiteId' => ['type' => Type::id(), 'description' => 'Omitido = website padrão.']],
-                    'resolve' => static function ($root, array $args) use ($limit): bool {
+                    'args' => ['email' => Type::nonNull(Type::string()), 'websiteId' => ['type' => Type::id(), 'description' => 'Omitido = todos os websites onde o e-mail tem conta.']],
+                    'resolve' => static function ($root, array $args) use ($limit, $websiteIds): bool {
                         $limit();
-                        CustomerAuth::requestPasswordReset($args['email'], (int) ($args['websiteId'] ?? (new Website())->getResource()->getDefaultId()));
+                        foreach ($websiteIds($args) as $websiteId) {
+                            CustomerAuth::requestPasswordReset($args['email'], $websiteId);
+                        }
                         return true;
                     },
                 ],

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Catalog\View;
 
+use Iter\Admin\View\Pager;
 use Iter\Catalog\Model\Category;
 use Iter\Catalog\Model\Product;
 use Iter\Core\Db\Expr;
@@ -27,18 +28,11 @@ class ProductList implements ViewComponentInterface
         foreach (['website_id', 'attribute_set_id', 'category_id', 'is_active', 'q'] as $key) {
             $filters[$key] = trim((string) ($_GET[$key] ?? ''));
         }
-        $limit = in_array((int) ($_GET['limit'] ?? 0), self::PAGE_SIZES, true) ? (int) $_GET['limit'] : self::PAGE_SIZES[0];
         $sortable = self::sortable($layoutData['columns'] ?? []);
         $sort = isset($sortable[$_GET['sort'] ?? '']) ? (string) $_GET['sort'] : 'name';
         $dir = ($_GET['dir'] ?? '') === 'desc' ? 'desc' : 'asc';
-        $search = static fn (int $page) => (new Product())->getResource()->search($filters, $page, $limit, $sortable[$sort], $dir);
-        $page = max(1, (int) ($_GET['page'] ?? 1));
-        $result = $search($page);
-        $totalPages = max(1, (int) ceil($result['total'] / $limit));
-        if ($page > $totalPages) { // "Ir para a página" past the end, or fewer pages after a bigger page size
-            $page = $totalPages;
-            $result = $search($page);
-        }
+        [$result, $pager] = Pager::search(static fn (int $page, int $limit) => (new Product())->getResource()->search($filters, $page, $limit, $sortable[$sort], $dir), self::PAGE_SIZES);
+        ['page' => $page, 'limit' => $limit, 'total_pages' => $totalPages] = $pager;
         $categoryResource = (new Category())->getResource();
         $tree = $categoryResource->getTree();
         $productCategories = $categoryResource->getProductsCategoryIds(array_map('intval', array_column($result['items'], 'product_id')));
@@ -52,6 +46,7 @@ class ProductList implements ViewComponentInterface
             'dir' => $dir,
             'total' => $result['total'],
             'total_pages' => $totalPages,
+            'pager' => $pager,
             'sets' => ProductForm::productSets(),
             'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
             'categories' => $tree,

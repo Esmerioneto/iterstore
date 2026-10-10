@@ -33,14 +33,14 @@ $productItem = static function (int $categoryId, array $p, bool $chosen) use ($e
     <form method="post" action="/admin/mobile/save" data-mobile-order>
         <?= \Iter\Core\FormKey::field() ?>
         <input type="hidden" name="website_id" value="<?= (int) $website_id ?>">
-        <p>
-            <label><input type="checkbox" name="enabled" value="1" <?= $enabled ? 'checked' : '' ?>> Usar esta ordem no app</label><br>
-            <small>Desmarcado, o app mostra todas as categorias ativas na ordem do catálogo, com os <?= \Iter\Catalog\Model\MobileService::DEFAULT_PER_CATEGORY ?> produtos mais novos de cada.</small>
+        <p class="mobile-enabled">
+            <label class="mobile-switch"><input type="hidden" name="enabled" value="0"><input type="checkbox" class="admin-switch" name="enabled" value="1" <?= $enabled ? 'checked' : '' ?>> Usar esta ordem no app</label>
+            <small>Desligado, o app mostra todas as categorias ativas na ordem do catálogo, com os <?= \Iter\Catalog\Model\MobileService::DEFAULT_PER_CATEGORY ?> produtos mais novos de cada.</small>
         </p>
 <?php if (!$categories): ?>
         <p>Nenhuma categoria neste website.</p>
 <?php else: ?>
-        <p><small>Arraste ⠿ ou use ↑ ↓ para mudar a ordem. Só as categorias com "Mostrar no app" marcado aparecem no app. Em cada uma, os escolhidos à mão vêm primeiro e os mais novos completam a quantidade; o resto aparece no "mostrar mais".</small></p>
+        <p><small>Arraste ⠿ ou use ↑ ↓ para mudar a ordem. Só as categorias com "Mostrar no app" ligado aparecem no app. Em cada uma, os escolhidos à mão vêm primeiro e os mais novos completam a quantidade; o resto aparece no "mostrar mais".</small></p>
         <ol class="mobile-categories" data-sortable>
     <?php foreach ($categories as $c): ?>
         <?php
@@ -54,8 +54,14 @@ $productItem = static function (int $categoryId, array $p, bool $chosen) use ($e
                 <div class="mobile-bar">
                     <span class="mobile-handle" data-drag-handle title="Arrastar">⠿</span>
                     <button type="button" data-move="-1" aria-label="Mover para cima">↑</button><button type="button" data-move="1" aria-label="Mover para baixo">↓</button>
-                    <strong class="mobile-category-name"><?= $e($c['path']) ?></strong>
-                    <label><input type="checkbox" name="categories[<?= $id ?>][visible]" value="1" <?= $c['visible'] ? 'checked' : '' ?> data-mobile-visible> Mostrar no app</label>
+                    <strong class="mobile-category-name" title="<?= $e($c['path']) ?>"><?= $e($c['path']) ?></strong>
+                    <label class="mobile-switch"><input type="hidden" name="categories[<?= $id ?>][visible]" value="0"><input type="checkbox" class="admin-switch" name="categories[<?= $id ?>][visible]" value="1" <?= $c['visible'] ? 'checked' : '' ?> data-mobile-visible> Mostrar no app</label>
+<?php if ($c['banners']): ?>
+                    <label class="mobile-switch"><input type="hidden" name="categories[<?= $id ?>][show_banner]" value="0"><input type="checkbox" class="admin-switch" name="categories[<?= $id ?>][show_banner]" value="1" <?= $c['show_banner'] ? 'checked' : '' ?>> Mostrar banner</label>
+                    <a class="mobile-banner" href="<?= $e($c['banners'][0]) ?>" target="_blank" data-image-popup="Banner"><img src="<?= $e($c['banners'][0]) ?>" alt="Banner"></a><?= count($c['banners']) > 1 ? '<small>+' . (count($c['banners']) - 1) . '</small>' : '' ?>
+<?php else: // no banner: the switch shows the saved choice but can't change, so the posted value keeps it ?>
+                    <label class="mobile-switch" title="A categoria não tem banner: envie em Catálogo → Categorias."><input type="hidden" name="categories[<?= $id ?>][show_banner]" value="<?= (int) $c['show_banner'] ?>"><input type="checkbox" class="admin-switch" <?= $c['show_banner'] ? 'checked' : '' ?> disabled> Mostrar banner <small>(sem banner)</small></label>
+<?php endif; ?>
                     <?= $c['active'] ? '' : '<small>(inativa, não aparece no app)</small>' ?>
                     <small data-mobile-summary><?= $c['visible'] ? '' : 'fora do app · ' ?><?= $activeCount ?> produtos · exibe <?= (int) $c['per_category'] ?> · <?= count($chosen) ?> escolhidos</small>
                 </div>

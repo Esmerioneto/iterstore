@@ -156,6 +156,18 @@ class OrderSchema
                 ],
             ],
             'mutation' => [
+                'changeMyOrderPaymentMethod' => [
+                    'type' => Type::nonNull($orderType),
+                    'description' => 'O cliente do token troca a forma de pagamento de um pedido dele que aguarda pagamento (ex.: cartão recusado).',
+                    'args' => ['number' => Type::nonNull(Type::string()), 'code' => Type::nonNull(Type::string())],
+                    'resolve' => static function ($root, array $args) use ($service, $view, $customer): array {
+                        $me = $customer();
+                        $id = $service->findIdByNumber($args['number'], (int) $me->getData('website_id'), ['customer_id' => (int) $me->getId()])
+                            ?? throw new SalesException('ORDER_NOT_FOUND', 'Pedido não encontrado.');
+                        $service->changePaymentMethod($id, $args['code']);
+                        return $view($id);
+                    },
+                ],
                 'confirmOrderPayment' => [
                     'type' => Type::nonNull($orderType),
                     'description' => 'Aguardando pagamento → Pagamento confirmado. Avisa o cliente. Exige Iter_Sales::order_payment.',

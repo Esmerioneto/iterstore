@@ -69,8 +69,15 @@ class Category
 
         try {
             $attributes = ValueService::fromRequest('attributes');
+            // the "Banners" block: the current ones in their order, less the ones marked to remove, then the new files
+            $files = $_FILES['banners_add'] ?? null;
+            $banners = [
+                'keep' => array_diff((array) ($_POST['banners']['keep'] ?? []), (array) ($_POST['banners']['remove'] ?? [])),
+                'add' => array_map(static fn ($i) => ValueService::uploaded(['error' => $files['error'][$i], 'name' => $files['name'][$i], 'tmp_name' => $files['tmp_name'][$i]]),
+                    array_keys(array_filter(is_array($files['error'] ?? null) ? $files['error'] : [], static fn ($error) => $error !== UPLOAD_ERR_NO_FILE))),
+            ];
             $service = new CategoryService();
-            $id ? $service->update($id, $data, $attributes) : $service->create($data, $attributes);
+            $id ? $service->update($id, $data, $attributes, $banners) : $service->create($data, $attributes, $banners);
             Messages::addSuccess($id ? 'Categoria atualizada com sucesso.' : 'Categoria criada com sucesso.');
         } catch (AttributeException $e) {
             Messages::addError($e->getMessage());

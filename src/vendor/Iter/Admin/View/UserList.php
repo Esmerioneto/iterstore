@@ -16,8 +16,11 @@ class UserList implements ViewComponentInterface
 
     public function getData(): array
     {
+        [$users, $pager] = Pager::slice((new AdminUser())->getList());
+
         return [
-            'users' => (new AdminUser())->getList(),
+            'users' => $users,
+            'pager' => $pager,
         ];
     }
 }

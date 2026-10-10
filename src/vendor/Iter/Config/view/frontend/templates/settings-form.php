@@ -41,11 +41,16 @@
                 <?php endif; ?>
                 <img class="eav-file-preview" alt="Imagem escolhida (salve para gravar)" title="Imagem escolhida (salve para gravar)" data-image-preview hidden>
                 <br><input type="file" id="<?= $e($id) ?>" name="<?= $name ?>" accept="<?= $e(implode(',', array_keys(\Iter\Core\Config::IMAGE_TYPES))) ?>" data-image-input data-max-bytes="<?= min(\Iter\Core\Config::IMAGE_MAX_BYTES, \Iter\Core\Config::uploadMaxBytes()) ?>">
+            <?php elseif ($type === 'boolean'): // a switch; the hidden "0" is what's posted when it's off ?>
+                <label class="admin-switch-field"><?= $e($field['label']) ?><br>
+                    <input type="hidden" name="<?= $name ?>" value="0">
+                    <input type="checkbox" class="admin-switch" name="<?= $name ?>" value="1" <?= (string) $field['value'] === '1' ? 'checked' : '' ?>>
+                </label>
             <?php else: ?>
                 <label><?= $e($field['label']) ?><br>
-            <?php if ($type === 'boolean' || $type === 'select'): ?>
+            <?php if ($type === 'select'): ?>
                     <select name="<?= $name ?>">
-                <?php foreach ($type === 'boolean' ? ['1' => 'Sim', '0' => 'Não'] : $field['options'] as $value => $text): ?>
+                <?php foreach ($field['options'] as $value => $text): ?>
                         <option value="<?= $e($value) ?>" <?= (string) $field['value'] === (string) $value ? 'selected' : '' ?>><?= $e($text) ?></option>
                 <?php endforeach; ?>
                     </select>

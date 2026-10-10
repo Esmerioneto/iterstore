@@ -12,6 +12,7 @@ use Iter\Core\Log;
 use Iter\Inventory\Model\StockService;
 use Iter\Mail\Model\MailException;
 use Iter\Mail\Model\MailService;
+use Iter\Payment\Model\PaymentService;
 
 /**
  * The order (sales_order, COMMERCE-PLAN §3 and §6). place() turns a complete cart into an order in one
@@ -147,7 +148,9 @@ class OrderService
             }
             return $grouped;
         };
-        $orders = array_column($db->fetchAll($db->select()->from('sales_order')->where('order_id IN (?)', $orderIds)), null, 'order_id');
+        // the store (website) that took the order: Loja RJ, Loja SP...
+        $orders = array_column($db->fetchAll($db->select()->from(['o' => 'sales_order'])->where('o.order_id IN (?)', $orderIds)
+            ->joinLeft(['w' => 'store_website'], 'w.website_id = o.website_id', ['website_name' => 'name'])), null, 'order_id');
         $items = $byOrder($db->fetchAll($db->select()->from('sales_order_item')->where('order_id IN (?)', $orderIds)->order('item_id')));
         $addresses = $byOrder($db->fetchAll($db->select()->from('sales_order_address')->where('order_id IN (?)', $orderIds)));
         $history = $db->select()->from(['h' => 'sales_order_status_history'])->where('h.order_id IN (?)', $orderIds)->order('h.history_id DESC');
@@ -216,6 +219,27 @@ class OrderService
     public function complete(int $orderId, ?int $adminUserId): void
     {
         $this->transition($orderId, 'complete', null, $adminUserId);
+    }
+
+    /**
+     * While waiting for payment the customer may switch to another of the website's payment options
+     * (e.g. the card was declined).
+     * ponytail: a Pix QR Code already issued stays valid; paid later, it still confirms the order
+     *
+     * @throws SalesException ORDER_NOT_FOUND, ORDER_STATUS_INVALID, PAYMENT_METHOD_UNAVAILABLE
+     */
+    public function changePaymentMethod(int $orderId, string $code): void
+    {
+        $order = $this->get($orderId);
+        if ($order['status'] !== 'pending_payment') {
+            throw new SalesException('ORDER_STATUS_INVALID', 'Este pedido não está aguardando pagamento.');
+        }
+        $methods = \isModuleEnabled('iter_payment') ? (new PaymentService())->methods(['website_id' => $order['website_id']]) : [];
+        $method = $methods[$code] ?? throw new SalesException('PAYMENT_METHOD_UNAVAILABLE', "Pagamento '{$code}' indisponível.");
+        $db = Connection::get()->adapter();
+        $db->update('sales_order', ['payment_method' => $code, 'payment_label' => $method['label'], 'payment_instructions' => $method['instructions']], ['order_id = ?' => $orderId]);
+        $db->insert('sales_order_status_history', ['order_id' => $orderId, 'status' => 'pending_payment', 'is_customer_notified' => 0,
+            'comment' => "Forma de pagamento alterada pelo cliente para {$method['label']}."]);
     }
 
     /** before shipping → canceled: the reservation is given back; the reason goes to the customer */

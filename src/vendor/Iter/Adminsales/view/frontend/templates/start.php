@@ -15,7 +15,7 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
                 <td><?= $e(substr((string) $cart['updated_at'], 0, 16)) ?></td>
                 <td><?= $e($websites[$cart['website_id']] ?? '') ?></td>
                 <td><?= $e(trim($cart['firstname'] . ' ' . $cart['lastname']) ?: ($cart['customer_id'] ? 'Cliente #' . $cart['customer_id'] : 'Visitante')) ?></td>
-                <td><a href="/admin/ordercreate/edit?id=<?= (int) $cart['quote_id'] ?>">Continuar</a></td>
+                <td class="admin-row-action"><a href="/admin/ordercreate/edit?id=<?= (int) $cart['quote_id'] ?>">Continuar</a></td>
             </tr>
     <?php endforeach; ?>
         </tbody>
@@ -23,7 +23,7 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
 <?php endif; ?>
 
     <h3>Para quem é o pedido</h3>
-    <form method="get" action="/admin/ordercreate/index">
+    <form method="get" action="/admin/ordercreate/index" class="admin-filters">
 <?php if (count($websites) > 1): ?>
         <label>Website
             <select name="website_id">
@@ -48,7 +48,7 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
                 <td><?= $e(trim($customer['firstname'] . ' ' . $customer['lastname']) ?: $customer['company_name']) ?></td>
                 <td><?= $e($customer['email']) ?></td>
                 <td><?= $e($customer['taxvat']) ?></td>
-                <td>
+                <td class="admin-row-action">
                     <form method="post" action="/admin/ordercreate/start">
                         <?= FormKey::field() ?>
                         <input type="hidden" name="website_id" value="<?= (int) $website_id ?>">
@@ -62,12 +62,12 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
     </table>
 <?php endif; ?>
 <?php if ($guest_allowed): ?>
-    <form method="post" action="/admin/ordercreate/start">
+    <form method="post" action="/admin/ordercreate/start" class="adminsales-guest">
         <?= FormKey::field() ?>
         <input type="hidden" name="website_id" value="<?= (int) $website_id ?>">
-        <p><button type="submit">Iniciar pedido para visitante (sem cadastro)</button></p>
+        <p>ou <button type="submit">Iniciar pedido para visitante (sem cadastro)</button></p>
     </form>
 <?php else: ?>
-    <p><small>Este website não vende para visitante (Configurações → Vendas): o pedido precisa de um cliente cadastrado.</small></p>
+    <p class="adminsales-guest"><small>Este website não vende para visitante (Configurações → Vendas): o pedido precisa de um cliente cadastrado.</small></p>
 <?php endif; ?>
 </section>

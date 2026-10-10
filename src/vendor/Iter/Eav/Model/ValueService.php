@@ -208,6 +208,25 @@ class ValueService
         }
     }
 
+    /**
+     * Where an upload ($value from uploaded()) is stored, under $folder: a random name in a 256-way
+     * subfolder, so the upload never picks its own path or extension (taken from its real MIME type).
+     *
+     * @param array<string, string> $accept MIME => extension, as in input_types.json
+     */
+    public static function storedName(string $folder, array $value, array $accept, string $label): string
+    {
+        $mime = is_file((string) $value['path']) ? mime_content_type((string) $value['path']) : false;
+        $ext = $accept[$mime] ?? throw new AttributeException('FILE_TYPE_INVALID', sprintf(
+            "'%s' não é um arquivo aceito em '%s' (%s).",
+            $value['name'] ?? '',
+            $label,
+            strtoupper(implode(', ', array_unique($accept)))
+        ));
+
+        return $folder . '/' . bin2hex(random_bytes(1)) . '/' . bin2hex(random_bytes(16)) . '.' . $ext;
+    }
+
     /** @return ?array the row to write, null = keep the current file */
     private function file(array $attribute, array $accept, mixed $value, ?string $current, string $entityType): ?array
     {
@@ -215,15 +234,7 @@ class ValueService
         $row = ['attribute_id' => (int) $attribute['attribute_id'], 'storage_type' => $attribute['storage_type'], 'old_file' => $current];
 
         if (is_array($value) && isset($value['path'])) {
-            $mime = is_file((string) $value['path']) ? mime_content_type((string) $value['path']) : false;
-            $ext = $accept[$mime] ?? throw new AttributeException('FILE_TYPE_INVALID', sprintf(
-                "'%s' não é um arquivo aceito em '%s' (%s).",
-                $value['name'] ?? '',
-                $label,
-                strtoupper(implode(', ', array_unique($accept)))
-            ));
-            // random name in a 256-way subfolder: the upload never picks its own path or extension
-            return $row + ['value' => $entityType . '/' . bin2hex(random_bytes(1)) . '/' . bin2hex(random_bytes(16)) . '.' . $ext, 'upload' => (string) $value['path']];
+            return $row + ['value' => self::storedName($entityType, $value, $accept, $label), 'upload' => (string) $value['path']];
         }
         if (is_array($value) && !empty($value['remove']) && $current !== null) {
             return $attribute['is_required']

@@ -56,6 +56,29 @@
     require (new \Iter\Core\View\ComponentResolver())->resolveTemplate('eav/form-fields');
 })($schema, $attribute_values);
 ?>
+        <fieldset class="category-banners">
+            <legend>Banners</legend>
+            <small>Uma imagem, ou até <?= (int) $banner_limit ?> em carrossel no app, nesta ordem. Sugestão: 1200 × 400 px. Tocar no banner abre a categoria.</small>
+<?php if ($banners): ?>
+            <ol class="category-banner-list" data-sortable>
+    <?php foreach ($banners as $banner): ?>
+                <li class="category-banner" data-sort-item>
+                    <span class="mobile-handle" data-drag-handle title="Arrastar">⠿</span>
+                    <button type="button" data-move="-1" aria-label="Mover para cima">↑</button><button type="button" data-move="1" aria-label="Mover para baixo">↓</button>
+                    <input type="hidden" name="banners[keep][]" value="<?= (int) $banner['banner_id'] ?>">
+                    <a href="<?= htmlspecialchars($banner['url']) ?>" target="_blank" data-image-popup="Banner"><img class="category-banner-thumb" src="<?= htmlspecialchars($banner['url']) ?>" alt="Banner"></a>
+                    <label><input type="checkbox" name="banners[remove][]" value="<?= (int) $banner['banner_id'] ?>"> Remover</label>
+                </li>
+    <?php endforeach; ?>
+            </ol>
+<?php endif; ?>
+            <p>
+                <label>Acrescentar banners<br>
+                    <input type="file" name="banners_add[]" multiple accept="<?= htmlspecialchars(implode(',', $banner_accept)) ?>" data-image-input data-max-bytes="<?= (int) $banner_max_bytes ?>">
+                </label>
+                <small>Entram no fim da lista. No máximo <?= (int) $banner_limit ?> no total: marque "Remover" para abrir espaço.</small>
+            </p>
+        </fieldset>
         <p>
             <button type="submit">Salvar</button>
             <a href="/admin/category/index">Cancelar</a>

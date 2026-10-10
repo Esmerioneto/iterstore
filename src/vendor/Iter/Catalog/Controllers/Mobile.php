@@ -37,6 +37,7 @@ class Mobile
                 'id' => (int) $id,
                 'visible' => !empty($c['visible']),
                 'per_category' => (int) ($c['per_category'] ?? MobileService::DEFAULT_PER_CATEGORY),
+                'show_banner' => !empty($c['show_banner']),
                 'product_ids' => array_map('intval', (array) ($c['product_ids'] ?? [])),
             ];
         }

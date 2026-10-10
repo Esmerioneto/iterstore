@@ -52,11 +52,11 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
         . ' <label>Nome <input type="text" name="firstname" value="' . $e($cart['firstname']) . '" required></label>'
         . ' <label>Sobrenome <input type="text" name="lastname" value="' . $e($cart['lastname']) . '" required></label>'
         . ' <label>CPF/CNPJ <input type="text" name="taxvat" value="' . $e($cart['taxvat']) . '" data-mask="cpf_cnpj" required></label>'
-        . ' <button type="submit">Salvar dados do visitante</button>') ?>
+        . ' <button type="submit">Salvar dados do visitante</button>', ' class="admin-filters"') ?>
 <?php endif; ?>
 
     <h3>Itens</h3>
-    <table>
+    <table class="adminsales-items">
         <thead><tr><th>SKU</th><th>Produto</th><th>Preço</th><th>Qtd.</th><th>Total</th><th></th></tr></thead>
         <tbody>
 <?php if (!$cart['items']): ?>
@@ -74,13 +74,13 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
 <?php endforeach; ?>
         </tbody>
     </table>
-    <form method="get" action="/admin/ordercreate/edit">
+    <form method="get" action="/admin/ordercreate/edit" class="admin-filters">
         <input type="hidden" name="id" value="<?= $id ?>">
         <input type="search" name="q" placeholder="SKU ou nome do produto" value="<?= $e($q) ?>">
         <button type="submit">Buscar produto</button>
     </form>
 <?php if ($q !== ''): ?>
-    <table>
+    <table class="adminsales-products">
         <thead><tr><th>SKU</th><th>Produto</th><th>Preço</th><th>Disponível</th><th>Adicionar</th></tr></thead>
         <tbody>
     <?php if (!$products): ?>
@@ -111,7 +111,7 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
 <?php endif; ?>
 <?php foreach ($saved_addresses as $saved): ?>
     <?= $form('address', '<input type="hidden" name="type" value="shipping"><input type="hidden" name="customer_address_id" value="' . (int) $saved['address_id'] . '">'
-        . $e($saved['street'] . ', ' . $saved['number'] . ' — ' . $saved['city'] . '/' . $saved['region']) . ' <button type="submit">Usar este</button>') ?>
+        . '<span>' . $e($saved['street'] . ', ' . $saved['number'] . ' — ' . $saved['city'] . '/' . $saved['region']) . '</span> <button type="submit">Usar este</button>', ' class="adminsales-choice"') ?>
 <?php endforeach; ?>
     <details<?= $cart['shipping_address'] || $saved_addresses ? '' : ' open' ?>>
         <summary>Outro endereço</summary>
@@ -122,7 +122,7 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
 <?php if ($cart['billing_same_as_shipping']): ?>
     <p>Igual ao de entrega.</p>
 <?php else: ?>
-    <?= $form('address', '<input type="hidden" name="type" value="billing"><input type="hidden" name="same" value="1"><button type="submit">Usar o de entrega</button>') ?>
+    <?= $form('address', '<input type="hidden" name="type" value="billing"><input type="hidden" name="same" value="1"><button type="submit">Usar o de entrega</button>', ' class="adminsales-choice"') ?>
 <?php endif; ?>
     <details>
         <summary>Outro endereço de cobrança</summary>
@@ -135,8 +135,8 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
     <p>Nenhum frete disponível<?= $cart['shipping_address'] ? ' para este endereço' : ': informe o endereço de entrega' ?>.</p>
     <?php endif; ?>
     <?php foreach ($cart['shipping_methods'] as $method): ?>
-    <?= $form('shipping', '<input type="hidden" name="code" value="' . $e($method['code']) . '">' . $e($method['label']) . ' · ' . $money($method['amount']) . ' · ' . (int) $method['days'] . ' dia(s) útil(eis) '
-        . (($cart['shipping_method']['code'] ?? null) === $method['code'] ? '<strong>(escolhido)</strong>' : '<button type="submit">Escolher</button>')) ?>
+    <?= $form('shipping', '<input type="hidden" name="code" value="' . $e($method['code']) . '"><span>' . $e($method['label']) . ' · ' . $money($method['amount']) . ' · ' . (int) $method['days'] . ' dia(s) útil(eis)</span> '
+        . (($cart['shipping_method']['code'] ?? null) === $method['code'] ? '<strong>(escolhido)</strong>' : '<button type="submit">Escolher</button>'), ' class="adminsales-choice"') ?>
     <?php endforeach; ?>
 <?php endif; ?>
 
@@ -146,13 +146,13 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
     <p>Nenhuma forma de pagamento ativa (Configurações → Pagamento).</p>
     <?php endif; ?>
     <?php foreach ($cart['payment_methods'] as $method): ?>
-    <?= $form('payment', '<input type="hidden" name="code" value="' . $e($method['code']) . '">' . $e($method['label']) . ' '
-        . (($cart['payment_method']['code'] ?? null) === $method['code'] ? '<strong>(escolhido)</strong>' : '<button type="submit">Escolher</button>')) ?>
+    <?= $form('payment', '<input type="hidden" name="code" value="' . $e($method['code']) . '"><span>' . $e($method['label']) . '</span> '
+        . (($cart['payment_method']['code'] ?? null) === $method['code'] ? '<strong>(escolhido)</strong>' : '<button type="submit">Escolher</button>'), ' class="adminsales-choice"') ?>
     <?php endforeach; ?>
 <?php endif; ?>
 
     <h3>Fechar</h3>
-    <p>Subtotal <?= $money($cart['subtotal']) ?> · Frete <?= $money($cart['shipping_amount']) ?> · <strong>Total <?= $money($cart['total']) ?></strong></p>
+    <p class="sales-order-totals">Subtotal <?= $money($cart['subtotal']) ?> · Frete <?= $money($cart['shipping_amount']) ?> · <strong>Total <?= $money($cart['total']) ?></strong></p>
 <?php if ($missing): ?>
     <p><strong>Antes de criar o pedido:</strong></p>
     <ul class="adminsales-missing">
@@ -169,5 +169,5 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
     <p><button type="button" disabled>Criar pedido</button></p>
 <?php endif; ?>
     <?= $form('discard', '<button type="submit">Descartar</button>', ' data-confirm="Descartar este pedido em montagem?"') ?>
-    <p><a href="/admin/ordercreate/index">Voltar</a></p>
+    <p class="sales-order-back"><a href="/admin/ordercreate/index">← Voltar para Novo pedido</a></p>
 </section>

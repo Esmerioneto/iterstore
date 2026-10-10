@@ -111,6 +111,19 @@ class Browser
         return $this->submit('/admin/auth/login', '/admin/auth/loginpost', ['username' => $username, 'password' => $password])[0];
     }
 
+    /** the value of one of this browser's cookies ('' without it) */
+    public function cookie(string $name): string
+    {
+        foreach (curl_getinfo($this->ch, CURLINFO_COOKIELIST) as $line) {
+            $parts = explode("\t", $line);
+            if (($parts[5] ?? '') === $name) {
+                return $parts[6] ?? '';
+            }
+        }
+
+        return '';
+    }
+
     /** @return array<int, string> */
     public static function messages(string $html): array
     {
@@ -124,6 +137,11 @@ $pdo = Connection::get()->connect();
 
 // --- setup + guaranteed cleanup ------------------------------------------------
 $savedConfig = $pdo->query('SELECT scope, scope_id, path, value FROM core_config_data')->fetchAll(PDO::FETCH_ASSOC);
+// an interrupted run that skipped the restore leaves its mail settings behind, and every later run would put
+// them back as the admin's: e-mails "sent" to var/mail only. They're dropped, so the defaults (SMTP, mail.ini) apply.
+$savedConfig = array_values(array_filter($savedConfig, static fn (array $row): bool => !in_array([$row['path'], $row['value']], [
+    ['mail/transport', 'log'], ['mail/from_email', 'loja@selftest.local'], ['mail/from_name', 'Selftest Loja'],
+], true)));
 $port = (static function (): int {
     $socket = stream_socket_server('tcp://127.0.0.1:0');
     $port = (int) substr(strrchr(stream_socket_get_name($socket, false), ':'), 1);
@@ -146,7 +164,8 @@ $savedTemplates = $pdo->query('SELECT code, subject, body_html, body_text FROM m
 $savedRates = $pdo->query("SELECT to_regclass('shipping_table_rate') IS NOT NULL")->fetchColumn()
     ? $pdo->query('SELECT website_id, postcode_from, postcode_to, weight_to, price, days FROM shipping_table_rate')->fetchAll(PDO::FETCH_ASSOC) : null;
 $savedSequences = $pdo->query('SELECT website_id, last_value FROM sales_order_sequence')->fetchAll(PDO::FETCH_NUM); // the test orders take real numbers
-$purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTemplates, $savedRates, $savedSequences): void {
+$savedMedia = glob(Config::mediaDir() . 'config/*') ?: [];
+$purge = static function () use ($pdo, $savedConfig, $savedMedia, $savedModules, $savedTemplates, $savedRates, $savedSequences): void {
     $pdo->exec("DELETE FROM sales_order WHERE email LIKE '%@selftest.local'"); // before the websites, which they hold
     $pdo->exec('DELETE FROM sales_order_sequence');
     $restoreSequence = $pdo->prepare('INSERT INTO sales_order_sequence (website_id, last_value) VALUES (?, ?)');
@@ -187,6 +206,8 @@ $purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTempla
     $pdo->exec("DELETE FROM store WHERE store_name LIKE 'selftest%'");
     $pdo->exec("DELETE FROM store_group WHERE code LIKE 'selftest%'");
     $pdo->exec("DELETE FROM store_website WHERE code LIKE 'selftest%'");
+    // the real e-mails parked below go back to the queue as they were
+    $pdo->exec("UPDATE mail_queue SET send_after = send_after - INTERVAL '100 years' WHERE status = 0 AND send_after > NOW() + INTERVAL '50 years'");
     foreach ($pdo->query("DELETE FROM mail_queue WHERE to_email LIKE '%@selftest.local' RETURNING message_id")->fetchAll(PDO::FETCH_COLUMN) as $messageId) {
         @unlink(MailService::logDir() . $messageId . '.eml');
     }
@@ -202,9 +223,10 @@ $purge = static function () use ($pdo, $savedConfig, $savedModules, $savedTempla
     foreach ($savedConfig as $row) {
         $restore->execute($row);
     }
-    // images uploaded in Configurações that no setting points to anymore
+    // the test's images uploaded in Configurações that no setting points to anymore; a file that was there
+    // before the run (the store's logo, even one uploaded in the admin while the test runs) is never touched
     $inUse = array_column($savedConfig, 'value');
-    foreach (glob(Config::mediaDir() . 'config/*') ?: [] as $file) {
+    foreach (array_diff(glob(Config::mediaDir() . 'config/*') ?: [], $savedMedia) as $file) {
         in_array('config/' . basename($file), $inUse, true) || unlink($file);
     }
 };
@@ -217,6 +239,14 @@ register_shutdown_function(static function () use ($purge, $server, $logDir): vo
 });
 $purge(); // leftovers from an interrupted run
 
+// the test's worker (transport "log") would take the store's real pending e-mails too: they'd be marked sent
+// and only written to var/mail. They wait out of reach until $purge
+$pdo->exec("UPDATE mail_queue SET send_after = send_after + INTERVAL '100 years' WHERE status = 0 AND to_email NOT LIKE '%@selftest.local'");
+
+// the shipping and payment tests save the Padrão scope: a website's own values (a dev store's free shipping,
+// Pix...) would win over them. $purge puts them back.
+$pdo->exec("DELETE FROM core_config_data WHERE scope = 'websites' AND (path LIKE 'shipping/%' OR path LIKE 'payment/%')");
+
 // known settings regardless of what the admin configured
 Config::save([
     'admin/security/max_failures' => '2',
@@ -225,11 +255,18 @@ Config::save([
     'admin/security/password_require_alnum' => '1',
     'admin/security/password_history' => '4',
     'admin/security/password_lifetime' => '90',
+    'admin/security/session_minutes' => '480',
     'mail/transport' => 'log', // .eml files in var/mail instead of SMTP
     'mail/from_email' => 'loja@selftest.local',
     'mail/from_name' => 'Selftest Loja',
     'mail/limit_per_hour' => '10',
     'mail/queue/max_attempts' => '5',
+    'system/api/max_depth' => '15',
+    'system/api/max_complexity' => '500',
+    // the payment tests count the methods offered; the Mercado Pago tests turn these on themselves
+    'payment/mercadopago_pix/active' => '0',
+    'payment/mercadopago_credit/active' => '0',
+    'payment/mercadopago_debit/active' => '0',
 ]);
 
 $makeUser = static function (string $username, array $resources): int {
@@ -279,6 +316,21 @@ $attacker = new Browser($base);
 $attacker->login('selftest_victim', 'errada1234');
 $attacker->login('selftest_victim', 'errada1234');
 assertSame('/admin/auth/login', $attacker->login('selftest_victim'), 'após 2 erros a senha certa é recusada (bloqueio)');
+
+// --- session time (admin/security/session_minutes = 480) ---------------------------------
+$idle = new Browser($base);
+$idle->login('selftest_dash');
+$sessionFile = getPath('var') . 'sessions' . DIRECTORY_SEPARATOR . 'sess_' . $idle->cookie(session_name());
+$seen = static fn (int $ago) => file_put_contents($sessionFile, preg_replace('/iter_admin_seen\|i:\d+;/', 'iter_admin_seen|i:' . (time() - $ago) . ';', (string) file_get_contents($sessionFile)));
+assertSame(true, is_file($sessionFile), 'a sessão do admin fica em var/sessions, longe da limpeza de 24 minutos do sistema');
+$seen(470 * 60);
+assertSame(200, $idle->request('/admin/index')['status'], 'sessão: 7h50 sem uso (limite 8 h) continua logado');
+$seen(481 * 60);
+$expired = $idle->request('/admin/index');
+assertSame(['/admin/auth/login', ['Sua sessão expirou depois de 480 minutos sem uso. Entre de novo.']], [$expired['location'], Browser::messages($idle->request('/admin/auth/login')['body'])],
+    'sessão: passado o tempo sem uso das Configurações, volta para o login com o aviso');
+[, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['admin/security/session_minutes' => '4']]);
+assertSame(['"Minutos sem uso até a sessão do admin expirar" deve ser um número inteiro entre 5 e 10080.'], $msgs, 'sessão: o tempo vai de 5 minutos a 7 dias');
 
 // --- configuration screen --------------------------------------------------------------
 [, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['admin/security/max_failures' => '0']]);
@@ -1079,6 +1131,80 @@ assertSame(false, str_contains($admin->request('/admin/category/edit?id=' . $rou
 [, $msgs] = $admin->submit('/admin/category/index', '/admin/category/delete', ['category_id' => $roupasId]);
 assertSame(["A categoria 'Selftest Roupas' tem subcategorias. Remova ou mova as subcategorias antes."], $msgs, 'categoria com subcategorias não é removida');
 
+// category banners (BANNER-PLAN): one, or a carousel of up to 5, in order; sent with the category form
+$bannerDir = sys_get_temp_dir() . '/iter-selftest-banner-' . getmypid();
+mkdir($bannerDir);
+$bannerImg = imagecreatetruecolor(12, 4);
+[imagepng($bannerImg, "{$bannerDir}/b.png"), imagejpeg($bannerImg, "{$bannerDir}/b.jpg"), file_put_contents("{$bannerDir}/fake.png", '<?php echo 1;')];
+$bannerFile = static fn (string $name) => new CURLFile("{$bannerDir}/{$name}", 'image/png', $name);
+$saveBanners = static fn (array $banners) => $admin->submit('/admin/category/edit?id=' . $camisetasId, '/admin/category/save', [
+    'category_id' => $camisetasId, 'name' => 'Camisetas', 'url_key' => 'selftest-camisetas', 'parent_id' => $roupasId, 'position' => '2', 'is_active' => '1'] + $banners)[1];
+$bannerService = new \Iter\Catalog\Model\CategoryBannerService();
+$bannerIds = static fn () => array_column($bannerService->getList($camisetasId), 'banner_id');
+assertSame([['Categoria atualizada com sucesso.'], 2], [$saveBanners(['banners_add' => [$bannerFile('b.png'), $bannerFile('b.jpg')]]), count($bannerIds())], 'banners enviados pelo formulário da categoria');
+[$b1, $b2] = $bannerIds();
+$bannerList = $bannerService->getList($camisetasId);
+$editPage = $admin->request('/admin/category/edit?id=' . $camisetasId)['body'];
+assertSame([true, true, true, 200], [
+    str_ends_with($bannerList[0]['file'], '.png') && str_ends_with($bannerList[1]['file'], '.jpg'),
+    strpos($editPage, 'name="banners[keep][]" value="' . $b1 . '"') < strpos($editPage, 'name="banners[keep][]" value="' . $b2 . '"'),
+    str_contains($editPage, 'name="banners_add[]" multiple'),
+    $admin->request($bannerList[0]['url'])['status'],
+], 'banners na ordem de envio, com a extensão do tipo real; a edição lista e o arquivo é servido');
+$saveBanners(['banners' => ['keep' => [$b2, $b1]]]);
+assertSame([$b2, $b1], $bannerIds(), 'banners reordenados');
+assertSame(['Categoria atualizada com sucesso.'], $saveBanners(['banners' => ['keep' => [$b2, $b1], 'remove' => [$b1]]]), 'banner removido pelo "Remover"');
+assertSame([[$b2], false], [$bannerIds(), is_file(ValueService::mediaDir() . $bannerList[0]['file'])], 'só o outro fica; o arquivo removido some');
+assertSame([['Uma categoria tem no máximo 5 banners.'], ["'fake.png' não é um arquivo aceito em 'Banners' (WEBP, AVIF, JPG, PNG)."], [$b2]], [
+    $saveBanners(['banners' => ['keep' => [$b2]], 'banners_add' => array_map($bannerFile, array_fill(0, 5, 'b.png'))]),
+    $saveBanners(['banners' => ['keep' => [$b2]], 'banners_add' => [$bannerFile('fake.png')]]),
+    $bannerIds(),
+], 'o 6º banner e um arquivo que finge ser imagem são recusados, sem mudar a lista');
+assertSame('BANNER_NOT_FOUND', $throws(static fn () => $bannerService->save($camisetasId, [999999], [])), 'banner de outra categoria é recusado');
+$catBanners = $gql($guest, '{ category(url_key: "selftest-camisetas") { banners } }')['data']['category']['banners'] ?? null;
+assertSame([$bannerList[1]['url']], $catBanners, 'GraphQL: Category.banners traz as URLs na ordem');
+// setCategoryBanners: the same through the API (multipart request spec, admin token)
+$setBanners = static function (array $keep, array $files, ?string $token) use ($base, $camisetasId, $bannerDir): array {
+    $ch = curl_init($base . '/core/graphql/index');
+    $map = [];
+    $parts = [];
+    foreach ($files as $i => $file) {
+        $map[(string) $i] = ["variables.add.{$i}"];
+        $parts[(string) $i] = new CURLFile("{$bannerDir}/{$file}", 'image/png', $file);
+    }
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $token === null ? [] : ["Authorization: Bearer {$token}"], CURLOPT_POSTFIELDS => [
+        'operations' => json_encode(['query' => 'mutation ($id: ID!, $keep: [ID!]!, $add: [Upload!]) { setCategoryBanners(categoryId: $id, keep: $keep, add: $add) { id url position } }',
+            'variables' => ['id' => (string) $camisetasId, 'keep' => array_map('strval', $keep), 'add' => array_fill(0, count($files), null)]]),
+        'map' => json_encode($map ?: new stdClass()),
+    ] + $parts]);
+    $body = json_decode((string) curl_exec($ch), true);
+
+    return [$body['errors'][0]['extensions']['code'] ?? null, $body['data']['setCategoryBanners'] ?? null];
+};
+[$err, $apiBanners] = $setBanners([$b2], ['b.png', 'b.jpg'], $upToken);
+$bannerAdmin = $gql($admin, '{ category(id: "' . $camisetasId . '") { bannerList { id url position } } }')['data']['category']['bannerList'] ?? null;
+assertSame([null, 3, [0, 1, 2], (string) $b2, $apiBanners, null], [
+    $err,
+    count($apiBanners ?? []),
+    array_column($apiBanners ?? [], 'position'),
+    $apiBanners[0]['id'] ?? null,
+    $bannerAdmin,
+    array_key_exists('bannerList', $guestCat = $gql($guest, '{ category(id: "' . $camisetasId . '") { bannerList { id } } }')['data']['category'] ?? []) ? $guestCat['bannerList'] : 'x',
+], 'API setCategoryBanners: mantém o atual na frente e acrescenta os enviados; Category.bannerList traz os ids só para o admin');
+$apiNew = array_slice(array_column($apiBanners ?? [], 'id'), 1);
+assertSame([[null, [$apiNew[1], $apiNew[0]]], 'BANNER_LIMIT', 'BANNER_NOT_FOUND', 'FILE_TYPE_INVALID', 'UNAUTHENTICATED', 'CATEGORY_NOT_FOUND'], [
+    [($r = $setBanners([$apiNew[1], $apiNew[0]], [], $upToken))[0], array_column($r[1] ?? [], 'id')],
+    $setBanners($apiNew, ['b.png', 'b.png', 'b.png', 'b.png'], $upToken)[0],
+    $setBanners([999999], [], $upToken)[0],
+    $setBanners([], ['fake.png'], $upToken)[0],
+    $setBanners([], [], null)[0],
+    $gql($admin, 'mutation { setCategoryBanners(categoryId: "999999", keep: []) { id } }')['errors'][0]['extensions']['code'] ?? null,
+], 'API setCategoryBanners: reordena e remove o que ficou fora de keep; recusa o 6º, id de outra categoria, arquivo falso, sem token e categoria inexistente');
+$setBanners([$apiNew[0]], [], $upToken);
+$keptBanner = ValueService::mediaDir() . ($bannerService->getList($camisetasId)[0]['file'] ?? 'nada');
+array_map('unlink', glob("{$bannerDir}/*"));
+rmdir($bannerDir);
+
 // products in categories
 assertSame(['Produto criado com sucesso.'], $saveProduct(['sku' => 'selftest-cat', 'category_ids' => [$camisetasId, $ocultaId], 'attributes' => ['price' => '5']]), 'produto criado com categorias pelo admin');
 $catProduct = (int) $productRow('selftest-cat')['product_id'];
@@ -1112,6 +1238,7 @@ assertSame([["A categoria 'Camisetas' tem produtos. Mova os produtos para outra 
 $setCats(', categoryIds: ["' . $roupasId . '"]');
 $admin->submit('/admin/category/index', '/admin/category/delete', ['category_id' => $camisetasId]);
 assertSame([false, [$roupasId]], [$categoryRow('selftest-camisetas'), (new ProductService())->getCategoryIds($catProduct)], 'categoria sem produtos é removida');
+assertSame(false, is_file($keptBanner), 'remover a categoria apaga os arquivos dos banners');
 (new ProductService())->delete($catProduct);
 assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM catalog_category_product WHERE product_id = {$catProduct}")->fetchColumn(), 'remover o produto apaga os vínculos');
 
@@ -1583,8 +1710,20 @@ assertSame(['', false, true], [$logoOf($websiteId), is_file(Config::mediaDir() .
 $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['store/info/logo' => new CURLFile($png, 'image/png', 'nova.png')]]);
 $newLogo = $logoOf();
 assertSame([true, false], [is_file(Config::mediaDir() . $newLogo), is_file(Config::mediaDir() . $defaultLogo)], 'trocar a logo apaga o arquivo antigo');
+$logoMail = $mail->send('mail_test', 'logo@selftest.local', ['name' => 'Zé'], ['website_id' => $websiteId]);
+$mail->processQueue();
+$logoEml = (string) file_get_contents(MailService::logDir() . $logoMail . '.eml');
+$logoHtml = (string) $mail->find($logoMail)['body_html'];
+assertSame([true, true, 1, true], [
+    str_contains($logoHtml, '<img src="cid:store-logo" alt="Selftest Loja"'),
+    (bool) preg_match('#Content-Type: image/png; name=.*\R(?:.*\R)*?Content-Disposition: inline#', $logoEml),
+    substr_count($logoEml, 'Content-ID: <'),
+    str_contains($admin->request('/admin/mail/view?id=' . $logoMail)['body'], htmlspecialchars('src="/media/' . $newLogo . '"')),
+], 'e-mail: a logo da loja do website (a do app) vai dentro da mensagem, no topo do layout; a tela do e-mail mostra a logo');
 $admin->submit('/admin/config/index', '/admin/config/save', ['config_clear' => ['store/info/logo' => '1']]);
 assertSame(['', false], [$logoOf(), is_file(Config::mediaDir() . $newLogo)], '"Remover a imagem" apaga a logo');
+$noLogo = $mail->send('mail_test', 'logo@selftest.local', ['name' => 'Zé']);
+assertSame(false, str_contains((string) $mail->find($noLogo)['body_html'], '<img'), 'e-mail: sem logo, o layout fica como antes');
 unlink($png);
 unlink($txt);
 
@@ -1831,11 +1970,14 @@ assertSame([['Cliente removido com sucesso.'], false, [], [], 0], [$msgs, $custR
 $toggle = static fn (string $module, int $enabled) => $admin->submit('/admin/config/index', '/admin/config/module', ['module' => $module, 'enabled' => (string) $enabled])[1];
 $configPage = $admin->request('/admin/config/index')['body'];
 assertSame([true, true, true, true], [
-    (bool) preg_match('/name="module" value="iter_payment">\s*<input type="hidden" name="enabled" value="0">/', $configPage),
+    (bool) preg_match('/name="module" value="iter_mercadopago">\s*<input type="hidden" name="enabled" value="0">/', $configPage),
     str_contains($configPage, 'Essencial'),
     str_contains($configPage, 'Usado por Catalog'),
     str_contains($configPage, 'Usado por Inventory'),
 ], 'lista de módulos: botão Desativar, essenciais e usados por outro sem botão');
+assertSame(['Desative antes os módulos que dependem de Payment: Mercadopago.'], $toggle('iter_payment', 0), 'Payment não é desativado com o Mercadopago ativo');
+assertSame(['Módulo Mercadopago desativado. Os dados dele continuam no banco.'], $toggle('iter_mercadopago', 0), 'Mercadopago desativado pelo admin');
+assertSame(true, str_starts_with($gql($admin, '{ mercadopagoSettings { publicKey } }')['errors'][0]['message'] ?? '', 'Cannot query field "mercadopagoSettings"'), 'Mercadopago desativado: sem a API dele');
 assertSame(['O módulo Core é essencial e não pode ser desativado.'], $toggle('iter_core', 0), 'módulo essencial não é desativado');
 assertSame(['Desative antes os módulos que dependem de Eav: Catalog, Customer.'], $toggle('iter_eav', 0), 'módulo com dependentes ativos não é desativado');
 assertSame(['Desative antes os módulos que dependem de Catalog: Inventory, Sales.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com Inventory e Sales ativos');
@@ -1876,6 +2018,7 @@ $toggle('iter_customer', 1);
 $toggle('iter_sales', 1);
 $toggle('iter_shipping', 1);
 $toggle('iter_payment', 1);
+$toggle('iter_mercadopago', 1);
 $toggle('iter_adminsales', 1);
 assertSame('7', (new StockService())->getSalable([$estId])[$estId], 'Inventory reativado: o estoque continua lá');
 assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
@@ -1930,6 +2073,14 @@ assertSame([['INVALID_CREDENTIALS', 'E-mail ou senha inválidos.'], 'loja@selfte
     [$custLogin('errada123')[1]['errors'][0]['extensions']['code'] ?? null, $custLogin('errada123')[1]['errors'][0]['message'] ?? null],
     $custLogin('segredo123')[1]['data']['generateCustomerToken']['customer']['email'] ?? null,
 ], 'API cliente: login com senha errada é recusado, com a certa entra (e-mail sem diferenciar maiúsculas)');
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%'");
+$api('mutation { registerCustomer(websiteId: "' . $website2 . '", email: "sp@selftest.local", password: "segredo123", firstname: "Lu", lastname: "SP", type: PF, taxvat: "271.828.182-05") { token } }');
+$spLogin = static fn (string $websiteId = '') => $api('mutation { generateCustomerToken(email: "sp@selftest.local", password: "segredo123"' . ($websiteId === '' ? '' : ', websiteId: "' . $websiteId . '"') . ') { customer { websiteId } } }')[1];
+assertSame([(string) $website2, 'INVALID_CREDENTIALS', true], [
+    $spLogin()['data']['generateCustomerToken']['customer']['websiteId'] ?? null,
+    $spLogin((string) (new Iter\Store\Model\Website())->getResource()->getDefaultId())['errors'][0]['extensions']['code'] ?? null,
+    in_array((string) $website2, array_column($api('{ websites { id } }')[1]['data']['websites'] ?? [], 'id'), true),
+], 'API cliente: sem websiteId o login acha o cliente de outro website; com websiteId procura só nele; websites lista as lojas');
 $welcomeMails = static fn (string $email) => $pdo->query("SELECT subject, body_html FROM mail_queue WHERE to_email = " . $pdo->quote($email) . " AND template_code = 'customer_welcome'")->fetchAll(PDO::FETCH_ASSOC);
 $welcome = $welcomeMails('loja@selftest.local');
 assertSame([1, true, true], [count($welcome), str_contains($welcome[0]['body_html'] ?? '', 'Olá, Lu.'), str_contains($welcome[0]['body_html'] ?? '', 'loja@selftest.local')],
@@ -2360,6 +2511,17 @@ assertSame(['UNAUTHENTICATED', 1, $placed['number'] ?? 'x', null, $placed['numbe
     $api('{ myOrder(number: "' . strtolower($placed['number'] ?? 'x') . '") { number } }', $ct)[1]['data']['myOrder']['number'] ?? null,
     array_key_exists('myOrder', $api('{ myOrder(number: "' . ($order['number'] ?? 'x') . '") { number } }', $ct)[1]['data'] ?? []) ? null : 'x',
 ], 'pedidos do cliente: só com login; a lista e o pedido dele pelo número (sem o histórico do admin); pedido de outro dá null');
+$changePay = static fn (string $code) => $api('mutation { changeMyOrderPaymentMethod(number: "' . ($placed['number'] ?? 'x') . '", code: "' . $code . '") { paymentMethod paymentLabel } }', $ct);
+$closedCode = $gqlCode($changePay('pix'));
+$pdo->exec("UPDATE sales_order SET status = 'pending_payment' WHERE order_id = {$apiOrder}");
+$available = array_column($api('{ myOrder(number: "' . ($placed['number'] ?? 'x') . '") { availablePaymentMethods { code } } }', $ct)[1]['data']['myOrder']['availablePaymentMethods'] ?? [], 'code');
+assertSame(['ORDER_STATUS_INVALID', true, ['paymentMethod' => 'pix', 'paymentLabel' => 'Pix'], 'PAYMENT_METHOD_UNAVAILABLE'], [
+    $closedCode, in_array('pix', $available, true), $changePay('pix')[1]['data']['changeMyOrderPaymentMethod'] ?? null, $gqlCode($changePay('nada')),
+], 'pedidos do cliente: troca a forma de pagamento só aguardando pagamento e só por uma opção do website');
+$orderStore = $api('{ myOrder(number: "' . ($placed['number'] ?? 'x') . '") { websiteId websiteName } }', $ct)[1]['data']['myOrder'] ?? [];
+assertSame((string) $pdo->query('SELECT name FROM store_website WHERE website_id = ' . (int) ($orderStore['websiteId'] ?? 0))->fetchColumn(), $orderStore['websiteName'] ?? null,
+    'pedidos do cliente: o pedido diz a loja (website) que o fechou');
+$pdo->exec("UPDATE sales_order SET status = 'complete' WHERE order_id = {$apiOrder}");
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'order_lookup:%'");
 $setConfig(['sales/order/guest_lookup_per_minute' => '2']);
 $lookup = static fn (string $email) => $api('{ guestOrder(number: "' . ($order['number'] ?? 'x') . '", email: "' . $email . '") { number status } }');
@@ -2391,6 +2553,126 @@ assertSame([true, false, 'canceled', 'pending_payment', '1', 'Pagamento não rec
     $pdo->query("SELECT h.comment FROM sales_order_status_history h JOIN sales_order o USING (order_id) WHERE o.increment_id = '{$pixUnpaid}' ORDER BY h.history_id DESC LIMIT 1")->fetchColumn(),
     (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_canceled' AND to_email = 'nao-pago@selftest.local'")->fetchColumn(),
 ], 'cron de não pagos: o Pix passou de 1 hora e é cancelado (reserva devolvida, motivo no histórico, cliente avisado); "combinar" com 0 horas fica');
+
+// --- Mercado Pago (MERCADOPAGO-PLAN): a fake Mercado Pago in place of the network ------------------
+$stock->save($v0, ['selftest_var_cd' => ['quantity' => '10']]);
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'order_place:%' OR rate_key LIKE 'order_pay:%' OR rate_key LIKE 'cart_create:%'");
+$mpMethods = static fn () => array_column($api('{ cart(cartId: "' . ($api('mutation { createCart }')[1]['data']['createCart'] ?? '') . '") { availablePaymentMethods { code } } }')[1]['data']['cart']['availablePaymentMethods'] ?? [], 'code');
+$setConfig(['payment/mercadopago/access_token' => '', 'payment/mercadopago/public_key' => '', 'payment/mercadopago/webhook_secret' => '',
+    'payment/mercadopago_pix/active' => '1', 'payment/mercadopago_credit/active' => '1', 'payment/mercadopago_debit/active' => '1', 'payment/mercadopago_credit/max_installments' => '6']);
+$noToken = $mpMethods();
+$setConfig(['payment/mercadopago/access_token' => Iter\Core\Crypt::encrypt('TEST-selftest'), 'payment/mercadopago/public_key' => 'TEST-pub-selftest']);
+assertSame([false, ['mercadopago_pix', 'mercadopago_credit', 'mercadopago_debit'], ['publicKey' => 'TEST-pub-selftest', 'maxInstallments' => 6]], [
+    in_array('mercadopago_pix', $noToken, true),
+    array_values(array_filter($mpMethods(), static fn ($c) => str_starts_with($c, 'mercadopago_'))),
+    $api('{ mercadopagoSettings { publicKey maxInstallments } }')[1]['data']['mercadopagoSettings'] ?? null,
+], 'Mercado Pago: os métodos só aparecem com o Access Token; a Public Key e o máximo de parcelas vão para o app');
+
+[$mpPix, $mpCredit, $mpDebit, $mpLate] = [$unpaid('mercadopago_pix'), $unpaid('mercadopago_credit'), $unpaid('mercadopago_debit'), $unpaid('mercadopago_pix')];
+$mpId = static fn (string $n) => (int) $pdo->query("SELECT order_id FROM sales_order WHERE increment_id = '{$n}'")->fetchColumn();
+$payGql = static fn (string $number, string $email) => $api("mutation { payOrder(number: \"{$number}\", email: \"{$email}\") { id } }");
+assertSame(['ORDER_NOT_FOUND', 'PAYMENT_METHOD_INVALID'], [$gqlCode($payGql($mpPix, 'outro@selftest.local')), $gqlCode($payGql($offlineUnpaid, 'nao-pago@selftest.local'))],
+    'payOrder: número + e-mail errado não acha o pedido; pedido de outra forma de pagamento é recusado');
+
+$mpCalls = [];
+$mpNext = []; // what the fake answers next: id => the order as the Orders API shows it
+$mpStatus = static function (string $id, string $status, string $detail) use (&$mpNext): void {
+    $mpNext[$id]['status'] = $status;
+    $mpNext[$id]['transactions']['payments'][0]['status_detail'] = $detail;
+    unset($mpNext[$id]['transactions']['payments'][0]['payment_method']['qr_code']); // a later read has no QR code
+};
+$fakeMp = new Iter\Mercadopago\Model\MercadopagoService(static function (string $method, string $path, ?array $body) use (&$mpCalls, &$mpNext): array {
+    $mpCalls[] = [$method, $path, $body];
+    if ($method === 'POST') {
+        $id = 'ORDTST' . (9000000 + count($mpCalls));
+        $payment = $body['transactions']['payments'][0];
+        $pm = $payment['payment_method'];
+        [$status, $detail, $pm] = $pm['id'] === 'pix'
+            ? ['action_required', 'waiting_transfer', $pm + ['qr_code' => '00020126pix', 'qr_code_base64' => 'iVBOR', 'ticket_url' => 'https://mp.local/ticket']]
+            : ($pm['token'] === 'tok-recusa' ? ['failed', 'card_insufficient_amount', $pm] : ['processed', 'accredited', $pm]);
+        $mpNext[$id] = ['id' => $id, 'status' => $status, 'total_amount' => $body['total_amount'], 'transactions' => ['payments' => [[
+            'id' => 'PAY' . $id, 'amount' => $payment['amount'], 'status_detail' => $detail, 'payment_method' => $pm,
+        ] + ($pm['id'] === 'pix' ? ['date_of_expiration' => date('c', time() + 24 * 3600)] : [])]]];
+        // the Orders API answers a declined card with 4xx and the order inside errors' data
+        return $status === 'failed' ? [402, ['errors' => [['code' => 'failed']], 'data' => $mpNext[$id]]] : [201, $mpNext[$id]];
+    }
+    $id = basename($path);
+    if (str_starts_with($path, '/v1/card_tokens/')) {
+        return $id === 'tok-ok' ? [200, ['first_six_digits' => '450995', 'last_four_digits' => '3704']] : [404, ['message' => 'not found']];
+    }
+    return isset($mpNext[$id]) ? [200, $mpNext[$id]] : [404, ['message' => 'not found']];
+});
+$mpComments = static fn (string $n) => $pdo->query("SELECT h.comment FROM sales_order_status_history h JOIN sales_order o USING (order_id) WHERE o.increment_id = '{$n}' AND h.comment LIKE 'Mercado Pago%' ORDER BY h.history_id")->fetchAll(PDO::FETCH_COLUMN);
+
+$mpExisting = $pdo->query('SELECT external_id FROM mercadopago_payment')->fetchAll(PDO::FETCH_COLUMN); // real sandbox charges: syncOpen() takes them too
+$pix = $fakeMp->pay($mpId($mpPix));
+$pixAgain = $fakeMp->pay($mpId($mpPix));
+assertSame(['pending', '00020126pix', 'iVBOR', 'https://mp.local/ticket', true, $pix['external_id'], 1, 'pix', 'Pedido ' . $mpPix, ['type' => 'CPF', 'number' => '52998224725'], 'PT24H'], [
+    $pix['status'], $pix['qr_code'], $pix['qr_code_base64'], $pix['ticket_url'], $pix['expires_at'] !== null, $pixAgain['external_id'], count($mpCalls),
+    $mpCalls[0][2]['transactions']['payments'][0]['payment_method']['id'], $mpCalls[0][2]['description'], $mpCalls[0][2]['payer']['identification'],
+    $mpCalls[0][2]['transactions']['payments'][0]['expiration_time'],
+], 'Mercado Pago Pix: o QR Code vale pelas horas configuradas; pagar de novo devolve o mesmo, sem nova cobrança');
+$mpStatus($pix['external_id'], 'processed', 'accredited');
+$fakeMp->syncOpen();
+$fakeMp->sync($pix['external_id']); // the webhook after the cron: the status didn't change, nothing more happens
+assertSame(['processing', ["Mercado Pago #{$pix['external_id']}: Aprovado (accredited)."], [], 1, '00020126pix'], [
+    $unpaidStatus($mpPix), $mpComments($mpPix), array_values(array_diff($fakeMp->syncOpen(), $mpExisting)),
+    (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_processing' AND to_email = 'nao-pago@selftest.local'")->fetchColumn(),
+    $fakeMp->get($pix['external_id'])['qr_code'],
+], 'Mercado Pago Pix: o pagamento aprovado confirma o pedido sozinho, uma vez só, e o cliente é avisado; o QR Code fica');
+
+$cardCode = static function (array $card) use ($fakeMp, $mpId, $mpCredit): ?string {
+    try {
+        $fakeMp->pay($mpId($mpCredit), $card);
+        return null;
+    } catch (Iter\Sales\Model\SalesException $e) {
+        return $e->errorCode;
+    }
+};
+$card = ['token' => 'tok-recusa', 'payment_method_id' => 'visa', 'installments' => 3];
+assertSame(['CARD_REQUIRED', 'INSTALLMENTS_INVALID'], [$cardCode([]), $cardCode(['installments' => 7] + $card)], 'Mercado Pago cartão: sem token ou acima do máximo de parcelas é recusado antes de cobrar');
+$declined = $fakeMp->pay($mpId($mpCredit), $card);
+$approved = $fakeMp->pay($mpId($mpCredit), ['token' => 'tok-ok'] + $card);
+$debit = $fakeMp->pay($mpId($mpDebit), ['token' => 'tok-debito', 'payment_method_id' => 'elo', 'installments' => 5]);
+$debitPm = end($mpCalls)[2]['transactions']['payments'][0]['payment_method'];
+assertSame(['rejected', 'approved', 'processing', ["Mercado Pago #{$declined['external_id']}: Recusado (card_insufficient_amount), 3x.", "Mercado Pago #{$approved['external_id']}: Aprovado (accredited), 3x."],
+    'ORDER_STATUS_INVALID', [1, 'debit_card'], 'processing', 'visa'], [
+    $declined['status'], $approved['status'], $unpaidStatus($mpCredit), $mpComments($mpCredit), $cardCode(['token' => 'tok-3'] + $card),
+    [$debitPm['installments'], $debitPm['type']], $unpaidStatus($mpDebit), $approved['card_brand'],
+], 'Mercado Pago cartão: recusado fica aguardando e pode tentar de novo; aprovado confirma; pedido pago não cobra de novo; débito sempre em 1x');
+assertSame(['4509 95•• •••• 3704', null, null], [$approved['card_number'], $declined['card_number'], $pix['card_number']],
+    'Mercado Pago cartão: o número mascarado vem do token lido antes de cobrar; token ilegível não impede a cobrança');
+assertSame(true, str_contains($orderPage($admin, $mpId($mpCredit)), 'Visa 4509 95•• •••• 3704 · 3x'), 'Pedido no admin: a cobrança do Mercado Pago com a bandeira e o cartão mascarado');
+
+$late = $fakeMp->pay($mpId($mpLate));
+(new OrderService())->cancel($mpId($mpLate), 'Cliente desistiu', null);
+$mpStatus($late['external_id'], 'processed', 'accredited');
+$fakeMp->sync($late['external_id']);
+$lateComments = $mpComments($mpLate);
+assertSame(['canceled', true], [$unpaidStatus($mpLate), str_contains((string) end($lateComments), 'ATENÇÃO: o pedido não aguardava mais pagamento')],
+    'Mercado Pago: Pix pago depois do cancelamento fica no histórico com o aviso de estorno');
+
+$secret = 'segredo-selftest';
+$header = 'ts=1704908010,v1=' . hash_hmac('sha256', 'id:123abc;request-id:req-1;ts:1704908010;', $secret);
+$webhook = static fn (string $query, array $headers = []) => (static function () use ($base, $query, $headers): int {
+    $ch = curl_init("{$base}/mercadopago/webhook?{$query}");
+    curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => '{}', CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $headers]);
+    curl_exec($ch);
+    return curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+})();
+$setConfig(['payment/mercadopago/webhook_secret' => Iter\Core\Crypt::encrypt($secret)]);
+assertSame([true, false, false, 200, 200, 401], [
+    Iter\Mercadopago\Model\MercadopagoService::validSignature($header, 'req-1', '123ABC', $secret),
+    Iter\Mercadopago\Model\MercadopagoService::validSignature($header, 'req-2', '123abc', $secret),
+    Iter\Mercadopago\Model\MercadopagoService::validSignature('ts=1704908010', 'req-1', '123abc', $secret),
+    $webhook('type=payment&data.id=1'), $webhook('type=order&data.id=ORD1'),
+    $webhook("type=order&data.id={$late['external_id']}", ['x-signature: ts=1,v1=errado', 'x-request-id: r']),
+], 'Mercado Pago webhook: assinatura conferida pelo segredo; outro tópico ou pagamento de fora dá 200; assinatura errada dá 401');
+foreach ([$mpPix, $mpCredit, $mpDebit] as $n) {
+    (new OrderService())->cancel($mpId($n), 'Teste', null); // gives the stock back to the next sections
+}
+$setConfig(['payment/mercadopago/access_token' => '', 'payment/mercadopago/public_key' => '', 'payment/mercadopago/webhook_secret' => '',
+    'payment/mercadopago_pix/active' => '0', 'payment/mercadopago_credit/active' => '0', 'payment/mercadopago_debit/active' => '0']);
 
 // --- orders created by the admin (ADMINSALES-PLAN delivery 1) ----------------------------------------
 $stock->save($v0, ['selftest_var_cd' => ['quantity' => '10']]);
@@ -2627,7 +2909,7 @@ assertSame([['A', 3, false, ['b1', '4', '2']], ['B', 1, false, ['b1']], ['D', 2,
 // --- Catálogo → Mobile (MOBILE-PLAN delivery 2) --------------------------------------------------
 $mobUrl = '/admin/mobile/index?website_id=' . $mobWebsite;
 $mobPage = $admin->request($mobUrl)['body'];
-preg_match_all('/name="categories\[(\d+)\]\[visible\]" value="1" (checked)? data-mobile-visible> Mostrar no app/', $mobPage, $mobRows);
+preg_match_all('/name="categories\[(\d+)\]\[visible\]" value="0"><input type="checkbox" class="admin-switch" name="categories\[\d+\]\[visible\]" value="1" (checked)? data-mobile-visible> Mostrar no app/', $mobPage, $mobRows);
 $chosenInput = static fn (int $c, int $p) => 'name="categories[' . $c . '][product_ids][]" value="' . $p . '"';
 assertSame([[$mA, $mD, $mB, $mC], ['checked', 'checked', '', ''], true, true, true, true, true, 403, true], [
     array_map('intval', $mobRows[1]),
@@ -2679,6 +2961,44 @@ assertSame([true, ['A', true, 1, ['selftest-mob-2']], ['A › B', false, 10, []]
 ], 'API saveMobileOrder: grava como o "Salvar" da tela e devolve a ordem; enabled omitido mantém a chave; a lista é a final (D saiu do app); produto fora da categoria é recusado; só com a permissão');
 $gql($admin, $mobSaveGql, ['w' => (string) $mobWebsite, 'e' => false, 'c' => [['id' => (string) $mA]]]);
 assertSame([['Ordem do app salva.'], '0'], [$msgs, $mobEnabled()], 'tela Mobile: desmarcar "Usar esta ordem no app" desliga');
+
+// "Mostrar banner" (BANNER-PLAN delivery 2): the category's banners atop its section, only with the app order on
+$mobBannerPng = sys_get_temp_dir() . '/iter-selftest-mob-banner-' . getmypid() . '.png';
+imagepng(imagecreatetruecolor(12, 4), $mobBannerPng);
+$mobBanners = new \Iter\Catalog\Model\CategoryBannerService();
+$mobBanners->save($mA, [], [['path' => $mobBannerPng, 'name' => 'b.png'], ['path' => $mobBannerPng, 'name' => 'c.png']]);
+$mobBannerUrls = array_column($mobBanners->getList($mA), 'url');
+$mobHomeBanners = static fn () => array_column(array_map(static fn ($s) => ['name' => $s['category']['name'], 'banners' => $s['banners']],
+    $gql($guest, '{ mobileHome(websiteId: "' . $mobWebsite . '") { category { name } banners } }')['data']['mobileHome'] ?? []), 'banners', 'name');
+$mobShow = static fn (int $id) => (int) $pdo->query("SELECT show_banner FROM catalog_mobile_category WHERE category_id = {$id}")->fetchColumn();
+$mobPage = $admin->request($mobUrl)['body'];
+assertSame([true, true, true, true], [
+    str_contains($mobPage, 'name="categories[' . $mA . '][show_banner]" value="0"><input type="checkbox" class="admin-switch" name="categories[' . $mA . '][show_banner]" value="1" > Mostrar banner'),
+    str_contains($mobPage, '<img src="' . $mobBannerUrls[0] . '" alt="Banner"></a><small>+1</small>'),
+    str_contains($mobPage, 'name="categories[' . $mB . '][show_banner]" value="0"><input type="checkbox" class="admin-switch"  disabled> Mostrar banner <small>(sem banner)</small>'),
+    strpos($mobPage, 'name="categories[' . $mA . '][visible]"') < strpos($mobPage, 'name="categories[' . $mA . '][show_banner]"'),
+], 'tela Mobile: "Mostrar banner" na linha da categoria, depois de "Mostrar no app", com a miniatura do primeiro banner e +N; sem banner, a chave fica desabilitada');
+$mobFields = ['enabled' => '1', 'categories' => [$mA => ['visible' => '1', 'per_category' => '2', 'show_banner' => '1'], $mB => ['visible' => '0', 'show_banner' => '0']]];
+$msgs = $mobPost($mobFields);
+$mobOrderBanner = $gql($admin, '{ mobileOrder(websiteId: "' . $mobWebsite . '") { categories { category { id } showBanner banners } } }')['data']['mobileOrder']['categories'][0] ?? [];
+assertSame([['Ordem do app salva.'], 1, $mobBannerUrls, ['category' => ['id' => (string) $mA], 'showBanner' => true, 'banners' => $mobBannerUrls]],
+    [$msgs, $mobShow($mA), $mobHomeBanners()['A'] ?? null, $mobOrderBanner], 'tela Mobile: "Mostrar banner" ligado grava e mobileHome traz os banners na ordem; mobileOrder também');
+$mobPost(['categories' => [$mA => ['show_banner' => '0'] + $mobFields['categories'][$mA]]] + $mobFields);
+assertSame([0, []], [$mobShow($mA), $mobHomeBanners()['A'] ?? null], 'tela Mobile: "Mostrar banner" desligado tira os banners da seção');
+$mobPost($mobFields);
+$mobBanners->save($mA, [], []);
+assertSame([[], 1], [$mobHomeBanners()['A'] ?? null, $mobShow($mA)], 'sem banner a seção vem sem banners, e a escolha continua gravada');
+$mobBanners->save($mA, [], [['path' => $mobBannerPng, 'name' => 'b.png']]);
+$mobOnlyUrl = array_column($mobBanners->getList($mA), 'url');
+$mobPost(['categories' => [$mA => ['show_banner' => '1'] + $mobFields['categories'][$mA]]] + ['enabled' => '0']);
+assertSame([[], 1], [$mobHomeBanners()['A'] ?? null, $mobShow($mA)], 'ordem do app desligada: nenhuma seção traz banner');
+$mobBannerKept = $gql($admin, $mobSaveGql, ['w' => (string) $mobWebsite, 'e' => true, 'c' => [['id' => (string) $mA, 'perCategory' => 2]]]);
+$mobBannerHome = $mobHomeBanners()['A'] ?? null;
+$gql($admin, 'mutation ($w: ID!, $c: [MobileCategoryInput!]!) { saveMobileOrder(websiteId: $w, categories: $c) { enabled } }', ['w' => (string) $mobWebsite, 'c' => [['id' => (string) $mA, 'showBanner' => false]]]);
+assertSame([null, $mobOnlyUrl, 0], [$mobBannerKept['errors'] ?? null, $mobBannerHome, $mobShow($mA)], 'API saveMobileOrder: showBanner omitido mantém; false desliga');
+$gql($admin, $mobSaveGql, ['w' => (string) $mobWebsite, 'e' => false, 'c' => [['id' => (string) $mA]]]);
+$mobBanners->save($mA, [], []);
+unlink($mobBannerPng);
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());

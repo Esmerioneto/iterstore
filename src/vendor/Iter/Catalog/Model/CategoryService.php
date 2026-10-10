@@ -15,35 +15,44 @@ use Iter\Store\Model\Website;
  * from $attributes is saved empty). A category with children isn't deleted, and
  * can't be moved under itself or its own children. The website is chosen on
  * creation and doesn't change; a subcategory is in its parent's website.
+ * $banners (['keep' => ids in order, 'add' => uploads], CategoryBannerService) is checked with
+ * the rest before anything is written; null leaves the banners as they are.
  */
 class CategoryService
 {
     /**
      * @param array{website_id?: int, parent_id?: ?int, name: string, url_key?: string, is_active?: int, position?: int} $data
      * @param array<string, mixed> $attributes code => value
+     * @param ?array{keep?: int[], add?: array} $banners
      */
-    public function create(array $data, array $attributes = []): Category
+    public function create(array $data, array $attributes = [], ?array $banners = null): Category
     {
         $fields = $this->fields($data);
         $values = new ValueService();
         $rows = $values->validate(Category::ENTITY_TYPE, $this->setValues($attributes));
+        $bannerService = new CategoryBannerService();
+        $bannerList = $banners === null ? null : $bannerService->validate(null, [], $banners['add'] ?? []);
 
         // ponytail: row and values on separate connections, as in ProductService
         $model = (new Category())->addData($fields)->save();
         $values->write((int) $model->getId(), $rows);
+        $bannerList === null || $bannerService->write((int) $model->getId(), $bannerList);
 
         return $model;
     }
 
-    public function update(int $id, array $data, array $attributes = []): Category
+    public function update(int $id, array $data, array $attributes = [], ?array $banners = null): Category
     {
         $model = $this->get($id);
         $fields = $this->fields($data, $id);
         $values = new ValueService();
         $rows = $values->validate(Category::ENTITY_TYPE, $this->setValues($attributes), $id);
+        $bannerService = new CategoryBannerService();
+        $bannerList = $banners === null ? null : $bannerService->validate($id, $banners['keep'] ?? [], $banners['add'] ?? []);
 
         $model->addData($fields)->save();
         $values->write($id, $rows);
+        $bannerList === null || $bannerService->write($id, $bannerList);
 
         return $model;
     }
@@ -58,8 +67,10 @@ class CategoryService
         if ($model->getResource()->hasProducts($id)) {
             throw new AttributeException('CATEGORY_HAS_PRODUCTS', "A categoria '{$model->getData('name')}' tem produtos. Mova os produtos para outra categoria antes.");
         }
+        $banners = (new CategoryBannerService())->getList($id); // their rows go by FK CASCADE, the files don't
         $model->delete();
         (new ValueService())->deleteEntity(Category::ENTITY_TYPE, $id);
+        (new CategoryBannerService())->unlink($banners);
     }
 
     public function get(int $id): Category

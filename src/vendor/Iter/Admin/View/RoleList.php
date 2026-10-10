@@ -16,8 +16,11 @@ class RoleList implements ViewComponentInterface
 
     public function getData(): array
     {
+        [$roles, $pager] = Pager::slice((new AdminRole())->getList());
+
         return [
-            'roles' => (new AdminRole())->getList(),
+            'roles' => $roles,
+            'pager' => $pager,
         ];
     }
 }

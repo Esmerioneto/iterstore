@@ -37,8 +37,9 @@ class MobileService
     /**
      * Replaces the website's app order; its categories left out of $categories leave the app.
      *
-     * @param array<int, array{id: int, visible?: bool, per_category?: int, product_ids?: int[]}> $categories in the app's order;
-     *        product_ids: chosen by hand, in order (up to MAX_PER_CATEGORY: more than per_category is kept, shown after "mostrar mais")
+     * @param array<int, array{id: int, visible?: bool, per_category?: int, product_ids?: int[], show_banner?: bool}> $categories in the app's order;
+     *        product_ids: chosen by hand, in order (up to MAX_PER_CATEGORY: more than per_category is kept, shown after "mostrar mais");
+     *        show_banner: its banners atop its section; omitted = as saved (a category without banners may keep it on)
      */
     public function save(int $websiteId, array $categories): void
     {
@@ -53,6 +54,7 @@ class MobileService
             ->join(['p' => 'catalog_product'], 'p.product_id = cp.product_id AND p.parent_id IS NULL', [])->where('cp.category_id IN (?)', $ids)) : [] as $row) { // variants get their parent's categories too
             $linked[(int) $row['category_id']][(int) $row['product_id']] = true;
         }
+        $showBanner = $own ? array_map('intval', $db->fetchPairs($db->select()->from('catalog_mobile_category', ['category_id', 'show_banner'])->where('category_id IN (?)', $own))) : [];
         $rows = $products = [];
         foreach (array_values($categories) as $position => $c) {
             $id = (int) $c['id'];
@@ -65,7 +67,8 @@ class MobileService
                 || array_diff_key(array_flip($productIds), $linked[$id] ?? [])) {
                 throw new AttributeException('MOBILE_PRODUCT_INVALID', 'Escolha até ' . self::MAX_PER_CATEGORY . ' produtos, sem repetir, ligados à categoria (variações não).');
             }
-            $rows[] = ['category_id' => $id, 'position' => $position, 'is_visible' => (int) ($c['visible'] ?? true), 'per_category' => $perCategory];
+            $rows[] = ['category_id' => $id, 'position' => $position, 'is_visible' => (int) ($c['visible'] ?? true), 'per_category' => $perCategory,
+                'show_banner' => isset($c['show_banner']) ? (int) (bool) $c['show_banner'] : ($showBanner[$id] ?? 0)];
             foreach ($productIds as $i => $productId) {
                 $products[] = ['category_id' => $id, 'product_id' => $productId, 'position' => $i];
             }
@@ -86,7 +89,9 @@ class MobileService
      * Iter_Inventory, its salable quantity in the website.
      * ponytail: every product of every category in one page; a search per category when catalogs grow
      *
-     * @return array<int, array{category_id: int, path: string, active: bool, saved: bool, visible: bool, per_category: int, chosen: int[],
+     * Also "Mostrar banner" (show_banner) and the category's banner URLs, in order.
+     *
+     * @return array<int, array{category_id: int, path: string, active: bool, saved: bool, visible: bool, per_category: int, show_banner: bool, banners: string[], chosen: int[],
      *         products: array<int, array{product_id: int, sku: string, name: string, is_active: bool, image: ?string, salable: ?float}>}>
      */
     public function screen(int $websiteId): array
@@ -100,7 +105,7 @@ class MobileService
             $active[$id] = $row['is_active'] && ($parent === null || $active[$parent]);
             if ((int) $row['website_id'] === $websiteId) {
                 $categories[$id] = ['category_id' => $id, 'path' => $names[$id], 'active' => $active[$id], 'saved' => false, 'visible' => false,
-                    'per_category' => self::DEFAULT_PER_CATEGORY, 'chosen' => [], 'products' => [], 'position' => PHP_INT_MAX];
+                    'per_category' => self::DEFAULT_PER_CATEGORY, 'show_banner' => false, 'banners' => [], 'chosen' => [], 'products' => [], 'position' => PHP_INT_MAX];
             }
         }
         if (!$categories) {
@@ -109,7 +114,10 @@ class MobileService
         $ids = array_keys($categories);
         foreach ($db->fetchAll($db->select()->from('catalog_mobile_category')->where('category_id IN (?)', $ids)) as $row) {
             $categories[(int) $row['category_id']] = ['saved' => true, 'visible' => (bool) $row['is_visible'], 'per_category' => (int) $row['per_category'],
-                'position' => (int) $row['position']] + $categories[(int) $row['category_id']];
+                'show_banner' => (bool) $row['show_banner'], 'position' => (int) $row['position']] + $categories[(int) $row['category_id']];
+        }
+        foreach ((new CategoryBannerService())->lists($ids) as $id => $banners) {
+            $categories[$id]['banners'] = array_column($banners, 'url');
         }
         foreach ($db->fetchAll($db->select()->from('catalog_mobile_product', ['category_id', 'product_id'])->where('category_id IN (?)', $ids)->order(['category_id', 'position'])) as $row) {
             $categories[(int) $row['category_id']]['chosen'][] = (int) $row['product_id'];
@@ -147,14 +155,23 @@ class MobileService
         }, $categories));
     }
 
-    /** @return array<int, array{category_id: int, product_ids: int[], total: int}> in the app's order */
+    /**
+     * banners: the category's banner URLs when the app order is on and its "Mostrar banner" too, else []
+     *
+     * @return array<int, array{category_id: int, product_ids: int[], total: int, banners: string[]}> in the app's order
+     */
     public function sections(int $websiteId): array
     {
         $categories = $this->categories($websiteId);
         $found = $this->ordered($websiteId, array_map(static fn ($n) => [0, $n], $categories));
+        $db = Connection::get()->adapter();
+        $withBanner = $found && $this->isEnabled($websiteId)
+            ? array_map('intval', $db->fetchCol($db->select()->from('catalog_mobile_category', ['category_id'])->where('show_banner = 1')->where('category_id IN (?)', array_keys($found))))
+            : [];
+        $banners = $withBanner ? (new CategoryBannerService())->lists($withBanner) : [];
         $sections = [];
         foreach (array_keys($categories) as $id) {
-            isset($found[$id]) && $sections[] = ['category_id' => $id] + $found[$id];
+            isset($found[$id]) && $sections[] = ['category_id' => $id] + $found[$id] + ['banners' => array_column($banners[$id] ?? [], 'url')];
         }
 
         return $sections;

@@ -1,0 +1,3 @@
+[
+    { "route": "mercadopago", "vendor": "Iter", "module_name": "Mercadopago", "controller_name": "index", "controller_action": "webhook", "method": "POST" }
+]

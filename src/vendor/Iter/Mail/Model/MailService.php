@@ -33,6 +33,8 @@ class MailService
     public const CANCELED = 3;
     public const STATUS_LABELS = [self::PENDING => 'Pendente', self::SENT => 'Enviado', self::FAILED => 'Falhou', self::CANCELED => 'Cancelado'];
 
+    public const LOGO_CID = 'store-logo';
+
     private const BACKOFF_MINUTES = [1, 5, 15, 60];
     // a claimed message is retried by another worker if this one dies mid-send
     private const LEASE = "INTERVAL '10 minutes'";
@@ -67,7 +69,7 @@ class MailService
 
         [$fromEmail, $fromName] = $options['from'] ?? $this->sender($websiteId);
         $definition = Template::get($template);
-        $mail = Template::render($definition, $vars + ['store_name' => $fromName]);
+        $mail = Template::render($definition, $vars + ['store_name' => $fromName, 'logo' => self::logoRow($websiteId, (string) $fromName)]);
 
         $id = (int) $db->insert('mail_queue', [
             'template_code' => $template,
@@ -193,6 +195,11 @@ class MailService
                 ->subject($row['subject'])
                 ->html($row['body_html'])
                 ->text($row['body_text']);
+            // the logo goes inside the message: it shows without a public address or "load images"
+            if (str_contains((string) $row['body_html'], 'cid:' . self::LOGO_CID)) {
+                $logo = self::logoPath($row['website_id'] === null ? null : (int) $row['website_id']);
+                $logo === null ? $email->html(str_replace('cid:' . self::LOGO_CID, '', $row['body_html'])) : $email->embedFromPath($logo, self::LOGO_CID);
+            }
             foreach (json_decode($row['attachments'], true) as $file) {
                 $email->attachFromPath($file['path'], $file['name']);
             }
@@ -258,6 +265,22 @@ class MailService
     }
 
     /** @return array{0: string, 1: string} the website's sender, falling back to the default and then to mail.ini */
+    /** the website's logo (Configurações → Loja, the app's storeInfo.logoUrl); null without one */
+    public static function logoPath(?int $websiteId): ?string
+    {
+        $value = (string) Config::get('store/info/logo', $websiteId);
+        $path = Config::mediaDir() . $value;
+
+        return $value !== '' && is_file($path) ? $path : null;
+    }
+
+    /** the layout's {{{ logo }}}: a row with the logo above the header; empty without one */
+    private static function logoRow(?int $websiteId, string $alt): string
+    {
+        return self::logoPath($websiteId) === null ? '' : '<tr><td align="center" style="padding:24px 32px;"><img src="cid:' . self::LOGO_CID
+            . '" alt="' . htmlspecialchars($alt) . '" style="display:block; max-width:200px; max-height:80px; border:0;"></td></tr>';
+    }
+
     private function sender(?int $websiteId): array
     {
         $ini = is_file(ETC . 'mail.ini') ? parse_ini_file(ETC . 'mail.ini') : [];

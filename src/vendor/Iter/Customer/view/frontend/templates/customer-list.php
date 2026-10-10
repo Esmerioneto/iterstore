@@ -14,7 +14,7 @@ $select = static function (string $name, string $all, array $options) use ($filt
 <section class="customer-list">
     <h2>Clientes</h2>
     <p><a href="/admin/customer/create">+ Novo cliente</a></p>
-    <form method="get" action="/admin/customer/index">
+    <form method="get" action="/admin/customer/index" class="admin-filters">
 <?php
 $select('customer_type', 'PF e PJ', ['pf' => 'Pessoa física', 'pj' => 'Pessoa jurídica']);
 $select('group_id', 'Todos os grupos', $groups);
@@ -23,7 +23,7 @@ if (count($websites) > 1) {
 }
 $select('is_active', 'Ativos e inativos', ['1' => 'Só ativos', '0' => 'Só inativos']);
 ?>
-        <input type="search" name="q" placeholder="Nome, razão social, e-mail ou CPF/CNPJ" value="<?= $e($filters['q']) ?>" size="36">
+        <input type="search" name="q" placeholder="Nome, razão social, e-mail ou CPF/CNPJ" value="<?= $e($filters['q']) ?>">
         <button type="submit">Filtrar</button>
     </form>
     <table>
@@ -54,9 +54,9 @@ $select('is_active', 'Ativos e inativos', ['1' => 'Só ativos', '0' => 'Só inat
                 <td><?= $e(CustomerService::formatTaxvat($customer['taxvat'])) ?></td>
                 <td><?= $e($customer['group_name']) ?></td>
                 <td><?= $e($customer['website_name']) ?></td>
-                <td><?= $customer['is_active'] ? 'Ativo' : 'Inativo' ?></td>
+                <td<?= $customer['is_active'] ? '' : ' class="customer-inactive"' ?>><?= $customer['is_active'] ? 'Ativo' : 'Inativo' ?></td>
                 <td><?= $e(date('d/m/Y', strtotime((string) $customer['created_at']))) ?></td>
-                <td>
+                <td class="admin-row-action">
                     <a href="/admin/customer/edit?id=<?= (int) $customer['customer_id'] ?>">Editar</a>
                     <form method="post" action="/admin/customer/delete" style="display:inline" data-confirm="Remover este cliente?">
                         <?= \Iter\Core\FormKey::field() ?>
@@ -69,16 +69,5 @@ $select('is_active', 'Ativos e inativos', ['1' => 'Só ativos', '0' => 'Só inat
 <?php endif; ?>
         </tbody>
     </table>
-<?php if ($total_pages > 1): ?>
-    <p>
-    <?php for ($p = 1; $p <= $total_pages; $p++): ?>
-        <?php if ($p === $page): ?>
-        <strong><?= $p ?></strong>
-        <?php else: ?>
-        <a href="/admin/customer/index?<?= $e(http_build_query(array_filter($filters, 'strlen') + ['page' => $p])) ?>"><?= $p ?></a>
-        <?php endif; ?>
-    <?php endfor; ?>
-        (<?= (int) $total ?> clientes)
-    </p>
-<?php endif; ?>
+    <?php \Iter\Admin\View\Pager::render($pager); ?>
 </section>
