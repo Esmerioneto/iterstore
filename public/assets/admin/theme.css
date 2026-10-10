@@ -91,7 +91,8 @@ a {
   text-underline-offset: 3px;
 }
 
-/* Sidebar menu — ghost text-links, uppercase, tracked */
+/* Sidebar menu — an accordion: one section open at a time (details name="admin-menu"),
+   uppercase tracked headers with a chevron, the current page marked */
 .admin-menu {
   grid-area: menu;
   overflow-y: auto;
@@ -103,18 +104,57 @@ a {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-16);
+}
+
+.admin-menu > ul > li {
+  border-bottom: 1px solid var(--color-linen);
 }
 
 .admin-menu a,
 .admin-menu summary {
+  display: block;
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.8px;
   text-transform: uppercase;
   color: var(--color-ink);
+}
+
+.admin-menu .admin-menu-top,
+.admin-menu summary {
+  padding: 12px 0;
+}
+
+.admin-menu summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.admin-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-menu summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 0.2s ease;
+}
+
+.admin-menu details[open] > summary::after {
+  transform: rotate(225deg) translateY(-2px);
+}
+
+.admin-menu summary:focus-visible,
+.admin-menu a:focus-visible {
+  outline: 1px solid var(--color-ink);
+  outline-offset: 2px;
 }
 
 .admin-menu a:hover,
@@ -123,17 +163,39 @@ a {
   text-underline-offset: 3px;
 }
 
-.admin-menu summary {
-  cursor: pointer;
+/* the section's content slides open where the browser can animate details (progressive) */
+@supports selector(::details-content) {
+  .admin-menu { interpolate-size: allow-keywords; }
+  .admin-menu details::details-content {
+    block-size: 0;
+    overflow: hidden;
+    transition: block-size 0.2s ease, content-visibility 0.2s allow-discrete;
+  }
+  .admin-menu details[open]::details-content { block-size: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-menu summary::after,
+  .admin-menu details::details-content { transition: none; }
 }
 
 .admin-menu .admin-submenu {
-  list-style: none;
-  margin: var(--spacing-16) 0 0;
-  padding: 0 0 0 var(--spacing-16);
+  padding: 0 0 12px var(--spacing-16);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-16);
+  gap: 12px;
+}
+
+.admin-menu .admin-submenu a {
+  color: var(--color-graphite);
+  font-size: 11px;
+}
+
+.admin-menu a[aria-current="page"] {
+  color: var(--color-ink);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--color-ink);
+  padding-left: 8px;
+  margin-left: -10px;
 }
 
 /* Breadcrumb — eyebrow caption style */
