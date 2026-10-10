@@ -48,4 +48,5 @@
 <?php endif; ?>
         </tbody>
     </table>
+    <?php \Iter\Admin\View\Pager::render($pager); ?>
 </section>

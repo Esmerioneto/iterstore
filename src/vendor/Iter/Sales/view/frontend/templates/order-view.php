@@ -23,12 +23,16 @@ $form = static fn (string $action, string $inner, string $confirm = '') => '<for
 ?>
 <section class="mail-view sales-order-view">
     <h2>Pedido <?= $e($order['increment_id']) ?> · <?= $e($order['status_label']) ?></h2>
-    <table>
+    <table class="sales-order-info">
+        <tr><th>Loja</th><td><?= $e($order['website_name'] ?? '—') ?></td></tr>
         <tr><th>Data</th><td><?= $e(substr((string) $order['created_at'], 0, 16)) ?></td></tr>
         <tr><th>Cliente</th><td><?= $e($order['firstname'] . ' ' . $order['lastname']) ?> · <?= $e($order['email']) ?> · CPF/CNPJ <?= $e($order['taxvat']) ?>
             <?= $order['customer_id'] === null ? ' (visitante)' : ' · <a href="/admin/customer/edit?id=' . (int) $order['customer_id'] . '">ver cliente</a>' ?></td></tr>
         <tr><th>Frete</th><td><?= $e($order['shipping_label'] ?? '—') ?><?= $order['shipping_days'] !== null ? ' · ' . (int) $order['shipping_days'] . ' dia(s) útil(eis)' : '' ?></td></tr>
-        <tr><th>Pagamento</th><td><?= $e($order['payment_label'] ?? '—') ?><?php if ($order['payment_instructions']): ?><br><small style="white-space: pre-line;"><?= $e($order['payment_instructions']) ?></small><?php endif; ?></td></tr>
+        <tr><th>Pagamento</th><td><?= $e($order['payment_label'] ?? '—') ?><?php if ($order['payment_instructions']): ?><br><small style="white-space: pre-line;"><?= $e($order['payment_instructions']) ?></small><?php endif; ?>
+<?php foreach ($charges as $c): ?>
+            <br><small>Mercado Pago #<?= $e($c['external_id']) ?> · <?= $e($c['status_label']) ?><?= $c['card_brand'] ? ' · ' . $e(ucfirst($c['card_brand'])) : '' ?><?= $c['card_number'] ? ' ' . $e($c['card_number']) : '' ?><?= $c['installments'] > 1 ? ' · ' . (int) $c['installments'] . 'x' : '' ?> · <?= $money($c['amount']) ?></small>
+<?php endforeach; ?></td></tr>
 <?php if ($order['shipment']): ?>
         <tr><th>Entrega</th><td>Saiu de <?= $e($order['shipment']['source_name']) ?> em <?= $e(substr((string) $order['shipment']['created_at'], 0, 16)) ?>
             <?= $order['shipment']['carrier'] ? ' · ' . $e($order['shipment']['carrier']) : '' ?><?= $order['shipment']['tracking_code'] ? ' · rastreio ' . $e($order['shipment']['tracking_code']) : '' ?></td></tr>
@@ -38,7 +42,7 @@ $form = static fn (string $action, string $inner, string $confirm = '') => '<for
     </table>
 
     <h3>Itens</h3>
-    <table>
+    <table class="sales-order-items">
         <thead><tr><th>SKU</th><th>Produto</th><th>Qtd.</th><th>Preço</th><th>Total</th></tr></thead>
         <tbody>
 <?php foreach ($order['items'] as $item): ?>
@@ -52,7 +56,7 @@ $form = static fn (string $action, string $inner, string $confirm = '') => '<for
 <?php endforeach; ?>
         </tbody>
     </table>
-    <p>Subtotal <?= $money($order['subtotal']) ?> · Frete <?= $money($order['shipping_amount']) ?> · <strong>Total <?= $money($order['grand_total']) ?></strong></p>
+    <p class="sales-order-totals">Subtotal <?= $money($order['subtotal']) ?> · Frete <?= $money($order['shipping_amount']) ?> · <strong>Total <?= $money($order['grand_total']) ?></strong></p>
 
 <?php if ($actions): ?>
     <h3>Ações</h3>
@@ -97,5 +101,5 @@ $form = static fn (string $action, string $inner, string $confirm = '') => '<for
 <?php endforeach; ?>
         </tbody>
     </table>
-    <p><a href="/admin/order/index">Voltar</a></p>
+    <p class="sales-order-back"><a href="/admin/order/index">← Voltar para pedidos</a></p>
 </section>

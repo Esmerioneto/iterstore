@@ -18,6 +18,8 @@ use Iter\Core\Messages;
 class Auth
 {
     private const SESSION_KEY = 'iter_admin_user_id';
+    /** the time of the last request: the session ends after admin/security/session_minutes without one */
+    private const SEEN_KEY = 'iter_admin_seen';
 
     private static ?AdminUser $user = null;
     /** the API token of this request (useToken), null on a session */
@@ -32,6 +34,7 @@ class Auth
 
         session_regenerate_id(true);
         $_SESSION[self::SESSION_KEY] = (int) $user->getId();
+        $_SESSION[self::SEEN_KEY] = time();
         self::$user = $user;
 
         return true;
@@ -145,6 +148,13 @@ class Auth
     public static function user(): ?AdminUser
     {
         if (self::$user === null && !empty($_SESSION[self::SESSION_KEY])) {
+            $minutes = (int) Config::get('admin/security/session_minutes');
+            if (time() - (int) ($_SESSION[self::SEEN_KEY] ?? 0) > $minutes * 60) {
+                unset($_SESSION[self::SESSION_KEY]);
+                Messages::addError("Sua sessão expirou depois de {$minutes} minutos sem uso. Entre de novo.");
+                return null;
+            }
+            $_SESSION[self::SEEN_KEY] = time();
             $user = (new AdminUser())->load((int) $_SESSION[self::SESSION_KEY]);
             if ($user->getId() && $user->getData('is_active')) {
                 self::$user = $user;

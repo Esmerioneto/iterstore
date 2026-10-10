@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Sales\View;
 
+use Iter\Admin\View\Pager;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Sales\Model\OrderService;
 use Iter\Store\Model\Website;
@@ -29,11 +30,10 @@ class OrderList implements ViewComponentInterface
         }
         $filters['website_id'] = ctype_digit($filters['website_id']) ? $filters['website_id'] : '';
         $filters['customer_id'] = ctype_digit($filters['customer_id']) ? $filters['customer_id'] : '';
-        $limit = in_array((int) ($_GET['limit'] ?? 0), self::PAGE_SIZES, true) ? (int) $_GET['limit'] : self::PAGE_SIZES[0];
         $sort = in_array($_GET['sort'] ?? '', self::SORTS, true) ? (string) $_GET['sort'] : 'created_at';
         $dir = ($_GET['dir'] ?? '') === 'asc' ? 'asc' : 'desc';
-        $page = max(1, (int) ($_GET['page'] ?? 1));
-        $result = (new OrderService())->search($filters, $page, $limit, $sort, $dir);
+        [$result, $pager] = Pager::search(static fn (int $page, int $limit) => (new OrderService())->search($filters, $page, $limit, $sort, $dir), self::PAGE_SIZES);
+        ['page' => $page, 'limit' => $limit] = $pager;
 
         return [
             'orders' => $result['items'],
@@ -44,7 +44,8 @@ class OrderList implements ViewComponentInterface
             'dir' => $dir,
             'total' => $result['total'],
             'amount' => $result['amount'],
-            'total_pages' => max(1, (int) ceil($result['total'] / $limit)),
+            'total_pages' => $pager['total_pages'],
+            'pager' => $pager,
             'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
         ];
     }

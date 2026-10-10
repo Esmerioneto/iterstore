@@ -1,4 +1,4 @@
 [
-    { "code": "_layout", "label": "Layout comum (cabeçalho e rodapé de todos os e-mails)", "subject": "-", "file": "layout", "vars": { "content": "<p>Conteúdo do e-mail.</p>", "store_name": "Iterstore" } },
+    { "code": "_layout", "label": "Layout comum (cabeçalho e rodapé de todos os e-mails)", "subject": "-", "file": "layout", "vars": { "content": "<p>Conteúdo do e-mail.</p>", "store_name": "Iterstore", "logo": "" } },
     { "code": "mail_test", "label": "E-mail de teste (Configurações → E-mail)", "subject": "Teste de envio - {{ store_name }}", "file": "mail-test", "vars": { "name": "Maria", "store_name": "Iterstore" } }
 ]

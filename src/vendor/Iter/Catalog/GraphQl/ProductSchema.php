@@ -12,6 +12,7 @@ use GraphQL\Type\Definition\ResolveInfo;
 use GraphQL\Type\Definition\Type;
 use Iter\Admin\Auth;
 use Iter\Catalog\Model\Category;
+use Iter\Catalog\Model\CategoryBannerService;
 use Iter\Catalog\Model\CategoryService;
 use Iter\Catalog\Model\MobileService;
 use Iter\Catalog\Model\Product;
@@ -103,9 +104,21 @@ class ProductSchema
             return $tree;
         };
         $productList = null; // ProductList, set below; Category.products uses it
+        // ponytail: every category's banners in one query on first use (at most LIMIT per category)
+        $bannerLists = static function () use (&$bannerListsCache): array {
+            return $bannerListsCache ??= (new CategoryBannerService())->lists();
+        };
+        $bannerType = new ObjectType([
+            'name' => 'CategoryBanner',
+            'fields' => [
+                'id' => ['type' => Type::nonNull(Type::id()), 'resolve' => static fn ($b) => $b['banner_id']],
+                'url' => Type::nonNull(Type::string()),
+                'position' => ['type' => Type::nonNull(Type::int()), 'description' => '0 = o primeiro.'],
+            ],
+        ]);
         $categoryType = new ObjectType([
             'name' => 'Category',
-            'fields' => static function () use (&$categoryType, &$productList, &$preloadFor, $categories, $isAdmin): array {
+            'fields' => static function () use (&$categoryType, &$productList, &$preloadFor, $categories, $isAdmin, $bannerLists, $bannerType): array {
                 return [
                     'id' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($c) => $c['category_id']],
                     'websiteId' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($c) => $c['website_id']],
@@ -115,6 +128,16 @@ class ProductSchema
                     'position' => Type::nonNull(Type::int()),
                     'level' => ['type' => Type::nonNull(Type::int()), 'description' => '0 = categoria principal.'],
                     'parent_id' => Type::id(),
+                    'banners' => [
+                        'type' => Type::nonNull(Type::listOf(Type::nonNull(Type::string()))),
+                        'description' => 'URLs dos banners, na ordem: um é imagem, dois ou mais são carrossel. Tocar abre esta categoria.',
+                        'resolve' => static fn ($c) => array_column($bannerLists()[(int) $c['category_id']] ?? [], 'url'),
+                    ],
+                    'bannerList' => [
+                        'type' => Type::listOf(Type::nonNull($bannerType)),
+                        'description' => 'Os banners com o id, para setCategoryBanners. Só para admin com a permissão Categorias; os outros recebem null.',
+                        'resolve' => static fn ($c) => Auth::isAllowed('Iter_Catalog::category') ? $bannerLists()[(int) $c['category_id']] ?? [] : null,
+                    ],
                     'children' => [
                         'type' => Type::nonNull(Type::listOf(Type::nonNull($categoryType))),
                         'resolve' => static fn ($c) => array_map(static fn ($id) => $categories()[$id], $c['children']),
@@ -380,6 +403,7 @@ class ProductSchema
                 'products' => ['type' => Type::nonNull(Type::listOf(Type::nonNull($productType))), 'description' => 'Os primeiros: os escolhidos à mão, depois os mais novos.'],
                 'total' => ['type' => Type::nonNull(Type::int()), 'description' => 'Produtos da categoria no app.'],
                 'hasMore' => ['type' => Type::nonNull(Type::boolean()), 'description' => 'Mostrar o "mostrar mais" (mobileCategoryProducts).', 'resolve' => static fn ($s) => $s['total'] > count($s['products'])],
+                'banners' => ['type' => Type::nonNull(Type::listOf(Type::nonNull(Type::string()))), 'description' => 'URLs dos banners, no topo da seção: um é imagem, dois ou mais são carrossel; tocar abre a categoria. Vazia sem "Mostrar banner" ligado na tela Mobile, sem banner ou com a ordem do app desligada.'],
             ],
         ]);
         $mobileProductsType = new ObjectType([
@@ -405,6 +429,8 @@ class ProductSchema
                         'active' => ['type' => Type::nonNull(Type::boolean()), 'description' => 'Ela e as categorias pai ativas; inativa nunca aparece no app.'],
                         'visible' => ['type' => Type::nonNull(Type::boolean()), 'description' => '"Mostrar no app".'],
                         'perCategory' => ['type' => Type::nonNull(Type::int()), 'description' => '"Exibir de início".'],
+                        'showBanner' => ['type' => Type::nonNull(Type::boolean()), 'description' => '"Mostrar banner". Pode ficar ligado numa categoria sem banner: vale quando ela ganhar um.'],
+                        'banners' => ['type' => Type::nonNull(Type::listOf(Type::nonNull(Type::string()))), 'description' => 'URLs dos banners da categoria, na ordem.'],
                         'chosen' => ['type' => Type::nonNull(Type::listOf(Type::nonNull($productType))), 'description' => 'Escolhidos à mão, na ordem.'],
                         'productCount' => ['type' => Type::nonNull(Type::int()), 'description' => 'Produtos ativos da categoria no website.'],
                     ],
@@ -422,6 +448,8 @@ class ProductSchema
                 'active' => $c['active'],
                 'visible' => $c['visible'],
                 'perCategory' => $c['per_category'],
+                'showBanner' => $c['show_banner'],
+                'banners' => $c['banners'],
                 'chosen' => array_map(static fn ($id) => $rows[$id], $c['chosen']),
                 'productCount' => count(array_filter($c['products'], static fn ($p) => $p['is_active'])),
             ], $screen)];
@@ -433,6 +461,7 @@ class ProductSchema
                 'visible' => ['type' => Type::boolean(), 'defaultValue' => true, 'description' => '"Mostrar no app".'],
                 'perCategory' => ['type' => Type::int(), 'defaultValue' => MobileService::DEFAULT_PER_CATEGORY, 'description' => '"Exibir de início", de 1 a ' . MobileService::MAX_PER_CATEGORY . '.'],
                 'productIds' => ['type' => Type::listOf(Type::nonNull(Type::id())), 'description' => 'Escolhidos à mão, na ordem (até ' . MobileService::MAX_PER_CATEGORY . ', produtos pai ligados à categoria). Omitido = nenhum.'],
+                'showBanner' => ['type' => Type::boolean(), 'description' => '"Mostrar banner"; omitido = mantém.'],
             ],
         ]);
         $filterInput = new InputObjectType([
@@ -624,6 +653,7 @@ class ProductSchema
                             'category' => $categories()[$s['category_id']],
                             'products' => array_map(static fn ($id) => $rows[$id], $s['product_ids']),
                             'total' => $s['total'],
+                            'banners' => $s['banners'],
                         ], $sections);
                     },
                 ],
@@ -674,7 +704,7 @@ class ProductSchema
                             'visible' => $c['visible'] ?? true,
                             'per_category' => $c['perCategory'] ?? MobileService::DEFAULT_PER_CATEGORY,
                             'product_ids' => array_map('intval', $c['productIds'] ?? []),
-                        ], $args['categories']));
+                        ] + (isset($c['showBanner']) ? ['show_banner' => $c['showBanner']] : []), $args['categories']));
                         isset($args['enabled']) && $mobile->setEnabled($websiteId, $args['enabled']);
 
                         return $mobileOrder($websiteId, $info);
@@ -842,6 +872,23 @@ class ProductSchema
                             'position' => $args['position'] ?? $current['position'],
                         ] + $current, $categoryService->getValues($id));
                         return $freshCategory($id);
+                    }),
+                ],
+                'setCategoryBanners' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull($bannerType))),
+                    'description' => 'Os banners da categoria (como o bloco "Banners" do formulário): keep são os que ficam, na ordem nova (os outros são removidos, com o arquivo); add entram no fim, pelo multipart request spec com token. No máximo '
+                        . CategoryBannerService::LIMIT . ' (BANNER_LIMIT). Erros: CATEGORY_NOT_FOUND, BANNER_NOT_FOUND (id de outra categoria), FILE_TYPE_INVALID, FILE_TOO_LARGE, FILE_UPLOAD_FAILED.',
+                    'args' => [
+                        'categoryId' => Type::nonNull(Type::id()),
+                        'keep' => ['type' => Type::nonNull(Type::listOf(Type::nonNull(Type::id()))), 'description' => '[] remove todos.'],
+                        'add' => ['type' => Type::listOf(Type::nonNull(Schema::upload())), 'description' => 'Arquivos novos (WebP, AVIF, JPG ou PNG).'],
+                    ],
+                    'resolve' => $categoryGuard(static function ($root, array $args) use ($categoryService): array {
+                        $id = (int) $categoryService->get((int) $args['categoryId'])->getId(); // CATEGORY_NOT_FOUND
+                        $banners = new CategoryBannerService();
+                        $banners->save($id, array_map('intval', $args['keep']), array_map(ValueService::uploaded(...), $args['add'] ?? []));
+
+                        return $banners->getList($id);
                     }),
                 ],
                 'deleteCategory' => [

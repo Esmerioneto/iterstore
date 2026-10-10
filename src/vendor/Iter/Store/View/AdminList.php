@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Store\View;
 
 use Iter\Store\Model\Store;
+use Iter\Admin\View\Pager;
 use Iter\Core\View\ViewComponentInterface;
 
 class AdminList implements ViewComponentInterface
@@ -16,8 +17,11 @@ class AdminList implements ViewComponentInterface
 
     public function getData(): array
     {
+        [$stores, $pager] = Pager::slice((new Store())->getList());
+
         return [
-            'stores' => (new Store())->getList(),
+            'stores' => $stores,
+            'pager' => $pager,
         ];
     }
 }

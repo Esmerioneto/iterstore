@@ -3,12 +3,12 @@ use Iter\Mail\Model\MailService;
 
 $e = static fn ($v) => htmlspecialchars((string) $v);
 ?>
-<section class="mail-list">
+<section class="mail-list mail-sent-list">
     <h2>E-mails enviados</h2>
 <?php if ($stalled): ?>
     <p class="mail-warning"><?= (int) $stalled ?> e-mail(s) esperando há mais de 15 minutos. Confira se o cron roda <code>php bin/mail-worker.php</code> a cada minuto.</p>
 <?php endif; ?>
-    <form method="get" action="/admin/mail/index">
+    <form method="get" action="/admin/mail/index" class="admin-filters">
         <select name="status">
             <option value="">Todas as situações</option>
 <?php foreach (MailService::STATUS_LABELS as $value => $label): ?>
@@ -41,24 +41,13 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
                 <td><?= $e(substr((string) $message['created_at'], 0, 16)) ?></td>
                 <td><?= $e($message['to_email']) ?></td>
                 <td><?= $e($message['subject']) ?></td>
-                <td><?= $e($message['template_code']) ?></td>
-                <td><?= $e(MailService::STATUS_LABELS[(int) $message['status']]) ?></td>
+                <td><code><?= $e($message['template_code']) ?></code></td>
+                <td class="mail-status-<?= (int) $message['status'] ?>"><?= $e(MailService::STATUS_LABELS[(int) $message['status']]) ?></td>
                 <td><?= (int) $message['attempts'] ?></td>
-                <td><a href="/admin/mail/view?id=<?= (int) $message['message_id'] ?>">Ver</a></td>
+                <td class="admin-row-action"><a href="/admin/mail/view?id=<?= (int) $message['message_id'] ?>">Ver</a></td>
             </tr>
 <?php endforeach; ?>
         </tbody>
     </table>
-<?php if ($total_pages > 1): ?>
-    <p>
-    <?php for ($p = 1; $p <= $total_pages; $p++): ?>
-        <?php if ($p === $page): ?>
-        <strong><?= $p ?></strong>
-        <?php else: ?>
-        <a href="/admin/mail/index?<?= $e(http_build_query(array_filter($filters, 'strlen') + ['page' => $p])) ?>"><?= $p ?></a>
-        <?php endif; ?>
-    <?php endfor; ?>
-        (<?= (int) $total ?> e-mails)
-    </p>
-<?php endif; ?>
+    <?php \Iter\Admin\View\Pager::render($pager); ?>
 </section>

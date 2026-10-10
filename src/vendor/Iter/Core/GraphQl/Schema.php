@@ -20,7 +20,9 @@ use Iter\Sales\GraphQl\CartSchema;
 use Iter\Sales\GraphQl\OrderSchema;
 use Iter\Adminsales\GraphQl\AdminSalesSchema;
 use Iter\Shipping\GraphQl\ShippingSchema;
+use Iter\Mercadopago\GraphQl\MercadopagoSchema;
 use Iter\Store\Model\Store as StoreModel;
+use Iter\Store\Model\Website as WebsiteModel;
 
 class Schema
 {
@@ -137,6 +139,7 @@ class Schema
         $orders = isset($sales['types']) ? OrderSchema::fields($sales['types']['order']) : ['query' => [], 'mutation' => []];
         $adminSales = isset($sales['types']) && \isModuleEnabled('iter_adminsales') ? AdminSalesSchema::fields($sales['types']['order']) : ['query' => [], 'mutation' => []];
         $shipping = \isModuleEnabled('iter_shipping') ? ShippingSchema::fields() : ['query' => [], 'mutation' => []];
+        $mercadopago = isset($sales['types']) && \isModuleEnabled('iter_mercadopago') ? MercadopagoSchema::fields($sales['types']['order']) : ['query' => [], 'mutation' => []];
 
         $queryType = new ObjectType([
             'name' => 'Query',
@@ -150,6 +153,18 @@ class Schema
                     'type' => Type::nonNull(Type::listOf(Type::nonNull($storeType))),
                     'resolve' => fn () => (new StoreModel())->getList(),
                 ],
+                'websites' => [
+                    'type' => Type::nonNull(Type::listOf(Type::nonNull(new ObjectType([
+                        'name' => 'Website',
+                        'fields' => [
+                            'id' => ['type' => Type::nonNull(Type::id()), 'resolve' => static fn (array $w) => $w['website_id']],
+                            'name' => Type::nonNull(Type::string()),
+                            'isDefault' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => static fn (array $w) => (bool) $w['is_default']],
+                        ],
+                    ])))),
+                    'description' => 'As lojas, na ordem do admin (o cadastro do app oferece a escolha).',
+                    'resolve' => static fn () => (new WebsiteModel())->getList(),
+                ],
                 'storeInfo' => [
                     'type' => $storeInfoType,
                     'description' => 'Dados da loja. Sem websiteId, os do escopo Padrão; website desconhecido dá null.',
@@ -159,7 +174,7 @@ class Schema
                         return $id === null || Config::websiteExists($id) ? ['id' => $id] : null;
                     },
                 ],
-            ] : []) + $product['query'] + $stock['query'] + $customer['query'] + $eav['query'] + $sales['query'] + $orders['query'] + $shipping['query'] + $admin['query'],
+            ] : []) + $product['query'] + $stock['query'] + $customer['query'] + $eav['query'] + $sales['query'] + $orders['query'] + $shipping['query'] + $mercadopago['query'] + $admin['query'],
         ]);
 
         $mutationType = new ObjectType([
@@ -198,7 +213,7 @@ class Schema
                         return true;
                     }),
                 ],
-            ] : []) + $product['mutation'] + $stock['mutation'] + $customer['mutation'] + $sales['mutation'] + $orders['mutation'] + $adminSales['mutation'] + $shipping['mutation'] + $admin['mutation'],
+            ] : []) + $product['mutation'] + $stock['mutation'] + $customer['mutation'] + $sales['mutation'] + $orders['mutation'] + $adminSales['mutation'] + $shipping['mutation'] + $mercadopago['mutation'] + $admin['mutation'],
         ]);
 
         if (!$queryType->getFields()) {

@@ -6,6 +6,7 @@ namespace Iter\Sales\View;
 
 use Iter\Admin\Auth;
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Mercadopago\Model\MercadopagoService;
 use Iter\Sales\Model\OrderService;
 
 class OrderView implements ViewComponentInterface
@@ -26,6 +27,7 @@ class OrderView implements ViewComponentInterface
         return [
             'order' => $order,
             'actions' => $actions,
+            'charges' => \isModuleEnabled('iter_mercadopago') ? (new MercadopagoService())->forOrder((int) $order['order_id']) : [],
             'sources' => in_array('ship', $actions, true) ? (new OrderService())->shipSources((int) $order['order_id']) : [],
         ];
     }

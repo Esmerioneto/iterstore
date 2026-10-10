@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Iter\Catalog\View;
 
 use Iter\Catalog\Model\Category;
+use Iter\Catalog\Model\CategoryBannerService;
 use Iter\Catalog\Model\CategoryService;
+use Iter\Core\Config;
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Eav\InputTypeRegistry;
 use Iter\Eav\Form\FormSchemaGenerator;
 use Iter\Store\Model\Website;
 
@@ -38,6 +41,11 @@ class CategoryForm implements ViewComponentInterface
             'parents' => $tree,
             'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
             'schema' => (new FormSchemaGenerator())->generate(Category::ENTITY_TYPE),
+            'banners' => $category ? (new CategoryBannerService())->getList($id) : [],
+            'banner_limit' => CategoryBannerService::LIMIT,
+            'banner_accept' => array_keys(InputTypeRegistry::get('image')['accept']),
+            // up to LIMIT files in one post: each one gets its share of post_max_size (the browser shrinks the bigger ones)
+            'banner_max_bytes' => min(Config::uploadMaxBytes(), intdiv(ini_parse_quantity((string) ini_get('post_max_size')) ?: PHP_INT_MAX, CategoryBannerService::LIMIT + 1)),
             'attribute_values' => array_merge(
                 $id ? (new CategoryService())->getValues($id) : [],
                 array_filter($old['attributes'] ?? [], static fn ($v) => !is_array($v) || array_is_list($v))

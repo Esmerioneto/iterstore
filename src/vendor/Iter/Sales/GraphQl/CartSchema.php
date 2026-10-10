@@ -13,6 +13,7 @@ use Iter\Catalog\Model\Product;
 use Iter\Core\Config;
 use Iter\Core\RateLimit;
 use Iter\Customer\Model\CustomerAuth;
+use Iter\Payment\Model\PaymentService;
 use Iter\Sales\Model\CartService;
 use Iter\Sales\Model\OrderService;
 use Iter\Store\Model\Website;
@@ -110,7 +111,7 @@ class CartSchema
         $paymentType = new ObjectType([
             'name' => 'PaymentMethod',
             'fields' => [
-                'code' => ['type' => Type::nonNull(Type::string()), 'description' => 'pix ou offline.'],
+                'code' => ['type' => Type::nonNull(Type::string()), 'description' => 'pix, offline ou, com o Mercado Pago, mercadopago_pix, mercadopago_credit e mercadopago_debit (depois do placeOrder, payOrder cobra).'],
                 'label' => Type::nonNull(Type::string()),
                 'instructions' => ['type' => Type::string(), 'description' => 'O que o cliente faz para pagar (a chave Pix, por exemplo). Também vai no pedido.'],
             ],
@@ -170,9 +171,12 @@ class CartSchema
                 'paymentMethod' => ['type' => Type::string(), 'description' => 'O code do pagamento escolhido.', 'resolve' => fn ($o) => $o['payment_method']],
                 'paymentLabel' => ['type' => Type::string(), 'resolve' => fn ($o) => $o['payment_label']],
                 'paymentInstructions' => ['type' => Type::string(), 'description' => 'O que o cliente faz para pagar (a chave Pix, por exemplo), como era no pedido.', 'resolve' => fn ($o) => $o['payment_instructions']],
+                'availablePaymentMethods' => ['type' => Type::nonNull(Type::listOf(Type::nonNull($paymentType))), 'description' => 'As opções do website hoje, para changeMyOrderPaymentMethod.',
+                    'resolve' => fn ($o) => $payment ? array_values((new PaymentService())->methods($o)) : []],
                 'shippingAddress' => ['type' => $addressType, 'resolve' => fn ($o) => $o['shipping_address']],
                 'billingAddress' => ['type' => $addressType, 'resolve' => fn ($o) => $o['billing_address']],
                 'websiteId' => ['type' => Type::nonNull(Type::id()), 'resolve' => fn ($o) => $o['website_id']],
+                'websiteName' => ['type' => Type::string(), 'description' => 'A loja (website) que fechou o pedido.', 'resolve' => fn ($o) => $o['website_name'] ?? null],
                 'customerId' => ['type' => Type::id(), 'description' => 'null = visitante.', 'resolve' => fn ($o) => $o['customer_id']],
                 'shipment' => ['type' => new ObjectType([
                     'name' => 'OrderShipment',

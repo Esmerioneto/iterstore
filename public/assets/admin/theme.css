@@ -326,8 +326,392 @@ a {
   color: var(--color-paper);
 }
 
-/* Sortable list titles: the header row stands out; the sorted column is in ink with its arrow */
-.catalog-product-list thead th {
+/* List filters: one row of fields with the same height, wrapping on narrow screens; the button closes the row */
+.admin-dashboard form.admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin-bottom: var(--spacing-16);
+}
+
+.admin-dashboard form.admin-filters label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-dashboard form.admin-filters select,
+.admin-dashboard form.admin-filters input {
+  width: auto;
+  height: 36px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--color-pebble);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.admin-dashboard form.admin-filters input[type="search"] {
+  flex: 1 1 220px;
+  min-width: 220px;
+}
+
+.admin-dashboard form.admin-filters button {
+  height: 36px;
+}
+
+.admin-list-summary {
+  margin: 0 0 var(--spacing-8);
+  font-size: 13px;
+  color: var(--color-stone);
+}
+
+.admin-dashboard td small {
+  color: var(--color-stone);
+}
+
+.admin-dashboard td.admin-row-action {
+  text-align: right;
+}
+
+/* Order view: sections split by a rule, labels in a narrow column, amounts on the right, action forms in one row each */
+.sales-order-view h3,
+.adminsales-start h3,
+.adminsales-edit h3,
+.mail-message-view h3 {
+  margin: var(--spacing-32) 0 var(--spacing-8);
+  padding-top: var(--spacing-16);
+  border-top: 1px solid var(--color-linen);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.sales-order-view table.sales-order-info th {
+  width: 200px;
+  vertical-align: top;
+}
+
+.sales-order-view table.sales-order-items th:nth-child(n+3),
+.sales-order-view table.sales-order-items td:nth-child(n+3) {
+  text-align: right;
+}
+
+.sales-order-view td small,
+.adminsales-edit td small {
+  color: var(--color-stone);
+}
+
+.sales-order-totals {
+  margin: var(--spacing-8) 0 0;
+  padding: 0 var(--spacing-8);
+  text-align: right;
+  font-size: 13px;
+}
+
+.sales-order-totals strong {
+  margin-left: var(--spacing-8);
+  font-size: 15px;
+}
+
+.sales-order-view form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spacing-8) var(--spacing-16);
+  margin-bottom: var(--spacing-16);
+}
+
+.sales-order-view form label {
+  flex: 0 1 360px;
+}
+
+.sales-order-view form label:has(textarea) {
+  flex: 1 1 100%;
+}
+
+.sales-order-view form label:has(input[type="checkbox"]) {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+}
+
+.sales-order-view form input[type="text"],
+.sales-order-view form select {
+  max-width: none;
+  height: 36px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.sales-order-view form textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid var(--color-pebble);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.sales-order-view form button {
+  height: 36px;
+}
+
+/* a section right under the page title needs no rule */
+.adminsales-start h2 + h3,
+.adminsales-edit h2 + h3 {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Novo pedido: the customer search as a filter row; the guest option below it, after an "ou" */
+.adminsales-start form.admin-filters label {
+  font-size: 12px;
+  color: var(--color-stone);
+}
+
+.adminsales-start td.admin-row-action form {
+  margin: 0;
+}
+
+.adminsales-start td.admin-row-action button {
+  padding: 4px 14px;
+  font-size: 12px;
+}
+
+.adminsales-guest {
+  margin-top: var(--spacing-16);
+  font-size: 13px;
+  color: var(--color-stone);
+}
+
+.adminsales-guest button {
+  margin-left: var(--spacing-8);
+}
+
+/* Novo pedido em montagem: rows of fields, compact forms inside the tables, choices as bordered rows, address fields in a grid */
+.adminsales-edit form.admin-filters label {
+  font-size: 12px;
+  color: var(--color-stone);
+}
+
+.adminsales-edit form.admin-filters input[type="text"],
+.adminsales-edit form.admin-filters input[type="email"] {
+  width: 200px;
+}
+
+.adminsales-edit table.adminsales-items th:nth-child(n+3),
+.adminsales-edit table.adminsales-items td:nth-child(n+3),
+.adminsales-edit table.adminsales-products th:nth-child(n+3),
+.adminsales-edit table.adminsales-products td:nth-child(n+3) {
+  text-align: right;
+}
+
+.adminsales-edit td form {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.adminsales-edit td form input[type="text"] {
+  width: 4.5em;
+  max-width: none;
+  margin: 0;
+  padding: 4px 6px;
+  font-size: 13px;
+  text-align: right;
+}
+
+.adminsales-edit td form button {
+  padding: 4px 14px;
+  font-size: 12px;
+}
+
+.adminsales-edit table + form.admin-filters {
+  margin-top: var(--spacing-16);
+}
+
+.adminsales-edit form.adminsales-choice {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-16);
+  max-width: 720px;
+  margin: 0;
+  padding: var(--spacing-8);
+  border-bottom: 1px solid var(--color-linen);
+  font-size: 13px;
+}
+
+.adminsales-edit form.adminsales-choice button {
+  padding: 4px 14px;
+  font-size: 12px;
+}
+
+.adminsales-edit details {
+  margin-top: var(--spacing-16);
+}
+
+.adminsales-edit summary {
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.adminsales-edit details fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0 var(--spacing-16);
+  margin-top: var(--spacing-8);
+}
+
+.adminsales-edit details fieldset fieldset,
+.adminsales-edit details fieldset > p:last-child {
+  grid-column: 1 / -1;
+}
+
+.adminsales-edit details fieldset input[type="text"],
+.adminsales-edit details fieldset select {
+  max-width: none;
+}
+
+.adminsales-edit .adminsales-missing {
+  margin: 0 0 var(--spacing-16);
+  font-size: 13px;
+}
+
+.adminsales-edit form[action$="/place"] textarea {
+  display: block;
+  width: 100%;
+  max-width: 720px;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid var(--color-pebble);
+  background: var(--color-paper);
+  font-family: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+/* Origem de estoque: two fields per row, hints under the field, the address as one row of four */
+.inventory-source-form form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--spacing-32);
+  max-width: 760px;
+}
+
+.inventory-source-form .inventory-source-full,
+.inventory-source-form fieldset {
+  grid-column: 1 / -1;
+}
+
+.inventory-source-form form input[type="text"],
+.inventory-source-form form input[type="number"],
+.inventory-source-form form select {
+  max-width: none;
+  height: 36px;
+  box-sizing: border-box;
+}
+
+.inventory-source-form form input[readonly] {
+  background: var(--color-linen);
+  color: var(--color-stone);
+}
+
+.inventory-source-form form small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-stone);
+}
+
+.inventory-source-form form label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-ink);
+}
+
+.inventory-source-form form textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid var(--color-pebble);
+  background: var(--color-paper);
+  font-family: inherit;
+  font-size: 14px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.inventory-source-form fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0 var(--spacing-16);
+}
+
+.inventory-source-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-16);
+  font-size: 13px;
+}
+
+/* Clientes: "Editar" and a compact "Remover" side by side; an inactive customer reads in grey; the pages right-aligned */
+.customer-list td.admin-row-action,
+.eav-attribute-list td.admin-row-action {
+  white-space: nowrap;
+}
+
+.customer-list td.admin-row-action form,
+.eav-attribute-list td.admin-row-action form {
+  margin-left: var(--spacing-8);
+}
+
+.customer-list td.admin-row-action button,
+.eav-attribute-list td.admin-row-action button {
+  padding: 4px 14px;
+  font-size: 12px;
+}
+
+.customer-list td.customer-inactive {
+  color: var(--color-stone);
+}
+
+/* Atributos: the code in a monospace tag, so it reads as an identifier next to the name */
+.eav-attribute-list td code,
+.mail-sent-list td code,
+.mail-message-view td code {
+  padding: 2px 6px;
+  background: var(--color-linen);
+  font-size: 12px;
+}
+
+.sales-order-back {
+  margin-top: var(--spacing-32);
+  font-size: 13px;
+}
+
+/* Sortable list titles:the header row stands out; the sorted column is in ink with its arrow */
+.catalog-product-list thead th,
+.sales-order-list thead th,
+.customer-list thead th,
+.eav-attribute-list thead th,
+.mail-sent-list thead th {
   background: var(--color-atelier-white);
   border-bottom: 1px solid var(--color-ink);
 }
@@ -417,6 +801,12 @@ a {
   align-items: start;
 }
 
+/* with admin.js, rows of 4px: each block spans only its own height (plus the gap), so the next one goes up into the free space */
+.product-layout.is-packed {
+  grid-auto-rows: 4px;
+  row-gap: 0;
+}
+
 /* a chosen number of columns is a maximum: narrower screens still get fewer (each at least 280px) */
 .product-layout.has-columns {
   grid-template-columns: repeat(auto-fill, minmax(max(280px, (100% - (var(--layout-columns) - 1) * var(--spacing-16)) / var(--layout-columns)), 1fr));
@@ -429,6 +819,13 @@ a {
 .product-block > fieldset,
 .product-block > section {
   margin: 0;
+}
+
+/* inside a block, the fields take the block's width (not the forms' 360px); those in tables (the variant grid) keep their size */
+.product-block :is(input:is([type="text"], [type="email"], [type="password"], [type="number"], [type="date"], [type="tel"], [type="url"]), select, textarea):not(table *) {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
 }
 
 .product-layout-actions {
@@ -685,7 +1082,7 @@ a {
   font-family: inherit;
   font-size: 14px;
 }
-.config-settings-form .eav-file-preview { display: inline-block; vertical-align: top; margin-right: 8px; }
+.config-settings-form .eav-file-preview:not([hidden]) { display: inline-block; vertical-align: top; margin-right: 8px; }
 @media (max-width: 800px) {
   .config-settings-form .config-fields { grid-template-columns: 1fr; }
   .admin-shell { height: auto; min-height: 100vh; }
@@ -725,6 +1122,57 @@ a {
   color: var(--color-stone);
 }
 
+/* "Usar esta ordem no app" and "Mostrar no app": the switch with its text beside it, in the page's text size */
+.mobile-order form .mobile-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  font-size: 13px;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.mobile-switch input[type="checkbox"].admin-switch {
+  margin: 0;
+}
+
+/* the screen's own switch, apart from the website above, its hint below */
+.mobile-order form .mobile-enabled {
+  margin: var(--spacing-16) 0 var(--spacing-20);
+}
+
+.mobile-enabled small {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-stone);
+}
+
+/* "Mostrar banner": the first banner, small, beside its switch */
+.mobile-banner img {
+  display: block;
+  width: 84px;
+  height: 28px;
+  object-fit: cover;
+  border: 1px solid var(--color-linen);
+}
+
+.mobile-order form .mobile-switch small {
+  color: var(--color-stone);
+}
+
+/* "Mostrar no app" and "Mostrar banner" in fixed columns too, so they line up from row to row */
+.mobile-order form .mobile-bar .mobile-switch {
+  min-width: 150px;
+}
+
+/* the name in a fixed column, so every category's switch lines up below the one above */
+.mobile-category-name {
+  flex: 0 0 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .mobile-bar small[data-mobile-summary] {
   margin-left: auto;
 }
@@ -755,9 +1203,13 @@ a {
   color: var(--color-stone);
 }
 
-.mobile-bar button,
-.mobile-product button {
-  padding: 2px 8px;
+/* ↑ ↓ ✕ as small squares, the switch's height */
+.mobile-order form .mobile-bar button,
+.mobile-order form .mobile-product button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  line-height: 1;
 }
 
 .mobile-thumb {
@@ -767,6 +1219,154 @@ a {
   margin: 0;
 }
 
-.mobile-order .is-dragging {
+.mobile-order .is-dragging,
+.category-banners .is-dragging {
   opacity: 0.4;
+}
+
+/* Categoria → Banners: a row per banner, in the app's order */
+.category-banner-list {
+  margin: var(--spacing-8) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.category-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-linen);
+}
+
+.category-banner button {
+  padding: 2px 8px;
+}
+
+.category-banner-thumb {
+  display: block;
+  width: 240px;
+  height: 80px;
+  object-fit: cover;
+  border: 1px solid var(--color-linen);
+}
+
+.category-banners {
+  max-width: 760px;
+}
+
+.category-banners > small {
+  display: block;
+  color: var(--color-stone);
+}
+
+/* E-mails enviados: the warning as a bar; a failed message in bold, pending and canceled in grey */
+.mail-sent-list .mail-warning {
+  padding: var(--spacing-8) var(--spacing-16);
+  border-left: 3px solid #a33;
+  background: var(--color-linen);
+  font-size: 13px;
+}
+
+.mail-sent-list td.mail-status-0,
+.mail-message-view td.mail-status-0,
+.mail-message-view td.mail-status-3,
+.mail-sent-list td.mail-status-3 {
+  color: var(--color-stone);
+}
+
+.mail-sent-list td.mail-status-2,
+.mail-message-view td.mail-status-2 {
+  color: #a33;
+  font-weight: 600;
+}
+
+/* E-mail enviado: labels in a narrow column, a preview as tall as a message, the text version in a box, actions at the end */
+.mail-message-view table.mail-message-info th {
+  width: 200px;
+  vertical-align: top;
+}
+
+.mail-message-view .mail-preview {
+  display: block;
+  height: 640px;
+  border-color: var(--color-linen);
+}
+
+.mail-message-view .mail-text {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: var(--spacing-16);
+  border: 1px solid var(--color-linen);
+  background: var(--color-atelier-white);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.mail-message-note {
+  margin-top: var(--spacing-16);
+  padding: var(--spacing-8) var(--spacing-16);
+  border-left: 3px solid var(--color-pebble);
+  background: var(--color-linen);
+  font-size: 13px;
+}
+
+.mail-message-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-16);
+  margin-top: var(--spacing-32);
+  font-size: 13px;
+}
+
+.mail-message-actions form {
+  margin: 0;
+}
+
+/* On/off switch for a yes/no choice (Sim/Não, ligado/desligado, habilitado/desabilitado): a checkbox drawn as a sliding key */
+input[type="checkbox"].admin-switch {
+  appearance: none;
+  position: relative;
+  width: 40px;
+  height: 22px;
+  margin: 6px 0 0;
+  border: 1px solid var(--color-pebble);
+  border-radius: 11px;
+  background: var(--color-linen);
+  vertical-align: middle;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+input[type="checkbox"].admin-switch::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-paper);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s;
+}
+
+input[type="checkbox"].admin-switch:checked {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+}
+
+input[type="checkbox"].admin-switch:checked::before {
+  transform: translateX(18px);
+}
+
+input[type="checkbox"].admin-switch:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+input[type="checkbox"].admin-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

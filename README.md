@@ -29,7 +29,7 @@ O arquivo `src/etc/env.ini` guarda a chave que criptografa os segredos gravados 
 
 | Caminho | Conteúdo |
 |---|---|
-| `src/vendor/Iter/` | Módulos do sistema: Core, Router, Admin, Config, Eav, Catalog, Inventory, Customer, Sales, Adminsales, Payment, Shipping, Store, Mail |
+| `src/vendor/Iter/` | Módulos do sistema: Core, Router, Admin, Config, Eav, Catalog, Inventory, Customer, Sales, Adminsales, Payment, Shipping, Mercadopago, Store, Mail |
 | `src/app/code/` | Módulos locais |
 | `src/etc/` | Configuração: banco, e-mail, chave e módulos ativos (`config.json`) |
 | `public/` | Raiz web: `index.php`, assets e mídia enviada |
@@ -52,6 +52,7 @@ Os módulos são ativados e desativados em Admin → Configurações. Depois de 
 ```cron
 * * * * *  php /caminho/do/iterstore/bin/mail-worker.php   # envia a fila de e-mails
 15 * * * * php /caminho/do/iterstore/bin/order-clean.php   # cancela pedidos não pagos
+0,10,20,30,40,50 * * * * php /caminho/do/iterstore/bin/mercadopago-sync.php   # confere pagamentos do Mercado Pago
 10 0 * * * php /caminho/do/iterstore/bin/log-clean.php     # apaga logs antigos
 20 0 * * * php /caminho/do/iterstore/bin/quote-clean.php   # apaga carrinhos abandonados
 ```

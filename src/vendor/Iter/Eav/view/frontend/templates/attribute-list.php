@@ -3,7 +3,7 @@
 <?php if ($can_manage): ?>
     <p><a href="/admin/attribute/create<?= $filters['entity_type'] !== '' ? '?entity_type=' . urlencode($filters['entity_type']) : '' ?>">+ Novo atributo</a></p>
 <?php endif; ?>
-    <form method="get" action="/admin/attribute/index">
+    <form method="get" action="/admin/attribute/index" class="admin-filters">
         <select name="entity_type">
             <option value="">Todas as entidades</option>
 <?php foreach ($entity_types as $code => $type): ?>
@@ -43,14 +43,14 @@
 <?php else: ?>
     <?php foreach ($attributes as $attribute): ?>
             <tr>
-                <td><?= htmlspecialchars((string) $attribute['code']) ?></td>
+                <td><code><?= htmlspecialchars((string) $attribute['code']) ?></code></td>
                 <td><?= htmlspecialchars((string) $attribute['label']) ?></td>
                 <td><?= htmlspecialchars((string) $attribute['entity_type_label']) ?></td>
                 <td><?= htmlspecialchars((string) ($input_types[$attribute['input_type']]['label'] ?? $attribute['input_type'])) ?></td>
                 <td><?= htmlspecialchars((string) $attribute['storage_type']) ?></td>
                 <td><?= $attribute['is_system'] ? 'Sim' : '' ?></td>
                 <td><?= (int) $attribute['sort_order'] ?></td>
-                <td>
+                <td class="admin-row-action">
                     <a href="/admin/attribute/edit?id=<?= (int) $attribute['attribute_id'] ?>">Editar</a>
         <?php if ($can_manage && !$attribute['is_system']): ?>
                     <form method="post" action="/admin/attribute/delete" style="display:inline" data-confirm="Remover este atributo?">
@@ -65,16 +65,5 @@
 <?php endif; ?>
         </tbody>
     </table>
-<?php if ($total_pages > 1): ?>
-    <p>
-    <?php for ($p = 1; $p <= $total_pages; $p++): ?>
-        <?php if ($p === $page): ?>
-        <strong><?= $p ?></strong>
-        <?php else: ?>
-        <a href="/admin/attribute/index?<?= htmlspecialchars(http_build_query(array_filter($filters, 'strlen') + ['page' => $p])) ?>"><?= $p ?></a>
-        <?php endif; ?>
-    <?php endfor; ?>
-        (<?= (int) $total ?> atributos)
-    </p>
-<?php endif; ?>
+    <?php \Iter\Admin\View\Pager::render($pager); ?>
 </section>

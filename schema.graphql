@@ -2,6 +2,9 @@ type Query {
   store(id: ID!): Store
   stores: [Store!]!
 
+  "As lojas, na ordem do admin (o cadastro do app oferece a escolha)."
+  websites: [Website!]!
+
   "Dados da loja. Sem websiteId, os do escopo Padrão; website desconhecido dá null."
   storeInfo(websiteId: ID): StoreInfo
 
@@ -181,6 +184,10 @@ type Query {
     "Omitido = website padrão."
     websiteId: ID
   ): [ShippingTableRate!]!
+  mercadopagoSettings(
+    "Omitido = website padrão."
+    websiteId: ID
+  ): MercadopagoSettings!
 
   "O usuário do token (ou da sessão do painel); null sem login."
   currentAdmin: AdminUser
@@ -194,6 +201,12 @@ type Store {
   group_id: ID
   created_at: String!
   updated_at: String!
+}
+
+type Website {
+  id: ID!
+  name: String!
+  isDefault: Boolean!
 }
 
 type StoreInfo {
@@ -317,6 +330,13 @@ type Category {
   level: Int!
 
   parent_id: ID
+
+  "URLs dos banners, na ordem: um é imagem, dois ou mais são carrossel. Tocar abre esta categoria."
+  banners: [String!]!
+
+  "Os banners com o id, para setCategoryBanners. Só para admin com a permissão Categorias; os outros recebem null."
+  bannerList: [CategoryBanner!]
+
   children: [Category!]!
 
   "Inclui os produtos das subcategorias."
@@ -329,6 +349,14 @@ type Category {
 
   created_at: String!
   updated_at: String!
+}
+
+type CategoryBanner {
+  id: ID!
+  url: String!
+
+  "0 = o primeiro."
+  position: Int!
 }
 
 type ProductList {
@@ -404,6 +432,9 @@ type MobileSection {
 
   "Mostrar o \"mostrar mais\" (mobileCategoryProducts)."
   hasMore: Boolean!
+
+  "URLs dos banners, no topo da seção: um é imagem, dois ou mais são carrossel; tocar abre a categoria. Vazia sem \"Mostrar banner\" ligado na tela Mobile, sem banner ou com a ordem do app desligada."
+  banners: [String!]!
 }
 
 type MobileProducts {
@@ -437,6 +468,12 @@ type MobileOrderCategory {
 
   "\"Exibir de início\"."
   perCategory: Int!
+
+  "\"Mostrar banner\". Pode ficar ligado numa categoria sem banner: vale quando ela ganhar um."
+  showBanner: Boolean!
+
+  "URLs dos banners da categoria, na ordem."
+  banners: [String!]!
 
   "Escolhidos à mão, na ordem."
   chosen: [Product!]!
@@ -639,7 +676,7 @@ type ShippingMethod {
 }
 
 type PaymentMethod {
-  "pix ou offline."
+  "pix, offline ou, com o Mercado Pago, mercadopago_pix, mercadopago_credit e mercadopago_debit (depois do placeOrder, payOrder cobra)."
   code: String!
 
   label: String!
@@ -766,9 +803,15 @@ type Order {
   "O que o cliente faz para pagar (a chave Pix, por exemplo), como era no pedido."
   paymentInstructions: String
 
+  "As opções do website hoje, para changeMyOrderPaymentMethod."
+  availablePaymentMethods: [PaymentMethod!]!
+
   shippingAddress: CartAddress
   billingAddress: CartAddress
   websiteId: ID!
+
+  "A loja (website) que fechou o pedido."
+  websiteName: String
 
   "null = visitante."
   customerId: ID
@@ -832,6 +875,14 @@ type ShippingTableRate {
 
   "Prazo em dias úteis."
   days: Int!
+}
+
+type MercadopagoSettings {
+  "Para o SDK gerar o token do cartão; null sem Mercado Pago configurado."
+  publicKey: String
+
+  "O máximo de parcelas no crédito."
+  maxInstallments: Int!
 }
 
 type AdminUser {
@@ -940,6 +991,17 @@ type Mutation {
   "Muda a categoria mãe (sem parentId = principal) e a posição. Fica no mesmo website; não vai para dentro dela mesma nem de uma subcategoria sua."
   moveCategory(id: ID!, parentId: ID, position: Int): Category!
 
+  "Os banners da categoria (como o bloco \"Banners\" do formulário): keep são os que ficam, na ordem nova (os outros são removidos, com o arquivo); add entram no fim, pelo multipart request spec com token. No máximo 5 (BANNER_LIMIT). Erros: CATEGORY_NOT_FOUND, BANNER_NOT_FOUND (id de outra categoria), FILE_TYPE_INVALID, FILE_TOO_LARGE, FILE_UPLOAD_FAILED."
+  setCategoryBanners(
+    categoryId: ID!
+
+    "[] remove todos."
+    keep: [ID!]!
+
+    "Arquivos novos (WebP, AVIF, JPG ou PNG)."
+    add: [Upload!]
+  ): [CategoryBanner!]!
+
   "Recusada com subcategorias (CATEGORY_HAS_CHILDREN) ou produtos (CATEGORY_HAS_PRODUCTS)."
   deleteCategory(id: ID!): Boolean!
 
@@ -983,7 +1045,7 @@ type Mutation {
     email: String!
     password: String!
 
-    "Omitido = website padrão."
+    "Omitido = procura em todos os websites, o padrão primeiro (o app não sabe a loja do cliente antes do login)."
     websiteId: ID
   ): CustomerSession!
 
@@ -997,7 +1059,7 @@ type Mutation {
   requestCustomerPasswordReset(
     email: String!
 
-    "Omitido = website padrão."
+    "Omitido = todos os websites onde o e-mail tem conta."
     websiteId: ID
   ): Boolean!
 
@@ -1202,6 +1264,9 @@ type Mutation {
     customerAddressId: ID
   ): Cart!
 
+  "O cliente do token troca a forma de pagamento de um pedido dele que aguarda pagamento (ex.: cartão recusado)."
+  changeMyOrderPaymentMethod(number: String!, code: String!): Order!
+
   "Aguardando pagamento → Pagamento confirmado. Avisa o cliente. Exige Iter_Sales::order_payment."
   confirmOrderPayment(
     id: ID!
@@ -1267,6 +1332,19 @@ type Mutation {
     rates: [ShippingTableRateInput!]!
   ): [ShippingTableRate!]!
 
+  "Cobra pelo Mercado Pago um pedido \"Aguardando pagamento\". Cliente logado: um pedido dele. Visitante: o número e o e-mail do pedido. Pix: devolve o QR Code (chamar de novo devolve o mesmo enquanto valer). Cartão: envie card; recusado, pode tentar de novo com outro token."
+  payOrder(
+    number: String!
+
+    "O do pedido, para o visitante."
+    email: String
+
+    "Quando dois websites usam o mesmo prefixo."
+    websiteId: ID
+
+    card: MercadopagoCardInput
+  ): OrderPayment!
+
   "Login do admin pela API. Erra junto com o painel: tentativas contam para o bloqueio."
   generateAdminToken(username: String!, password: String!): AdminToken!
 
@@ -1285,6 +1363,9 @@ input MobileCategoryInput {
 
   "Escolhidos à mão, na ordem (até 50, produtos pai ligados à categoria). Omitido = nenhum."
   productIds: [ID!]
+
+  "\"Mostrar banner\"; omitido = mantém."
+  showBanner: Boolean
 }
 
 input ProductAttributeInput {
@@ -1397,6 +1478,65 @@ input ShippingTableRateInput {
   weightTo: Float
   price: Float!
   days: Int = 0
+}
+
+input MercadopagoCardInput {
+  "O token do cartão gerado pelo SDK (vale uma vez)."
+  token: String!
+
+  "A bandeira que o SDK devolveu (visa, master, elo...)."
+  paymentMethodId: String!
+
+  "No débito, sempre 1."
+  installments: Int = 1
+
+  "O emissor que o SDK devolveu."
+  issuerId: String
+}
+
+type OrderPayment {
+  "O id do pagamento no Mercado Pago."
+  id: ID!
+
+  "mercadopago_pix, mercadopago_credit ou mercadopago_debit."
+  method: String!
+
+  "O do Mercado Pago: pending, in_process, approved, rejected, cancelled, refunded..."
+  status: String!
+
+  statusLabel: String!
+
+  "O motivo do Mercado Pago (cc_rejected_insufficient_amount...), para a mensagem ao cliente."
+  statusDetail: String
+
+  amount: Float!
+  installments: Int
+
+  "A bandeira do cartão (visa, master, elo...)."
+  cardBrand: String
+
+  "O número do cartão mascarado (4509 95•• •••• 3704)."
+  cardNumber: String
+
+  "O Pix copia e cola."
+  pixQrCode: String
+
+  "A imagem PNG do QR Code em base64."
+  pixQrCodeBase64: String
+
+  "A página do Mercado Pago com o QR Code e as instruções."
+  pixTicketUrl: String
+
+  "Até quando o Pix pode ser pago."
+  expiresAt: String
+
+  "Cartão com autenticação 3DS: o app mostra este desafio (com challengeCreq) e depois relê o pedido."
+  challengeUrl: String
+
+  challengeCreq: String
+
+  "O pedido como ficou (aprovado = \"processing\")."
+  order: Order!
 }
 
 type AdminToken {

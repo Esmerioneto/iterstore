@@ -108,6 +108,27 @@ document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('select[data-options-box]').forEach(syncOptionsBox);
 });
 
+// Entity form blocks packed: each block spans as many 4px rows as its height plus the 16px gap
+// (.is-packed), so a short block doesn't leave a hole under it until the tallest of its row ends.
+// Re-measured whenever a block changes size (fields shown/hidden, addresses added, arranging bars).
+document.addEventListener('DOMContentLoaded', function () {
+  var grid = document.querySelector('[data-layout-grid]');
+  if (!grid || typeof ResizeObserver === 'undefined') {
+    return;
+  }
+  function pack(block) {
+    var height = block.getBoundingClientRect().height;
+    block.style.gridRowEnd = height ? 'span ' + Math.ceil((height + 16) / 4) : '';
+  }
+  // the first pass right away: a background tab only gets the observer's calls once shown
+  grid.classList.add('is-packed');
+  Array.prototype.forEach.call(grid.children, pack);
+  var observer = new ResizeObserver(function (entries) {
+    entries.forEach(function (entry) { pack(entry.target); });
+  });
+  Array.prototype.forEach.call(grid.children, function (block) { observer.observe(block); });
+});
+
 // Entity form (product, customer) "Organizar tela": blocks ([data-block]) and the fields inside a
 // block ([data-field]) are reordered by native drag and drop, or by the ↑ ↓
 // buttons (touch and keyboard); ↔ makes a block span the whole row. The order
@@ -387,9 +408,10 @@ function shrinkImage(file, maxBytes, type) {
 
 document.addEventListener('change', function (event) {
   var input = event.target;
-  var file = input.files && input.files[0];
+  var chosen = Array.prototype.slice.call(input.files || []); // several in a "multiple" field
   var maxBytes = Number(input.dataset.maxBytes);
-  if (!input.matches('input[data-image-input]') || !file || !maxBytes || file.size <= maxBytes || event.detail === 'shrunk') {
+  if (!input.matches('input[data-image-input]') || !maxBytes || event.detail === 'shrunk'
+    || !chosen.some(function (file) { return file.size > maxBytes; })) {
     return;
   }
   event.stopImmediatePropagation(); // the preview below waits for the smaller file
@@ -397,21 +419,29 @@ document.addEventListener('change', function (event) {
     && document.createElement('canvas').toDataURL('image/webp').indexOf('data:image/webp') === 0;
   var type = webp ? 'image/webp' : 'image/jpeg';
   var mb = function (bytes) { return (bytes / 1048576).toFixed(1).replace('.', ',') + ' MB'; };
-  shrinkImage(file, maxBytes, type).then(function (blob) {
+  var shrunk = [];
+  Promise.all(chosen.map(function (file) {
+    if (file.size <= maxBytes) {
+      return file;
+    }
+    return shrinkImage(file, maxBytes, type).then(function (blob) {
+      shrunk.push(file.name + ' tinha ' + mb(file.size) + ' (limite ' + mb(maxBytes) + '); foi reduzida para ' + mb(blob.size) + '.');
+      return new File([blob], file.name.replace(/\.[^.]*$/, '') + (webp ? '.webp' : '.jpg'), { type: type });
+    }).catch(function () {
+      return file; // not decodable here (e.g. AVIF in an older browser): it goes as is and the server explains the limit
+    });
+  })).then(function (results) {
     var files = new DataTransfer();
-    files.items.add(new File([blob], file.name.replace(/\.[^.]*$/, '') + (webp ? '.webp' : '.jpg'), { type: type }));
+    results.forEach(function (file) { files.items.add(file); });
     input.files = files.files;
-    if (typeof Swal !== 'undefined') {
+    if (shrunk.length && typeof Swal !== 'undefined') {
       Swal.fire({
         toast: true, position: 'top-end', icon: 'info', iconColor: inkColor(), showConfirmButton: false, showCloseButton: true,
         timer: 6000, timerProgressBar: true, customClass: { popup: 'admin-swal admin-swal-toast' },
-        title: 'Imagem reduzida',
-        text: file.name + ' tinha ' + mb(file.size) + ' (limite ' + mb(maxBytes) + '); foi reduzida para ' + mb(blob.size) + '.'
+        title: shrunk.length > 1 ? 'Imagens reduzidas' : 'Imagem reduzida',
+        text: shrunk.join(' ')
       });
     }
-  }).catch(function () {
-    // not decodable here (e.g. AVIF in an older browser): it goes as is and the server explains the limit
-  }).then(function () {
     input.dispatchEvent(new CustomEvent('change', { bubbles: true, detail: 'shrunk' }));
   });
 });
@@ -541,16 +571,95 @@ document.querySelectorAll('select[data-customer-type]').forEach(function (select
   });
 });
 
-// Catálogo → Mobile ([data-mobile-order]): categories and their chosen products ([data-sort-item] in a
-// [data-sortable]) are reordered by native drag and drop from the ⠿ handle, or by ↑ ↓; the form posts them
-// in page order. "Adicionar" moves a product from the category's hidden pool to the chosen ones (its
-// input enabled), ✕ moves it back. The counts, the note and "depois do mostrar mais" follow the changes.
+// Lists reordered by hand ([data-sort-item] in a [data-sortable]: Catálogo → Mobile, a category's banners):
+// native drag and drop from the ⠿ handle ([data-drag-handle]), or the ↑ ↓ buttons ([data-move]); the form
+// posts the items in page order. Every move fires a bubbling "sort" event on the item.
+document.addEventListener('DOMContentLoaded', function () {
+  var dragged = null;
+  var sorted = function (item) { item.dispatchEvent(new Event('sort', { bubbles: true })); };
+
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-sort-item] button[data-move]');
+    var item = button && button.closest('[data-sort-item]');
+    if (!item) {
+      return;
+    }
+    if (button.dataset.move === '-1' && item.previousElementSibling) {
+      item.parentNode.insertBefore(item, item.previousElementSibling);
+    } else if (button.dataset.move === '1' && item.nextElementSibling) {
+      item.parentNode.insertBefore(item.nextElementSibling, item);
+    } else {
+      return;
+    }
+    sorted(item);
+    button.focus();
+  });
+
+  // only the handle starts a drag, so the inputs inside an item still take clicks and text selection
+  document.addEventListener('mousedown', function (event) {
+    var handle = event.target.closest('[data-sort-item] [data-drag-handle]');
+    if (handle) {
+      handle.closest('[data-sort-item]').draggable = true;
+    }
+  });
+  document.addEventListener('mouseup', function (event) { // a click on the handle, without dragging
+    var handle = event.target.closest('[data-sort-item] [data-drag-handle]');
+    if (handle && !dragged) {
+      handle.closest('[data-sort-item]').draggable = false;
+    }
+  });
+  document.addEventListener('dragstart', function (event) {
+    var item = event.target.closest && event.target.closest('[data-sort-item]');
+    if (!item || !item.draggable) {
+      return;
+    }
+    dragged = item;
+    dragged.classList.add('is-dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', ''); // Firefox only drags with some data
+  });
+  document.addEventListener('dragend', function () {
+    if (!dragged) {
+      return;
+    }
+    dragged.classList.remove('is-dragging');
+    dragged.draggable = false;
+    sorted(dragged);
+    dragged = null;
+  });
+  // an item only moves among its own list's items (a product inside its category, a category among the categories)
+  document.addEventListener('dragover', function (event) {
+    if (!dragged) {
+      return;
+    }
+    var over = event.target.closest('[data-sort-item]');
+    while (over && over.parentNode !== dragged.parentNode) {
+      over = over.parentNode.closest('[data-sort-item]');
+    }
+    if (!over) {
+      return;
+    }
+    event.preventDefault();
+    if (over !== dragged) {
+      var siblings = Array.prototype.slice.call(over.parentNode.children);
+      over.parentNode.insertBefore(dragged, siblings.indexOf(dragged) < siblings.indexOf(over) ? over.nextSibling : over);
+    }
+  });
+  document.addEventListener('drop', function (event) {
+    if (dragged) {
+      event.preventDefault();
+    }
+  });
+});
+
+// Catálogo → Mobile ([data-mobile-order]): categories and their chosen products are sortable lists (above).
+// "Adicionar" moves a product from the category's hidden pool to the chosen ones (its input enabled),
+// ✕ moves it back. The counts, the note and "depois do mostrar mais" follow the changes.
 document.addEventListener('DOMContentLoaded', function () {
   var form = document.querySelector('[data-mobile-order]');
   if (!form) {
     return;
   }
-  var dragged = null;
 
   function refresh(category) {
     var limit = Number(category.querySelector('[data-mobile-limit]').value) || 0;
@@ -584,6 +693,9 @@ document.addEventListener('DOMContentLoaded', function () {
       refresh(event.target.closest('[data-mobile-category]'));
     }
   });
+  form.addEventListener('sort', function (event) {
+    refresh(event.target.closest('[data-mobile-category]'));
+  });
   form.addEventListener('click', function (event) {
     var button = event.target.closest('button[type="button"]');
     var category = button && button.closest('[data-mobile-category]');
@@ -600,59 +712,10 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     } else if ('mobileRemove' in button.dataset) {
       move(item, category.querySelector('[data-mobile-pool]'), false);
-    } else if (button.dataset.move === '-1' && item.previousElementSibling) {
-      item.parentNode.insertBefore(item, item.previousElementSibling);
-    } else if (button.dataset.move === '1' && item.nextElementSibling) {
-      item.parentNode.insertBefore(item.nextElementSibling, item);
     } else {
       return;
     }
     refresh(category);
     button.isConnected && button.focus();
   });
-
-  // only the handle starts a drag, so the inputs inside an item still take clicks and text selection
-  form.addEventListener('mousedown', function (event) {
-    var handle = event.target.closest('[data-drag-handle]');
-    if (handle) {
-      handle.closest('[data-sort-item]').draggable = true;
-    }
-  });
-  form.addEventListener('mouseup', function (event) { // a click on the handle, without dragging
-    var handle = event.target.closest('[data-drag-handle]');
-    if (handle && !dragged) {
-      handle.closest('[data-sort-item]').draggable = false;
-    }
-  });
-  form.addEventListener('dragstart', function (event) {
-    dragged = event.target.closest('[data-sort-item]');
-    dragged.classList.add('is-dragging');
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', ''); // Firefox only drags with some data
-  });
-  form.addEventListener('dragend', function () {
-    dragged.classList.remove('is-dragging');
-    dragged.draggable = false;
-    refresh(dragged.closest('[data-mobile-category]'));
-    dragged = null;
-  });
-  // an item only moves among its own list's items (a product inside its category, a category among the categories)
-  form.addEventListener('dragover', function (event) {
-    if (!dragged) {
-      return;
-    }
-    var over = event.target.closest('[data-sort-item]');
-    while (over && over.parentNode !== dragged.parentNode) {
-      over = over.parentNode.closest('[data-sort-item]');
-    }
-    if (!over) {
-      return;
-    }
-    event.preventDefault();
-    if (over !== dragged) {
-      var siblings = Array.prototype.slice.call(over.parentNode.children);
-      over.parentNode.insertBefore(dragged, siblings.indexOf(dragged) < siblings.indexOf(over) ? over.nextSibling : over);
-    }
-  });
-  form.addEventListener('drop', function (event) { event.preventDefault(); });
 });

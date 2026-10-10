@@ -23,11 +23,13 @@
             <label>Código *<br>
 <?php if ($is_edit): ?>
                 <input type="text" value="<?= htmlspecialchars((string) $values['code']) ?>" readonly>
-                <small>O código não muda depois de criado.</small>
 <?php else: ?>
                 <input type="text" name="code" maxlength="64" pattern="[a-z][a-z0-9_]*" value="<?= htmlspecialchars((string) $values['code']) ?>" required>
 <?php endif; ?>
             </label>
+<?php if ($is_edit): ?>
+            <small>O código não muda depois de criado.</small>
+<?php endif; ?>
         </p>
         <p>
             <label>Nome *<br>
@@ -35,6 +37,12 @@
             </label>
         </p>
         <p>
+            <label>Prioridade<br>
+                <input type="number" name="priority" step="1" value="<?= (int) $values['priority'] ?>">
+            </label>
+            <small>Menor número = usada primeiro na separação.</small>
+        </p>
+        <p class="inventory-source-full">
 <?php if ($is_default): ?>
             <input type="hidden" name="is_enabled" value="1">
             <label><input type="checkbox" checked disabled> Ativa</label>
@@ -44,13 +52,7 @@
             <small>Inativa, a origem sai do saldo vendável, mas as quantidades ficam guardadas.</small>
 <?php endif; ?>
         </p>
-        <p>
-            <label>Prioridade<br>
-                <input type="number" name="priority" step="1" value="<?= (int) $values['priority'] ?>">
-            </label>
-            <small>Menor número = usada primeiro na separação.</small>
-        </p>
-        <p>
+        <p class="inventory-source-full">
             <label>Descrição<br>
                 <textarea name="description" rows="3"><?= htmlspecialchars((string) $values['description']) ?></textarea>
             </label>
@@ -78,7 +80,7 @@
                 </label>
             </p>
         </fieldset>
-        <p>
+        <p class="inventory-source-full inventory-source-actions">
             <button type="submit">Salvar</button>
             <a href="/admin/source/index">Cancelar</a>
         </p>
