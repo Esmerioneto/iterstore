@@ -246,9 +246,9 @@ $purge(); // leftovers from an interrupted run
 // and only written to var/mail. They wait out of reach until $purge
 $pdo->exec("UPDATE mail_queue SET send_after = send_after + INTERVAL '100 years' WHERE status = 0 AND to_email NOT LIKE '%@selftest.local'");
 
-// the shipping and payment tests save the Padrão scope: a website's own values (a dev store's free shipping,
-// Pix...) would win over them. $purge puts them back.
-$pdo->exec("DELETE FROM core_config_data WHERE scope = 'websites' AND (path LIKE 'shipping/%' OR path LIKE 'payment/%')");
+// the shipping, payment and order tests save the Padrão scope: a website's own values (a dev store's free shipping,
+// Pix, order prefix...) would win over them. $purge puts them back.
+$pdo->exec("DELETE FROM core_config_data WHERE scope = 'websites' AND (path LIKE 'shipping/%' OR path LIKE 'payment/%' OR path = 'sales/order/prefix')");
 
 // known settings regardless of what the admin configured
 Config::save([
@@ -1990,12 +1990,15 @@ assertSame(['Módulo Mercadopago desativado. Os dados dele continuam no banco.']
 assertSame(true, str_starts_with($gql($admin, '{ mercadopagoSettings { publicKey } }')['errors'][0]['message'] ?? '', 'Cannot query field "mercadopagoSettings"'), 'Mercadopago desativado: sem a API dele');
 assertSame(['O módulo Core é essencial e não pode ser desativado.'], $toggle('iter_core', 0), 'módulo essencial não é desativado');
 assertSame(['Desative antes os módulos que dependem de Eav: Catalog, Customer.'], $toggle('iter_eav', 0), 'módulo com dependentes ativos não é desativado');
-assertSame(['Desative antes os módulos que dependem de Catalog: Inventory, Sales.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com Inventory e Sales ativos');
-assertSame(['Desative antes os módulos que dependem de Sales: Shipping, Payment, Adminsales.'], $toggle('iter_sales', 0), 'Sales não é desativado com Shipping, Payment e Adminsales ativos');
+assertSame(['Desative antes os módulos que dependem de Catalog: Inventory, Sales, Promotion.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com Inventory e Sales ativos');
+assertSame(['Desative antes os módulos que dependem de Sales: Shipping, Payment, Adminsales, Promotion.'], $toggle('iter_sales', 0), 'Sales não é desativado com Shipping, Payment e Adminsales ativos');
 assertSame(['Módulo Adminsales desativado. Os dados dele continuam no banco.'], $toggle('iter_adminsales', 0), 'Adminsales desativado pelo admin');
 assertSame(['Módulo Payment desativado. Os dados dele continuam no banco.'], $toggle('iter_payment', 0), 'Payment desativado pelo admin');
 assertSame(true, str_starts_with($gql($admin, '{ cart { paymentMethod { code } } }')['errors'][0]['message'] ?? '', 'Cannot query field "paymentMethod" on type "Cart".'), 'Payment desativado: sem pagamento no carrinho');
+assertSame(['Módulo Melhorenvio desativado. Os dados dele continuam no banco.'], $toggle('iter_melhorenvio', 0), 'Melhor Envio desativado pelo admin');
 assertSame(['Módulo Shipping desativado. Os dados dele continuam no banco.'], $toggle('iter_shipping', 0), 'Shipping desativado pelo admin');
+assertSame(['Módulo Promotion desativado. Os dados dele continuam no banco.'], $toggle('iter_promotion', 0), 'Promotion desativado pelo admin');
+assertSame(true, str_contains($gql($admin, 'mutation { applyCartCoupon(code: "TESTE") { total } }')['errors'][0]['message'] ?? '', 'Cannot query field') && str_contains($gql($admin, 'mutation { applyCartCoupon(code: "TESTE") { total } }')['errors'][0]['message'] ?? '', 'applyCartCoupon'), 'Promotion desativado: sem mutações de cupom');
 assertSame([true, true], [
     str_starts_with($gql($admin, '{ cart { shippingMethod { code } } }')['errors'][0]['message'] ?? '', 'Cannot query field "shippingMethod" on type "Cart".'),
     str_starts_with($gql($admin, '{ shippingTableRates { price } }')['errors'][0]['message'] ?? '', 'Cannot query field "shippingTableRates" on type "Query".'),
@@ -2027,9 +2030,11 @@ $toggle('iter_inventory', 1);
 $toggle('iter_customer', 1);
 $toggle('iter_sales', 1);
 $toggle('iter_shipping', 1);
+$toggle('iter_melhorenvio', 1);
 $toggle('iter_payment', 1);
 $toggle('iter_mercadopago', 1);
 $toggle('iter_adminsales', 1);
+$toggle('iter_promotion', 1);
 assertSame('7', (new StockService())->getSalable([$estId])[$estId], 'Inventory reativado: o estoque continua lá');
 assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
 assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Configurações não chega aos módulos');
@@ -2268,7 +2273,8 @@ assertSame([true, 'CART_NOT_FOUND', false], [
 // Config::save(): the default scope, and this process's Config cache is reset (the services called here read it too)
 $setConfig = static fn (array $values) => Config::save(array_map('strval', $values));
 $setConfig(['shipping/tablerate/active' => '1', 'shipping/tablerate/label' => 'Transportadora', 'shipping/freeshipping/active' => '1', 'shipping/freeshipping/min_subtotal' => '100',
-    'shipping/freeshipping/days' => '9', 'shipping/pickup/active' => '1', 'shipping/pickup/days' => '1']);
+    'shipping/freeshipping/days' => '9', 'shipping/pickup/active' => '1', 'shipping/pickup/days' => '1',
+    'shipping/melhorenvio/active' => '0']); // the store's Melhor Envio would quote for real (bin/shipping-provider-selftest.php tests it)
 $ratesGql = 'mutation ($r: [ShippingTableRateInput!]!) { saveShippingTableRates(rates: $r) { postcodeFrom postcodeTo weightTo price days } }';
 $ratesIn = [['postcodeFrom' => '01000-000', 'postcodeTo' => '09999-999', 'weightTo' => 1, 'price' => 15, 'days' => 3],
     ['postcodeFrom' => '01000000', 'postcodeTo' => '09999999', 'price' => 30, 'days' => 5], ['postcodeFrom' => '20000000', 'postcodeTo' => '29999999', 'price' => 40, 'days' => 7]];
@@ -2338,7 +2344,7 @@ assertSame([true, true, true], [str_contains($settings, 'payment/pix/key'), str_
 
 // --- order + placeOrder (COMMERCE-PLAN delivery 5) ---------------------------------------------------
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'order_place:%'");
-$orderFields = '{ id number status statusLabel email taxvat total subtotal shippingAmount shippingMethod paymentMethod paymentInstructions items { sku name options quantity price rowTotal } shippingAddress { postcode city } billingAddress { postcode } }';
+$orderFields = '{ id number status statusLabel email taxvat total subtotal shippingAmount shippingMethod paymentMethod paymentInstructions items { sku name options quantity price regularPrice rowTotal } shippingAddress { postcode city } billingAddress { postcode } }';
 $place = static fn (string $cartId) => $api('mutation { placeOrder(cartId: "' . $cartId . '") ' . $orderFields . ' }')[1];
 $emptyCart = $api('mutation { createCart }')[1]['data']['createCart'] ?? '';
 // a second guest cart wanting the last unit, complete, placed after $sc took the 3
@@ -2365,7 +2371,7 @@ $api("mutation { setCartPaymentMethod(cartId: {$sc}, code: \"pix\") { total } }"
 $order = $place($shipCart)['data']['placeOrder'] ?? [];
 $again = $place($shipCart)['data']['placeOrder'] ?? [];
 assertSame([1, 'pending_payment', 'Aguardando pagamento', 'frete@selftest.local', '52998224725', 74.7, 0, 'pickup', 'pix', "Chave Pix: pix@selftest.local\nEnvie o comprovante.",
-    [['sku' => $v0Sku, 'name' => 'Caneca', 'options' => null, 'quantity' => 3, 'price' => 24.9, 'rowTotal' => 74.7]], ['postcode' => '30130000', 'city' => 'São Paulo'], '30130000'], [
+    [['sku' => $v0Sku, 'name' => 'Caneca', 'options' => null, 'quantity' => 3, 'price' => 24.9, 'regularPrice' => null, 'rowTotal' => 74.7]], ['postcode' => '30130000', 'city' => 'São Paulo'], '30130000'], [
     preg_match('/^ST-\d{6}$/', (string) ($order['number'] ?? '')), $order['status'] ?? null, $order['statusLabel'] ?? null, $order['email'] ?? null, $order['taxvat'] ?? null,
     $order['total'] ?? null, $order['shippingAmount'] ?? null, $order['shippingMethod'] ?? null, $order['paymentMethod'] ?? null, $order['paymentInstructions'] ?? null,
     $order['items'] ?? null, $order['shippingAddress'] ?? null, $order['billingAddress']['postcode'] ?? null,
@@ -2391,7 +2397,17 @@ assertSame(['Caneca', 24.9, 'INSUFFICIENT_STOCK'], [$copied['items'][0]['name'] 
     'pedido: nome e preço não mudam com o catálogo; a reserva tira a unidade do outro carrinho');
 assertSame('CART_HAS_ERRORS', $gqlCode([0, $place($otherCart)]), 'pedido: carrinho com item sem estoque é recusado');
 $stock->save($v0, ['selftest_var_cd' => ['quantity' => '4']]);
-$nextOrder = $api('mutation { placeOrder(cartId: "' . $otherCart . '") { number salesChannel } }', null, ['X-Sales-Channel:   Web   '])[1]['data']['placeOrder'] ?? [];
+// the product at its promotional price: the cart and the order show the full price too
+(new ValueService())->save('product', $v0, ['price_promo' => '19.9', 'price_promo_from' => '', 'price_promo_to' => '']);
+$promoCartItem = $api("{ cart(cartId: {$oc}) { items { price regularPrice } } }")[1]['data']['cart']['items'][0] ?? [];
+$nextOrder = $api('mutation { placeOrder(cartId: "' . $otherCart . '") { number salesChannel items { price regularPrice rowTotal } } }', null, ['X-Sales-Channel:   Web   '])[1]['data']['placeOrder'] ?? [];
+(new ValueService())->save('product', $v0, ['price_promo' => '']);
+$promoMail = (string) $pdo->query("SELECT body_html FROM mail_queue WHERE template_code = 'sales_order_placed' AND to_email = 'outro@selftest.local'")->fetchColumn();
+assertSame([['price' => 19.9, 'regularPrice' => 24.9], [['price' => 19.9, 'regularPrice' => 24.9, 'rowTotal' => 19.9]], [24.9, null], true], [
+    $promoCartItem, $nextOrder['items'] ?? null,
+    [(float) $pdo->query("SELECT regular_price FROM sales_order_item WHERE order_id = (SELECT order_id FROM sales_order WHERE increment_id = '" . ($nextOrder['number'] ?? '') . "')")->fetchColumn(), $order['items'][0]['regularPrice'] ?? null],
+    str_contains($promoMail, 'Promoção: de <s>R$ 24,90</s> por R$ 19,90'),
+], 'preço promocional: o carrinho e o pedido trazem o preço cheio (regularPrice) do item vendido em promoção, e o e-mail mostra "de ... por"; sem promoção, null');
 $next = $nextOrder['number'] ?? '';
 assertSame(sprintf('ST-%06d', (int) substr((string) ($order['number'] ?? ''), 3) + 1), $next, 'pedido: o número seguinte do website');
 assertSame(['App mobile', 'Web'], [$pdo->query("SELECT sales_channel FROM sales_order WHERE order_id = {$orderId}")->fetchColumn(), $nextOrder['salesChannel'] ?? null],
@@ -2404,13 +2420,14 @@ $orderStatus = static fn (int $id) => $pdo->query("SELECT status FROM sales_orde
 $orderMails = static fn (string $template) => (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = '{$template}' AND to_email LIKE '%@selftest.local'")->fetchColumn();
 $list = $admin->request('/admin/order/index?q=' . urlencode((string) $next))['body'];
 assertSame([true, false, true, 403], [
-    str_contains($list, (string) $next), str_contains($list, '>' . ($order['number'] ?? 'x') . '<'), str_contains($list, '1 pedido(s) · total R$ 24,90'),
+    str_contains($list, (string) $next), str_contains($list, '>' . ($order['number'] ?? 'x') . '<'), str_contains($list, '1 pedido(s) · total R$ 19,90'),
     $dash->request('/admin/order/index')['status'],
 ], 'pedidos: a lista filtra pelo número e mostra o total do filtro; perfil sem Iter_Sales::order recebe 403');
 $byChannel = $admin->request('/admin/order/index?sales_channel=Web')['body'];
 assertSame([true, false, true, true], [str_contains($byChannel, '>' . $next . '<'), str_contains($byChannel, '>' . ($order['number'] ?? 'x') . '<'),
     str_contains($byChannel, '<option value="Web" selected'), str_contains($orderPage($admin, $nextId), '<th>Canal</th><td>Web</td>')],
     'canal de venda: a lista filtra pelo canal e o pedido mostra o seu');
+assertSame(true, str_contains($orderPage($admin, $nextId), 'R$ 19,90<br><small class="sales-promo-price">Promoção · de <s>R$ 24,90</s></small>'), 'preço promocional: a tela do pedido mostra o preço cheio riscado');
 $page = $orderPage($admin, $orderId);
 assertSame([true, true, false, false, true], [str_contains($page, 'Confirmar pagamento'), str_contains($page, 'Cancelar pedido'), str_contains($page, 'Registrar entrega'),
     str_contains($page, 'Concluir'), str_contains($page, 'Chave Pix: pix@selftest.local')], 'pedido: a tela mostra só as ações do status (a pagar: confirmar e cancelar)');
@@ -3090,6 +3107,7 @@ assertSame([[false, false, false, false, false, true], ['at' => date('H:i'), 'fi
     substr_count($dashLog, "Painel de vendas: website {$dw}, dia "), str_contains($dashLog, "dia {$yesterday} diferente do banco; apurado de novo {\"cache\":\"adulterado\""),
 ], 'painel de vendas: a conferência de hora em hora, fatiada em 6 buscas, corrige o dia adulterado e o pedido apagado direto no banco e registra no log');
 $dashDb = Connection::get()->adapter();
+$pdo->exec('VACUUM ANALYZE sales_order'); // the test's fresh rows into the visibility map, as autovacuum does: else the planner fears the heap fetches
 $dashDb->beginTransaction();
 foreach (['enable_seqscan', 'enable_bitmapscan'] as $scan) { // a table this small is read whole; the index must be enough for when it isn't
     $dashDb->fetchAll("SET LOCAL {$scan} = off");

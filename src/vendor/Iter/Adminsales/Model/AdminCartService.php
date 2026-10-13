@@ -71,7 +71,7 @@ class AdminCartService
      *
      * @return int the order id
      */
-    public function place(int $quoteId, int $adminUserId, bool $paymentReceived = false, bool $notify = true, string $comment = ''): int
+    public function place(int $quoteId, int $adminUserId, bool $paymentReceived = false, bool $notify = true, string $comment = '', ?float $expectedTotal = null): int
     {
         $db = Connection::get()->adapter();
         $placed = $db->fetchOne($db->select()->from('sales_order', ['order_id'])->where('quote_id = ?', $quoteId));
@@ -81,7 +81,7 @@ class AdminCartService
         $orders = new OrderService();
         // who closes the sale is who sold it (a colleague may have started the cart); a closed cart keeps its seller
         Connection::get()->adapter()->update('sales_quote', ['admin_user_id' => $adminUserId], ['quote_id = ?' => $quoteId, 'admin_user_id IS NOT NULL', 'is_active = 1']);
-        $orderId = $orders->place($quoteId, $notify);
+        $orderId = $orders->place($quoteId, $notify, $expectedTotal);
         if (trim($comment) !== '') {
             $orders->addComment($orderId, $comment, false, $adminUserId);
         }

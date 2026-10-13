@@ -1,0 +1,18 @@
+[
+  {
+    "route": "admin",
+    "vendor": "Iter",
+    "module_name": "Promotion",
+    "controller_name": "promotion",
+    "controller_action": "index,edit,create,uses",
+    "method": "GET"
+  },
+  {
+    "route": "admin",
+    "vendor": "Iter",
+    "module_name": "Promotion",
+    "controller_name": "promotion",
+    "controller_action": "save,delete",
+    "method": "POST"
+  }
+]

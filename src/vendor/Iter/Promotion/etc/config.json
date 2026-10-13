@@ -1,0 +1,9 @@
+{
+  "name": "iter_promotion",
+  "version": "1.0.0",
+  "description": "Promoções e cupons",
+  "enabled": true,
+  "index": "0",
+  "author": "Esmerio",
+  "depends": ["iter_sales", "iter_catalog", "iter_store"]
+}

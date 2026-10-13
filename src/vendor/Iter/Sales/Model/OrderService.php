@@ -13,6 +13,7 @@ use Iter\Inventory\Model\StockService;
 use Iter\Mail\Model\MailException;
 use Iter\Mail\Model\MailService;
 use Iter\Payment\Model\PaymentService;
+use Iter\Promotion\Model\PromotionService;
 
 /**
  * The order (sales_order, COMMERCE-PLAN §3 and §6). place() turns a complete cart into an order in one
@@ -60,9 +61,9 @@ class OrderService
      * @return int the order id
      * @throws SalesException what the cart is missing; InventoryException INSUFFICIENT_STOCK when another order took the stock first
      */
-    public function place(int $quoteId, bool $notify = true): int
+    public function place(int $quoteId, bool $notify = true, ?float $expectedTotal = null): int
     {
-        [$orderId, $placed] = Connection::get()->adapter()->transaction(function ($db) use ($quoteId, $notify): array {
+        [$orderId, $placed] = Connection::get()->adapter()->transaction(function ($db) use ($quoteId, $notify, $expectedTotal): array {
             $db->fetchOne($db->select()->from('sales_quote', ['quote_id'])->where('quote_id = ?', $quoteId)->forUpdate());
             $existing = $db->fetchOne($db->select()->from('sales_order', ['order_id'])->where('quote_id = ?', $quoteId));
             if ($existing !== false) {
@@ -70,7 +71,24 @@ class OrderService
             }
             $cart = (new CartService())->view($quoteId);
             self::assertComplete($cart);
+            if ($expectedTotal !== null && abs(round($expectedTotal, 2) - round((float) $cart['total'], 2)) >= 0.01) {
+                throw new SalesException('TOTAL_CHANGED', 'O total do carrinho mudou. Revise os valores atualizados e confirme novamente.');
+            }
             $websiteId = $cart['website_id'];
+            $couponUsed = (bool) array_filter($cart['discounts'] ?? [], static fn ($d) => !empty($d['coupon_code']) && strtoupper((string) $d['coupon_code']) === strtoupper((string) ($cart['coupon_code'] ?? '')));
+            $couponId = null;
+            if (\isModuleEnabled('iter_promotion') && $couponUsed && !empty($cart['coupon_code'])) {
+                $coupon = $db->fetchRow("SELECT c.coupon_id, c.usage_limit, c.usage_per_customer FROM promotion_coupon c WHERE c.code = :code FOR UPDATE", ['code' => PromotionService::normalizeCode((string) $cart['coupon_code'])]);
+                if (!$coupon) throw new SalesException('COUPON_NOT_FOUND', 'Cupom não encontrado.');
+                $couponId = (int) $coupon['coupon_id'];
+                $count = $db->fetchOne("SELECT COUNT(*) FROM promotion_coupon_usage WHERE coupon_id = :id AND status = 'used'", ['id' => $couponId]);
+                if ($coupon['usage_limit'] !== null && (int) $count >= (int) $coupon['usage_limit']) throw new SalesException('COUPON_USED_UP', 'Este cupom atingiu o limite de usos.');
+                if ($coupon['usage_per_customer'] !== null) {
+                    if ($cart['customer_id'] === null) throw new SalesException('COUPON_LOGIN_REQUIRED', 'Entre na sua conta para usar este cupom.');
+                    $countCustomer = $db->fetchOne("SELECT COUNT(*) FROM promotion_coupon_usage WHERE coupon_id = :id AND customer_id = :customer AND status = 'used'", ['id' => $couponId, 'customer' => $cart['customer_id']]);
+                    if ((int) $countCustomer >= (int) $coupon['usage_per_customer']) throw new SalesException('COUPON_USED_UP', 'Você já atingiu o limite de uso deste cupom.');
+                }
+            }
             $number = $this->nextNumber($websiteId);
             (new StockService())->reserve($websiteId, array_column($cart['items'], 'quantity', 'product_id'), 'order', $number);
 
@@ -86,6 +104,8 @@ class OrderService
                 'lastname' => $cart['lastname'],
                 'taxvat' => $cart['taxvat'],
                 'subtotal' => $cart['subtotal'],
+                'discount_amount' => $cart['discount_amount'] ?? 0,
+                'coupon_code' => $couponUsed ? ($cart['coupon_code'] ?? null) : null,
                 'shipping_amount' => $cart['shipping_amount'],
                 'grand_total' => $cart['total'],
                 'shipping_method' => $cart['shipping_method']['code'] ?? null,
@@ -105,15 +125,37 @@ class OrderService
                 'options' => $options[$i['product_id']] ?? null,
                 'quantity' => $i['quantity'],
                 'price' => $i['price'],
+                'regular_price' => $i['regular_price'],
+                'discount_amount' => $i['discount_amount'] ?? 0,
                 'row_total' => $i['row_total'],
             ], $cart['items']));
+            foreach (($cart['discounts'] ?? []) as $discount) {
+                $db->insert('sales_order_discount', [
+                    'order_id' => $orderId, 'promotion_id' => $discount['promotion_id'] ?? null,
+                    'promotion_name' => $discount['name'], 'coupon_code' => $discount['coupon_code'] ?? null,
+                    'discount_amount' => $discount['amount'], 'details' => json_encode((object) [], JSON_UNESCAPED_UNICODE),
+                ]);
+            }
+            if ($couponId !== null) {
+                $db->insert('promotion_coupon_usage', ['coupon_id' => $couponId, 'order_id' => $orderId,
+                    'customer_id' => $cart['customer_id'], 'discount_amount' => $cart['discount_amount'] ?? 0, 'status' => 'used']);
+            }
             foreach (['shipping' => $cart['shipping_address'], 'billing' => $cart['billing_address']] as $type => $address) {
                 $db->insert('sales_order_address', ['order_id' => $orderId, 'type' => $type]
                     + array_map(static fn ($v) => $v === '' ? null : $v, array_intersect_key($address, array_flip(self::ADDRESS_COLUMNS)))
                     + ['attributes' => json_encode((object) array_diff_key($address, array_flip(self::ADDRESS_COLUMNS)), JSON_UNESCAPED_UNICODE)]);
             }
+            $historyParts = [];
+            foreach (($cart['discounts'] ?? []) as $discount) {
+                $label = (string) $discount['name'];
+                if (!empty($discount['coupon_code'])) $label .= ' (cupom ' . (string) $discount['coupon_code'] . ')';
+                $historyParts[] = $label . ': - R$ ' . number_format((float) $discount['amount'], 2, ',', '.');
+            }
+            if ($cart['admin_user_id'] !== null) $historyParts[] = 'Pedido criado pelo atendimento.';
+            $historyComment = $historyParts ? implode('; ', $historyParts) : null;
             $db->insert('sales_order_status_history', ['order_id' => $orderId, 'status' => 'pending_payment', 'is_customer_notified' => (int) $notify]
-                + ($cart['admin_user_id'] === null ? [] : ['comment' => 'Pedido criado pelo atendimento.', 'admin_user_id' => $cart['admin_user_id']]));
+                + ($historyComment === null ? [] : ['comment' => $historyComment])
+                + ($cart['admin_user_id'] === null ? [] : ['admin_user_id' => $cart['admin_user_id']]));
             $db->update('sales_quote', ['is_active' => 0], ['quote_id = ?' => $quoteId]);
 
             return [$orderId, true];
@@ -179,6 +221,7 @@ class OrderService
             ->joinLeft(['w' => 'store_website'], 'w.website_id = o.website_id', ['website_name' => 'name'])), null, 'order_id');
         $items = $byOrder($db->fetchAll($db->select()->from('sales_order_item')->where('order_id IN (?)', $orderIds)->order('item_id')));
         $addresses = $byOrder($db->fetchAll($db->select()->from('sales_order_address')->where('order_id IN (?)', $orderIds)));
+        $discounts = $byOrder($db->fetchAll($db->select()->from('sales_order_discount')->where('order_id IN (?)', $orderIds)->order('discount_id')));
         $history = $db->select()->from(['h' => 'sales_order_status_history'])->where('h.order_id IN (?)', $orderIds)->order('h.history_id DESC');
         $history = $byOrder($db->fetchAll($history->joinLeft(['u' => 'admin_user'], 'u.user_id = h.admin_user_id', ['admin_username' => 'username'])));
         $shipments = array_column($db->fetchAll($db->select()->from('sales_shipment')->where('order_id IN (?)', $orderIds)), null, 'order_id');
@@ -194,9 +237,12 @@ class OrderService
             }
             $result[$id] = $orders[$id] + [
                 'status_label' => self::STATUS_LABELS[$orders[$id]['status']] ?? $orders[$id]['status'],
-                'items' => array_map(static fn (array $i) => ['quantity' => (float) $i['quantity'], 'price' => (float) $i['price'], 'row_total' => (float) $i['row_total']] + $i, $items[$id] ?? []),
+                'items' => array_map(static fn (array $i) => ['quantity' => (float) $i['quantity'], 'price' => (float) $i['price'], 'row_total' => (float) $i['row_total'],
+                'regular_price' => $i['regular_price'] === null ? null : (float) $i['regular_price']] + $i, $items[$id] ?? []),
                 'shipping_address' => $address['shipping'] ?? null,
                 'billing_address' => $address['billing'] ?? null,
+                'discounts' => array_map(static fn (array $d) => $d + ['amount' => (float) $d['discount_amount']], $discounts[$id] ?? []),
+                'discount_amount' => (float) ($orders[$id]['discount_amount'] ?? 0),
                 'history' => $history[$id] ?? [],
                 'shipment' => $shipments[$id] ?? null,
             ];
@@ -274,6 +320,7 @@ class OrderService
         $reason = trim($reason) ?: throw new SalesException('REASON_REQUIRED', 'Informe o motivo do cancelamento.');
         $this->transition($orderId, 'canceled', $reason, $adminUserId, function ($db, array $order): void {
             (new StockService())->release((int) $order['website_id'], $this->reserved($order['order_id']), 'canceled', $order['increment_id']);
+            if (\isModuleEnabled('iter_promotion')) $db->update('promotion_coupon_usage', ['status' => 'released'], ['order_id = ?' => (int) $order['order_id'], 'status = ?' => 'used']);
         });
     }
 
@@ -503,15 +550,23 @@ class OrderService
         $money = static fn ($v) => 'R$ ' . number_format((float) $v, 2, ',', '.');
         $rows = '';
         foreach ($order['items'] as $item) {
-            $name = htmlspecialchars($item['name'] . ($item['options'] ? " ({$item['options']})" : ''));
-            $rows .= sprintf('<tr><td>%s</td><td>%s</td><td>%s</td></tr>', $name, str_replace('.', ',', StockService::format((string) $item['quantity'])), $money($item['row_total']));
+            $name = htmlspecialchars($item['name'] . ($item['options'] ? " ({$item['options']})" : ''))
+                . ($item['regular_price'] ? '<br><small>Promoção: de <s>' . $money($item['regular_price']) . '</s> por ' . $money($item['price']) . '</small>' : '');
+            if (!empty($item['discount_amount'])) $name .= '<br><small>Desconto adicional: − ' . $money($item['discount_amount']) . '</small>';
+            $netRow = max(0.0, (float) $item['row_total'] - (float) ($item['discount_amount'] ?? 0));
+            $rows .= sprintf('<tr><td>%s</td><td>%s</td><td>%s</td></tr>', $name, str_replace('.', ',', StockService::format((string) $item['quantity'])), $money($netRow));
         }
+        $discountLines = array_map(static fn ($d) => htmlspecialchars((string) $d['promotion_name']) . ($d['coupon_code'] ? ' · cupom ' . htmlspecialchars((string) $d['coupon_code']) : '') . ': − ' . $money($d['discount_amount']), $order['discounts'] ?? []);
+        $discountSummary = (float) ($order['discount_amount'] ?? 0) > 0
+            ? '<p>Promoções aplicadas:<br>' . implode('<br>', $discountLines) . '<br><strong>Descontos: − ' . $money($order['discount_amount']) . '</strong></p>'
+            : '';
         try {
             (new MailService())->send($template, $order['email'], $vars + [
                 'name' => $order['firstname'],
                 'number' => $order['increment_id'],
                 'items' => $rows,
                 'subtotal' => $money($order['subtotal']),
+                'discount_summary' => $discountSummary,
                 'shipping' => trim(($order['shipping_label'] ?? '') . ' ' . $money($order['shipping_amount'])),
                 'total' => $money($order['grand_total']),
                 'payment' => (string) $order['payment_label'],

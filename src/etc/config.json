@@ -15,7 +15,8 @@
         "iter_payment": "1",
         "iter_adminsales": "1",
         "iter_mercadopago": "1",
-        "iter_melhorenvio": "1"
+        "iter_melhorenvio": "1",
+        "iter_promotion": "1"
     },
     "customized": {
         "egsn_user": "1"

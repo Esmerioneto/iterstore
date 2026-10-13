@@ -1,0 +1,3 @@
+[
+  { "label": "Promoções", "resource": "Iter_Promotion::manage", "url": "/admin/promotion/index", "parent": "vendas", "sort_order": 10 }
+]

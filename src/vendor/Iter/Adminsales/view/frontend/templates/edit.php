@@ -66,7 +66,7 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
             <tr>
                 <td><?= $e($item['sku']) ?></td>
                 <td><?= $e($item['name']) ?><?= $item['error'] ? '<br><strong>' . $e($item['error']) . '</strong>' : '' ?></td>
-                <td><?= $item['price'] === null ? '—' : $money($item['price']) ?></td>
+                <td><?= $item['price'] === null ? '—' : $money($item['price']) ?><?= $item['regular_price'] ? '<br><small class="sales-promo-price">Promoção · de <s>' . $money($item['regular_price']) . '</s></small>' : '' ?></td>
                 <td><?= $form('updateitem', '<input type="hidden" name="item_id" value="' . (int) $item['id'] . '"><input type="text" name="quantity" size="5" inputmode="decimal" value="' . $e($qty($item['quantity'])) . '"> <button type="submit">Alterar</button>') ?></td>
                 <td><?= $money($item['row_total']) ?></td>
                 <td><?= $form('updateitem', '<input type="hidden" name="item_id" value="' . (int) $item['id'] . '"><input type="hidden" name="quantity" value="0"><button type="submit">Remover</button>') ?></td>
@@ -152,7 +152,8 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
 <?php endif; ?>
 
     <h3>Fechar</h3>
-    <p class="sales-order-totals">Subtotal <?= $money($cart['subtotal']) ?> · Frete <?= $money($cart['shipping_amount']) ?> · <strong>Total <?= $money($cart['total']) ?></strong></p>
+    <?php if (!empty($cart['discounts'])): ?><ul><?php foreach ($cart['discounts'] as $discount): ?><li><?= $e($discount['name']) ?><?= $discount['coupon_code'] ? ' · cupom ' . $e($discount['coupon_code']) : '' ?>: − <?= $money($discount['amount']) ?></li><?php endforeach; ?></ul><?php endif; ?>
+    <p class="sales-order-totals">Subtotal <?= $money($cart['subtotal']) ?><?= !empty($cart['discount_amount']) ? ' · Descontos − ' . $money($cart['discount_amount']) : '' ?> · Frete <?= $money($cart['shipping_amount']) ?> · <strong>Total <?= $money($cart['total']) ?></strong></p>
 <?php if ($missing): ?>
     <p><strong>Antes de criar o pedido:</strong></p>
     <ul class="adminsales-missing">

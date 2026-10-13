@@ -48,13 +48,14 @@ class AdminSalesSchema
                         'paymentReceived' => ['type' => Type::boolean(), 'defaultValue' => false, 'description' => 'Já confirma o pagamento (balcão, dinheiro). Exige Iter_Sales::order_payment.'],
                         'notifyCustomer' => ['type' => Type::boolean(), 'defaultValue' => true, 'description' => 'Manda ao cliente os e-mails do pedido.'],
                         'comment' => ['type' => Type::string(), 'description' => 'Comentário interno no histórico (não vai para o cliente).'],
+                        'expectedTotal' => ['type' => Type::float(), 'description' => 'Total confirmado pelo admin; se mudou, retorna TOTAL_CHANGED.'],
                     ],
                     'resolve' => $guard(static function ($root, array $args) use ($service, $userId): array {
                         if ($args['paymentReceived'] && !Auth::isAllowed('Iter_Sales::order_payment')) {
                             throw new Error('O seu perfil não pode confirmar pagamentos: envie paymentReceived: false.', extensions: ['code' => 'FORBIDDEN']);
                         }
                         // a retry after the order was placed finds the closed cart: the same order comes back
-                        $orderId = $service->place($service->resolve($args['cartId'], true), $userId(), $args['paymentReceived'], $args['notifyCustomer'], (string) ($args['comment'] ?? ''));
+                        $orderId = $service->place($service->resolve($args['cartId'], true), $userId(), $args['paymentReceived'], $args['notifyCustomer'], (string) ($args['comment'] ?? ''), isset($args['expectedTotal']) ? (float) $args['expectedTotal'] : null);
 
                         return (new OrderService())->get($orderId);
                     }),
