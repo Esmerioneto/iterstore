@@ -1,0 +1,18 @@
+[
+  {
+    "route": "admin",
+    "vendor": "Iter",
+    "module_name": "Message",
+    "controller_name": "message",
+    "controller_action": "index,view",
+    "method": "GET"
+  },
+  {
+    "route": "admin",
+    "vendor": "Iter",
+    "module_name": "Message",
+    "controller_name": "message",
+    "controller_action": "send",
+    "method": "POST"
+  }
+]

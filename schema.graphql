@@ -201,6 +201,40 @@ type Query {
     websiteId: ID
   ): MercadopagoSettings!
 
+  "A conversa do cliente do token com a loja, a mais antiga primeiro. Marca as da loja como lidas."
+  customerMessages(
+    "Máximo 100."
+    limit: Int = 100
+
+    "Só as anteriores a esta mensagem (carregar mais)."
+    beforeId: ID
+  ): [CustomerMessage!]!
+
+  "Mensagens da loja que o cliente do token ainda não leu."
+  customerUnreadMessages: Int!
+
+  "Um cliente por linha, a conversa mais recente primeiro; 20 por página."
+  adminMessageInbox(
+    unreadOnly: Boolean = false
+
+    "Parte do nome ou do e-mail."
+    search: String
+
+    websiteId: ID
+    page: Int = 1
+  ): MessageInbox!
+
+  "A conversa de um cliente, a mais antiga primeiro. Marca as do cliente como lidas."
+  adminCustomerMessages(
+    customerId: ID!
+
+    "Máximo 100."
+    limit: Int = 100
+
+    "Só as anteriores a esta mensagem (carregar mais)."
+    beforeId: ID
+  ): [CustomerMessage!]!
+
   "O usuário do token (ou da sessão do painel); null sem login."
   currentAdmin: AdminUser
 }
@@ -936,6 +970,46 @@ type MercadopagoSettings {
   maxInstallments: Int!
 }
 
+type CustomerMessage {
+  id: ID!
+  sender: MessageSender!
+
+  "Texto puro: escape ao mostrar."
+  body: String!
+
+  createdAt: String!
+
+  "Quando o outro lado leu; null = não lida."
+  readAt: String
+
+  "Quem da loja escreveu (só nas da loja)."
+  adminName: String
+}
+
+enum MessageSender {
+  CUSTOMER
+  ADMIN
+}
+
+type MessageInbox {
+  items: [MessageConversation!]!
+  total: Int!
+}
+
+type MessageConversation {
+  customerId: ID!
+  customerName: String!
+  email: String!
+  websiteId: ID!
+  websiteName: String!
+  lastMessage: String!
+  lastSender: MessageSender!
+  lastAt: String!
+
+  "Do cliente, não lidas pela loja."
+  unread: Int!
+}
+
 type AdminUser {
   id: ID!
   username: String!
@@ -1415,6 +1489,12 @@ type Mutation {
 
     card: MercadopagoCardInput
   ): OrderPayment!
+
+  "O cliente do token escreve para a loja (1 a 2000 caracteres). Erros: MESSAGE_EMPTY, MESSAGE_TOO_LONG."
+  sendCustomerMessage(body: String!): CustomerMessage!
+
+  "A loja escreve para o cliente, mesmo sem conversa anterior. Erros: MESSAGE_EMPTY, MESSAGE_TOO_LONG, CUSTOMER_NOT_FOUND."
+  adminSendCustomerMessage(customerId: ID!, body: String!): CustomerMessage!
 
   "Login do admin pela API. Erra junto com o painel: tentativas contam para o bloqueio."
   generateAdminToken(username: String!, password: String!): AdminToken!
