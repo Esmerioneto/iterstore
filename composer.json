@@ -14,13 +14,15 @@
     ],
     "require": {
         "webonyx/graphql-php": "^15.37",
-        "symfony/mailer": "^7"
+        "symfony/mailer": "^7",
+        "guzzlehttp/guzzle": "^8.2"
     },
     "scripts": {
         "test": [
             "php bin/view-selftest.php",
             "php bin/db-selftest.php",
-            "php bin/admin-selftest.php"
+            "php bin/admin-selftest.php",
+            "php bin/shipping-provider-selftest.php"
         ]
     }
 }

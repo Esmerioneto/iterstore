@@ -1,0 +1,14 @@
+[
+  { "path": "shipping/melhorenvio/active", "group": "Melhor Envio", "label": "Ativar cotações do Melhor Envio", "type": "boolean", "default": 0, "scope": "website" },
+  { "path": "melhorenvio/environment", "group": "Melhor Envio", "label": "Ambiente", "type": "select", "default": "sandbox", "options": { "sandbox": "Sandbox (testes)", "production": "Produção" }, "required": true },
+  { "path": "melhorenvio/client_id", "group": "Melhor Envio", "label": "Client ID", "type": "text", "default": "", "required": false },
+  { "path": "melhorenvio/client_secret", "group": "Melhor Envio", "label": "Client Secret", "type": "password", "default": "", "required": false },
+  { "path": "melhorenvio/redirect_uri", "group": "Melhor Envio", "label": "URL de callback OAuth (deve ser idêntica à cadastrada no Melhor Envio)", "type": "url", "default": "", "required": false },
+  { "path": "melhorenvio/user_agent", "group": "Melhor Envio", "label": "User-Agent (nome da aplicação e e-mail técnico)", "type": "text", "default": "", "required": true },
+  { "path": "shipping/melhorenvio/origin_postcode", "group": "Melhor Envio", "label": "CEP de origem da loja (8 dígitos)", "type": "text", "default": "", "required": false, "scope": "website", "mask": "cep" },
+  { "path": "shipping/melhorenvio/services", "group": "Melhor Envio", "label": "IDs dos serviços separados por vírgula (vazio = todos os serviços disponíveis)", "type": "text", "default": "", "required": false, "scope": "website" },
+  { "path": "shipping/melhorenvio/default_width", "group": "Melhor Envio", "label": "Largura padrão do produto (cm; usada se o atributo width estiver vazio)", "type": "number", "default": 10, "min": 1, "max": 200, "scope": "website" },
+  { "path": "shipping/melhorenvio/default_height", "group": "Melhor Envio", "label": "Altura padrão do produto (cm; usada se o atributo height estiver vazio)", "type": "number", "default": 10, "min": 1, "max": 200, "scope": "website" },
+  { "path": "shipping/melhorenvio/default_length", "group": "Melhor Envio", "label": "Comprimento padrão do produto (cm; usado se o atributo length estiver vazio)", "type": "number", "default": 10, "min": 1, "max": 200, "scope": "website" },
+  { "path": "shipping/melhorenvio/default_weight", "group": "Melhor Envio", "label": "Peso padrão do produto (kg; usado se o atributo weight estiver vazio)", "type": "text", "default": "0.3", "required": true, "scope": "website" }
+]

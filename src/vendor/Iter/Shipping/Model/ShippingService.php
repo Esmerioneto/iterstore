@@ -6,6 +6,7 @@ namespace Iter\Shipping\Model;
 
 use Iter\Core\Config;
 use Iter\Core\Db\Connection;
+use Iter\Core\Log;
 use Iter\Sales\Model\SalesException;
 
 /**
@@ -14,7 +15,7 @@ use Iter\Sales\Model\SalesException;
  * - freeshipping: 0 when the subtotal reaches the configured value;
  * - pickup: 0, at the store's address.
  * The first two need the delivery address.
- * ponytail: three methods in one class; a ShippingMethodInterface when Melhor Envio (a 4th, external) arrives
+ * External carriers are discovered through ShippingRateProviderInterface and module metadata.
  */
 class ShippingService
 {
@@ -24,8 +25,11 @@ class ShippingService
      * @param array $cart CartService::view() (website_id, subtotal, shipping_address, items with weight)
      * @return array<string, array{code: string, label: string, amount: float, days: int}> by code, cheapest first
      */
-    public function rates(array $cart): array
+    public function rates(array $cart, ?string $destinationPostcode = null): array
     {
+        if ($destinationPostcode !== null) {
+            $cart['shipping_address'] = array_merge((array) ($cart['shipping_address'] ?? []), ['postcode' => preg_replace('/\\D/', '', $destinationPostcode)]);
+        }
         $websiteId = (int) $cart['website_id'];
         $on = static fn (string $method) => (bool) Config::get("shipping/{$method}/active", $websiteId);
         $postcode = $cart['shipping_address']['postcode'] ?? null;
@@ -43,6 +47,14 @@ class ShippingService
         if ($on('pickup')) {
             $address = array_filter([Config::get('store/address/street', $websiteId), Config::get('store/address/number', $websiteId), Config::get('store/address/city', $websiteId)]);
             $rates['pickup'] = ['code' => 'pickup', 'label' => 'Retirar na loja' . ($address ? ' (' . implode(', ', $address) . ')' : ''), 'amount' => 0.0, 'days' => (int) Config::get('shipping/pickup/days', $websiteId)];
+        }
+        // Providers are registered by their own module metadata; Shipping has no carrier-specific dependency.
+        foreach ((new ShippingRateProviderRegistry())->all() as $provider) {
+            try {
+                $rates += $provider->rates($cart);
+            } catch (\Throwable $e) {
+                Log::error('Shipping provider: falha ao consultar cotações.', ['website_id' => $websiteId, 'provider' => get_class($provider), 'reason' => $e->getMessage()]);
+            }
         }
         uasort($rates, static fn ($a, $b) => [$a['amount'], $a['days']] <=> [$b['amount'], $b['days']]);
 
