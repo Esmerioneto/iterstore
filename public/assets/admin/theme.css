@@ -404,7 +404,7 @@ a {
 }
 
 .admin-dashboard form.admin-filters select,
-.admin-dashboard form.admin-filters input {
+.admin-dashboard form.admin-filters input:not(.admin-switch) {
   width: auto;
   height: 36px;
   margin: 0;
