@@ -38,7 +38,7 @@ class Connection
         try {
             $pdo = new \PDO($conStr);
         } catch (\PDOException $e) {
-            throw new \RuntimeException(
+            throw new ConnectionException(
                 'Não foi possível conectar ao banco de dados PostgreSQL. '
                 . 'Verifique se o container Docker do banco está em execução ("docker compose up -d"). '
                 . 'Erro original: ' . $e->getMessage(),
