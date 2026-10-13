@@ -719,3 +719,25 @@ document.addEventListener('DOMContentLoaded', function () {
     button.isConnected && button.focus();
   });
 });
+
+// [data-refresh="N"] with an id: every N seconds the page is fetched again and the block is swapped for
+// the new one (Mensagens → conversa). X-Admin-Poll: the refresh doesn't keep the session alive;
+// logged out (401) or failing, the block stays as it is
+document.querySelectorAll('[data-refresh][id]').forEach(function (block) {
+  setInterval(function () {
+    fetch(location.href, { headers: { 'X-Admin-Poll': '1' } })
+      .then(function (response) { return response.ok ? response.text() : null; })
+      .then(function (html) {
+        var fresh = html && new DOMParser().parseFromString(html, 'text/html').getElementById(block.id);
+        var atBottom = block.scrollHeight - block.scrollTop - block.clientHeight < 40;
+        if (fresh && fresh.innerHTML !== block.innerHTML) {
+          block.innerHTML = fresh.innerHTML;
+          if (atBottom) block.scrollTop = block.scrollHeight;
+        }
+      })
+      .catch(function () {});
+  }, Number(block.dataset.refresh) * 1000);
+});
+
+// the conversation opens on its newest message
+document.querySelectorAll('.message-bubbles').forEach(function (list) { list.scrollTop = list.scrollHeight; });

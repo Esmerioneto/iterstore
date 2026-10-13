@@ -169,6 +169,9 @@ foreach ($groupFields as $group => $fields) {
 ?>
 <section class="customer-form catalog-product-form">
     <h2><?= $is_edit ? 'Editar cliente' : 'Novo cliente' ?></h2>
+<?php if ($is_edit && \isModuleEnabled('iter_message') && \Iter\Admin\Auth::isAllowed('Iter_Message::manage')): ?>
+    <p><a href="/admin/message/view?customer_id=<?= (int) $customer_id ?>">Enviar mensagem</a></p>
+<?php endif; ?>
 <?php if (!$is_edit && count($sets) > 1): ?>
     <form method="get" action="/admin/customer/create">
         <label>Conjunto de atributos

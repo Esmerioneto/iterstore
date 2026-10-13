@@ -2019,6 +2019,7 @@ assertSame([404, false, 'Cannot query field "products" on type "Query".'], [
     $gql($admin, '{ products { total } }')['errors'][0]['message'] ?? null,
 ], 'módulo desativado: sem rotas, sem menu e sem API');
 assertSame(true, (bool) $productRow('selftest-up'), 'desativar não apaga os dados');
+$toggle('iter_message', 0);
 assertSame(['Módulo Customer desativado. Os dados dele continuam no banco.'], $toggle('iter_customer', 0), 'Customer desativado pelo admin');
 assertSame([404, false, 'Cannot query field "customers" on type "Query". Did you mean "stores"?'], [$admin->request('/admin/customer/index')['status'], str_contains($admin->request('/admin/index')['body'], '/admin/customer/index'),
     $gql($admin, '{ customers { total } }')['errors'][0]['message'] ?? null], 'Customer desativado: sem rotas, sem menu e sem API');
@@ -2035,6 +2036,7 @@ $toggle('iter_payment', 1);
 $toggle('iter_mercadopago', 1);
 $toggle('iter_adminsales', 1);
 $toggle('iter_promotion', 1);
+$toggle('iter_message', 1);
 assertSame('7', (new StockService())->getSalable([$estId])[$estId], 'Inventory reativado: o estoque continua lá');
 assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
 assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Configurações não chega aos módulos');
