@@ -32,6 +32,9 @@ $brandIcon = ['master' => 'master', 'debmaster' => 'master', 'visa' => 'visa', '
     <table class="sales-order-info">
         <tr><th>Loja</th><td><?= $e($order['website_name'] ?? '—') ?></td></tr>
         <tr><th>Canal</th><td><?= $e($order['sales_channel']) ?></td></tr>
+<?php if ($order['status'] === 'canceled'): ?>
+        <tr><th>Motivo do cancelamento</th><td><?= $e(OrderService::CANCEL_REASONS[$order['cancel_reason'] ?? ''] ?? 'Não informado') ?></td></tr>
+<?php endif; ?>
         <tr><th>Data</th><td><?= $e(substr((string) $order['created_at'], 0, 16)) ?></td></tr>
         <tr><th>Cliente</th><td><?= $e($order['firstname'] . ' ' . $order['lastname']) ?> · <?= $e($order['email']) ?> · CPF/CNPJ <?= $e($order['taxvat']) ?>
             <?= $order['customer_id'] === null ? ' (visitante)' : ' · <a href="/admin/customer/edit?id=' . (int) $order['customer_id'] . '">ver cliente</a>' ?></td></tr>
@@ -90,7 +93,26 @@ $brandIcon = ['master' => 'master', 'debmaster' => 'master', 'visa' => 'visa', '
     <?= $form('complete', '<button type="submit">Concluir (entregue)</button>') ?>
 <?php endif; ?>
 <?php if (in_array('cancel', $actions, true)): ?>
-    <?= $form('cancel', '<label>Motivo <input type="text" name="comment" maxlength="1000" required></label> <button type="submit">Cancelar pedido</button>', 'Cancelar este pedido? O estoque reservado volta para a venda e o cliente é avisado.') ?>
+    <?php
+    $reasons = '<option value="">Escolha...</option>';
+    foreach (OrderService::CANCEL_REASONS as $code => $label) {
+        $reasons .= '<option value="' . $code . '">' . $e($label) . '</option>';
+    }
+    $returned = OrderService::returnedItems($order);
+    // paid through Mercado Pago: refunded there, unless the admin switches it off and says how the money went back
+    $mpPaid = $order['status'] === 'processing' ? array_sum(array_column(array_filter($charges, static fn ($c) => $c['status'] === 'approved'), 'amount')) : 0;
+    $refundField = '<label class="sales-order-cancel-refund">Como o valor foi devolvido <textarea name="refund_note" rows="2" maxlength="1000"' . ($mpPaid > 0 ? '' : ' required')
+        . ' placeholder="Ex.: Pix para a chave do cliente em 12/10"></textarea><small>' . ($mpPaid > 0 ? 'Só se não estornar pelo Mercado Pago (ex.: já estornou no painel).' : 'O pedido já foi pago: isto vai para o histórico e para o e-mail do cliente.') . '</small></label>';
+    ?>
+    <div class="sales-order-cancel">
+    <?= $form('cancel', '<label>Motivo <select name="cancel_reason" required>' . $reasons . '</select></label>'
+        . ' <label>Complemento <input type="text" name="comment" maxlength="1000" placeholder="Obrigatório com &quot;Outro&quot;"></label>'
+        . ($mpPaid > 0 ? ' <label class="mobile-switch"><input type="hidden" name="refund" value="0"><input type="checkbox" class="admin-switch" name="refund" value="1" checked> Estornar ' . $money($mpPaid) . ' no Mercado Pago</label>' : '')
+        . ($order['status'] === 'processing' ? ' ' . $refundField : '')
+        . ' <label class="mobile-switch"><input type="hidden" name="notify" value="0"><input type="checkbox" class="admin-switch" name="notify" value="1" checked> Avisar o cliente por e-mail</label>'
+        . ' <button type="submit">Cancelar pedido</button>',
+        'Cancelar este pedido?' . ($returned !== '' ? ' Voltam ao estoque: ' . $returned . '.' : '') . ($mpPaid > 0 ? ' Com a chave ligada, ' . $money($mpPaid) . ' são estornados no Mercado Pago.' : '')) ?>
+    </div>
 <?php endif; ?>
 
     <h3>Histórico</h3>

@@ -7,7 +7,7 @@
     { "code": "sales_order_shipped", "label": "Pedido enviado", "subject": "O seu pedido {{ number }} foi enviado", "file": "sales-order-shipped",
       "vars": { "name": "Maria", "number": "SP-000001", "carrier": "Correios", "tracking": "AA123456789BR" } },
     { "code": "sales_order_canceled", "label": "Pedido cancelado", "subject": "O pedido {{ number }} foi cancelado", "file": "sales-order-canceled",
-      "vars": { "name": "Maria", "number": "SP-000001", "comment": "Pagamento não recebido." } },
+      "vars": { "name": "Maria", "number": "SP-000001", "comment": "Desistência do cliente", "refund": "<p>O valor de R$ 114,80 foi devolvido: Pix para a chave do cliente em 12/10.</p>" } },
     { "code": "sales_order_comment", "label": "Comentário no pedido", "subject": "Novidade no pedido {{ number }}", "file": "sales-order-comment",
       "vars": { "name": "Maria", "number": "SP-000001", "comment": "O seu pedido sai amanhã." } }
 ]

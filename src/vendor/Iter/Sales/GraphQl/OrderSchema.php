@@ -24,7 +24,7 @@ use Iter\Sales\Model\SalesException;
 class OrderSchema
 {
     /** @return array{query: array, mutation: array} */
-    public static function fields(ObjectType $orderType): array
+    public static function fields(ObjectType $orderType, EnumType $cancelReasonType): array
     {
         $service = new OrderService();
         $userId = static fn (): int => (int) Auth::user()->getId();
@@ -41,6 +41,8 @@ class OrderSchema
             'website_id' => (string) ($args['websiteId'] ?? ''),
             'customer_id' => (string) ($args['customerId'] ?? ''),
             'sales_channel' => trim((string) ($args['salesChannel'] ?? '')),
+            'payment_method' => trim((string) ($args['paymentMethod'] ?? '')),
+            'cancel_reason' => (string) ($args['cancelReason'] ?? ''),
             'q' => trim((string) ($args['search'] ?? '')),
             'from' => $date($args['from'] ?? null, 'from'),
             'to' => $date($args['to'] ?? null, 'to'),
@@ -52,6 +54,8 @@ class OrderSchema
             'websiteId' => Type::id(),
             'customerId' => Type::id(),
             'salesChannel' => ['type' => Type::string(), 'description' => 'Só os deste canal ("App mobile", "Atendimento"...).'],
+            'paymentMethod' => ['type' => Type::string(), 'description' => 'Só os pagos com esta forma (código: "pix", "offline", "mercadopago_credit"...).'],
+            'cancelReason' => ['type' => $cancelReasonType, 'description' => 'Só os cancelados por este motivo.'],
             'search' => ['type' => Type::string(), 'description' => 'Parte do número, do e-mail ou do nome.'],
             'from' => ['type' => Type::string(), 'description' => 'Feitos a partir deste dia (AAAA-MM-DD).'],
             'to' => ['type' => Type::string(), 'description' => 'Até este dia, inclusive (AAAA-MM-DD).'],
@@ -79,7 +83,7 @@ class OrderSchema
                         'page' => ['type' => Type::int(), 'defaultValue' => 1],
                         'pageSize' => ['type' => Type::int(), 'defaultValue' => 20, 'description' => 'Máximo 100.'],
                         'sort' => ['type' => new EnumType(['name' => 'OrderSort', 'values' => ['CREATED_AT' => ['value' => 'created_at'], 'NUMBER' => ['value' => 'number'],
-                            'CUSTOMER' => ['value' => 'customer'], 'TOTAL' => ['value' => 'total'], 'STATUS' => ['value' => 'status']]]), 'defaultValue' => 'created_at'],
+                            'CUSTOMER' => ['value' => 'customer'], 'TOTAL' => ['value' => 'total'], 'STATUS' => ['value' => 'status'], 'PAYMENT' => ['value' => 'payment']]]), 'defaultValue' => 'created_at'],
                         'sortDir' => ['type' => new EnumType(['name' => 'SortDirection', 'values' => ['ASC' => ['value' => 'asc'], 'DESC' => ['value' => 'desc']]]), 'defaultValue' => 'desc'],
                     ],
                     'resolve' => Schema::guard('Iter_Sales::order', static function ($root, array $args) use ($service, $filters, $view): array {
@@ -200,9 +204,17 @@ class OrderSchema
                 ],
                 'cancelOrder' => [
                     'type' => Type::nonNull($orderType),
-                    'description' => 'Antes do envio: devolve a reserva e avisa o cliente com o motivo. Exige Iter_Sales::order_cancel.',
-                    'args' => $idArg + ['reason' => Type::nonNull(Type::string())],
-                    'resolve' => $act('Iter_Sales::order_cancel', static fn (int $id, array $a, int $u) => $service->cancel($id, $a['reason'], $u)),
+                    'description' => 'Antes do envio: devolve a reserva (o histórico lista o que voltou) e avisa o cliente com o motivo. Exige Iter_Sales::order_cancel. Mercado Pago: a cobrança em aberto é cancelada lá antes. Erros: REASON_REQUIRED (OTHER sem comment), REFUND_NOTE_REQUIRED (pedido pago sem refundNote nem estorno), PAYMENT_APPROVED (a cobrança acabou de ser paga: o pedido foi confirmado), REFUND_FAILED, ORDER_STATUS_INVALID.',
+                    'args' => $idArg + [
+                        'reason' => Type::nonNull($cancelReasonType),
+                        'comment' => ['type' => Type::string(), 'description' => 'Complemento do motivo; obrigatório com OTHER. Vai para o cliente.'],
+                        'notify' => ['type' => Type::boolean(), 'defaultValue' => true, 'description' => 'false: cancela sem e-mail ao cliente (pedido de teste, fraude).'],
+                        'refund' => ['type' => Type::boolean(), 'defaultValue' => true, 'description' => 'Pedido pago pelo Mercado Pago: estorna o valor todo lá antes de cancelar (REFUND_FAILED: não cancela). false: informe refundNote.'],
+                        'refundNote' => ['type' => Type::string(), 'description' => 'Pedido já pago (Pagamento confirmado) sem estorno pelo Mercado Pago: como o valor foi devolvido. Vai para o histórico e o e-mail.'],
+                    ],
+                    'resolve' => $act('Iter_Sales::order_cancel', static fn (int $id, array $a, int $u) => $service->cancel(
+                        $id, $a['reason'], $u, (string) ($a['comment'] ?? ''), $a['notify'], (string) ($a['refundNote'] ?? ''), $a['refund']
+                    )),
                 ],
                 'addOrderComment' => [
                     'type' => Type::nonNull($orderType),

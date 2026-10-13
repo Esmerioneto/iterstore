@@ -137,7 +137,7 @@ class Schema
         $eav = \isModuleEnabled('iter_eav') ? AttributeSchema::fields() : ['query' => [], 'mutation' => []];
         // Sales depends on Catalog, so $product has its types when it's on
         $sales = \isModuleEnabled('iter_sales') ? CartSchema::fields($product['types']['product']) : ['query' => [], 'mutation' => []];
-        $orders = isset($sales['types']) ? OrderSchema::fields($sales['types']['order']) : ['query' => [], 'mutation' => []];
+        $orders = isset($sales['types']) ? OrderSchema::fields($sales['types']['order'], $sales['types']['cancelReason']) : ['query' => [], 'mutation' => []];
         $adminSales = isset($sales['types']) && \isModuleEnabled('iter_adminsales') ? AdminSalesSchema::fields($sales['types']['order']) : ['query' => [], 'mutation' => []];
         $shipping = \isModuleEnabled('iter_shipping') ? ShippingSchema::fields() : ['query' => [], 'mutation' => []];
         $mercadopago = isset($sales['types']) && \isModuleEnabled('iter_mercadopago') ? MercadopagoSchema::fields($sales['types']['order']) : ['query' => [], 'mutation' => []];

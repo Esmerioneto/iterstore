@@ -2429,6 +2429,10 @@ $byChannel = $admin->request('/admin/order/index?sales_channel=Web')['body'];
 assertSame([true, false, true, true], [str_contains($byChannel, '>' . $next . '<'), str_contains($byChannel, '>' . ($order['number'] ?? 'x') . '<'),
     str_contains($byChannel, '<option value="Web" selected'), str_contains($orderPage($admin, $nextId), '<th>Canal</th><td>Web</td>')],
     'canal de venda: a lista filtra pelo canal e o pedido mostra o seu');
+$byPayment = $admin->request('/admin/order/index?payment_method=pix&q=ST-')['body'];
+assertSame([true, false, true, true], [str_contains($byPayment, '>' . ($order['number'] ?? 'x') . '<'), str_contains($byPayment, '>' . $next . '<'),
+    str_contains($byPayment, '<option value="pix" selected'), str_contains($byPayment, '>Pagamento</a></th>')],
+    'pedidos: a lista mostra a forma de pagamento e filtra por ela');
 assertSame(true, str_contains($orderPage($admin, $nextId), 'R$ 19,90<br><small class="sales-promo-price">Promoção · de <s>R$ 24,90</s></small>'), 'preço promocional: a tela do pedido mostra o preço cheio riscado');
 $page = $orderPage($admin, $orderId);
 assertSame([true, true, false, false, true], [str_contains($page, 'Confirmar pagamento'), str_contains($page, 'Cancelar pedido'), str_contains($page, 'Registrar entrega'),
@@ -2459,11 +2463,22 @@ assertSame([true, ['Entrega registrada. O cliente recebeu o rastreio por e-mail.
 ], 'pedido: registrar entrega baixa o físico da origem (4 - 3 = 1), troca a reserva pela baixa (saldo 0 com o outro pedido), grava a entrega e manda o rastreio');
 [, $msgs] = $admin->submit('/admin/order/view?id=' . $orderId, '/admin/order/complete', ['order_id' => $orderId]);
 assertSame([['Pedido concluído.'], 'complete', []], [$msgs, $orderStatus($orderId), OrderService::actions('complete')], 'pedido: concluir; concluído não tem mais ações');
-[, $msgs] = $admin->submit('/admin/order/view?id=' . $nextId, '/admin/order/cancel', ['order_id' => $nextId, 'comment' => ' ']);
-[, $canceled] = $admin->submit('/admin/order/view?id=' . $nextId, '/admin/order/cancel', ['order_id' => $nextId, 'comment' => 'Pagamento não recebido']);
-assertSame([['Informe o motivo do cancelamento.'], ['Pedido cancelado. O estoque reservado voltou para a venda.'], 'canceled', '1', 1], [
-    $msgs, $canceled, $orderStatus($nextId), (new StockService())->getSalable([$v0], $defaultWebsite)[$v0], $orderMails('sales_order_canceled'),
-], 'pedido: cancelar pede o motivo, devolve a reserva e avisa o cliente');
+$cancelPage = $orderPage($admin, $nextId);
+[, $msgs] = $admin->submit('/admin/order/view?id=' . $nextId, '/admin/order/cancel', ['order_id' => $nextId, 'cancel_reason' => '', 'comment' => 'x', 'notify' => '1']);
+[, $otherMsgs] = $admin->submit('/admin/order/view?id=' . $nextId, '/admin/order/cancel', ['order_id' => $nextId, 'cancel_reason' => 'other', 'comment' => ' ', 'notify' => '1']);
+[, $canceled] = $admin->submit('/admin/order/view?id=' . $nextId, '/admin/order/cancel', ['order_id' => $nextId, 'cancel_reason' => 'customer', 'comment' => 'Comprou em outra loja', 'notify' => '1']);
+$cancelMail = (string) $pdo->query("SELECT body_html FROM mail_queue WHERE template_code = 'sales_order_canceled' AND to_email LIKE '%@selftest.local' ORDER BY message_id DESC LIMIT 1")->fetchColumn();
+assertSame([true, true, ['Escolha o motivo do cancelamento.'], ['Com o motivo "Outro", descreva o motivo.'], ['Pedido cancelado. O estoque reservado voltou para a venda.'], 'canceled', '1', 1,
+    "Motivo: Desistência do cliente: Comprou em outra loja\nVoltaram ao estoque: 1 × Caneca (SKU {$v0Sku})", 'customer', true, true, true], [
+    str_contains($cancelPage, '<option value="customer">Desistência do cliente</option>') && str_contains($cancelPage, 'name="notify" value="1" checked'),
+    str_contains($cancelPage, 'data-confirm="Cancelar este pedido? Voltam ao estoque: 1 × Caneca (SKU ' . $v0Sku . ').'),
+    $msgs, $otherMsgs, $canceled, $orderStatus($nextId), (new StockService())->getSalable([$v0], $defaultWebsite)[$v0], $orderMails('sales_order_canceled'),
+    $pdo->query("SELECT comment FROM sales_order_status_history WHERE order_id = {$nextId} AND status = 'canceled'")->fetchColumn(),
+    $pdo->query("SELECT cancel_reason FROM sales_order WHERE order_id = {$nextId}")->fetchColumn(),
+    str_contains($cancelMail, 'Motivo: Desistência do cliente: Comprou em outra loja') && !str_contains($cancelMail, 'foi devolvido'),
+    str_contains($orderPage($admin, $nextId), '<tr><th>Motivo do cancelamento</th><td>Desistência do cliente</td></tr>'),
+    str_contains($admin->request('/admin/order/index?cancel_reason=customer&q=' . urlencode($next))['body'], '<small>Desistência do cliente</small>'),
+], 'pedido: cancelar pede um motivo da lista (e o complemento com "Outro"), a confirmação e o histórico listam o que volta ao estoque, a reserva volta, o motivo fica no pedido, na lista e no e-mail');
 [, $msgs] = $seller->submit('/admin/order/view?id=' . $nextId, '/admin/order/comment', ['order_id' => $nextId, 'comment' => 'Cliente ligou', 'notify' => '1']);
 assertSame([['Comentário salvo.'], 1, 3, true], [$msgs, $orderMails('sales_order_comment'),
     (int) $pdo->query("SELECT COUNT(*) FROM sales_order_status_history WHERE order_id = {$nextId}")->fetchColumn(), str_contains($orderPage($admin, $nextId), 'selftest_order')],
@@ -2507,6 +2522,17 @@ assertSame([null, 1, 24.9, 'pending_payment', 1, (string) $apiOrder, null, ['com
     [$summary['complete']['status'] ?? null, $summary['complete']['statusLabel'] ?? null], count($summary) === 5,
     $gql($admin, '{ orders(from: "ontem") { total } }')['errors'][0]['extensions']['code'] ?? null,
 ], 'API pedidos: o cliente não vê o histórico; o admin busca por número, lê um pedido (inexistente = null) e o resumo por situação; data inválida é recusada');
+$byPaymentApi = array_column($gql($admin, '{ orders(search: "ST-", paymentMethod: "pix", pageSize: 100) { items { number paymentMethod } } }')['data']['orders']['items'] ?? [], 'paymentMethod', 'number');
+$sortedLabels = array_column($gql($admin, '{ orders(search: "ST-", sort: PAYMENT, sortDir: ASC, pageSize: 100) { items { paymentLabel } } }')['data']['orders']['items'] ?? [], 'paymentLabel');
+$labelsAsc = array_values(array_filter($sortedLabels, 'is_string'));
+$labelsSorted = $labelsAsc;
+sort($labelsSorted);
+assertSame([true, false, ['pix'], true, true], [isset($byPaymentApi[$order['number'] ?? 'x']), isset($byPaymentApi[$next]), array_values(array_unique($byPaymentApi)),
+    count(array_unique($labelsAsc)) > 1, $labelsAsc === $labelsSorted],
+    'API pedidos: filtra pela forma de pagamento (paymentMethod) e ordena por ela (sort: PAYMENT)');
+$sortedList = $admin->request('/admin/order/index?q=ST-&sort=payment&dir=asc')['body'];
+assertSame(true, str_contains($sortedList, 'aria-sort="ascending"><a href="/admin/order/index?q=ST-&amp;sort=payment&amp;dir=desc">Pagamento ▲</a>'),
+    'pedidos: a coluna Pagamento ordena a lista');
 assertSame(['UNAUTHENTICATED', 'FORBIDDEN', 'FORBIDDEN'], [
     $gql($guest, '{ orders { total } }')['errors'][0]['extensions']['code'] ?? null,
     $gql($dash, '{ orders { total } }')['errors'][0]['extensions']['code'] ?? null,
@@ -2524,7 +2550,7 @@ assertSame([['processing', 'Pago na loja', true, 'selftest_admin'], 'SOURCE_INVA
 $completed = $adminGql("completeOrder(id: \"{$apiOrder}\")")['data']['completeOrder']['status'] ?? null;
 $commented = $adminGql("addOrderComment(id: \"{$apiOrder}\", comment: \"Obrigado!\", notifyCustomer: true)")['data']['addOrderComment']['history'][0] ?? [];
 assertSame(['complete', 'ORDER_STATUS_INVALID', ['complete', 'Obrigado!', true], 1], [
-    $completed, $adminGql("cancelOrder(id: \"{$apiOrder}\", reason: \"x\")")['errors'][0]['extensions']['code'] ?? null,
+    $completed, $adminGql("cancelOrder(id: \"{$apiOrder}\", reason: CUSTOMER)")['errors'][0]['extensions']['code'] ?? null,
     [$commented['status'] ?? null, $commented['comment'] ?? null, $commented['customerNotified'] ?? null],
     (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_comment' AND to_email = 'api-pedido@selftest.local'")->fetchColumn(),
 ], 'API pedidos: concluir; cancelar depois do envio é recusado; comentário com aviso ao cliente');
@@ -2573,7 +2599,9 @@ assertSame([['number' => $order['number'] ?? 'x', 'status' => 'complete'], null,
 // --- unpaid orders canceled by cron (COMMERCE-PLAN delivery 8) ---------------------------------------
 $stock->save($v0, ['selftest_var_cd' => ['quantity' => '2']]);
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'order_place:%'");
-$setConfig(['payment/pix/active' => '1', 'payment/pix/cancel_hours' => '1', 'payment/offline/cancel_hours' => '0']);
+// the cron runs over the whole database: the store's own Mercado Pago orders stay out (it would cancel their charges for real)
+$setConfig(['payment/pix/active' => '1', 'payment/pix/cancel_hours' => '1', 'payment/offline/cancel_hours' => '0',
+    'payment/mercadopago_pix/cancel_hours' => '0', 'payment/mercadopago_credit/cancel_hours' => '0', 'payment/mercadopago_debit/cancel_hours' => '0']);
 $unpaid = static function (string $payment) use ($api, $v0Sku, $addr): string {
     $cart = '"' . ($api('mutation { createCart }')[1]['data']['createCart'] ?? '') . '"';
     foreach (["addToCart(cartId: {$cart}, sku: \"{$v0Sku}\")", "setCartGuestInfo(cartId: {$cart}, email: \"nao-pago@selftest.local\", firstname: \"Nao\", lastname: \"Pago\", taxvat: \"529.982.247-25\")",
@@ -2586,19 +2614,46 @@ $unpaid = static function (string $payment) use ($api, $v0Sku, $addr): string {
 $pdo->exec("UPDATE sales_order SET created_at = NOW() - INTERVAL '2 hours' WHERE increment_id IN ('{$pixUnpaid}', '{$offlineUnpaid}')");
 $cronOut = (string) shell_exec(PHP_BINARY . ' ' . escapeshellarg(__DIR__ . '/order-clean.php') . ' 2>&1');
 $unpaidStatus = static fn (string $n) => $pdo->query("SELECT status FROM sales_order WHERE increment_id = '{$n}'")->fetchColumn();
-assertSame([true, false, 'canceled', 'pending_payment', '1', 'Pagamento não recebido em 1 hora(s).', 1], [
+assertSame([true, false, 'canceled', 'pending_payment', '1', "Motivo: Pagamento não recebido: prazo de 1 hora(s) encerrado.\nVoltaram ao estoque: 1 × Caneca (SKU {$v0Sku})", 1, 'unpaid'], [
     str_contains($cronOut, $pixUnpaid), str_contains($cronOut, $offlineUnpaid), $unpaidStatus($pixUnpaid), $unpaidStatus($offlineUnpaid),
     (new StockService())->getSalable([$v0], $defaultWebsite)[$v0],
     $pdo->query("SELECT h.comment FROM sales_order_status_history h JOIN sales_order o USING (order_id) WHERE o.increment_id = '{$pixUnpaid}' ORDER BY h.history_id DESC LIMIT 1")->fetchColumn(),
     (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_canceled' AND to_email = 'nao-pago@selftest.local'")->fetchColumn(),
-], 'cron de não pagos: o Pix passou de 1 hora e é cancelado (reserva devolvida, motivo no histórico, cliente avisado); "combinar" com 0 horas fica');
+    $pdo->query("SELECT cancel_reason FROM sales_order WHERE increment_id = '{$pixUnpaid}'")->fetchColumn(),
+], 'cron de não pagos: o Pix passou de 1 hora e é cancelado com o motivo "Pagamento não recebido" (reserva devolvida, histórico, cliente avisado); "combinar" com 0 horas fica');
+
+// a paid order: how the money went back is required, and it goes to the history and the e-mail; notify off cancels in silence
+// (one at a time: one unit of stock is left; and the minute's orders are used up)
+$paidOrder = static function () use ($unpaid, $pdo): int {
+    $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'order_place:%'");
+    $id = (int) $pdo->query("SELECT order_id FROM sales_order WHERE increment_id = '" . $unpaid('offline') . "'")->fetchColumn();
+    (new OrderService())->confirmPayment($id, null, null, false);
+    return $id;
+};
+$cancelMails = static fn () => (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_canceled' AND to_email = 'nao-pago@selftest.local'")->fetchColumn();
+$mailsBefore = $cancelMails();
+$paidLoud = $paidOrder();
+$noNote = $adminGql("cancelOrder(id: \"{$paidLoud}\", reason: CUSTOMER)")['errors'][0]['extensions']['code'] ?? null;
+$loud = $gql($admin, "mutation { cancelOrder(id: \"{$paidLoud}\", reason: CUSTOMER, refundNote: \"Pix para a chave do cliente em 13/10\") { status cancelReason history { comment customerNotified } } }")['data']['cancelOrder'] ?? [];
+$refundMail = (string) $pdo->query("SELECT body_html FROM mail_queue WHERE template_code = 'sales_order_canceled' AND to_email = 'nao-pago@selftest.local' ORDER BY message_id DESC LIMIT 1")->fetchColumn();
+$paidQuiet = $paidOrder();
+$quiet = $gql($admin, "mutation { cancelOrder(id: \"{$paidQuiet}\", reason: FRAUD, notify: false, refundNote: \"Estornado no banco\") { status cancelReason history { customerNotified } } }")['data']['cancelOrder'] ?? [];
+$fraudList = $gql($admin, '{ orders(cancelReason: FRAUD, search: "nao-pago@selftest") { total items { id } } }')['data']['orders'] ?? [];
+assertSame(['REFUND_NOTE_REQUIRED', 'canceled', 'CUSTOMER', true, true, true, ['canceled', 'FRAUD', false], $mailsBefore + 1, [1, (string) $paidQuiet]], [
+    $noNote, $loud['status'] ?? null, $loud['cancelReason'] ?? null,
+    str_contains($loud['history'][0]['comment'] ?? '', "\nValor devolvido: Pix para a chave do cliente em 13/10"), $loud['history'][0]['customerNotified'] ?? null,
+    str_contains($refundMail, 'foi devolvido: Pix para a chave do cliente em 13/10'),
+    [$quiet['status'] ?? null, $quiet['cancelReason'] ?? null, $quiet['history'][0]['customerNotified'] ?? null],
+    $cancelMails(), [$fraudList['total'] ?? null, $fraudList['items'][0]['id'] ?? null],
+], 'cancelar pago: sem "como o valor foi devolvido" é recusado; com ele, vai para o histórico e o e-mail; sem aviso, o cliente não recebe e-mail; a API filtra pelo motivo');
 
 // --- Mercado Pago (MERCADOPAGO-PLAN): a fake Mercado Pago in place of the network ------------------
 $stock->save($v0, ['selftest_var_cd' => ['quantity' => '10']]);
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'order_place:%' OR rate_key LIKE 'order_pay:%' OR rate_key LIKE 'cart_create:%'");
 $mpMethods = static fn () => array_column($api('{ cart(cartId: "' . ($api('mutation { createCart }')[1]['data']['createCart'] ?? '') . '") { availablePaymentMethods { code } } }')[1]['data']['cart']['availablePaymentMethods'] ?? [], 'code');
 $setConfig(['payment/mercadopago/access_token' => '', 'payment/mercadopago/public_key' => '', 'payment/mercadopago/webhook_secret' => '',
-    'payment/mercadopago_pix/active' => '1', 'payment/mercadopago_credit/active' => '1', 'payment/mercadopago_debit/active' => '1', 'payment/mercadopago_credit/max_installments' => '6']);
+    'payment/mercadopago_pix/active' => '1', 'payment/mercadopago_credit/active' => '1', 'payment/mercadopago_debit/active' => '1', 'payment/mercadopago_credit/max_installments' => '6',
+    'payment/mercadopago_pix/cancel_hours' => '24']);
 $noToken = $mpMethods();
 $setConfig(['payment/mercadopago/access_token' => Iter\Core\Crypt::encrypt('TEST-selftest'), 'payment/mercadopago/public_key' => 'TEST-pub-selftest']);
 assertSame([false, ['mercadopago_pix', 'mercadopago_credit', 'mercadopago_debit'], ['publicKey' => 'TEST-pub-selftest', 'maxInstallments' => 6]], [
@@ -2620,8 +2675,20 @@ $mpStatus = static function (string $id, string $status, string $detail) use (&$
     $mpNext[$id]['transactions']['payments'][0]['status_detail'] = $detail;
     unset($mpNext[$id]['transactions']['payments'][0]['payment_method']['qr_code']); // a later read has no QR code
 };
-$fakeMp = new Iter\Mercadopago\Model\MercadopagoService(static function (string $method, string $path, ?array $body) use (&$mpCalls, &$mpNext): array {
+$mpDown = false; // the network fails (cancel/refund)
+$mpRefuse = []; // ids whose cancel/refund Mercado Pago refuses
+$fakeMp = new Iter\Mercadopago\Model\MercadopagoService(static function (string $method, string $path, ?array $body) use (&$mpCalls, &$mpNext, &$mpDown, &$mpRefuse): array {
     $mpCalls[] = [$method, $path, $body];
+    if ($method === 'POST' && preg_match('#^/v1/orders/([^/]+)/(cancel|refund)$#', $path, $m)) {
+        if ($mpDown) {
+            throw new Iter\Sales\Model\SalesException('PAYMENT_UNAVAILABLE', 'Não foi possível falar com o Mercado Pago.');
+        }
+        if (in_array($m[1], $mpRefuse, true)) {
+            return [409, ['errors' => [['code' => 'invalid_status', 'message' => "cannot {$m[2]} this order"]]]];
+        }
+        $mpNext[$m[1]]['status'] = $m[2] === 'cancel' ? 'canceled' : 'refunded';
+        return [200, $mpNext[$m[1]]];
+    }
     if ($method === 'POST') {
         $id = 'ORDTST' . (9000000 + count($mpCalls));
         $payment = $body['transactions']['payments'][0];
@@ -2684,7 +2751,7 @@ assertSame(['4509 95•• •••• 3704', null, null], [$approved['card_num
 assertSame(true, str_contains($orderPage($admin, $mpId($mpCredit)), 'Visa 4509 95•• •••• 3704 · 3x'), 'Pedido no admin: a cobrança do Mercado Pago com a bandeira e o cartão mascarado');
 
 $late = $fakeMp->pay($mpId($mpLate));
-(new OrderService())->cancel($mpId($mpLate), 'Cliente desistiu', null);
+(new OrderService($fakeMp))->cancel($mpId($mpLate), 'customer', null, 'Cliente desistiu');
 $mpStatus($late['external_id'], 'processed', 'accredited');
 $fakeMp->sync($late['external_id']);
 $lateComments = $mpComments($mpLate);
@@ -2707,8 +2774,65 @@ assertSame([true, false, false, 200, 200, 401], [
     $webhook('type=payment&data.id=1'), $webhook('type=order&data.id=ORD1'),
     $webhook("type=order&data.id={$late['external_id']}", ['x-signature: ts=1,v1=errado', 'x-request-id: r']),
 ], 'Mercado Pago webhook: assinatura conferida pelo segredo; outro tópico ou pagamento de fora dá 200; assinatura errada dá 401');
+// --- Mercado Pago in the cancellation (CANCEL-PLAN delivery 2) ----------------------------------------
+$mpOrders = new OrderService($fakeMp);
+$mpNewPix = static function (bool $paid = false) use ($unpaid, $pdo, $mpId, $fakeMp, $mpStatus): array {
+    $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'order_place:%'");
+    $id = $mpId($unpaid('mercadopago_pix'));
+    $charge = $fakeMp->pay($id);
+    if ($paid) {
+        $mpStatus($charge['external_id'], 'processed', 'accredited');
+        $fakeMp->sync($charge['external_id']);
+    }
+    return [$id, $charge['external_id']];
+};
+$mpCancel = static function (int $id, bool $refund = true, string $note = '') use ($mpOrders): ?string {
+    try {
+        $mpOrders->cancel($id, 'customer', null, '', true, $note, $refund);
+        return null;
+    } catch (Iter\Sales\Model\SalesException $e) {
+        return $e->errorCode;
+    }
+};
+$lastHistory = static fn (int $id) => (string) $pdo->query("SELECT comment FROM sales_order_status_history WHERE order_id = {$id} ORDER BY history_id DESC LIMIT 1")->fetchColumn();
+$chargeStatus = static fn (string $ext) => $fakeMp->get($ext)['status'];
+
+[$openId, $openExt] = $mpNewPix();
+$openCanceled = $mpCancel($openId);
+[$raceId, $raceExt] = $mpNewPix();
+$mpStatus($raceExt, 'processed', 'accredited'); // paid at Mercado Pago, the store doesn't know yet
+$mpRefuse[] = $raceExt;
+$race = $mpCancel($raceId);
+[$downId, $downExt] = $mpNewPix();
+$mpDown = true;
+$down = $mpCancel($downId);
+$mpDown = false;
+assertSame([[null, 'canceled', 'cancelled', true], ['PAYMENT_APPROVED', 'processing', 'approved'], [null, 'canceled', 'pending', true]], [
+    [$openCanceled, $unpaidStatus((string) $pdo->query("SELECT increment_id FROM sales_order WHERE order_id = {$openId}")->fetchColumn()), $chargeStatus($openExt), str_contains($lastHistory($openId), "Cobrança #{$openExt} cancelada no Mercado Pago.")],
+    [$race, $pdo->query("SELECT status FROM sales_order WHERE order_id = {$raceId}")->fetchColumn(), $chargeStatus($raceExt)],
+    [$down, $pdo->query("SELECT status FROM sales_order WHERE order_id = {$downId}")->fetchColumn(), $chargeStatus($downExt), str_contains($lastHistory($downId), "ATENÇÃO: cancele a cobrança #{$downExt} no painel do Mercado Pago")],
+], 'cancelar com Mercado Pago: a cobrança em aberto é cancelada lá; se acabou de ser paga, o pedido é confirmado e não cancela; Mercado Pago fora do ar, cancela e o histórico manda cancelar no painel');
+
+$mpRefuse = [];
+$refundMails = static fn () => (int) $pdo->query("SELECT COUNT(*) FROM mail_queue WHERE template_code = 'sales_order_canceled' AND to_email = 'nao-pago@selftest.local' AND body_html LIKE '%estornado pelo Mercado Pago%'")->fetchColumn();
+$refundMailsBefore = $refundMails();
+$cancelPage = $orderPage($admin, $raceId);
+$refunded = $mpCancel($raceId);
+[$failId, $failExt] = $mpNewPix(true);
+$mpRefuse[] = $failExt;
+$failed = $mpCancel($failId);
+$noNote = $mpCancel($failId, false);
+$withNote = $mpCancel($failId, false, 'Estornado no painel do Mercado Pago');
+assertSame([true, [null, 'canceled', 'refunded', true, $refundMailsBefore + 1], ['REFUND_FAILED', 'REFUND_NOTE_REQUIRED', null, 'canceled', 'approved', true], true], [
+    str_contains($cancelPage, 'name="refund" value="1" checked> Estornar R$ ') && !str_contains($cancelPage, 'name="refund_note" rows="2" maxlength="1000" required'),
+    [$refunded, $pdo->query("SELECT status FROM sales_order WHERE order_id = {$raceId}")->fetchColumn(), $chargeStatus($raceExt),
+        (bool) preg_match('/Estornado R\$ [\d,]+ no Mercado Pago \(cobrança #' . $raceExt . '\)/', $lastHistory($raceId)), $refundMails()],
+    [$failed, $noNote, $withNote, $pdo->query("SELECT status FROM sales_order WHERE order_id = {$failId}")->fetchColumn(), $chargeStatus($failExt), str_contains($lastHistory($failId), 'Valor devolvido: Estornado no painel do Mercado Pago')],
+    str_contains($orderPage($admin, $raceId), 'Estornado · '),
+], 'cancelar pedido pago pelo Mercado Pago: "Estornar" vem ligado e estorna o valor todo antes de cancelar (histórico, e-mail, cobrança "Estornado"); estorno recusado não cancela; sem estornar, pede como o valor foi devolvido');
+
 foreach ([$mpPix, $mpCredit, $mpDebit] as $n) {
-    (new OrderService())->cancel($mpId($n), 'Teste', null); // gives the stock back to the next sections
+    $mpOrders->cancel($mpId($n), 'other', null, 'Teste', false, 'Teste'); // gives the stock back to the next sections (a paid one needs the refund note)
 }
 $setConfig(['payment/mercadopago/access_token' => '', 'payment/mercadopago/public_key' => '', 'payment/mercadopago/webhook_secret' => '',
     'payment/mercadopago_pix/active' => '0', 'payment/mercadopago_credit/active' => '0', 'payment/mercadopago_debit/active' => '0']);

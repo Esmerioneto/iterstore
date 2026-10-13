@@ -12,6 +12,7 @@ use Iter\Core\Log;
 use Iter\Inventory\Model\StockService;
 use Iter\Mail\Model\MailException;
 use Iter\Mail\Model\MailService;
+use Iter\Mercadopago\Model\MercadopagoService;
 use Iter\Payment\Model\PaymentService;
 use Iter\Promotion\Model\PromotionService;
 
@@ -22,6 +23,11 @@ use Iter\Promotion\Model\PromotionService;
  */
 class OrderService
 {
+    /** @param ?MercadopagoService $mercadopago another one in place of the network (the selftest's fake Mercado Pago) */
+    public function __construct(private readonly ?MercadopagoService $mercadopago = null)
+    {
+    }
+
     public const STATUS_LABELS = [
         'pending_payment' => 'Aguardando pagamento',
         'processing' => 'Pagamento confirmado',
@@ -39,6 +45,16 @@ class OrderService
 
     /** the admin's actions and the status each one leads to */
     private const ACTIONS = ['confirm' => 'processing', 'ship' => 'shipped', 'complete' => 'complete', 'cancel' => 'canceled'];
+
+    /** why an order is canceled (sales_order.cancel_reason); "other" needs the comment. The cron uses "unpaid" */
+    public const CANCEL_REASONS = [
+        'customer' => 'Desistência do cliente',
+        'unpaid' => 'Pagamento não recebido',
+        'out_of_stock' => 'Produto sem estoque',
+        'fraud' => 'Suspeita de fraude',
+        'order_error' => 'Erro no pedido',
+        'other' => 'Outro',
+    ];
 
     /** the channel of an order without the X-Sales-Channel header (the app, the only one before the header existed) */
     public const CHANNEL_DEFAULT = 'App mobile';
@@ -186,6 +202,16 @@ class OrderService
         return $db->fetchCol($db->select()->from('sales_order', ['sales_channel'])->distinct()->order('sales_channel'));
     }
 
+    /** @return array<string, string> code => label of the payment methods that have orders, for the list's filter */
+    public function paymentMethods(): array
+    {
+        $db = Connection::get()->adapter();
+
+        // the label is the order's copy; a method renamed later keeps the newest name
+        return $db->fetchPairs($db->select()->from('sales_order', ['payment_method', 'label' => new Expr('(ARRAY_AGG(payment_label ORDER BY order_id DESC))[1]')])
+            ->where('payment_method IS NOT NULL')->group('payment_method')->order('label'));
+    }
+
     /**
      * The order as the API shows it: the copied data, items, addresses (fixed fields + the set's), status label.
      *
@@ -314,14 +340,64 @@ class OrderService
             'comment' => "Forma de pagamento alterada pelo cliente para {$method['label']}."]);
     }
 
-    /** before shipping → canceled: the reservation is given back; the reason goes to the customer */
-    public function cancel(int $orderId, string $reason, ?int $adminUserId): void
+    /**
+     * Before shipping → canceled: the reservation is given back and the history lists what came back.
+     * Mercado Pago (CANCEL-PLAN delivery 2): its open charges are canceled there first, and a paid one is refunded
+     * in full when $refund. Any other paid order (processing) needs $refundNote, how the money went back.
+     * The e-mail (unless !$notify) says the reason, the comment and the refund.
+     *
+     * @param string $reason a code of CANCEL_REASONS
+     * @throws SalesException REASON_REQUIRED, REFUND_NOTE_REQUIRED, ORDER_NOT_FOUND, ORDER_STATUS_INVALID,
+     *                        PAYMENT_APPROVED, REFUND_FAILED (Mercado Pago; the order stays as it was)
+     */
+    public function cancel(int $orderId, string $reason, ?int $adminUserId, string $comment = '', bool $notify = true, string $refundNote = '', bool $refund = true): void
     {
-        $reason = trim($reason) ?: throw new SalesException('REASON_REQUIRED', 'Informe o motivo do cancelamento.');
-        $this->transition($orderId, 'canceled', $reason, $adminUserId, function ($db, array $order): void {
+        $label = self::CANCEL_REASONS[$reason] ?? throw new SalesException('REASON_REQUIRED', 'Escolha o motivo do cancelamento.');
+        $comment = trim($comment);
+        $refundNote = trim($refundNote);
+        if ($reason === 'other' && $comment === '') {
+            throw new SalesException('REASON_REQUIRED', 'Com o motivo "Outro", descreva o motivo.');
+        }
+        $order = $this->get($orderId);
+        if (!in_array('canceled', self::TRANSITIONS[$order['status']] ?? [], true)) {
+            throw new SalesException('ORDER_STATUS_INVALID', sprintf('Um pedido "%s" não pode passar para "%s".', self::STATUS_LABELS[$order['status']], self::STATUS_LABELS['canceled']));
+        }
+        $mercadopago = \isModuleEnabled('iter_mercadopago') && isset(MercadopagoService::METHODS[(string) $order['payment_method']])
+            ? ($this->mercadopago ?? new MercadopagoService()) : null;
+        $paid = $order['status'] === 'processing';
+        $gatewayRefund = $paid && $refund && $mercadopago !== null && $mercadopago->approvedAmount($orderId) > 0;
+        if ($paid && !$gatewayRefund && $refundNote === '') {
+            throw new SalesException('REFUND_NOTE_REQUIRED', 'O pedido já foi pago: informe como o valor foi devolvido.');
+        }
+        // before the order changes: a refused refund or a payment just approved leaves it as it was
+        $gateway = $mercadopago?->beforeCancel($order, $gatewayRefund) ?? ['lines' => [], 'refunded' => 0.0];
+        $why = $label . ($comment !== '' ? ': ' . $comment : '');
+        $returned = self::returnedItems($order);
+        $history = implode("\n", array_filter([
+            'Motivo: ' . $why,
+            $returned ? 'Voltaram ao estoque: ' . $returned : null,
+            ...$gateway['lines'],
+            $paid && $refundNote !== '' ? 'Valor devolvido: ' . $refundNote : null,
+        ]));
+        $money = static fn (float $v) => 'R$ ' . number_format($v, 2, ',', '.');
+        $refundMail = implode('', array_filter([
+            $gateway['refunded'] > 0 ? '<p>O valor de ' . $money($gateway['refunded']) . ' foi estornado pelo Mercado Pago, na mesma forma de pagamento.</p>' : '',
+            $paid && $refundNote !== '' ? '<p>O valor de ' . $money((float) $order['grand_total']) . ' foi devolvido: ' . htmlspecialchars($refundNote) . '</p>' : '',
+        ]));
+        $this->transition($orderId, 'canceled', $history, $adminUserId, function ($db, array $order) use ($reason): void {
             (new StockService())->release((int) $order['website_id'], $this->reserved($order['order_id']), 'canceled', $order['increment_id']);
             if (\isModuleEnabled('iter_promotion')) $db->update('promotion_coupon_usage', ['status' => 'released'], ['order_id = ?' => (int) $order['order_id'], 'status = ?' => 'used']);
-        });
+            $db->update('sales_order', ['cancel_reason' => $reason], ['order_id = ?' => (int) $order['order_id']]);
+        }, $notify, ['comment' => $why, 'refund' => $refundMail]);
+    }
+
+    /** "2 × Camiseta (Cor: Preto) (SKU X); 1 × ...": the items whose stock comes back on cancel (the product still exists) */
+    public static function returnedItems(array $order): string
+    {
+        return implode('; ', array_map(
+            static fn (array $i) => str_replace('.', ',', StockService::format((string) $i['quantity'])) . ' × ' . $i['name'] . ($i['options'] ? " ({$i['options']})" : '') . " (SKU {$i['sku']})",
+            array_filter($order['items'], static fn (array $i) => $i['product_id'] !== null),
+        ));
     }
 
     /**
@@ -341,7 +417,7 @@ class OrderService
                 continue;
             }
             try {
-                $this->cancel((int) $order['order_id'], "Pagamento não recebido em {$hours} hora(s).", null);
+                $this->cancel((int) $order['order_id'], 'unpaid', null, "prazo de {$hours} hora(s) encerrado.");
                 $canceled[] = $order['increment_id'];
             } catch (SalesException) {
                 // paid by the admin in the meantime: ORDER_STATUS_INVALID, nothing to do
@@ -364,7 +440,7 @@ class OrderService
     }
 
     /**
-     * The admin list: filters status, website_id, customer_id, sales_channel, q (number, e-mail or name), from, to (dates).
+     * The admin list: filters status, website_id, customer_id, sales_channel, cancel_reason, q (number, e-mail or name), from, to (dates).
      *
      * @return array{items: array, total: int, amount: float} amount = the filtered orders' total, canceled ones left out
      */
@@ -374,7 +450,7 @@ class OrderService
         $select = $this->filtered($filters);
         $totals = $db->fetchRow((clone $select)->reset('columns')->columns(['total' => new Expr('COUNT(*)'),
             'amount' => new Expr("COALESCE(SUM(o.grand_total) FILTER (WHERE o.status <> 'canceled'), 0)")]));
-        $column = ['number' => 'o.increment_id', 'customer' => 'o.firstname', 'total' => 'o.grand_total', 'status' => 'o.status'][$sort] ?? 'o.created_at';
+        $column = ['number' => 'o.increment_id', 'customer' => 'o.firstname', 'total' => 'o.grand_total', 'status' => 'o.status', 'payment' => 'o.payment_label'][$sort] ?? 'o.created_at';
         $items = $db->fetchAll($select->order($column . ($dir === 'asc' ? ' ASC' : ' DESC'))->order('o.order_id DESC')->limit($limit, ($page - 1) * $limit));
 
         return ['items' => $items, 'total' => (int) $totals['total'], 'amount' => (float) $totals['amount']];
@@ -402,7 +478,8 @@ class OrderService
     private function filtered(array $filters): Select
     {
         $select = Connection::get()->adapter()->select()->from(['o' => 'sales_order']);
-        foreach (['status' => 'o.status = ?', 'website_id' => 'o.website_id = ?', 'customer_id' => 'o.customer_id = ?', 'sales_channel' => 'o.sales_channel = ?', 'from' => 'o.created_at >= ?'] as $key => $where) {
+        foreach (['status' => 'o.status = ?', 'website_id' => 'o.website_id = ?', 'customer_id' => 'o.customer_id = ?', 'sales_channel' => 'o.sales_channel = ?',
+            'payment_method' => 'o.payment_method = ?', 'cancel_reason' => 'o.cancel_reason = ?', 'from' => 'o.created_at >= ?'] as $key => $where) {
             if (($filters[$key] ?? '') !== '') {
                 $select->where($where, $filters[$key]);
             }
@@ -460,7 +537,7 @@ class OrderService
      * Moves the order to $to when its current status allows it (ORDER_STATUS_INVALID otherwise), running
      * $change in the same transaction, then e-mails the customer (not on complete: delivered, they know; not when !$notify).
      */
-    private function transition(int $orderId, string $to, ?string $comment, ?int $adminUserId, ?callable $change = null, bool $notify = true): void
+    private function transition(int $orderId, string $to, ?string $comment, ?int $adminUserId, ?callable $change = null, bool $notify = true, array $mailVars = []): void
     {
         $notify = $notify && $to !== 'complete';
         Connection::get()->adapter()->transaction(function ($db) use ($orderId, $to, $comment, $adminUserId, $change, $notify): void {
@@ -477,7 +554,7 @@ class OrderService
             return;
         }
         $order = $this->get($orderId);
-        $this->mail('sales_order_' . $to, $order, [
+        $this->mail('sales_order_' . $to, $order, $mailVars + [
             'comment' => (string) $comment,
             'carrier' => (string) ($order['shipment']['carrier'] ?? ''),
             'tracking' => (string) ($order['shipment']['tracking_code'] ?? ''),
