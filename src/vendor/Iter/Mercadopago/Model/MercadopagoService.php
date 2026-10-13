@@ -125,11 +125,7 @@ class MercadopagoService
                 'identification' => ['type' => strlen($taxvat) === 14 ? 'CNPJ' : 'CPF', 'number' => $taxvat],
             ],
         ];
-        // the notification goes to the store only when it's public (https); otherwise the cron reads the payment back
-        $baseUrl = rtrim((string) Config::get('web/base_url', $websiteId), '/');
-        if (str_starts_with($baseUrl, 'https://')) {
-            $body['notification_url'] = $baseUrl . '/mercadopago/webhook';
-        }
+        // the Orders API refuses notification_url: the webhook (topic Order) is set in Suas integrações; the cron reads back the rest
 
         if ($method === 'mercadopago_pix') {
             $db = Connection::get()->adapter();

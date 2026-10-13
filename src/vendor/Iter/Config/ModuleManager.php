@@ -66,7 +66,7 @@ class ModuleManager
         // temp file + rename: a request reading config.json never sees it half written
         $file = ETC . 'config.json';
         $tmp = $file . '.' . bin2hex(random_bytes(4)) . '.tmp';
-        if (file_put_contents($tmp, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) === false || !rename($tmp, $file)) {
+        if (file_put_contents($tmp, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL) === false || !rename($tmp, $file)) {
             @unlink($tmp);
             throw new \DomainException('Não foi possível gravar ' . $file . ' (permissão de escrita?).');
         }

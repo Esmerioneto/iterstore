@@ -6,6 +6,7 @@ namespace Iter\Core\Controllers;
 
 use Iter\Admin\Auth;
 use Iter\Core\Config;
+use Iter\Core\Log;
 use GraphQL\Error\Error;
 use GraphQL\Error\FormattedError;
 use GraphQL\Error\SyntaxError;
@@ -78,7 +79,15 @@ class Graphql
         $result = \GraphQL\GraphQL::executeQuery($schema, $query, null, null, $variables, null, null, $rules);
 
         // every error carries extensions.code, so the clients branch on it instead of the message
+        // Keep the real cause of unexpected resolver failures in the system log; GraphQL otherwise
+        // masks it as "Internal server error", leaving checkout failures impossible to diagnose.
         $result->setErrorFormatter(static function (Error $e): array {
+            if (!$e->isClientSafe()) {
+                $cause = $e->getPrevious();
+                Log::error('GraphQL internal error: ' . ($cause ? get_class($cause) . ': ' . $cause->getMessage() : $e->getMessage()), [
+                    'path' => implode('.', $e->getPath() ?? []),
+                ]);
+            }
             $formatted = FormattedError::createFromException($e);
             $formatted['extensions']['code'] ??= match (true) {
                 $e->getPrevious() instanceof SyntaxError || $e instanceof SyntaxError => 'GRAPHQL_PARSE_FAILED',
