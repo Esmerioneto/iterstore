@@ -1646,7 +1646,12 @@ input[type="checkbox"].admin-switch:disabled {
   white-space: nowrap;
 }
 
-.message-count {
+/* a counter in red (menu.json "badge", unread messages in the inbox) */
+.admin-menu .admin-badge {
+  margin-left: 6px;
+}
+
+.admin-badge {
   display: inline-block;
   min-width: 20px;
   padding: 1px 6px;

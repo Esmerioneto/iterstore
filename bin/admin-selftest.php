@@ -3152,6 +3152,71 @@ assertSame([true, true, true, true, false, false, false, 404, true, true], [
     str_contains((string) file_get_contents($jsFile), 'setInterval(load, 60000)'),
 ], 'painel de vendas: fica no Dashboard do admin (Painel) para quem tem a permissão, no lugar dos cards, com filtros e o script que busca a cada minuto sem renovar a sessão; sem ela, o Dashboard de antes');
 
+// --- messages between the store and the customer (MESSAGE-PLAN) --------------------------------
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'customer_login:%' OR rate_key LIKE 'admin_login:%'");
+$pdo->exec("UPDATE customer_entity SET is_active = 1 WHERE customer_id IN (SELECT customer_id FROM customer_flat WHERE email = 'loja@selftest.local')"); // deactivated by the login tests
+$lojaToken = $custLogin('segredo123')[1]['data']['generateCustomerToken']['token'] ?? '';
+$spToken = $api('mutation { generateCustomerToken(email: "sp@selftest.local", password: "segredo123") { token } }')[1]['data']['generateCustomerToken']['token'] ?? '';
+$lojaId = (int) $pdo->query("SELECT customer_id FROM customer_flat WHERE email = 'loja@selftest.local'")->fetchColumn();
+$spId = (int) $pdo->query("SELECT customer_id FROM customer_flat WHERE email = 'sp@selftest.local'")->fetchColumn();
+$adminToken = $login(PASSWORD)[1]['data']['generateAdminToken']['token'] ?? '';
+$msgFields = '{ sender body readAt adminName }';
+$send = static fn (string $body, string $token) => $api('mutation { sendCustomerMessage(body: ' . json_encode($body) . ') ' . $msgFields . ' }', $token)[1];
+assertSame(['UNAUTHENTICATED', ['sender' => 'CUSTOMER', 'body' => 'Chega até sexta?', 'readAt' => null, 'adminName' => null], 'MESSAGE_EMPTY', 'MESSAGE_TOO_LONG', 'MESSAGE_TOO_LONG'], [
+    $api('mutation { sendCustomerMessage(body: "oi") { body } }')[1]['errors'][0]['extensions']['code'] ?? null,
+    $send('  Chega até sexta?  ', $lojaToken)['data']['sendCustomerMessage'] ?? null,
+    $send('   ', $lojaToken)['errors'][0]['extensions']['code'] ?? null,
+    $send(str_repeat('á', 2001), $lojaToken)['errors'][0]['extensions']['code'] ?? null,
+    (static function () use ($pdo, $lojaId): ?string { // the table refuses it too, whoever writes there
+        try {
+            $pdo->exec("INSERT INTO customer_message (website_id, customer_id, sender, body) SELECT website_id, customer_id, 'customer', repeat('x', 2001) FROM customer_entity WHERE customer_id = {$lojaId}");
+            return null;
+        } catch (PDOException) {
+            return 'MESSAGE_TOO_LONG';
+        }
+    })(),
+], 'mensagens: o cliente escreve só com login; o texto vai sem os espaços das pontas; vazio e acima de 2.000 caracteres são recusados (também pela tabela)');
+assertSame([[], 0, 'UNAUTHENTICATED', 'FORBIDDEN', 403], [
+    $api('{ customerMessages { body } }', $spToken)[1]['data']['customerMessages'] ?? null,
+    $api('{ customerUnreadMessages }', $spToken)[1]['data']['customerUnreadMessages'] ?? null,
+    $api('{ adminMessageInbox { total } }', $lojaToken)[1]['errors'][0]['extensions']['code'] ?? null,
+    $gql($dash, '{ adminMessageInbox { total } }')['errors'][0]['extensions']['code'] ?? null,
+    $dash->request('/admin/message/index')['status'],
+], 'mensagens: um cliente não vê a conversa de outro; o token do cliente não abre a caixa da loja; admin sem "Mensagens com clientes" é recusado na API e na tela');
+$inbox = static fn () => $api('{ adminMessageInbox(search: "loja@selftest") { total items { customerId email lastMessage lastSender unread } } }', $adminToken)[1]['data']['adminMessageInbox'] ?? [];
+$before = $inbox();
+$thread = $api('{ adminCustomerMessages(customerId: ' . $lojaId . ') ' . $msgFields . ' }', $adminToken)[1]['data']['adminCustomerMessages'] ?? [];
+assertSame([1, ['customerId' => (string) $lojaId, 'email' => 'loja@selftest.local', 'lastMessage' => 'Chega até sexta?', 'lastSender' => 'CUSTOMER', 'unread' => 1], 1, true, 0], [
+    $before['total'] ?? null, $before['items'][0] ?? null, count($thread), ($thread[0]['readAt'] ?? null) !== null, $inbox()['items'][0]['unread'] ?? null,
+], 'mensagens: a caixa da loja lista o cliente com a última mensagem e 1 não lida; abrir a conversa marca como lida');
+$reply = $api('mutation { adminSendCustomerMessage(customerId: ' . $lojaId . ', body: "Chega sim!") ' . $msgFields . ' }', $adminToken)[1]['data']['adminSendCustomerMessage'] ?? [];
+$unreadBefore = $api('{ customerUnreadMessages }', $lojaToken)[1]['data']['customerUnreadMessages'] ?? null;
+$seen = $api('{ customerMessages ' . $msgFields . ' }', $lojaToken)[1]['data']['customerMessages'] ?? [];
+assertSame([['sender' => 'ADMIN', 'body' => 'Chega sim!', 'adminName' => 'selftest_admin'], 1, ['CUSTOMER', 'ADMIN'], true, 0, 'CUSTOMER_NOT_FOUND'], [
+    array_intersect_key($reply, ['sender' => 1, 'body' => 1, 'adminName' => 1]), $unreadBefore, array_column($seen, 'sender'), ($seen[1]['readAt'] ?? null) !== null,
+    $api('{ customerUnreadMessages }', $lojaToken)[1]['data']['customerUnreadMessages'] ?? null,
+    $api('mutation { adminSendCustomerMessage(customerId: 0, body: "x") { body } }', $adminToken)[1]['errors'][0]['extensions']['code'] ?? null,
+], 'mensagens: a loja responde com o nome de quem escreveu; o cliente vê 1 não lida, abre a conversa (a mais antiga primeiro) e ela fica lida; cliente inexistente é recusado');
+$send('<b>tem azul?</b>', $lojaToken);
+$viewUrl = '/admin/message/view?customer_id=' . $lojaId;
+$menuHtml = $admin->request('/admin/customer/index')['body'];
+[$sentTo] = $admin->submit($viewUrl, '/admin/message/send', ['customer_id' => $lojaId, 'body' => 'Pela tela do admin']);
+$page = $admin->request($viewUrl)['body'];
+assertSame([true, true, $viewUrl, true, true, true, ['Escreva a mensagem.'], '/admin/message/index', true], [
+    (bool) preg_match('#Mensagens<span class="admin-badge" aria-label="\d+ pendente\(s\)">\d+</span>#', $menuHtml),
+    str_contains($admin->request('/admin/customer/edit?id=' . $lojaId)['body'], '<a href="' . $viewUrl . '">Enviar mensagem</a>'),
+    $sentTo,
+    str_contains($page, '&lt;b&gt;tem azul?&lt;/b&gt;') && !str_contains($page, '<b>tem azul?</b>'),
+    str_contains($page, 'Pela tela do admin') && str_contains($page, 'message-from-admin') && str_contains($page, 'loja@selftest.local'),
+    (int) $pdo->query("SELECT COUNT(*) FROM customer_message WHERE customer_id = {$lojaId} AND sender = 'customer' AND read_at IS NULL")->fetchColumn() === 0,
+    $admin->submit($viewUrl, '/admin/message/send', ['customer_id' => $lojaId, 'body' => ' '])[1],
+    $admin->request('/admin/message/view?customer_id=0')['location'],
+    str_contains($page, 'data-refresh="30"'),
+], 'mensagens na tela: contador vermelho no menu; "Enviar mensagem" no cadastro; a loja responde pela conversa; o texto do cliente sai escapado; abrir marca as do cliente como lidas; vazio é recusado; cliente inexistente volta para a caixa; a conversa se atualiza a cada 30 s');
+$send('vou cancelar a conta', $spToken);
+(new CustomerService())->delete($spId);
+assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM customer_message WHERE customer_id = {$spId}")->fetchColumn(), 'mensagens: apagar o cliente apaga a conversa dele');
+
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());
 assertSame(true, abs($dbNow - time()) < 5, 'banco e PHP usam o mesmo fuso (' . date_default_timezone_get() . ')');

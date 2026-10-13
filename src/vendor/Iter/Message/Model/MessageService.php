@@ -58,7 +58,7 @@ final class MessageService
             $bind['before'] = $beforeId;
         }
         $rows = Connection::get()->adapter()->fetchAll("SELECT m.message_id, m.sender, m.body, m.created_at, m.read_at,
-                NULLIF(TRIM(CONCAT(u.firstname, ' ', u.lastname)), '') AS admin_name
+                COALESCE(NULLIF(TRIM(CONCAT(u.firstname, ' ', u.lastname)), ''), u.username) AS admin_name
             FROM customer_message m LEFT JOIN admin_user u ON u.user_id = m.admin_user_id
             WHERE m.customer_id = :customer" . ($beforeId !== null ? ' AND m.message_id < :before' : '') . '
             ORDER BY m.message_id DESC LIMIT :limit', $bind);
