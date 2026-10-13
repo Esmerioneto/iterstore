@@ -81,7 +81,11 @@ class CartSchema
                 'name' => Type::nonNull(Type::string()),
                 'quantity' => Type::nonNull(Type::float()),
                 'price' => ['type' => Type::float(), 'description' => 'O preço de agora; null sem preço.'],
+                'regularPrice' => ['type' => Type::float(), 'description' => 'O preço cheio quando o produto está em preço promocional (price acima é o promocional); null sem promoção.', 'resolve' => fn ($i) => $i['regular_price']],
                 'rowTotal' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($i) => $i['row_total']],
+                        'discountAmount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($i) => (float) ($i['discount_amount'] ?? 0)],
+                'discountAmount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($i) => (float) ($i['discount_amount'] ?? 0)],
+                'rowTotalAfterDiscount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($i) => (float) ($i['row_total_after_discount'] ?? $i['row_total'])],
                 'error' => ['type' => Type::string(), 'description' => 'Por que o item não pode ser comprado assim (inativo, sem estoque suficiente...). Com erro, o pedido é recusado.'],
                 'errorCode' => ['type' => Type::string(), 'description' => 'PRODUCT_NOT_SALABLE, INSUFFICIENT_STOCK ou PRODUCT_IS_CONFIGURABLE.', 'resolve' => fn ($i) => $i['error_code']],
                 'product' => ['type' => $productType, 'resolve' => static fn ($i) => (new Product())->load($i['product_id'])->getData() ?: null],
@@ -92,7 +96,7 @@ class CartSchema
         $rateType = new ObjectType([
             'name' => 'ShippingMethod',
             'fields' => [
-                'code' => ['type' => Type::nonNull(Type::string()), 'description' => 'tablerate, freeshipping ou pickup.'],
+                'code' => ['type' => Type::nonNull(Type::string()), 'description' => 'tablerate, freeshipping, pickup ou melhorenvio:<serviceId>.'],
                 'label' => Type::nonNull(Type::string()),
                 'amount' => Type::nonNull(Type::float()),
                 'days' => ['type' => Type::nonNull(Type::int()), 'description' => 'Prazo em dias úteis.'],
@@ -101,13 +105,14 @@ class CartSchema
         $shippingFields = $shipping ? [
             'availableShippingMethods' => [
                 'type' => Type::nonNull(Type::listOf(Type::nonNull($rateType))),
-                'description' => 'As opções de frete agora, a mais barata primeiro. Frete por tabela e grátis pedem o endereço de entrega.',
+                'description' => 'As opções de frete agora, a mais barata primeiro. Fretes calculados exigem endereço de entrega válido.',
                 'resolve' => fn ($c) => $c['shipping_methods'],
             ],
             'shippingMethod' => ['type' => $rateType, 'description' => 'O escolhido; null se nenhum ou se deixou de valer (endereço mudou).', 'resolve' => fn ($c) => $c['shipping_method']],
             'shippingAmount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($c) => $c['shipping_amount']],
         ] : [];
         $payment = \isModuleEnabled('iter_payment');
+        $promotions = \isModuleEnabled('iter_promotion');
         $paymentType = new ObjectType([
             'name' => 'PaymentMethod',
             'fields' => [
@@ -132,7 +137,13 @@ class CartSchema
                 'items' => Type::nonNull(Type::listOf(Type::nonNull($itemType))),
                 'itemsQuantity' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($c) => $c['items_quantity']],
                 'subtotal' => Type::nonNull(Type::float()),
-                'total' => ['type' => Type::nonNull(Type::float()), 'description' => 'Subtotal + frete escolhido.'],
+                'discountAmount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($c) => (float) ($c['discount_amount'] ?? 0)],
+                'couponCode' => ['type' => Type::string(), 'resolve' => fn ($c) => $c['coupon_code'] ?? null],
+                'couponMessage' => ['type' => Type::string(), 'resolve' => fn ($c) => $c['coupon_message'] ?? null],
+                'discounts' => ['type' => Type::nonNull(Type::listOf(Type::nonNull(new ObjectType(['name' => 'CartDiscount', 'fields' => [
+                    'name' => Type::nonNull(Type::string()), 'couponCode' => Type::string(), 'amount' => Type::nonNull(Type::float()),
+                ]])))), 'resolve' => fn ($c) => $c['discounts'] ?? []],
+                'total' => ['type' => Type::nonNull(Type::float()), 'description' => 'Subtotal menos descontos mais frete escolhido.'],
                 'hasErrors' => ['type' => Type::nonNull(Type::boolean()), 'description' => 'Algum item com error.', 'resolve' => fn ($c) => $c['has_errors']],
                 'shippingAddress' => ['type' => $addressType, 'resolve' => fn ($c) => $c['shipping_address']],
                 'billingAddress' => ['type' => $addressType, 'description' => 'Sem um próprio, o de entrega.', 'resolve' => fn ($c) => $c['billing_address']],
@@ -159,10 +170,18 @@ class CartSchema
                         'options' => ['type' => Type::string(), 'description' => 'A variação comprada ("Cor: Preto, Tamanho: M").'],
                         'quantity' => Type::nonNull(Type::float()),
                         'price' => Type::nonNull(Type::float()),
+                        'regularPrice' => ['type' => Type::float(), 'description' => 'O preço cheio quando foi comprado em preço promocional; null sem promoção (ou pedido anterior a 2026-10-10).', 'resolve' => fn ($i) => $i['regular_price']],
                         'rowTotal' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($i) => $i['row_total']],
+                        'discountAmount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($i) => (float) ($i['discount_amount'] ?? 0)],
                     ],
                 ])))),
                 'subtotal' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($o) => (float) $o['subtotal']],
+                'discountAmount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($o) => (float) ($o['discount_amount'] ?? 0)],
+                'couponCode' => ['type' => Type::string(), 'resolve' => fn ($o) => $o['coupon_code'] ?? null],
+                'discounts' => ['type' => Type::nonNull(Type::listOf(Type::nonNull(new ObjectType(['name' => 'OrderDiscount', 'fields' => [
+                    'name' => Type::nonNull(Type::string()), 'couponCode' => Type::string(),
+                    'amount' => Type::nonNull(Type::float()),
+                ]])))), 'resolve' => fn ($o) => array_map(static fn ($d) => ['name' => $d['promotion_name'], 'coupon_code' => $d['coupon_code'], 'amount' => (float) $d['discount_amount']], $o['discounts'] ?? [])],
                 'shippingAmount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($o) => (float) $o['shipping_amount']],
                 'total' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($o) => (float) $o['grand_total']],
                 'shippingMethod' => ['type' => Type::string(), 'description' => 'O code do frete escolhido.', 'resolve' => fn ($o) => $o['shipping_method']],
@@ -293,11 +312,24 @@ class CartSchema
                     'args' => $cartIdArg + ['code' => Type::nonNull(Type::string())],
                     'resolve' => $mutate(static fn (int $q, array $a) => $service->setPaymentMethod($q, $a['code'])),
                 ],
+            ] : []) + ($promotions ? [
+                'applyCartCoupon' => [
+                    'type' => Type::nonNull($cartType),
+                    'description' => 'Aplica um cupom no carrinho e devolve os valores recalculados.',
+                    'args' => $cartIdArg + ['code' => Type::nonNull(Type::string())],
+                    'resolve' => $mutate(static fn (int $q, array $a) => $service->applyCoupon($q, $a['code'])),
+                ],
+                'removeCartCoupon' => [
+                    'type' => Type::nonNull($cartType),
+                    'description' => 'Remove o cupom do carrinho e recalcula promoções automáticas.',
+                    'args' => $cartIdArg,
+                    'resolve' => $mutate(static fn (int $q) => $service->removeCoupon($q)),
+                ],
             ] : []) + [
                 'placeOrder' => [
                     'type' => Type::nonNull($orderType),
                     'description' => 'Fecha o pedido: confere o carrinho (o erro diz o que falta), reserva o estoque e envia o e-mail "pedido recebido". Chamar de novo com o mesmo carrinho devolve o mesmo pedido. O canal de venda vem do cabeçalho X-Sales-Channel (ex.: "App mobile", "Web"; sem ele, "App mobile").',
-                    'args' => $cartIdArg,
+                    'args' => $cartIdArg + ['expectedTotal' => ['type' => Type::float(), 'description' => 'Total que o cliente confirmou na revisão; se mudou, retorna TOTAL_CHANGED e não fecha o pedido.']],
                     'resolve' => static function ($root, array $args) use ($service): array {
                         if (!RateLimit::hit('order_place:' . RateLimit::ip(), (int) Config::get('sales/checkout/place_per_minute'))) {
                             http_response_code(429);
@@ -305,7 +337,7 @@ class CartSchema
                         }
                         $orders = new OrderService();
 
-                        return $orders->get($orders->place($service->resolve($args['cartId'] ?? null, CustomerAuth::customer(), true)));
+                        return $orders->get($orders->place($service->resolve($args['cartId'] ?? null, CustomerAuth::customer(), true), true, isset($args['expectedTotal']) ? (float) $args['expectedTotal'] : null));
                     },
                 ],
                 'setCartBillingAddress' => [

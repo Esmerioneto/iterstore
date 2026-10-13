@@ -13,6 +13,7 @@ use Iter\Eav\Model\Taxvat;
 use Iter\Eav\Model\ValueService;
 use Iter\Inventory\Model\StockService;
 use Iter\Payment\Model\PaymentService;
+use Iter\Promotion\Model\PromotionService;
 use Iter\Shipping\Model\ShippingService;
 
 /**
@@ -81,6 +82,10 @@ class CartService
         }
         $items = $this->items($quoteId, (int) $quote['website_id']);
         $subtotal = round(array_sum(array_column($items, 'row_total')), 2);
+        $promotion = \isModuleEnabled('iter_promotion')
+            ? (new PromotionService())->calculate($quote, $items, $subtotal)
+            : ['items' => $items, 'discount_amount' => 0.0, 'coupon_code' => null, 'coupon_message' => null, 'discounts' => []];
+        $items = $promotion['items'];
         $shipping = $quote['shipping_address'] === null ? null : json_decode($quote['shipping_address'], true);
         $view = [
             'website_id' => (int) $quote['website_id'],
@@ -108,12 +113,16 @@ class CartService
             'items' => $items,
             'items_quantity' => (float) array_sum(array_column($items, 'quantity')),
             'subtotal' => $subtotal,
+            'discount_amount' => $promotion['discount_amount'],
+            'coupon_code' => $promotion['coupon_code'],
+            'coupon_message' => $promotion['coupon_message'],
+            'discounts' => $promotion['discounts'],
             'shipping_methods' => array_values($rates),
             'shipping_method' => $method,
             'shipping_amount' => $method['amount'] ?? 0.0,
             'payment_methods' => array_values($payments),
             'payment_method' => $payments[(string) $quote['payment_method']] ?? null, // switched off since: dropped
-            'total' => round($subtotal + ($method['amount'] ?? 0.0), 2), // ponytail: discounts join with the promotions plan
+            'total' => round(max(0.0, $subtotal - $promotion['discount_amount']) + ($method['amount'] ?? 0.0), 2),
             'has_errors' => (bool) array_filter(array_column($items, 'error')),
         ];
     }
@@ -148,6 +157,17 @@ class CartService
         $this->itemProduct($quoteId, $itemId);
         Connection::get()->adapter()->delete('sales_quote_item', ['item_id = ?' => $itemId]);
         $this->touch($quoteId);
+    }
+
+    public function applyCoupon(int $quoteId, string $code): void
+    {
+        if (!\isModuleEnabled('iter_promotion')) throw new SalesException('PROMOTIONS_DISABLED', 'Promoções estão desativadas.');
+        (new PromotionService())->applyCoupon($quoteId, $code);
+    }
+
+    public function removeCoupon(int $quoteId): void
+    {
+        if (\isModuleEnabled('iter_promotion')) (new PromotionService())->removeCoupon($quoteId);
     }
 
     /**
@@ -287,6 +307,8 @@ class CartService
                 'name' => $product['name'],
                 'quantity' => $quantity,
                 'price' => $product['price'],
+                // the full price when the product sells below it (price_promo); null otherwise
+                'regular_price' => $product['regular_price'] !== null && $product['price'] !== null && $product['regular_price'] > $product['price'] ? $product['regular_price'] : null,
                 'row_total' => round((float) $product['price'] * $quantity, 2),
                 'weight' => $product['weight'] === null ? 0.0 : (float) $product['weight'],
                 'error' => $error,
@@ -310,7 +332,8 @@ class CartService
             ->where('p.product_id IN (?)', array_map('intval', $ids));
         $values = (new ValueService())->loadMany(Product::ENTITY_TYPE, $ids, [...Product::PRICE_CODES, 'weight']);
 
-        return array_map(static fn (array $p) => $p + ['price' => Product::finalPrice($values[(int) $p['product_id']] ?? []), 'weight' => $values[(int) $p['product_id']]['weight'] ?? null],
+        return array_map(static fn (array $p) => $p + ['price' => Product::finalPrice($values[(int) $p['product_id']] ?? []),
+            'regular_price' => isset($values[(int) $p['product_id']]['price']) && $values[(int) $p['product_id']]['price'] !== '' ? (float) $values[(int) $p['product_id']]['price'] : null, 'weight' => $values[(int) $p['product_id']]['weight'] ?? null],
             array_column($db->fetchAll($select), null, 'product_id'));
     }
 

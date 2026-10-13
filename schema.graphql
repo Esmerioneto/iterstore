@@ -187,6 +187,15 @@ type Query {
     "Omitido = website padrão."
     websiteId: ID
   ): [ShippingTableRate!]!
+
+  "Todas as opções de frete disponíveis para o carrinho e CEP informados, usando o mesmo serviço central do checkout. Não salva o endereço nem seleciona o frete."
+  shippingQuotes(
+    "O cartId do visitante; cliente logado pode omitir."
+    cartId: String
+
+    destinationCep: String!
+  ): [ShippingQuote!]!
+
   mercadopagoSettings(
     "Omitido = website padrão."
     websiteId: ID
@@ -628,7 +637,7 @@ type AttributeOption {
 }
 
 type Cart {
-  "As opções de frete agora, a mais barata primeiro. Frete por tabela e grátis pedem o endereço de entrega."
+  "As opções de frete agora, a mais barata primeiro. Fretes calculados exigem endereço de entrega válido."
   availableShippingMethods: [ShippingMethod!]!
 
   "O escolhido; null se nenhum ou se deixou de valer (endereço mudou)."
@@ -652,8 +661,12 @@ type Cart {
   items: [CartItem!]!
   itemsQuantity: Float!
   subtotal: Float!
+  discountAmount: Float!
+  couponCode: String
+  couponMessage: String
+  discounts: [CartDiscount!]!
 
-  "Subtotal + frete escolhido."
+  "Subtotal menos descontos mais frete escolhido."
   total: Float!
 
   "Algum item com error."
@@ -668,7 +681,7 @@ type Cart {
 }
 
 type ShippingMethod {
-  "tablerate, freeshipping ou pickup."
+  "tablerate, freeshipping, pickup ou melhorenvio:<serviceId>."
   code: String!
 
   label: String!
@@ -697,7 +710,12 @@ type CartItem {
   "O preço de agora; null sem preço."
   price: Float
 
+  "O preço cheio quando o produto está em preço promocional (price acima é o promocional); null sem promoção."
+  regularPrice: Float
+
   rowTotal: Float!
+  discountAmount: Float!
+  rowTotalAfterDiscount: Float!
 
   "Por que o item não pode ser comprado assim (inativo, sem estoque suficiente...). Com erro, o pedido é recusado."
   error: String
@@ -706,6 +724,12 @@ type CartItem {
   errorCode: String
 
   product: Product
+}
+
+type CartDiscount {
+  name: String!
+  couponCode: String
+  amount: Float!
 }
 
 type CartAddress {
@@ -787,6 +811,9 @@ type Order {
 
   items: [OrderItem!]!
   subtotal: Float!
+  discountAmount: Float!
+  couponCode: String
+  discounts: [OrderDiscount!]!
   shippingAmount: Float!
   total: Float!
 
@@ -838,7 +865,18 @@ type OrderItem {
 
   quantity: Float!
   price: Float!
+
+  "O preço cheio quando foi comprado em preço promocional; null sem promoção (ou pedido anterior a 2026-10-10)."
+  regularPrice: Float
+
   rowTotal: Float!
+  discountAmount: Float!
+}
+
+type OrderDiscount {
+  name: String!
+  couponCode: String
+  amount: Float!
 }
 
 type OrderShipment {
@@ -880,6 +918,13 @@ type ShippingTableRate {
   price: Float!
 
   "Prazo em dias úteis."
+  days: Int!
+}
+
+type ShippingQuote {
+  code: String!
+  label: String!
+  amount: Float!
   days: Int!
 }
 
@@ -1255,10 +1300,27 @@ type Mutation {
     code: String!
   ): Cart!
 
+  "Aplica um cupom no carrinho e devolve os valores recalculados."
+  applyCartCoupon(
+    "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
+    cartId: String
+
+    code: String!
+  ): Cart!
+
+  "Remove o cupom do carrinho e recalcula promoções automáticas."
+  removeCartCoupon(
+    "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
+    cartId: String
+  ): Cart!
+
   "Fecha o pedido: confere o carrinho (o erro diz o que falta), reserva o estoque e envia o e-mail \"pedido recebido\". Chamar de novo com o mesmo carrinho devolve o mesmo pedido. O canal de venda vem do cabeçalho X-Sales-Channel (ex.: \"App mobile\", \"Web\"; sem ele, \"App mobile\")."
   placeOrder(
     "O do createCart (visitante). Cliente logado omite: vale o carrinho dele."
     cartId: String
+
+    "Total que o cliente confirmou na revisão; se mudou, retorna TOTAL_CHANGED e não fecha o pedido."
+    expectedTotal: Float
   ): Order!
 
   "Como o de entrega; sem address nem customerAddressId, a cobrança é no endereço de entrega."
@@ -1328,6 +1390,9 @@ type Mutation {
 
     "Comentário interno no histórico (não vai para o cliente)."
     comment: String
+
+    "Total confirmado pelo admin; se mudou, retorna TOTAL_CHANGED."
+    expectedTotal: Float
   ): Order!
 
   "A lista enviada é a tabela inteira do website (faixa ausente é removida). CEP com ou sem máscara. Para um CEP, vale a faixa com o menor \"peso até\" que comporte o carrinho."

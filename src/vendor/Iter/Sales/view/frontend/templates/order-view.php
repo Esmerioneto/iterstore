@@ -20,6 +20,12 @@ $address = static function (?array $a) use ($e): string {
 };
 $form = static fn (string $action, string $inner, string $confirm = '') => '<form method="post" action="/admin/order/' . $action . '"' . ($confirm ? ' data-confirm="' . htmlspecialchars($confirm) . '"' : '') . '>'
     . FormKey::field() . '<input type="hidden" name="order_id" value="' . $id . '">' . $inner . '</form>';
+// Mercado Pago's payment_method.id → the brand's name; the newest charge with a card says which one
+// (logos in /assets/admin/card-brands; a brand without one shows just the name)
+$brands = ['master' => 'Mastercard', 'amex' => 'American Express', 'hipercard' => 'Hipercard', 'elo' => 'Elo', 'visa' => 'Visa', 'debvisa' => 'Visa', 'debmaster' => 'Mastercard', 'debelo' => 'Elo'];
+$brand = current(array_filter(array_column($charges, 'card_brand'))) ?: null;
+$brandName = $brand ? ($brands[$brand] ?? ucfirst($brand)) : '';
+$brandIcon = ['master' => 'master', 'debmaster' => 'master', 'visa' => 'visa', 'debvisa' => 'visa', 'elo' => 'elo', 'debelo' => 'elo', 'amex' => 'amex'][(string) $brand] ?? null;
 ?>
 <section class="mail-view sales-order-view">
     <h2>Pedido <?= $e($order['increment_id']) ?> · <?= $e($order['status_label']) ?></h2>
@@ -29,10 +35,10 @@ $form = static fn (string $action, string $inner, string $confirm = '') => '<for
         <tr><th>Data</th><td><?= $e(substr((string) $order['created_at'], 0, 16)) ?></td></tr>
         <tr><th>Cliente</th><td><?= $e($order['firstname'] . ' ' . $order['lastname']) ?> · <?= $e($order['email']) ?> · CPF/CNPJ <?= $e($order['taxvat']) ?>
             <?= $order['customer_id'] === null ? ' (visitante)' : ' · <a href="/admin/customer/edit?id=' . (int) $order['customer_id'] . '">ver cliente</a>' ?></td></tr>
-        <tr><th>Frete</th><td><?= $e($order['shipping_label'] ?? '—') ?><?= $order['shipping_days'] !== null ? ' · ' . (int) $order['shipping_days'] . ' dia(s) útil(eis)' : '' ?></td></tr>
-        <tr><th>Pagamento</th><td><?= $e($order['payment_label'] ?? '—') ?><?php if ($order['payment_instructions']): ?><br><small style="white-space: pre-line;"><?= $e($order['payment_instructions']) ?></small><?php endif; ?>
+        <tr><th>Frete</th><td><?= $e($order['shipping_label'] ?? '—') ?> · <?= $money($order['shipping_amount']) ?><?= $order['shipping_days'] !== null ? ' · ' . (int) $order['shipping_days'] . ' dia(s) útil(eis)' : '' ?></td></tr>
+        <tr><th>Pagamento</th><td><?= in_array($order['payment_method'] ?? '', ['pix', 'mercadopago_pix'], true) ? '<img class="sales-card-brand" src="/assets/admin/card-brands/pix.svg" alt="" width="38" height="24"> ' : '' ?><?= $e($order['payment_label'] ?? '—') ?><?= $brand ? ' · ' . ($brandIcon ? '<img class="sales-card-brand" src="/assets/admin/card-brands/' . $brandIcon . '.svg" alt="" width="38" height="24"> ' : '') . '<strong>' . $e($brandName) . '</strong>' : '' ?><?php if ($order['payment_instructions']): ?><br><small style="white-space: pre-line;"><?= $e($order['payment_instructions']) ?></small><?php endif; ?>
 <?php foreach ($charges as $c): ?>
-            <br><small>Mercado Pago #<?= $e($c['external_id']) ?> · <?= $e($c['status_label']) ?><?= $c['card_brand'] ? ' · ' . $e(ucfirst($c['card_brand'])) : '' ?><?= $c['card_number'] ? ' ' . $e($c['card_number']) : '' ?><?= $c['installments'] > 1 ? ' · ' . (int) $c['installments'] . 'x' : '' ?> · <?= $money($c['amount']) ?></small>
+            <br><small>Mercado Pago #<?= $e($c['external_id']) ?> · <?= $e($c['status_label']) ?><?= $c['card_brand'] ? ' · ' . $e($brands[$c['card_brand']] ?? ucfirst($c['card_brand'])) : '' ?><?= $c['card_number'] ? ' ' . $e($c['card_number']) : '' ?><?= $c['installments'] > 1 ? ' · ' . (int) $c['installments'] . 'x' : '' ?> · <?= $money($c['amount']) ?></small>
 <?php endforeach; ?></td></tr>
 <?php if ($order['shipment']): ?>
         <tr><th>Entrega</th><td>Saiu de <?= $e($order['shipment']['source_name']) ?> em <?= $e(substr((string) $order['shipment']['created_at'], 0, 16)) ?>
@@ -51,13 +57,14 @@ $form = static fn (string $action, string $inner, string $confirm = '') => '<for
                 <td><?= $e($item['sku']) ?></td>
                 <td><?= $e($item['name']) ?><?= $item['options'] ? '<br><small>' . $e($item['options']) . '</small>' : '' ?></td>
                 <td><?= $e(str_replace('.', ',', StockService::format((string) $item['quantity']))) ?></td>
-                <td><?= $money($item['price']) ?></td>
-                <td><?= $money($item['row_total']) ?></td>
+                <td><?= $money($item['price']) ?><?= $item['regular_price'] ? '<br><small class="sales-promo-price">Promoção · de <s>' . $money($item['regular_price']) . '</s></small>' : '' ?></td>
+                <td><?= $money(max(0.0, (float) $item['row_total'] - (float) ($item['discount_amount'] ?? 0))) ?><?= !empty($item['discount_amount']) ? '<br><small class="sales-promo-price">Desconto: − ' . $money($item['discount_amount']) . '</small>' : '' ?></td>
             </tr>
 <?php endforeach; ?>
         </tbody>
     </table>
-    <p class="sales-order-totals">Subtotal <?= $money($order['subtotal']) ?> · Frete <?= $money($order['shipping_amount']) ?> · <strong>Total <?= $money($order['grand_total']) ?></strong></p>
+    <?php if (!empty($order['discounts'])): ?><h3>Promoções aplicadas</h3><ul><?php foreach ($order['discounts'] as $discount): ?><li><?= $e($discount['promotion_name']) ?><?= $discount['coupon_code'] ? ' · cupom ' . $e($discount['coupon_code']) : '' ?>: − <?= $money($discount['discount_amount']) ?></li><?php endforeach; ?></ul><?php endif; ?>
+    <p class="sales-order-totals">Subtotal <?= $money($order['subtotal']) ?><?= !empty($order['discount_amount']) ? ' · Descontos − ' . $money($order['discount_amount']) : '' ?> · Frete <?= $money($order['shipping_amount']) ?> · <strong>Total <?= $money($order['grand_total']) ?></strong></p>
 
 <?php if ($actions): ?>
     <h3>Ações</h3>

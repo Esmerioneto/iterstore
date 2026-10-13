@@ -1,0 +1,1 @@
+Card brand icons from https://github.com/activemerchant/payment_icons (MIT License).

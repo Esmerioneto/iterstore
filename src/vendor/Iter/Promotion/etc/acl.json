@@ -1,0 +1,4 @@
+[
+  { "id": "Iter_Promotion::manage", "parent": "Iter_Admin::root", "title": "Promoções e cupons" },
+  { "id": "Iter_Promotion::usages", "parent": "Iter_Promotion::manage", "title": "Promoções: ver usos" }
+]
