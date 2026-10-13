@@ -1,0 +1,3 @@
+[
+  { "route": "admin", "vendor": "Iter", "module_name": "MelhorEnvio", "controller_name": "melhorenvio", "controller_action": "authorize,callback", "method": "GET" }
+]

@@ -1,0 +1,3 @@
+[
+  { "label": "Conectar Melhor Envio", "resource": "Iter_MelhorEnvio::config", "url": "/admin/melhorenvio/authorize", "parent": "vendas", "sort_order": 20 }
+]

@@ -1,0 +1,9 @@
+{
+  "name": "iter_melhorenvio",
+  "version": "1.0.0",
+  "description": "Integração de frete com Melhor Envio",
+  "enabled": true,
+  "index": "0",
+  "author": "Esmerio",
+  "depends": ["iter_shipping"]
+}
