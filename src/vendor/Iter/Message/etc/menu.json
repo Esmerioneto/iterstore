@@ -1,3 +1,3 @@
 [
-  { "label": "Mensagens", "resource": "Iter_Message::manage", "url": "/admin/message/index", "parent": "clientes", "sort_order": 1 }
+  { "label": "Mensagens", "resource": "Iter_Message::manage", "url": "/admin/message/index", "parent": "clientes", "sort_order": 1, "badge": "Iter\\Message\\Model\\MessageService::unreadForAdmin" }
 ]

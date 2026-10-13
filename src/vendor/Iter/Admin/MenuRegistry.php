@@ -12,7 +12,7 @@ namespace Iter\Admin;
 class MenuRegistry
 {
     /**
-     * @return array<int, array{label: string, url: string, sort_order?: int, id?: string, parent?: string}>
+     * @return array<int, array{label: string, url: string, sort_order?: int, id?: string, parent?: string, badge?: string}> badge: "Class::method" returning the item's counter (View\\Menu)
      */
     public static function flat(): array
     {

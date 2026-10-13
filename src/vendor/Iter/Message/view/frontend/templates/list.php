@@ -60,7 +60,7 @@ $name = static fn (array $c) => trim($c['firstname'] . ' ' . $c['lastname']);
                 <td><?= $e($c['website_name']) ?></td>
                 <td class="message-last" title="<?= $e($c['last_body']) ?>"><?= $c['last_sender'] === 'admin' ? '<small>Loja:</small> ' : '' ?><?= $e($c['last_body']) ?></td>
                 <td><?= $e(date('d/m/Y H:i', strtotime((string) $c['last_at']))) ?></td>
-                <td><?php if ($c['unread']): ?><span class="message-count"><?= (int) $c['unread'] ?></span><?php endif; ?></td>
+                <td><?php if ($c['unread']): ?><span class="admin-badge"><?= (int) $c['unread'] ?></span><?php endif; ?></td>
                 <td class="admin-row-action"><a href="/admin/message/view?customer_id=<?= (int) $c['customer_id'] ?>">Abrir</a></td>
             </tr>
 <?php endforeach; ?>

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Admin\View;
 
 use Iter\Admin\MenuRegistry;
+use Iter\Core\Log;
 use Iter\Core\View\ViewComponentInterface;
 
 class Menu implements ViewComponentInterface
@@ -31,8 +32,11 @@ class Menu implements ViewComponentInterface
         foreach ($items as &$item) {
             foreach ($item['children'] as &$child) {
                 $child['current'] = $current($child['url']);
+                $child['badge'] = self::badge($child);
             }
             unset($child);
+            // a closed section still shows that something inside waits
+            $item['badge'] = $item['children'] ? array_sum(array_column($item['children'], 'badge')) : self::badge($item);
             // a link of its own (Painel, /admin/index) only on its own page: its controller folder is all of /admin
             $item['current'] = $item['children'] ? $current($item['url']) : $path === parse_url($item['url'], PHP_URL_PATH);
             $item['open'] = $item['current'] || in_array(true, array_column($item['children'], 'current'), true);
@@ -42,5 +46,22 @@ class Menu implements ViewComponentInterface
         return [
             'items' => $items,
         ];
+    }
+
+    /**
+     * menu.json "badge": "Class::method" returning an int (e.g. unread messages); shown in red when > 0.
+     * A failing counter shows nothing: the menu is on every page.
+     */
+    private static function badge(array $item): int
+    {
+        if (empty($item['badge'])) {
+            return 0;
+        }
+        try {
+            return is_callable($item['badge']) ? max(0, (int) call_user_func($item['badge'])) : 0;
+        } catch (\Throwable $e) {
+            Log::error('Menu: contador de "' . $item['label'] . '" falhou: ' . $e->getMessage());
+            return 0;
+        }
     }
 }

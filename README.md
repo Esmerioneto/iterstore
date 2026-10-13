@@ -29,7 +29,7 @@ O arquivo `src/etc/env.ini` guarda a chave que criptografa os segredos gravados 
 
 | Caminho | Conteúdo |
 |---|---|
-| `src/vendor/Iter/` | Módulos do sistema: Core, Router, Admin, Config, Eav, Catalog, Inventory, Customer, Sales, Adminsales, Payment, Shipping, Mercadopago, Store, Mail |
+| `src/vendor/Iter/` | Módulos do sistema: Core, Router, Admin, Config, Eav, Catalog, Inventory, Customer, Sales, Adminsales, Payment, Shipping, Mercadopago, Melhorenvio, Promotion, Message, Store, Mail |
 | `src/app/code/` | Módulos locais |
 | `src/etc/` | Configuração: banco, e-mail, chave e módulos ativos (`config.json`) |
 | `public/` | Raiz web: `index.php`, assets e mídia enviada |
@@ -65,4 +65,4 @@ Sem o `mail-worker`, os e-mails ficam parados na fila. Os prazos usados pelos ou
 composer test
 ```
 
-O comando roda `view-selftest`, `db-selftest` e `admin-selftest`. O `admin-selftest` usa o banco real: sobe um `php -S`, cria registros `selftest_*` e apaga tudo ao terminar. Ele também falha se o `schema.graphql` estiver desatualizado.
+O comando roda `view-selftest`, `db-selftest`, `admin-selftest` e `shipping-provider-selftest` (Melhor Envio com um cliente falso, sem rede). O `php bin/promotion-selftest.php` testa o cálculo das promoções. O `admin-selftest` usa o banco real: sobe um `php -S`, cria registros `selftest_*` e apaga tudo ao terminar. Ele também falha se o `schema.graphql` estiver desatualizado.
