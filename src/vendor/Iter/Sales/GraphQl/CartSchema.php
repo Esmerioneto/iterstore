@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Sales\GraphQl;
 
 use GraphQL\Error\Error;
+use GraphQL\Type\Definition\EnumType;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
@@ -150,6 +151,9 @@ class CartSchema
                 'billingSameAsShipping' => ['type' => Type::nonNull(Type::boolean()), 'resolve' => fn ($c) => $c['billing_same_as_shipping']],
             ],
         ]);
+        // one instance: OrderSchema's filter and cancelOrder use it too (types['cancelReason'])
+        $cancelReasonType = new EnumType(['name' => 'CancelReason', 'values' => array_combine(array_map('strtoupper', array_keys(OrderService::CANCEL_REASONS)),
+            array_map(static fn ($code, $label) => ['value' => $code, 'description' => $label], array_keys(OrderService::CANCEL_REASONS), OrderService::CANCEL_REASONS))]);
         $orderType = new ObjectType([
             'name' => 'Order',
             'fields' => [
@@ -157,6 +161,7 @@ class CartSchema
                 'number' => ['type' => Type::nonNull(Type::string()), 'description' => 'O número que o cliente vê (SP-000001).', 'resolve' => fn ($o) => $o['increment_id']],
                 'status' => ['type' => Type::nonNull(Type::string()), 'description' => 'pending_payment, processing, shipped, complete ou canceled.'],
                 'statusLabel' => ['type' => Type::nonNull(Type::string()), 'resolve' => fn ($o) => $o['status_label']],
+                'cancelReason' => ['type' => $cancelReasonType, 'description' => 'Por que foi cancelado; null = não cancelado ou cancelado antes de existir o motivo.', 'resolve' => fn ($o) => $o['cancel_reason'] ?? null],
                 'createdAt' => ['type' => Type::nonNull(Type::string()), 'resolve' => fn ($o) => $o['created_at']],
                 'email' => Type::nonNull(Type::string()),
                 'firstname' => Type::nonNull(Type::string()),
@@ -347,7 +352,7 @@ class CartSchema
                     'resolve' => $mutate(static fn (int $q, array $a) => $service->setAddress($q, 'billing', $addressArg($a), isset($a['customerAddressId']) ? (int) $a['customerAddressId'] : null)),
                 ],
             ],
-            'types' => ['order' => $orderType],
+            'types' => ['order' => $orderType, 'cancelReason' => $cancelReasonType],
         ];
     }
 }

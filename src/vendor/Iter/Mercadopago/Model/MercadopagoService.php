@@ -233,6 +233,68 @@ class MercadopagoService
         return $ids;
     }
 
+    /**
+     * Before the order is canceled (CANCEL-PLAN): a charge still open is canceled at Mercado Pago, so it can't be
+     * paid later; Mercado Pago down, the order is canceled anyway and the history says to cancel it in the panel.
+     * An approved one is refunded in full when $refund (else the admin said how the money went back).
+     *
+     * @return array{lines: string[], refunded: float} history lines; the amount refunded here
+     * @throws SalesException PAYMENT_APPROVED (an open charge was just paid: the order got confirmed, not canceled),
+     *                        REFUND_FAILED (nothing canceled)
+     */
+    public function beforeCancel(array $order, bool $refund): array
+    {
+        $websiteId = (int) $order['website_id'];
+        $lines = [];
+        $refunded = 0.0;
+        foreach ($this->forOrder((int) $order['order_id']) as $charge) {
+            $id = (string) $charge['external_id'];
+            if (in_array($charge['status'], self::OPEN, true)) {
+                try {
+                    [$status, $mpOrder] = $this->call('POST', '/v1/orders/' . rawurlencode($id) . '/cancel', $websiteId, null, 'cancel-' . $id);
+                    if ($status < 400 && isset($mpOrder['id'])) {
+                        $this->save((int) $order['order_id'], $charge['method'], $mpOrder, false);
+                        $lines[] = "Cobrança #{$id} cancelada no Mercado Pago.";
+                        continue;
+                    }
+                    // refused: it may have just been paid; the read confirms the order if so
+                    $this->sync($id);
+                } catch (SalesException $e) {
+                    Log::alert("Mercado Pago: cobrança #{$id} do pedido {$order['increment_id']} não cancelada: " . $e->getMessage());
+                }
+                if ((new OrderService())->get((int) $order['order_id'])['status'] !== $order['status']) {
+                    throw new SalesException('PAYMENT_APPROVED', 'O pagamento acabou de ser aprovado no Mercado Pago; o pedido não foi cancelado.');
+                }
+                if (in_array($this->get($id)['status'], self::OPEN, true)) { // else it had already expired or been canceled there
+                    $lines[] = "ATENÇÃO: cancele a cobrança #{$id} no painel do Mercado Pago (não foi possível cancelar por aqui).";
+                }
+            } elseif ($charge['status'] === 'approved' && $refund) {
+                try {
+                    [$status, $mpOrder] = $this->call('POST', '/v1/orders/' . rawurlencode($id) . '/refund', $websiteId, null, 'refund-' . $id);
+                } catch (SalesException $e) {
+                    [$status, $mpOrder] = [0, ['message' => $e->getMessage()]];
+                }
+                if ($status === 0 || $status >= 400) {
+                    Log::error("Mercado Pago: estorno da cobrança #{$id} do pedido {$order['increment_id']} recusado (HTTP {$status}): " . json_encode($mpOrder, JSON_UNESCAPED_UNICODE));
+                    $error = $mpOrder['errors'][0]['message'] ?? $mpOrder['message'] ?? "HTTP {$status}";
+                    throw new SalesException('REFUND_FAILED', "O Mercado Pago não fez o estorno ({$error}). O pedido não foi cancelado.");
+                }
+                // the refund may still be in progress at Mercado Pago: here it's done (the cron only reads open charges)
+                Connection::get()->adapter()->update('mercadopago_payment', ['status' => 'refunded'], ['external_id = ?' => $id]);
+                $refunded += (float) $charge['amount'];
+                $lines[] = sprintf('Estornado R$ %s no Mercado Pago (cobrança #%s).', number_format((float) $charge['amount'], 2, ',', '.'), $id);
+            }
+        }
+
+        return ['lines' => $lines, 'refunded' => $refunded];
+    }
+
+    /** the order's approved charges, what "Estornar R$ X no Mercado Pago" gives back */
+    public function approvedAmount(int $orderId): float
+    {
+        return array_sum(array_column(array_filter($this->forOrder($orderId), static fn (array $c) => $c['status'] === 'approved'), 'amount'));
+    }
+
     /** @throws SalesException PAYMENT_NOT_FOUND */
     public function get(string $externalId): array
     {
@@ -295,9 +357,10 @@ class MercadopagoService
     /**
      * Stores the charge (a Mercado Pago order with one payment) as the API gave it and, when its status
      * changed, tells the order: approved confirms it; anything else becomes a history note for the admin
-     * (never e-mailed). A field the API leaves out of a later read (the Pix QR code) keeps its value.
+     * (never e-mailed); !$tell when the caller writes the history itself (beforeCancel). A field the API
+     * leaves out of a later read (the Pix QR code) keeps its value.
      */
-    private function save(int $orderId, string $method, array $mpOrder): void
+    private function save(int $orderId, string $method, array $mpOrder, bool $tell = true): void
     {
         $id = (string) $mpOrder['id'];
         $payment = $mpOrder['transactions']['payments'][0] ?? [];
@@ -325,7 +388,7 @@ class MercadopagoService
 
             return (string) $previous;
         });
-        if ($previous !== $row['status']) {
+        if ($tell && $previous !== $row['status']) {
             $this->apply($orderId, $id, $row, $previous);
         }
     }

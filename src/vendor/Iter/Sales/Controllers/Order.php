@@ -64,7 +64,9 @@ class Order
 
     public function Cancel(): void
     {
-        $this->act('Iter_Sales::order_cancel', 'Pedido cancelado. O estoque reservado voltou para a venda.', static fn (OrderService $s, int $id, ?int $user) => $s->cancel($id, (string) ($_POST['comment'] ?? ''), $user));
+        $this->act('Iter_Sales::order_cancel', 'Pedido cancelado. O estoque reservado voltou para a venda.', static fn (OrderService $s, int $id, ?int $user) => $s->cancel(
+            $id, (string) ($_POST['cancel_reason'] ?? ''), $user, (string) ($_POST['comment'] ?? ''), !empty($_POST['notify']), (string) ($_POST['refund_note'] ?? ''), !empty($_POST['refund'])
+        ));
     }
 
     public function Comment(): void

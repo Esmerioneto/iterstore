@@ -125,6 +125,12 @@ type Query {
     "Só os deste canal (\"App mobile\", \"Atendimento\"...)."
     salesChannel: String
 
+    "Só os pagos com esta forma (código: \"pix\", \"offline\", \"mercadopago_credit\"...)."
+    paymentMethod: String
+
+    "Só os cancelados por este motivo."
+    cancelReason: CancelReason
+
     "Parte do número, do e-mail ou do nome."
     search: String
 
@@ -804,12 +810,33 @@ enum OrderStatus {
   canceled
 }
 
+enum CancelReason {
+  "Desistência do cliente"
+  CUSTOMER
+
+  "Pagamento não recebido"
+  UNPAID
+
+  "Produto sem estoque"
+  OUT_OF_STOCK
+
+  "Suspeita de fraude"
+  FRAUD
+
+  "Erro no pedido"
+  ORDER_ERROR
+
+  "Outro"
+  OTHER
+}
+
 enum OrderSort {
   CREATED_AT
   NUMBER
   CUSTOMER
   TOTAL
   STATUS
+  PAYMENT
 }
 
 enum SortDirection {
@@ -835,6 +862,10 @@ type Order {
   status: String!
 
   statusLabel: String!
+
+  "Por que foi cancelado; null = não cancelado ou cancelado antes de existir o motivo."
+  cancelReason: CancelReason
+
   createdAt: String!
   email: String!
   firstname: String!
@@ -1431,8 +1462,23 @@ type Mutation {
   "Enviado → Concluído (o cliente recebeu). Exige Iter_Sales::order_ship."
   completeOrder(id: ID!): Order!
 
-  "Antes do envio: devolve a reserva e avisa o cliente com o motivo. Exige Iter_Sales::order_cancel."
-  cancelOrder(id: ID!, reason: String!): Order!
+  "Antes do envio: devolve a reserva (o histórico lista o que voltou) e avisa o cliente com o motivo. Exige Iter_Sales::order_cancel. Mercado Pago: a cobrança em aberto é cancelada lá antes. Erros: REASON_REQUIRED (OTHER sem comment), REFUND_NOTE_REQUIRED (pedido pago sem refundNote nem estorno), PAYMENT_APPROVED (a cobrança acabou de ser paga: o pedido foi confirmado), REFUND_FAILED, ORDER_STATUS_INVALID."
+  cancelOrder(
+    id: ID!
+    reason: CancelReason!
+
+    "Complemento do motivo; obrigatório com OTHER. Vai para o cliente."
+    comment: String
+
+    "false: cancela sem e-mail ao cliente (pedido de teste, fraude)."
+    notify: Boolean = true
+
+    "Pedido pago pelo Mercado Pago: estorna o valor todo lá antes de cancelar (REFUND_FAILED: não cancela). false: informe refundNote."
+    refund: Boolean = true
+
+    "Pedido já pago (Pagamento confirmado) sem estorno pelo Mercado Pago: como o valor foi devolvido. Vai para o histórico e o e-mail."
+    refundNote: String
+  ): Order!
 
   "Comentário no histórico, em qualquer situação."
   addOrderComment(
