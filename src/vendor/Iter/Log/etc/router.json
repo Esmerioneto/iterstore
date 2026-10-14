@@ -1,0 +1,10 @@
+[
+  {
+    "route": "admin",
+    "vendor": "Iter",
+    "module_name": "Log",
+    "controller_name": "log",
+    "controller_action": "index,view",
+    "method": "GET"
+  }
+]

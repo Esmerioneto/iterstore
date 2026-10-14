@@ -1,0 +1,11 @@
+{
+    "dashboard": {
+        "children": {
+            "form": {
+                "children": {
+                    "history": "log/history"
+                }
+            }
+        }
+    }
+}

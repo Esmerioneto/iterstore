@@ -1,0 +1,3 @@
+[
+  { "label": "Log de operações", "resource": "Iter_Log::view", "url": "/admin/log/index", "parent": "sistema", "sort_order": 25 }
+]

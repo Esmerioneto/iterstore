@@ -1114,7 +1114,7 @@ $makeUser('selftest_produtos', ['Iter_Catalog::product', 'Iter_Inventory::stock'
 $editor = new Browser($base);
 $editor->login('selftest_produtos');
 $page = $editor->request('/admin/product/edit?id=' . $estId);
-assertSame([200, false, $defaultBlocks], [$page['status'], str_contains($page['body'], 'data-layout-toggle'), $blocksOf($page['body'])], 'perfil só com Produtos não vê "Organizar tela" e usa o layout padrão');
+assertSame([200, false, array_values(array_diff($defaultBlocks, ['history']))], [$page['status'], str_contains($page['body'], 'data-layout-toggle'), $blocksOf($page['body'])], 'perfil só com Produtos não vê "Organizar tela" e usa o layout padrão (sem o histórico, que pede Iter_Log::view)');
 assertSame([403, 403], [$layoutPost($editor, '/admin/productlayout/save', ['layout' => '{"blocks":[]}'])[0], $layoutPost($editor, '/admin/productlayout/reset')[0]], 'perfil só com Produtos recebe 403 ao salvar ou restaurar layout');
 
 // --- catalog: categories -----------------------------------------------------------------------------
@@ -3433,6 +3433,50 @@ assertSame([['log_off', ['Log de operações' => ['ligado', 'desligado']]], ['lo
 $admin->submit('/admin/product/index', '/admin/product/delete', ['product_id' => $opId]);
 $opDeleted = $opNew();
 assertSame([['delete', 'Caneca Roxa', null]], array_map(static fn ($l) => [$l['action'], $opChanges($l)['Nome'][0] ?? null, $opChanges($l)['Nome'][1] ?? null], $opDeleted), 'log de operações: excluir grava os últimos valores');
+
+// --- operation log screens (LOG-OPERATION-PLAN delivery 2) ----------------------------------------
+$opLine = static fn (string $where): int => (int) $pdo->query("SELECT log_id FROM log_operation WHERE {$where} ORDER BY log_id DESC LIMIT 1")->fetchColumn();
+$opList = $admin->request('/admin/log/index?user=selftest_ninguem&action=login_failed')['body'];
+assertSame([true, true, 1, true], [
+    str_contains($admin->request('/admin/index')['body'], 'href="/admin/log/index"'),
+    str_contains($opList, '<td>Login recusado</td>') || str_contains($opList, '>Login recusado</td>'),
+    substr_count($opList, '/admin/log/view?id='),
+    str_contains($opList, '<option value="selftest_ninguem" selected>'),
+], 'log de operações: Sistema → Log de operações filtra por usuário e ação');
+$admin->submit('/admin/product/create?set=' . $defaultProductSet, '/admin/product/save', ['sku' => 'selftest-op2', 'name' => 'Copo <b>vidro</b>', 'attributes' => ['price' => '3']] + $opPost);
+$opId2 = (int) $pdo->query("SELECT product_id FROM catalog_product WHERE sku = 'selftest-op2'")->fetchColumn();
+$admin->submit('/admin/product/edit?id=' . $opId2, '/admin/product/save', ['product_id' => $opId2, 'sku' => 'selftest-op2', 'name' => 'Copo <b>vidro</b>', 'attributes' => ['price' => '4']] + $opPost);
+$opView = $admin->request('/admin/log/view?id=' . $opLine("entity_type = 'product' AND entity_id = {$opId2} AND action = 'update'"))['body'];
+assertSame([true, true, true, false, true], [
+    str_contains($opView, '<th>Preço</th>'),
+    (bool) preg_match('#<th>Preço</th>\s*<td>3</td>\s*<td>4</td>#', $opView),
+    str_contains($opView, 'href="/admin/product/edit?id=' . $opId2 . '"'),
+    str_contains($opView, '<b>vidro</b>'),
+    str_contains($opView, 'href="/admin/log/index?entity=product:' . $opId2 . '"'),
+], 'log de operações: o detalhe mostra Campo / Antes / Depois, o link para o produto e escapa o texto');
+$opHistory = $admin->request('/admin/product/edit?id=' . $opId2)['body'];
+assertSame([true, 2, true], [
+    str_contains($opHistory, 'Histórico de alterações'),
+    substr_count(substr($opHistory, (int) strpos($opHistory, 'Histórico de alterações')), '/admin/log/view?id='),
+    str_contains($opHistory, 'href="/admin/log/index?entity=product:' . $opId2 . '"'),
+], 'log de operações: o produto mostra o histórico dele, com "Ver todas"');
+$opGridHistory = $admin->request('/admin/log/index?entity=product:' . $opParent)['body'];
+assertSame(true, str_contains($opGridHistory, 'o produto e as variações dele'), 'log de operações: "Ver todas" de um produto filtra o produto e as variações');
+$admin->submit('/admin/product/index', '/admin/product/delete', ['product_id' => $opId2]);
+assertSame(true, str_contains($admin->request('/admin/log/view?id=' . $opLine("entity_type = 'product' AND entity_id = {$opId2} AND action = 'delete'"))['body'], '(não existe mais)'), 'log de operações: produto excluído aparece sem link');
+$opProducts = new Browser($base);
+$opProducts->login('selftest_produtos');
+assertSame([403, false, false], [
+    $opProducts->request('/admin/log/index')['status'],
+    str_contains($opProducts->request('/admin/index')['body'], 'href="/admin/log/index"'),
+    str_contains($opProducts->request('/admin/product/edit?id=' . $opParent)['body'], 'Histórico de alterações'),
+], 'log de operações: sem Iter_Log::view, a tela responde 403 e o menu e o histórico do produto somem');
+$pdo->exec("INSERT INTO log_operation (created_at, admin_name, source, action) VALUES ('1900-01-01', 'selftest_antigo', 'admin', 'login')");
+assertSame([0, 1, 0], [
+    \Iter\Log\Model\OperationLog::clean(0),
+    \Iter\Log\Model\OperationLog::clean(36500), // 100 years: only the 1900 line, never a real one
+    (int) $pdo->query("SELECT COUNT(*) FROM log_operation WHERE admin_name = 'selftest_antigo'")->fetchColumn(),
+], 'log de operações: a limpeza apaga só as linhas mais velhas que o prazo; 0 não apaga nada');
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());
