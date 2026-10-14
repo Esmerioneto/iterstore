@@ -115,8 +115,14 @@ class Product
             }
         }
         $service = new VariantService();
-        foreach ($service->generate($parentId, (array) ($_POST['grade'] ?? [])) as $options) {
-            $variants[] = ['options' => $options, 'price' => (string) ($_POST['grade_price'] ?? ''), 'is_active' => 1];
+        $new = $service->generate($parentId, (array) ($_POST['grade'] ?? []));
+        // left empty, the new ones take the price of the first listed variant that has one
+        $price = trim((string) ($_POST['grade_price'] ?? '')) ?: (string) current(array_filter(array_column($variants, 'price'), static fn ($p) => trim($p) !== ''));
+        if ($new && $price === '') {
+            throw new AttributeException('VALUE_REQUIRED', 'Informe o "Preço das novas variações" para gerar as combinações marcadas.');
+        }
+        foreach ($new as $options) {
+            $variants[] = ['options' => $options, 'price' => $price, 'is_active' => 1];
         }
         // the radio is only there when the product has variants; absent = keep the choice
         $image = array_key_exists('image_variant_id', $_POST) ? ((int) $_POST['image_variant_id'] ?: null) : false;
