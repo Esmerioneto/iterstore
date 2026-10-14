@@ -9,6 +9,7 @@ use Iter\Catalog\Model\VariantService;
 use Iter\Core\Db\Connection;
 use Iter\Core\Db\Expr;
 use Iter\Core\Db\Select;
+use Iter\Log\Model\OperationLog;
 
 /**
  * Product quantities per source. Only the sources of the product's websites count:
@@ -65,6 +66,7 @@ class StockService
             $rows[] = ['source_id' => (int) $source['source_id'], 'quantity' => $quantity, 'status' => (int) $status];
         }
 
+        $before = OperationLog::active() ? $this->readable($productId) : [];
         Connection::get()->adapter()->transaction(static function ($db) use ($rows, $productId): void {
             foreach ($rows as $row) {
                 (float) $row['quantity'] === 0.0 && $row['status'] === 1
@@ -72,6 +74,20 @@ class StockService
                     : $db->insertOnConflict('inventory_source_item', $row + ['product_id' => $productId], ['source_id', 'product_id'], ['quantity', 'status', 'updated_at' => new Expr('NOW()')]);
             }
         });
+        if (OperationLog::active()) {
+            OperationLog::record('update', 'product', $productId, ProductService::logLabel((new ProductService())->get($productId)), $before, $this->readable($productId));
+        }
+    }
+
+    /** @return array<string, string> "Estoque — CD Rio" => "7" or "7 (fora de estoque)", for the operation log */
+    private function readable(int $productId): array
+    {
+        $readable = [];
+        foreach ($this->getItems($productId) as $item) {
+            $readable['Estoque — ' . $item['name']] = $item['quantity'] . ($item['status'] ? '' : ' (fora de estoque)');
+        }
+
+        return $readable;
     }
 
     /**

@@ -109,6 +109,17 @@ assertThrows(static fn () => $db->transaction(static function ($db): void {
     }
 }), 'transação interna desfeita impede o commit da de fora');
 assertSame([4, false], [$count(), $db->inTransaction()], 'e a de fora é desfeita inteira');
+$db->transaction(static function ($db): void {
+    $db->insert('selftest_db', ['code' => 'i']);
+    try {
+        $db->savepoint(static fn ($db) => $db->insert('selftest_db', ['code' => 'i'])); // UNIQUE
+    } catch (\PDOException) {
+        // o log de operações engole a própria falha
+    }
+    $db->insert('selftest_db', ['code' => 'j']);
+});
+assertSame([6, false], [$count(), $db->inTransaction()], 'savepoint: a falha desfaz só o que estava dentro dele, e a transação de fora continua');
+$db->delete('selftest_db', ['code IN (?)' => ['i', 'j']]);
 assertSame([false, false, false], [method_exists($db, 'prepare'), method_exists($db, 'query'), method_exists($db, 'exec')], 'o Adapter não repassa SQL solto (DB-PLAN fase 6)');
 $db->beginTransaction();
 $inserted = [$db->insertOnConflict('selftest_db', ['code' => 'a'], []), $db->insertOnConflict('selftest_db', ['code' => 'h'], [])];

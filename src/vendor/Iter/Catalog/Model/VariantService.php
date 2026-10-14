@@ -11,6 +11,7 @@ use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\ValueService;
 use Iter\Inventory\Model\StockService;
+use Iter\Log\Model\OperationLog;
 
 /**
  * Variants of a configurable product: simple products with parent_id, one per
@@ -200,8 +201,13 @@ class VariantService
         $productService = new ProductService();
         $websiteIds = $productService->getWebsiteIds($parentId);
         $categoryIds = $productService->getCategoryIds($parentId);
+        $before = [];
+        foreach (OperationLog::active() ? array_keys($current) : [] as $id) {
+            $before[$id] = [$productService->snapshot($id), ProductService::logLabel($productService->get($id))];
+        }
 
-        Connection::get()->adapter()->transaction(function () use ($parent, $rows, $removed, $values, $websiteIds, $categoryIds, $imageVariantId): void {
+        $saved = Connection::get()->adapter()->transaction(function () use ($parent, $rows, $removed, $values, $websiteIds, $categoryIds, $imageVariantId): array {
+            $saved = [];
             foreach ($removed as $id) {
                 (new Product())->load($id)->delete();
                 $values->deleteEntity(Product::ENTITY_TYPE, $id);
@@ -220,9 +226,19 @@ class VariantService
                     $model->getResource()->setVariantOptions($id, $row['options']);
                 }
                 $values->write($id, $row['values']);
+                $saved[] = $id;
             }
             $imageVariantId === false || $parent->addData(['image_variant_id' => $imageVariantId])->save();
+
+            return $saved;
         });
+        foreach (OperationLog::active() ? $removed : [] as $id) {
+            OperationLog::record('delete', 'product', $id, $before[$id][1], $before[$id][0], []);
+        }
+        foreach (OperationLog::active() ? $saved : [] as $id) {
+            $after = $productService->snapshot($id);
+            OperationLog::record(isset($before[$id]) ? 'update' : 'create', 'product', $id, ProductService::logLabel($productService->get($id)), $before[$id][0] ?? [], $after);
+        }
     }
 
     /** @return int[] the variants that may give the parent its images (imageChoices) */

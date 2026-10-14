@@ -223,6 +223,27 @@ final class Adapter
         return $result;
     }
 
+    /**
+     * Runs $callback; inside a transaction, in a savepoint, so its failure undoes only
+     * its own writes and the outer transaction goes on. The exception is rethrown.
+     */
+    public function savepoint(callable $callback): mixed
+    {
+        if ($this->transactionLevel === 0) {
+            return $callback($this);
+        }
+        $this->pdo->exec('SAVEPOINT iter_savepoint');
+        try {
+            $result = $callback($this);
+        } catch (\Throwable $e) {
+            $this->pdo->exec('ROLLBACK TO SAVEPOINT iter_savepoint');
+            throw $e;
+        }
+        $this->pdo->exec('RELEASE SAVEPOINT iter_savepoint');
+
+        return $result;
+    }
+
     // --- internals ----------------------------------------------------------------
 
     /**

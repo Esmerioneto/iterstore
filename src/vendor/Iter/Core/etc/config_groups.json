@@ -2,6 +2,6 @@
     { "group": "Geral", "section": "Sistema", "position": 90, "icon": "🌐", "description": "Endereço do site e acesso à API pelo navegador" },
     { "group": "API", "section": "Sistema", "position": 100, "icon": "🧩", "description": "Limites das consultas GraphQL",
       "chips": [{ "label": "Introspecção", "path": "system/api/introspection" }] },
-    { "group": "Log do sistema", "section": "Sistema", "position": 120, "icon": "📜", "description": "Arquivo diário de erros e eventos",
-      "chips": [{ "label": "Log", "path": "system/log/enabled" }] }
+    { "group": "Log do sistema", "section": "Sistema", "position": 120, "icon": "📜", "description": "Arquivo diário de erros e o log de operações (quem fez o quê)",
+      "chips": [{ "label": "Log", "path": "system/log/enabled" }, { "label": "Operações", "path": "system/operation_log/enabled" }] }
 ]

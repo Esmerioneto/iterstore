@@ -9,6 +9,7 @@ use Iter\Core\Config;
 use Iter\Core\ErrorPage;
 use Iter\Core\FormKey;
 use Iter\Core\Messages;
+use Iter\Log\Model\OperationLog;
 
 /**
  * Admin session + the single access check every request goes through.
@@ -52,11 +53,13 @@ class Auth
         $user->getResource()->load($user, $username, 'username');
 
         if (!$user->getId() || !$user->getData('is_active')) {
+            OperationLog::login('login_failed', $username, $user);
             return null;
         }
 
         $lockExpires = $user->getData('lock_expires');
         if ($lockExpires && strtotime($lockExpires) > time()) {
+            OperationLog::login('login_failed', $username, $user);
             return null;
         }
 
@@ -67,6 +70,7 @@ class Auth
                 'failures_num' => $locked ? 0 : $failures,
                 'lock_expires' => $locked ? date('Y-m-d H:i:s', time() + (int) Config::get('admin/security/lock_minutes') * 60) : null,
             ])->save();
+            OperationLog::login($locked ? 'login_locked' : 'login_failed', $username, $user);
 
             return null;
         }
@@ -77,6 +81,7 @@ class Auth
             'logdate' => date('Y-m-d H:i:s'),
             'lognum' => (int) $user->getData('lognum') + 1,
         ])->save();
+        OperationLog::login('login', $username, $user);
 
         return $user;
     }
@@ -129,6 +134,7 @@ class Auth
         if (self::$token === null) {
             return false;
         }
+        OperationLog::login('logout', '', self::$user);
         (new AdminUser())->getResource()->getConnection()->delete('admin_api_token', ['token_hash = ?' => hash('sha256', self::$token)]);
         self::$token = null;
         self::$user = null;
@@ -138,6 +144,8 @@ class Auth
 
     public static function logout(): void
     {
+        // straight from the session: user() would add "sessão expirou" to the login page
+        empty($_SESSION[self::SESSION_KEY]) || OperationLog::login('logout', '', self::$user ?? (new AdminUser())->load((int) $_SESSION[self::SESSION_KEY]));
         unset($_SESSION[self::SESSION_KEY]);
         session_regenerate_id(true);
         self::$user = null;

@@ -18,11 +18,16 @@ $renderField = static function (array $field) use ($e, $website_id): void {
                 <label class="config-check"><input type="checkbox" name="config_default[<?= $e($field['path']) ?>]" value="1" <?= $field['uses_default'] ? 'checked' : '' ?>> Usar o valor padrão</label>
         <?php endif;
     };
-    if ($type === 'boolean'): // a switch row; the hidden "0" is what's posted when it's off ?>
+    if ($type === 'boolean'): // a switch row; the hidden "0" is what's posted when it's off
+        // "admin_only": locked for other profiles (the controller ignores it from them too)
+        $locked = !empty($field['admin_only']) && !\Iter\Admin\Auth::isAllowed('Iter_Admin::root');
+        $hint = $locked ? '<small>' . $e(($field['hint'] ?? '') . ' Só o perfil Administrador muda esta chave.') . '</small>' : $hint; ?>
             <div class="config-switch" data-config-item>
                 <label><span><b><?= $e($field['label']) ?></b><?= $hint ?></span>
+        <?php if (!$locked): ?>
                     <input type="hidden" name="<?= $name ?>" value="0">
-                    <input type="checkbox" class="admin-switch" name="<?= $name ?>" value="1" <?= (string) $field['value'] === '1' ? 'checked' : '' ?>>
+        <?php endif; ?>
+                    <input type="checkbox" class="admin-switch" name="<?= $name ?>" value="1" <?= (string) $field['value'] === '1' ? 'checked' : '' ?><?= $locked ? ' disabled' : '' ?>>
                 </label>
                 <?php $extras(); ?>
             </div>

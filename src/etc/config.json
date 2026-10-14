@@ -17,7 +17,8 @@
         "iter_mercadopago": "1",
         "iter_melhorenvio": "1",
         "iter_promotion": "1",
-        "iter_message": "1"
+        "iter_message": "1",
+        "iter_log": "1"
     },
     "customized": {
         "egsn_user": "1"
