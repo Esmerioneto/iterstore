@@ -1,0 +1,3 @@
+[
+    { "group": "Segurança do admin", "section": "Sistema", "position": 110, "icon": "🔒", "description": "Bloqueio de login, sessão e política de senha" }
+]

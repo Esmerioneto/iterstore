@@ -1,0 +1,4 @@
+[
+    { "group": "Pagamento", "section": "Vendas", "position": 40, "icon": "💳", "description": "Formas de pagamento oferecidas na loja",
+      "chips": [{ "label": "Formas ligadas", "paths": ["payment/pix/active", "payment/offline/active", "payment/mercadopago_pix/active", "payment/mercadopago_credit/active", "payment/mercadopago_debit/active"] }] }
+]

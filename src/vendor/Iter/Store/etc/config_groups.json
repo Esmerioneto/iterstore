@@ -1,0 +1,4 @@
+[
+    { "group": "Loja", "section": "Loja", "position": 10, "icon": "🏬", "description": "Nome, logo e contato que aparecem na loja e nos e-mails" },
+    { "group": "Endereço da loja", "section": "Loja", "position": 20, "icon": "📍", "description": "Usado na retirada e como origem do frete" }
+]

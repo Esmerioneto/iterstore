@@ -1,0 +1,4 @@
+[
+    { "group": "Vendas", "section": "Vendas", "position": 30, "icon": "🧾", "description": "Número do pedido, venda para visitante e limites contra abuso",
+      "chips": [{ "label": "Visitante", "path": "sales/checkout/guest" }] }
+]

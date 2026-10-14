@@ -1,0 +1,4 @@
+[
+    { "group": "Clientes", "section": "Clientes e comunicação", "position": 70, "icon": "👤", "description": "Cadastro, confirmação de e-mail e senha do cliente",
+      "chips": [{ "label": "Confirmação de e-mail", "path": "customer/account/confirm_email" }] }
+]

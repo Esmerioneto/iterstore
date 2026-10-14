@@ -1,10 +1,10 @@
 [
-    { "path": "payment/pix/active", "group": "Pagamento", "label": "Pix manual (o cliente paga pela chave Pix da loja; o pagamento é confirmado pelo admin)", "type": "boolean", "default": 0, "scope": "website" },
-    { "path": "payment/pix/key", "group": "Pagamento", "label": "Chave Pix da loja (CNPJ, e-mail, telefone ou chave aleatória)", "type": "text", "required": false, "scope": "website" },
-    { "path": "payment/pix/instructions", "group": "Pagamento", "label": "Instruções do Pix (ex.: envie o comprovante pelo WhatsApp)", "type": "textarea", "scope": "website" },
-    { "path": "payment/pix/cancel_hours", "group": "Pagamento", "label": "Cancelar o pedido Pix não pago depois de quantas horas (0 = nunca; bin/order-clean.php)", "type": "number", "default": 48, "min": 0, "max": 8760, "scope": "website" },
-    { "path": "payment/offline/active", "group": "Pagamento", "label": "Combinar com a loja (dinheiro, cartão na retirada, depósito...)", "type": "boolean", "default": 0, "scope": "website" },
-    { "path": "payment/offline/label", "group": "Pagamento", "label": "Nome do \"Combinar com a loja\" na loja", "type": "text", "default": "Combinar com a loja", "required": false, "scope": "website" },
-    { "path": "payment/offline/instructions", "group": "Pagamento", "label": "Instruções do \"Combinar com a loja\"", "type": "textarea", "scope": "website" },
-    { "path": "payment/offline/cancel_hours", "group": "Pagamento", "label": "Cancelar o pedido \"Combinar com a loja\" não pago depois de quantas horas (0 = nunca; bin/order-clean.php)", "type": "number", "default": 0, "min": 0, "max": 8760, "scope": "website" }
+    { "path": "payment/pix/active", "group": "Pagamento", "label": "Pix manual", "hint": "O cliente paga pela chave Pix da loja; o pagamento é confirmado pelo admin.", "block": "Pix manual", "block_toggle": true, "type": "boolean", "default": 0, "scope": "website" },
+    { "path": "payment/pix/key", "group": "Pagamento", "label": "Chave Pix da loja", "hint": "CNPJ, e-mail, telefone ou chave aleatória.", "block": "Pix manual", "type": "text", "required": false, "scope": "website" },
+    { "path": "payment/pix/instructions", "group": "Pagamento", "label": "Instruções para o cliente", "hint": "Ex.: envie o comprovante pelo WhatsApp.", "block": "Pix manual", "type": "textarea", "scope": "website" },
+    { "path": "payment/pix/cancel_hours", "group": "Pagamento", "label": "Cancelar o pedido não pago em", "hint": "0 = nunca (bin/order-clean.php).", "unit": "horas", "block": "Pix manual", "type": "number", "default": 48, "min": 0, "max": 8760, "scope": "website" },
+    { "path": "payment/offline/active", "group": "Pagamento", "label": "Combinar com a loja", "hint": "Dinheiro, cartão na retirada, depósito...", "block": "Combinar com a loja", "block_toggle": true, "type": "boolean", "default": 0, "scope": "website" },
+    { "path": "payment/offline/label", "group": "Pagamento", "label": "Nome na loja", "block": "Combinar com a loja", "type": "text", "default": "Combinar com a loja", "required": false, "scope": "website" },
+    { "path": "payment/offline/instructions", "group": "Pagamento", "label": "Instruções para o cliente", "block": "Combinar com a loja", "type": "textarea", "scope": "website" },
+    { "path": "payment/offline/cancel_hours", "group": "Pagamento", "label": "Cancelar o pedido não pago em", "hint": "0 = nunca (bin/order-clean.php).", "unit": "horas", "block": "Combinar com a loja", "type": "number", "default": 0, "min": 0, "max": 8760, "scope": "website" }
 ]
