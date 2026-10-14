@@ -1,0 +1,4 @@
+[
+    { "group": "Frete", "section": "Vendas", "position": 50, "icon": "🚚", "description": "Frete por tabela, frete grátis e retirada na loja",
+      "chips": [{ "label": "Formas ligadas", "paths": ["shipping/tablerate/active", "shipping/freeshipping/active", "shipping/pickup/active"] }] }
+]

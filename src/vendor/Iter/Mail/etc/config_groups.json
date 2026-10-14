@@ -1,0 +1,3 @@
+[
+    { "group": "E-mail", "section": "Clientes e comunicação", "position": 80, "icon": "✉️", "description": "Remetente, servidor SMTP e fila de envio" }
+]

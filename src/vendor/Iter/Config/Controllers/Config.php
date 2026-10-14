@@ -47,6 +47,8 @@ class Config
         // only declared paths are saved (in a website, only "scope": "website" ones); anything else posted is ignored
         foreach (SystemConfig::fields() as $path => $field) {
             $type = $field['type'] ?? 'text';
+            // the messages name the block too: "Cancelar o pedido não pago em" is in Pix manual and in Combinar com a loja
+            $field['label'] = isset($field['block']) && $field['block'] !== $field['label'] ? $field['block'] . ': ' . $field['label'] : $field['label'];
             if ($websiteId && ($field['scope'] ?? '') !== 'website') {
                 continue;
             }

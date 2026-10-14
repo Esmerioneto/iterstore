@@ -1,0 +1,4 @@
+[
+    { "group": "Melhor Envio", "section": "Vendas", "position": 60, "icon": "📦", "description": "Cotação de frete com as transportadoras",
+      "chips": [{ "label": "Cotação", "path": "shipping/melhorenvio/active" }] }
+]

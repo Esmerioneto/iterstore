@@ -333,7 +333,7 @@ $expired = $idle->request('/admin/index');
 assertSame(['/admin/auth/login', ['Sua sessão expirou depois de 480 minutos sem uso. Entre de novo.']], [$expired['location'], Browser::messages($idle->request('/admin/auth/login')['body'])],
     'sessão: passado o tempo sem uso das Configurações, volta para o login com o aviso');
 [, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['admin/security/session_minutes' => '4']]);
-assertSame(['"Minutos sem uso até a sessão do admin expirar" deve ser um número inteiro entre 5 e 10080.'], $msgs, 'sessão: o tempo vai de 5 minutos a 7 dias');
+assertSame(['"A sessão expira sem uso em" deve ser um número inteiro entre 5 e 10080.'], $msgs, 'sessão: o tempo vai de 5 minutos a 7 dias');
 
 // --- configuration screen --------------------------------------------------------------
 [, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['admin/security/max_failures' => '0']]);
@@ -341,7 +341,7 @@ assertSame(['"Tentativas de login antes do bloqueio" deve ser um número inteiro
 [, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['admin/security/max_failures' => '3']]);
 assertSame(['Configurações salvas.'], $msgs, 'config salva valor válido');
 [, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['web/base_url' => 'javascript:alert(1)']]);
-assertSame(['"Endereço do site (usado nos links enviados por e-mail)" deve ser um endereço http:// ou https://.'], $msgs, 'config recusa URL que não é http(s)');
+assertSame(['"Endereço do site" deve ser um endereço http:// ou https://.'], $msgs, 'config recusa URL que não é http(s)');
 assertSame('3', $pdo->query("SELECT value FROM core_config_data WHERE path = 'admin/security/max_failures'")->fetchColumn(), 'valor gravado em core_config_data');
 
 // --- password policy ----------------------------------------------------------------------
@@ -1689,7 +1689,7 @@ $logoOf = static function (?int $website = null): string {
     return (string) ($website ? Config::websiteValue('store/info/logo', $website) : Config::get('store/info/logo'));
 };
 [, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['store/info/logo' => new CURLFile($txt, 'image/png', 'logo.png')]]);
-assertSame([['"Logo da loja (PNG, JPG ou WEBP, até 2 MB)": envie uma imagem PNG, JPG ou WEBP.'], ''], [$msgs, $logoOf()], 'logo: arquivo que não é imagem é recusado, mesmo com nome .png');
+assertSame([['"Logo da loja": envie uma imagem PNG, JPG ou WEBP.'], ''], [$msgs, $logoOf()], 'logo: arquivo que não é imagem é recusado, mesmo com nome .png');
 [, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => [
     'store/info/logo' => new CURLFile($png, 'image/png', 'logo.png'),
     'store/info/name' => 'Selftest Loja',
@@ -1771,6 +1771,14 @@ rmdir(Log::dir());
 putenv('ITER_LOG_DIR=' . $logDir);
 $page = $admin->request('/admin/config/index')['body'];
 assertSame([true, true], [str_contains($page, 'name="config[system/log/enabled]"'), str_contains($page, 'name="config[system/log/retention_days]"')], 'ajustes do log aparecem nas Configurações');
+assertSame([true, true, true, true, true, true, true], [
+    str_contains($page, '<h3 class="config-section">Vendas</h3>'), str_contains($page, '<details class="config-group" id="config-group-pagamento"'),
+    (bool) preg_match('/<span class="config-chip is-(on|off)">Formas ligadas: \d de \d<\/span>/', $page), str_contains($page, '<b>Pix manual</b>'),
+    str_contains($page, '<span class="config-affix">horas</span>'), str_contains($page, '<small>0 = nunca (bin/order-clean.php).</small>'),
+    strpos($page, 'id="config-group-loja"') < strpos($page, 'id="config-group-seguranca-do-admin"'),
+], 'Configurações: grupos em accordion por assunto e na ordem do config_groups.json, com chips, blocos, unidade e dica');
+[, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['payment/pix/cancel_hours' => '-1']]);
+assertSame(['"Pix manual: Cancelar o pedido não pago em" deve ser um número inteiro entre 0 e 8760.'], $msgs, 'Configurações: a mensagem de erro cita o bloco do campo');
 [, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['system/log/retention_days' => '']]);
 Config::save([]); // saved over HTTP: drop this process's cache
 assertSame([['Configurações salvas.'], 0], [$msgs, (int) Config::get('system/log/retention_days')], 'dias do log vazio = nunca apagar');

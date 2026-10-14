@@ -741,3 +741,150 @@ document.querySelectorAll('[data-refresh][id]').forEach(function (block) {
 
 // the conversation opens on its newest message
 document.querySelectorAll('.message-bubbles').forEach(function (list) { list.scrollTop = list.scrollHeight; });
+
+// Configurações: groups are <details>. The search shows only the matching fields (and opens their
+// groups), "Abrir/Fechar todos" toggle every group, a changed field gets a dot and its group a chip,
+// and the save bar floats only while there are unsaved changes ("Descartar" is the form's reset).
+// The open groups are remembered across the save, so the page comes back as it was.
+document.addEventListener('DOMContentLoaded', function () {
+  var form = document.querySelector('[data-config-form]');
+  if (!form) {
+    return;
+  }
+  var groups = Array.prototype.slice.call(form.querySelectorAll('details.config-group'));
+  var bar = form.querySelector('[data-config-savebar]');
+  var storeKey = 'iter-config-open:' + location.search;
+  bar.classList.add('is-floating');
+
+  try {
+    var saved = JSON.parse(sessionStorage.getItem(storeKey) || 'null');
+    sessionStorage.removeItem(storeKey);
+    if (saved) {
+      groups.forEach(function (g) { g.open = saved.indexOf(g.id) !== -1; });
+    }
+  } catch (e) { /* no storage: the first group stays open */ }
+
+  document.querySelectorAll('[data-config-open]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var open = button.getAttribute('data-config-open') === '1';
+      groups.forEach(function (g) { g.open = open; });
+    });
+  });
+
+  // a field is changed when it differs from what the page loaded with (defaultValue/defaultChecked/defaultSelected)
+  function changed(el) {
+    if (el.type === 'checkbox' || el.type === 'radio') {
+      return el.checked !== el.defaultChecked;
+    }
+    if (el.type === 'file') {
+      return el.files && el.files.length > 0;
+    }
+    if (el.tagName === 'SELECT') {
+      return Array.prototype.some.call(el.options, function (o) { return o.selected !== o.defaultSelected; });
+    }
+    return el.value !== el.defaultValue;
+  }
+  function refresh() {
+    var total = 0;
+    groups.forEach(function (group) {
+      var count = 0;
+      group.querySelectorAll('[data-config-item]').forEach(function (item) {
+        var dirty = Array.prototype.some.call(item.querySelectorAll('input:not([type="hidden"]), select, textarea'), changed);
+        item.classList.toggle('is-dirty', dirty);
+        count += dirty ? 1 : 0;
+      });
+      total += count;
+      var chip = group.querySelector('.config-chip.is-dirty');
+      if (count && !chip) {
+        chip = document.createElement('span');
+        chip.className = 'config-chip is-dirty';
+        group.querySelector('.config-chips').insertBefore(chip, group.querySelector('.config-chips').firstChild);
+      }
+      if (chip) {
+        if (count) {
+          chip.textContent = count + (count > 1 ? ' alterados' : ' alterado');
+        } else {
+          chip.remove();
+        }
+      }
+    });
+    form.querySelector('[data-config-dirty-text]').textContent = total + (total > 1 ? ' alterações não salvas' : ' alteração não salva');
+    bar.classList.toggle('is-shown', total > 0);
+  }
+  form.addEventListener('input', refresh);
+  form.addEventListener('change', refresh);
+  form.addEventListener('reset', function () {
+    setTimeout(function () {
+      form.querySelectorAll('[data-image-preview]').forEach(function (img) { img.hidden = true; });
+      refresh();
+    }, 0);
+  });
+  form.addEventListener('submit', function () {
+    try {
+      sessionStorage.setItem(storeKey, JSON.stringify(groups.filter(function (g) { return g.open; }).map(function (g) { return g.id; })));
+    } catch (e) { /* no storage */ }
+  });
+  // a required field inside a closed group or hidden by the search: show it, so the browser can point at it
+  form.addEventListener('invalid', function (event) {
+    var group = event.target.closest('details.config-group');
+    if (search.value !== '') {
+      search.value = '';
+      filter();
+    }
+    if (group) {
+      group.open = true;
+    }
+  }, true);
+
+  var search = document.querySelector('[data-config-search]');
+  var empty = form.querySelector('[data-config-empty]');
+  function filter() {
+    var term = search.value.trim().toLowerCase();
+    var any = false;
+    groups.forEach(function (group) {
+      var titleHit = term !== '' && group.querySelector('summary').textContent.toLowerCase().indexOf(term) !== -1;
+      var found = 0;
+      group.querySelectorAll('[data-config-item]').forEach(function (item) {
+        var hit = term === '' || titleHit || item.textContent.toLowerCase().indexOf(term) !== -1;
+        item.classList.toggle('is-search-hidden', !hit);
+        found += hit ? 1 : 0;
+      });
+      // a block shows when one of its fields matches, or its name does (then all of it)
+      group.querySelectorAll('.config-block').forEach(function (block) {
+        var head = block.querySelector('.config-block-head, .config-switch');
+        var blockHit = term !== '' && head.textContent.toLowerCase().indexOf(term) !== -1;
+        if (blockHit) {
+          block.querySelectorAll('[data-config-item]').forEach(function (item) { item.classList.remove('is-search-hidden'); });
+          found += 1;
+        }
+        block.classList.toggle('is-search-hidden', term !== '' && !blockHit && !block.querySelector('[data-config-item]:not(.is-search-hidden)'));
+        if (head.classList.contains('config-block-head')) {
+          head.classList.remove('is-search-hidden');
+        }
+      });
+      var show = found > 0;
+      group.classList.toggle('is-search-hidden', !show);
+      if (term !== '' && show) {
+        group.open = true;
+      }
+      any = any || show;
+    });
+    if (term === '') {
+      groups.forEach(function (g, i) { g.open = i === 0; });
+    }
+    // a section title goes away with all of its groups
+    form.querySelectorAll('.config-section').forEach(function (title) {
+      var next = title.nextElementSibling;
+      var visible = false;
+      while (next && next.matches('details.config-group')) {
+        visible = visible || !next.classList.contains('is-search-hidden');
+        next = next.nextElementSibling;
+      }
+      title.classList.toggle('is-search-hidden', !visible);
+    });
+    empty.hidden = any;
+  }
+  if (search) {
+    search.addEventListener('input', filter);
+  }
+});
