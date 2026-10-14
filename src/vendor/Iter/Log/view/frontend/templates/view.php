@@ -14,7 +14,7 @@ $action = OperationLog::ACTIONS[$line['action']] ?? $line['action'];
         <tr><th>Ação</th><td class="log-action-<?= $e($line['action']) ?>"><?= $e($action) ?></td></tr>
 <?php if ($line['entity_type'] !== null): ?>
         <tr><th>Área</th><td><?= $e(OperationLog::AREAS[$line['entity_type']] ?? $line['entity_type']) ?></td></tr>
-        <tr><th>Registro</th><td><?= $link ? '<a href="' . $e($link) . '">' . $e($line['entity_label']) . '</a>' : $e($line['entity_label']) . ($line['entity_type'] === 'product' ? ' <small>(não existe mais)</small>' : '') ?></td></tr>
+        <tr><th>Registro</th><td><?= $link ? '<a href="' . $e($link) . '">' . $e($line['entity_label']) . '</a>' : $e($line['entity_label']) . (in_array($line['entity_type'], ['product', 'customer'], true) ? ' <small>(não existe mais)</small>' : '') ?></td></tr>
 <?php endif; ?>
     </table>
 <?php if ($line['changes']): ?>
