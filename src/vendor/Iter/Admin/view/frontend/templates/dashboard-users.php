@@ -25,7 +25,7 @@
         <thead><tr><th>Usuário</th><th>Data</th><th>Total de logins</th></tr></thead>
         <tbody>
 <?php if (empty($summary['recent'])): ?>
-            <tr><td colspan="3">Nenhum login registrado.</td></tr>
+            <tr><td colspan="3" class="admin-empty">Nenhum login registrado.</td></tr>
 <?php else: ?>
     <?php foreach ($summary['recent'] as $row): ?>
             <tr>

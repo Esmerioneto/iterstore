@@ -150,7 +150,7 @@
         </fieldset>
 
         <div class="promotion-form-actions">
-            <button type="submit">Salvar promoção</button>
+            <button type="submit" class="admin-button-primary">Salvar promoção</button>
             <a href="/admin/promotion/index">Cancelar</a>
         </div>
     </form>

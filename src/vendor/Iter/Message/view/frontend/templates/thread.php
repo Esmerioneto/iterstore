@@ -31,7 +31,7 @@ $name = $customer['customer_type'] === 'pj' && $customer['company_name'] ? $cust
                 <?= \Iter\Core\FormKey::field() ?>
                 <input type="hidden" name="customer_id" value="<?= $id ?>">
                 <textarea name="body" rows="3" maxlength="2000" required placeholder="Responder..."><?= $e($draft) ?></textarea>
-                <button type="submit">Enviar</button>
+                <button type="submit" class="admin-button-primary">Enviar</button>
             </form>
         </div>
         <aside class="message-customer">

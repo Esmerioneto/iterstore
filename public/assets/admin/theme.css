@@ -1,7 +1,8 @@
 /*
- * Admin theme — "Margiela" (see /DESIGN.md).
- * Achromatic, editorial, shadowless. No accent color, no border-radius
- * except pill inputs, no filled buttons — ghost text-links only.
+ * Admin theme — "Margiela" (see /DESIGN.md, section "Admin").
+ * Achromatic and editorial: ink on paper, Inter + Cormorant. The admin raises its content:
+ * white cards with a linen outline and a soft shadow on an atelier canvas, a small radius,
+ * one filled primary per screen; hues only for states (danger/success/warning).
  */
 
 :root {
@@ -18,12 +19,49 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-serif: 'Cormorant Garamond', ui-serif, Georgia, Cambria, "Times New Roman", serif;
 
+  --spacing-4: 4px;
   --spacing-8: 8px;
+  --spacing-12: 12px;
   --spacing-16: 16px;
   --spacing-20: 20px;
+  --spacing-24: 24px;
   --spacing-32: 32px;
+  --spacing-48: 48px;
+
+  /* roles (DESIGN.md → Admin): muted text AA on paper/atelier, field outlines 3:1, focus */
+  --color-text-muted: #6e6e6b;
+  --color-border: var(--color-linen);
+  --color-border-strong: #8c8c88;
+  --color-focus: var(--color-ink);
+
+  /* the only hues, and only for states */
+  --color-danger: #a33;
+  --color-success: #2f7a4b;
+  --color-warning: #8a5f12;
+  --surface-danger: #fbefef;
+  --surface-success: #f1f8f3;
+  --surface-warning: #fbf6ea;
+
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-title: 22px;
+
+  --control-h: 36px;
+  --control-h-sm: 28px;
+
+  /* elevation only for what floats over the content (drawer, toast, dialog, floating save bar) */
+  --shadow-float: 0 12px 32px rgba(18, 18, 18, 0.18);
+  /* raised surfaces (DESIGN.md → Admin): cards on the atelier canvas, buttons */
+  --shadow-1: 0 1px 2px rgba(18, 18, 18, 0.06), 0 1px 3px rgba(18, 18, 18, 0.06);
+  --shadow-2: 0 2px 4px rgba(18, 18, 18, 0.06), 0 8px 20px rgba(18, 18, 18, 0.08);
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --surface-pad: 24px;
 
   --sidebar-width: 220px;
+  --header-h: 56px;
 }
 
 * {
@@ -46,18 +84,25 @@ a {
   text-decoration: none;
 }
 
+/* keyboard focus: one visible ring for everything (the switch, menu and dialogs keep their own) */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
 /* the page itself doesn't scroll: the content column and the menu scroll on their own */
 .admin-shell {
   display: grid;
   height: 100vh;
   grid-template-columns: var(--sidebar-width) 1fr;
   grid-template-rows: auto auto auto 1fr auto;
+  /* the footer sits under the menu, so the content column keeps the whole height */
   grid-template-areas:
     "header header"
     "menu breadcrumb"
     "menu messages"
     "menu main"
-    "footer footer";
+    "footer main";
 }
 
 /* Header — flush wordmark bar, no border, no shadow */
@@ -66,16 +111,54 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: var(--spacing-16);
   background: var(--color-paper);
   padding: 20px var(--spacing-32);
 }
 
+/* logged in: a compact bar, the page title below carries the hierarchy */
+.admin-header:has(.admin-user-nav) {
+  height: var(--header-h);
+  padding-block: 0;
+  border-bottom: 1px solid var(--color-linen);
+}
+
 .admin-header h1 {
   margin: 0;
+  margin-right: auto;
   font-family: var(--font-serif);
   font-weight: 400;
-  font-size: 20px;
-  letter-spacing: -0.08px;
+  font-size: 18px;
+  letter-spacing: -0.07px;
+}
+
+.admin-header:not(:has(.admin-user-nav)) h1 {
+  margin-right: 0;
+}
+
+/* opens the menu as a drawer on narrow screens (admin.js); hidden on wide ones */
+.admin-menu-toggle {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  height: var(--control-h);
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.admin-menu-toggle::before {
+  content: "";
+  width: 14px;
+  height: 10px;
+  border-block: 1.5px solid currentColor;
+  background: linear-gradient(currentColor, currentColor) center / 100% 1.5px no-repeat;
 }
 
 .admin-user-nav {
@@ -205,11 +288,11 @@ a {
   font-size: 12px;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .admin-breadcrumb a {
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .admin-breadcrumb a:hover {
@@ -249,19 +332,24 @@ a {
 }
 
 .message-success {
-  border-left-color: var(--color-ink);
+  border-left: 3px solid var(--color-success);
+  background: var(--surface-success);
 }
 
 .message-warning {
-  border-left-color: var(--color-graphite);
-  color: var(--color-graphite);
+  border-left: 3px solid var(--color-warning);
+  background: var(--surface-warning);
 }
 
 .message-error {
-  border-left-color: var(--color-pure-black);
-  border-left-width: 3px;
+  border-left: 3px solid var(--color-danger);
+  background: var(--surface-danger);
   font-weight: 500;
 }
+
+.message-success::before { color: var(--color-success); }
+.message-warning::before { color: var(--color-warning); }
+.message-error::before { color: var(--color-danger); }
 
 /* Dashboard — main content column */
 .admin-dashboard {
@@ -286,7 +374,7 @@ a {
   margin-top: 16px;
   font-size: 13px;
   letter-spacing: 0.4px;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 /* Generic table styling reused by module admin pages (e.g. Store list) */
@@ -299,8 +387,24 @@ a {
 .admin-dashboard th,
 .admin-dashboard td {
   text-align: left;
-  padding: 12px var(--spacing-8);
+  padding: 10px var(--spacing-8);
   border-bottom: 1px solid var(--color-linen);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-dashboard section > table:has(> thead) > tbody > tr:hover > td {
+  background: var(--color-linen);
+}
+
+/* an empty list: one quiet line in the middle */
+.admin-dashboard td.admin-empty {
+  padding: var(--spacing-32) var(--spacing-8);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.admin-dashboard tr:hover > td.admin-empty {
+  background: none;
 }
 
 .admin-dashboard th {
@@ -308,15 +412,80 @@ a {
   font-weight: 500;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .admin-dashboard h2 {
   font-family: var(--font-serif);
   font-weight: 400;
   font-size: 20px;
+  line-height: 1.2;
   letter-spacing: -0.08px;
   margin: 0 0 var(--spacing-20);
+}
+
+/* the page's own title a step above the blocks' titles */
+.admin-dashboard > section > h2:first-child,
+.admin-dashboard .admin-page-head h2 {
+  font-size: var(--text-title);
+}
+
+/* page title with the page's main action on the right */
+.admin-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12) var(--spacing-16);
+  margin-bottom: var(--spacing-20);
+}
+
+.admin-dashboard .admin-page-head h2 {
+  margin: 0;
+}
+
+/* Buttons: secondary (outlined ink) is the default of every form button; one primary per screen
+   (filled ink); a destructive action (form[data-confirm]) in the danger color */
+.admin-dashboard a.admin-button {
+  display: inline-flex;
+  align-items: center;
+  height: var(--control-h);
+  padding: 0 var(--spacing-16);
+  border: 1px solid var(--color-ink);
+  font-size: var(--text-base);
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.admin-dashboard .admin-button-primary {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-weight: 500;
+}
+
+.admin-dashboard .admin-button-primary:hover {
+  border-color: var(--color-graphite);
+  background: var(--color-graphite);
+  color: var(--color-paper);
+}
+
+.admin-dashboard form[data-confirm] button[type="submit"] {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.admin-dashboard form[data-confirm] button[type="submit"]:hover {
+  background: var(--color-danger);
+  color: var(--color-paper);
+}
+
+.admin-dashboard button:disabled,
+.admin-dashboard button:disabled:hover {
+  border-color: var(--color-pebble);
+  background: none;
+  color: var(--color-smoke, #818181);
+  cursor: not-allowed;
 }
 
 /* Form — used by admin CRUD pages (e.g. admin user) */
@@ -330,7 +499,7 @@ a {
   display: block;
   font-size: 12px;
   letter-spacing: 0.4px;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .admin-dashboard form input[type="text"],
@@ -349,16 +518,20 @@ a {
   max-width: 360px;
   margin-top: 4px;
   padding: 8px;
-  border: 1px solid var(--color-pebble);
+  border: 1px solid var(--color-border-strong);
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: inherit;
   font-size: 14px;
 }
 
+.admin-dashboard :is(input, select, textarea):user-invalid {
+  border-color: var(--color-danger);
+}
+
 .admin-dashboard form fieldset,
 .catalog-product-form fieldset {
-  border: 1px solid var(--color-pebble);
+  border: 1px solid var(--color-linen);
   padding: 12px 16px;
   margin: 0 0 16px;
 }
@@ -367,7 +540,7 @@ a {
 .catalog-product-form legend {
   font-size: 12px;
   letter-spacing: 0.4px;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
   padding: 0 6px;
 }
 
@@ -409,7 +582,7 @@ a {
   height: 36px;
   margin: 0;
   padding: 0 8px;
-  border: 1px solid var(--color-pebble);
+  border: 1px solid var(--color-border-strong);
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: inherit;
@@ -428,15 +601,51 @@ a {
 .admin-list-summary {
   margin: 0 0 var(--spacing-8);
   font-size: 13px;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .admin-dashboard td small {
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .admin-dashboard td.admin-row-action {
   text-align: right;
+  white-space: nowrap;
+}
+
+.admin-dashboard td.admin-row-action > a {
+  padding: 4px 6px;
+  font-weight: 500;
+}
+
+.admin-dashboard td.admin-row-action > a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.admin-dashboard td.admin-row-action > form {
+  display: inline;
+  margin: 0 0 0 var(--spacing-8);
+}
+
+.admin-dashboard td.admin-row-action button {
+  padding: 4px 14px;
+  font-size: 12px;
+}
+
+/* removing from a row: a quiet text in the danger color, not a box on every row */
+.admin-dashboard td.admin-row-action form[data-confirm] button[type="submit"] {
+  border-color: transparent;
+  background: none;
+  padding: 4px 6px;
+  color: var(--color-danger);
+}
+
+.admin-dashboard td.admin-row-action form[data-confirm] button[type="submit"]:hover {
+  background: none;
+  color: var(--color-danger);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* Order view: sections split by a rule, labels in a narrow column, amounts on the right, action forms in one row each */
@@ -465,7 +674,7 @@ a {
 
 .sales-order-view td small,
 .adminsales-edit td small {
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .sales-order-totals {
@@ -517,7 +726,7 @@ a {
   width: 100%;
   margin-top: 4px;
   padding: 8px;
-  border: 1px solid var(--color-pebble);
+  border: 1px solid var(--color-border-strong);
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: inherit;
@@ -541,7 +750,7 @@ a {
 /* Novo pedido: the customer search as a filter row; the guest option below it, after an "ou" */
 .adminsales-start form.admin-filters label {
   font-size: 12px;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .adminsales-start td.admin-row-action form {
@@ -556,7 +765,7 @@ a {
 .adminsales-guest {
   margin-top: var(--spacing-16);
   font-size: 13px;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .adminsales-guest button {
@@ -566,7 +775,7 @@ a {
 /* Novo pedido em montagem: rows of fields, compact forms inside the tables, choices as bordered rows, address fields in a grid */
 .adminsales-edit form.admin-filters label {
   font-size: 12px;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .adminsales-edit form.admin-filters input[type="text"],
@@ -660,7 +869,7 @@ a {
   max-width: 720px;
   margin-top: 4px;
   padding: 8px;
-  border: 1px solid var(--color-pebble);
+  border: 1px solid var(--color-border-strong);
   background: var(--color-paper);
   font-family: inherit;
   font-size: 13px;
@@ -690,14 +899,14 @@ a {
 
 .inventory-source-form form input[readonly] {
   background: var(--color-linen);
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .inventory-source-form form small {
   display: block;
   margin-top: 4px;
   font-size: 12px;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .inventory-source-form form label:has(input[type="checkbox"]) {
@@ -712,7 +921,7 @@ a {
   width: 100%;
   margin-top: 4px;
   padding: 8px;
-  border: 1px solid var(--color-pebble);
+  border: 1px solid var(--color-border-strong);
   background: var(--color-paper);
   font-family: inherit;
   font-size: 14px;
@@ -751,7 +960,7 @@ a {
 }
 
 .customer-list td.customer-inactive {
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 /* Atributos: the code in a monospace tag, so it reads as an identifier next to the name */
@@ -777,7 +986,8 @@ a {
 .message-list thead th,
 .log-operation-list thead th,
 .log-operation-changes thead th,
-.log-history thead th {
+.log-history thead th,
+.admin-dashboard section > table > thead th {
   background: var(--color-atelier-white);
   border-bottom: 1px solid var(--color-ink);
 }
@@ -841,7 +1051,7 @@ a {
   justify-content: center;
   width: 28px;
   height: 26px;
-  border: 1px solid var(--color-pebble);
+  border: 1px solid var(--color-border-strong);
   color: var(--color-ink);
   font-size: 9px;
   text-decoration: none;
@@ -913,7 +1123,7 @@ a {
   gap: 4px;
   margin-bottom: 4px;
   font-size: 12px;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
   cursor: move;
 }
 
@@ -958,6 +1168,15 @@ a {
 }
 
 /* Auth pages (login, forgot, reset, password) — no sidebar, form centered in a card */
+.admin-shell:not(:has(.admin-menu)) {
+  grid-template-areas:
+    "header header"
+    "breadcrumb breadcrumb"
+    "messages messages"
+    "main main"
+    "footer footer";
+}
+
 .admin-shell:not(:has(.admin-menu)) .admin-messages,
 .admin-shell:not(:has(.admin-menu)) .admin-dashboard {
   grid-column: 1 / -1;
@@ -987,6 +1206,10 @@ a {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
 
+.admin-dashboard > section.admin-login-form > h2 {
+  font-size: 20px;
+}
+
 .admin-dashboard .admin-login-form form input {
   max-width: none;
 }
@@ -1010,8 +1233,18 @@ a {
   font-size: 12px;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
   text-align: center;
+}
+
+.admin-shell:has(.admin-menu) .admin-footer {
+  padding: var(--spacing-12) var(--spacing-20);
+  font-size: 10px;
+  text-align: left;
+}
+
+.admin-footer p {
+  margin: 0;
 }
 
 /* SweetAlert2 dialogs — same look as the login card, ghost buttons */
@@ -1054,6 +1287,14 @@ a {
   padding: 0;
 }
 
+body.swal2-toast-shown .swal2-container.swal2-top-end:has(> .admin-swal-toast) {
+  top: var(--header-h);
+}
+
+.admin-swal-toast-success.swal2-toast { border-left-color: var(--color-success); }
+.admin-swal-toast-error.swal2-toast { border-left-color: var(--color-danger); }
+.admin-swal-toast-warning.swal2-toast { border-left-color: var(--color-warning); }
+
 .admin-swal-toast .swal2-timer-progress-bar {
   background: var(--color-pebble);
 }
@@ -1063,7 +1304,7 @@ a {
 }
 
 .admin-swal-button {
-  border: 1px solid var(--color-pebble);
+  border: 1px solid var(--color-border-strong);
   background: none;
   color: var(--color-ink);
   padding: 8px 20px;
@@ -1102,7 +1343,7 @@ a {
   height: 160px;
   object-fit: contain;
   margin: 4px 0;
-  border: 1px solid var(--color-pebble);
+  border: 1px solid var(--color-linen);
   cursor: zoom-in;
 }
 
@@ -1127,7 +1368,7 @@ a {
 .mail-template-form textarea { width: 100%; font-family: monospace; }
 .mail-preview { width: 100%; height: 420px; border: 1px solid #ddd; background: #fff; }
 .mail-text { white-space: pre-wrap; }
-.mail-warning { color: #a33; }
+.mail-warning { color: var(--color-danger); }
 
 /* Configurações: each group a raised card that opens like an accordion (<details>), grouped by section;
    fields in two columns with the hint below and the unit inside; a save bar shows up with unsaved changes */
@@ -1139,14 +1380,14 @@ a {
 }
 .config-settings-form .config-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 20px; }
 .config-settings-form .config-head h2 { margin: 0; }
-.config-settings-form .config-head p { margin: 4px 0 0; font-size: 13px; color: var(--color-stone); }
+.config-settings-form .config-head p { margin: 4px 0 0; font-size: 13px; color: var(--color-text-muted); }
 .config-settings-form .config-tools { display: flex; align-items: center; gap: 8px; }
 .config-settings-form .config-tools input[type="search"] {
-  width: 280px; height: 36px; padding: 0 12px 0 32px; border: 1px solid var(--color-pebble); border-radius: 18px; font: inherit; font-size: 13px;
+  width: 280px; height: 36px; padding: 0 12px 0 32px; border: 1px solid var(--color-border-strong); border-radius: 18px; font: inherit; font-size: 13px;
   background: var(--color-paper) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%23898989' stroke-width='2'%3E%3Ccircle cx='6' cy='6' r='4.5'/%3E%3Cpath d='M9.5 9.5 13 13'/%3E%3C/svg%3E") 12px center no-repeat;
 }
 .config-settings-form .config-tools button {
-  height: 36px; padding: 0 14px; border: 1px solid var(--color-pebble); border-radius: 4px; background: var(--color-paper);
+  height: 36px; padding: 0 14px; border: 1px solid var(--color-border-strong); border-radius: 4px; background: var(--color-paper);
   color: var(--color-ink); font: inherit; font-size: 12px; letter-spacing: 0.4px; cursor: pointer;
 }
 .config-settings-form .config-tools button:hover { border-color: var(--color-ink); }
@@ -1158,9 +1399,9 @@ a {
 }
 .admin-dashboard .config-settings-form form.config-scope label { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--color-ink); }
 .admin-dashboard .config-settings-form form.config-scope select { height: 32px; margin: 0; width: auto; border-radius: 4px; }
-.config-settings-form .config-scope small { font-size: 12px; color: var(--color-stone); }
+.config-settings-form .config-scope small { font-size: 12px; color: var(--color-text-muted); }
 
-.config-settings-form .config-section { margin: 28px 0 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--color-stone); }
+.config-settings-form .config-section { margin: 28px 0 10px; font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--color-text-muted); }
 .config-settings-form .config-form > .config-section:first-of-type { margin-top: 0; }
 
 .config-settings-form details.config-group {
@@ -1187,15 +1428,15 @@ a {
   background: linear-gradient(180deg, var(--color-paper), var(--color-atelier-white)); box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(18, 18, 18, 0.08);
 }
 .config-settings-form .config-title b { display: block; font-size: 14px; font-weight: 600; }
-.config-settings-form .config-title small { display: block; margin-top: 2px; font-size: 12px; color: var(--color-stone); }
+.config-settings-form .config-title small { display: block; margin-top: 2px; font-size: 12px; color: var(--color-text-muted); }
 .config-settings-form .config-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .config-settings-form .config-chip {
   padding: 2px 8px; border: 1px solid var(--color-linen); border-radius: 10px; background: var(--color-atelier-white);
   font-size: 11px; font-weight: 400; color: var(--color-graphite); white-space: nowrap;
 }
-.config-settings-form .config-chip.is-on { color: #2f7a4b; border-color: #cfe3d6; background: #f1f8f3; }
-.config-settings-form .config-chip.is-off { color: var(--color-stone); }
-.config-settings-form .config-chip.is-dirty { color: #a3741a; border-color: #ecdcb8; background: #fbf6ea; }
+.config-settings-form .config-chip.is-on { color: var(--color-success); border-color: #cfe3d6; background: var(--surface-success); }
+.config-settings-form .config-chip.is-off { color: var(--color-text-muted); }
+.config-settings-form .config-chip.is-dirty { color: var(--color-warning); border-color: #ecdcb8; background: var(--surface-warning); }
 .config-settings-form .config-body { padding: 4px 18px 18px 72px; border-top: 1px solid var(--color-linen); }
 
 /* a block inside a big group (Pix manual, Mercado Pago…): a sunken panel; off, its fields are dimmed */
@@ -1212,20 +1453,20 @@ a {
 .config-settings-form .config-switch { grid-column: 1 / -1; }
 .admin-dashboard .config-settings-form .config-field label { display: block; margin: 0; font-size: 13px; font-weight: 500; letter-spacing: 0; color: var(--color-ink); }
 .config-settings-form .config-field > small,
-.config-settings-form .config-switch small { display: block; margin-top: 5px; font-size: 12px; font-weight: 400; color: var(--color-stone); }
+.config-settings-form .config-switch small { display: block; margin-top: 5px; font-size: 12px; font-weight: 400; color: var(--color-text-muted); }
 .admin-dashboard .config-settings-form .config-form :is(input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="url"], select, textarea) {
-  width: 100%; max-width: none; height: 38px; margin: 6px 0 0; padding: 0 10px; border: 1px solid var(--color-pebble); border-radius: 5px;
+  width: 100%; max-width: none; height: 38px; margin: 6px 0 0; padding: 0 10px; border: 1px solid var(--color-border-strong); border-radius: 5px;
   background: var(--color-paper); color: var(--color-ink); font-family: inherit; font-size: 14px; box-shadow: var(--config-inset); transition: border-color 0.15s, box-shadow 0.15s;
 }
 .admin-dashboard .config-settings-form .config-form textarea { height: auto; padding: 8px 10px; resize: vertical; }
-.admin-dashboard .config-settings-form .config-form :is(input, select, textarea):focus { outline: none; border-color: var(--color-ink); box-shadow: var(--config-inset), 0 0 0 3px rgba(18, 18, 18, 0.08); }
+.admin-dashboard .config-settings-form .config-form :is(input, select, textarea):focus { border-color: var(--color-ink); box-shadow: var(--config-inset), 0 0 0 3px rgba(18, 18, 18, 0.08); }
 .config-settings-form .config-field input[type="file"] { display: block; margin-top: 6px; font-size: 13px; }
 /* the unit (or R$) inside the field */
 .config-settings-form .config-input { position: relative; display: flex; align-items: center; gap: 8px; }
 .config-settings-form .config-input > input { flex: 1; }
 .config-settings-form .config-affix {
   position: absolute; top: 7px; bottom: 1px; right: 1px; display: grid; place-items: center; padding: 0 10px; font-size: 12px; font-weight: 400;
-  color: var(--color-stone); background: var(--color-atelier-white); border-left: 1px solid var(--color-linen); border-radius: 0 4px 4px 0;
+  color: var(--color-text-muted); background: var(--color-atelier-white); border-left: 1px solid var(--color-linen); border-radius: 0 4px 4px 0;
 }
 .admin-dashboard .config-settings-form .config-input.has-unit > input { padding-right: 90px; }
 .config-settings-form .config-input.has-prefix .config-affix { left: 1px; right: auto; border-left: 0; border-right: 1px solid var(--color-linen); border-radius: 4px 0 0 4px; }
@@ -1242,9 +1483,9 @@ a {
 
 /* unsaved changes: a dot on the field, a chip on the group; search: only the matching fields */
 .config-settings-form .config-switch.is-dirty b::after,
-.config-settings-form .config-field.is-dirty .config-label::after { content: " •"; color: #a3741a; }
+.config-settings-form .config-field.is-dirty .config-label::after { content: " •"; color: var(--color-warning); }
 .config-settings-form .is-search-hidden { display: none !important; }
-.config-settings-form .config-empty { padding: 40px; text-align: center; color: var(--color-stone); border: 1px dashed var(--color-pebble); border-radius: 8px; }
+.config-settings-form .config-empty { padding: 40px; text-align: center; color: var(--color-text-muted); border: 1px dashed var(--color-pebble); border-radius: 8px; }
 
 /* the save bar: at the end without JS; with it (.is-floating), it floats and only shows with unsaved changes */
 .config-settings-form .config-savebar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 20px; font-size: 13px; }
@@ -1269,6 +1510,65 @@ a {
   .admin-shell { height: auto; min-height: 100vh; }
 }
 
+/* Narrow screens (≤ 900px): one column; the menu is a drawer over the content, opened by the
+   header's "Menu" button (admin.js); wide tables scroll inside themselves, not the page */
+@media (max-width: 900px) {
+  .admin-shell {
+    height: auto;
+    min-height: 100vh;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "header" "breadcrumb" "messages" "main" "footer";
+  }
+  .admin-shell:not(:has(.admin-menu)) { grid-template-areas: "header" "breadcrumb" "messages" "main" "footer"; }
+  .admin-header,
+  .admin-breadcrumb,
+  .admin-messages { padding-inline: var(--spacing-16); }
+  .admin-dashboard { padding: var(--spacing-20) var(--spacing-16); }
+  .admin-menu-toggle { display: inline-flex; }
+  .admin-user-nav { gap: var(--spacing-12); }
+  .admin-user-nav span { display: none; }
+  .admin-menu {
+    position: fixed;
+    z-index: 40;
+    inset: 0 auto 0 0;
+    width: min(300px, 85vw);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0.2s;
+  }
+  .admin-shell.is-menu-open .admin-menu {
+    transform: none;
+    visibility: visible;
+    box-shadow: var(--shadow-float);
+  }
+  .admin-shell.is-menu-open::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: rgba(18, 18, 18, 0.3);
+  }
+  .admin-shell:has(.admin-menu) .admin-footer { text-align: center; }
+  .admin-dashboard section > table:has(> thead) { display: block; overflow-x: auto; }
+  .admin-dashboard section > table:has(> thead) :is(th, td) { white-space: nowrap; }
+  .admin-header h1,
+  .admin-user-nav { white-space: nowrap; }
+  .admin-dashboard form.admin-filters > :is(select, input:not([type="hidden"], .admin-switch), label) { flex: 1 1 160px; }
+  .admin-dashboard form.admin-filters label > input { flex: 1; min-width: 0; }
+  .admin-dashboard form.admin-pager { flex-wrap: wrap; gap: var(--spacing-8) var(--spacing-16); }
+  .admin-dashboard form.admin-pager :is(label, span) { white-space: nowrap; }
+  .config-settings-form .config-savebar.is-floating { left: 50%; }
+}
+
+@media (max-width: 480px) {
+  .admin-header:has(.admin-user-nav) h1 { display: none; }
+  .admin-menu-toggle { margin-right: auto; }
+}
+
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  .admin-menu { transition: none; }
+}
+
 /* Catálogo → Mobile */
 .mobile-categories {
   padding-left: var(--spacing-32);
@@ -1288,7 +1588,7 @@ a {
 
 /* unchecked: not in the app */
 .mobile-category:has(> .mobile-bar [data-mobile-visible]:not(:checked)) > .mobile-bar .mobile-category-name {
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .mobile-bar,
@@ -1300,7 +1600,7 @@ a {
 }
 
 .mobile-bar small {
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 /* "Usar esta ordem no app" and "Mostrar no app": the switch with its text beside it, in the page's text size */
@@ -1325,7 +1625,7 @@ a {
 .mobile-enabled small {
   display: block;
   margin-top: 4px;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 /* "Mostrar banner": the first banner, small, beside its switch */
@@ -1338,7 +1638,7 @@ a {
 }
 
 .mobile-order form .mobile-switch small {
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 /* "Mostrar no app" and "Mostrar banner" in fixed columns too, so they line up from row to row */
@@ -1381,7 +1681,7 @@ a {
 
 .mobile-handle {
   cursor: move;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 /* ↑ ↓ ✕ as small squares, the switch's height */
@@ -1438,13 +1738,13 @@ a {
 
 .category-banners > small {
   display: block;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 /* E-mails enviados: the warning as a bar; a failed message in bold, pending and canceled in grey */
 .mail-sent-list .mail-warning {
   padding: var(--spacing-8) var(--spacing-16);
-  border-left: 3px solid #a33;
+  border-left: 3px solid var(--color-danger);
   background: var(--color-linen);
   font-size: 13px;
 }
@@ -1453,12 +1753,12 @@ a {
 .mail-message-view td.mail-status-0,
 .mail-message-view td.mail-status-3,
 .mail-sent-list td.mail-status-3 {
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 .mail-sent-list td.mail-status-2,
 .mail-message-view td.mail-status-2 {
-  color: #a33;
+  color: var(--color-danger);
   font-weight: 600;
 }
 
@@ -1520,7 +1820,7 @@ a {
 }
 
 .log-operation-view .log-empty {
-  color: var(--color-stone);
+  color: var(--color-text-muted);
   font-style: italic;
 }
 
@@ -1528,13 +1828,13 @@ a {
 .log-action-login_failed,
 .log-action-login_locked,
 .log-action-log_off {
-  color: #a33;
+  color: var(--color-danger);
   font-weight: 600;
 }
 
 .log-history td small {
   display: block;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
 }
 
 /* On/off switch for a yes/no choice (Sim/Não, ligado/desligado, habilitado/desabilitado): a checkbox drawn as a sliding key */
@@ -1544,7 +1844,7 @@ input[type="checkbox"].admin-switch {
   width: 40px;
   height: 22px;
   margin: 6px 0 0;
-  border: 1px solid var(--color-pebble);
+  border: 1px solid var(--color-border-strong);
   border-radius: 11px;
   background: var(--color-linen);
   vertical-align: middle;
@@ -1589,7 +1889,7 @@ input[type="checkbox"].admin-switch:disabled {
 /* ponytail: the other cards are hidden, not left out: they still render (a few counts) */
 .admin-dashboard:has(> .sales-dash) > :not(.sales-dash) { display: none; }
 .sales-dash {
-  --text-primary: #121212; --text-secondary: #484847; --text-muted: #898989; --grid: #eaeae6;
+  --text-primary: #121212; --text-secondary: #484847; --text-muted: #6e6e6b; --grid: #eaeae6;
   --seq: #2a78d6; --deemph: #bababa;
   --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
   --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
@@ -1598,8 +1898,8 @@ input[type="checkbox"].admin-switch:disabled {
 .sales-dash .dash-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .sales-dash .dash-bar h2 { margin: 0 12px 0 0; font-size: 20px; }
 .sales-dash .dash-bar select, .sales-dash .seg button { height: 30px; font: inherit; font-size: 12px; }
-.sales-dash .dash-bar select { width: auto; border: 1px solid var(--color-pebble); background: #fff; padding: 0 10px; border-radius: 15px; }
-.sales-dash .seg { display: inline-flex; border: 1px solid var(--color-pebble); border-radius: 15px; overflow: hidden; }
+.sales-dash .dash-bar select { width: auto; border: 1px solid var(--color-border-strong); background: #fff; padding: 0 10px; border-radius: 15px; }
+.sales-dash .seg { display: inline-flex; border: 1px solid var(--color-border-strong); border-radius: 15px; overflow: hidden; }
 .sales-dash .seg button { border: 0; background: #fff; padding: 0 12px; cursor: pointer; color: var(--text-secondary); text-transform: none; letter-spacing: 0; }
 .sales-dash .seg button[aria-pressed="true"] { background: var(--color-ink); color: #fff; }
 .sales-dash .dash-updated { margin-left: auto; font-size: 11px; color: var(--text-muted); }
@@ -1639,7 +1939,8 @@ input[type="checkbox"].admin-switch:disabled {
 .sales-dash .dash-tip .k { display: inline-block; width: 12px; border-top: 2px solid; margin-right: 6px; vertical-align: 3px; }
 .sales-dash .dash-tip .muted { color: var(--text-muted); }
 .sales-dash .mark { transition: opacity .1s; }
-.sales-dash .mark:hover, .sales-dash .mark:focus { opacity: .7; outline: none; }
+.sales-dash .mark:hover, .sales-dash .mark:focus { opacity: .7; }
+.sales-dash .mark:focus:not(:focus-visible) { outline: none; }
 .sales-dash dialog { border: 1px solid var(--color-pebble); padding: 16px 20px; max-height: 70vh; font-size: 12px; }
 .sales-dash dialog table { border-collapse: collapse; margin-bottom: 12px; }
 .sales-dash dialog td, .sales-dash dialog th { padding: 3px 14px 3px 0; text-align: left; font-variant-numeric: tabular-nums; }
@@ -1654,7 +1955,7 @@ input[type="checkbox"].admin-switch:disabled {
 }
 
 /* an item bought at the product's promotional price: the full price struck through below */
-.sales-promo-price { color: var(--color-stone); white-space: nowrap; }
+.sales-promo-price { color: var(--color-text-muted); white-space: nowrap; }
 .sales-card-brand { vertical-align: middle; }
 
 /* Promotion CRUD follows the same editorial form system as Catalog. */
@@ -1682,7 +1983,7 @@ input[type="checkbox"].admin-switch:disabled {
   max-width: 440px;
   margin-top: 4px;
   padding: 8px;
-  border: 1px solid var(--color-pebble);
+  border: 1px solid var(--color-border-strong);
   border-radius: 0;
   background: var(--color-paper);
   color: var(--color-ink);
@@ -1704,7 +2005,7 @@ input[type="checkbox"].admin-switch:disabled {
   display: block;
   max-width: 600px;
   margin-top: 4px;
-  color: var(--color-stone);
+  color: var(--color-text-muted);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -1734,7 +2035,7 @@ input[type="checkbox"].admin-switch:disabled {
 }
 
 .promotion-form .promotion-required {
-  color: var(--color-stone);
+  color: var(--color-text-muted);
   font-weight: 400;
   letter-spacing: 0;
 }
@@ -1806,7 +2107,7 @@ input[type="checkbox"].admin-switch:disabled {
   min-width: 20px;
   padding: 1px 6px;
   border-radius: 10px;
-  background: #a33;
+  background: var(--color-danger);
   color: var(--color-paper);
   font-size: 12px;
   font-weight: 600;
@@ -1854,7 +2155,7 @@ input[type="checkbox"].admin-switch:disabled {
 }
 
 .message-bubble small {
-  color: var(--color-stone);
+  color: var(--color-text-muted);
   font-size: 11px;
 }
 
@@ -1892,4 +2193,365 @@ input[type="checkbox"].admin-switch:disabled {
   .message-thread-layout {
     grid-template-columns: 1fr;
   }
+}
+
+/* ==========================================================================
+   Raised surfaces (2026-10-14): the content on an atelier canvas, each page block a white card
+   with a linen outline and a soft shadow; firmer table heads, visible row actions, state chips.
+   Last in the file on purpose: it restyles the shared rules above without touching each screen.
+   ========================================================================== */
+
+/* canvas: menu and header white, the content column atelier */
+.admin-dashboard,
+.admin-breadcrumb,
+.admin-messages {
+  background: var(--color-atelier-white);
+}
+
+.admin-header:has(.admin-user-nav) {
+  position: relative;
+  z-index: 3;
+  border-bottom: 1px solid var(--color-linen);
+  box-shadow: 0 1px 3px rgba(18, 18, 18, 0.06);
+}
+
+.admin-menu,
+.admin-shell:has(.admin-menu) .admin-footer {
+  background: var(--color-paper);
+  border-right: 1px solid var(--color-linen);
+}
+
+/* menu: the open section reads as a group, the current page as a filled row with an ink bar */
+.admin-menu .admin-submenu {
+  gap: 2px;
+}
+
+.admin-menu .admin-submenu a {
+  padding: 6px 8px;
+  margin-left: -8px;
+}
+
+.admin-menu .admin-submenu a:hover,
+.admin-menu .admin-menu-top:hover {
+  background: var(--color-atelier-white);
+  text-decoration: none;
+}
+
+.admin-menu details[open] > summary {
+  font-weight: 700;
+}
+
+.admin-menu a[aria-current="page"],
+.admin-menu .admin-submenu a[aria-current="page"] {
+  margin-left: -10px;
+  padding: 6px 8px 6px 10px;
+  background: var(--color-linen);
+  box-shadow: inset 3px 0 0 var(--color-ink);
+  color: var(--color-ink);
+  font-weight: 700;
+}
+
+/* the cards: every page block (section) on the canvas; screens with their own cards stay as they are */
+.admin-dashboard > section:not(.config-settings-form, .sales-dash, .admin-login-form, :has(> .product-layout)) {
+  margin-bottom: var(--spacing-20);
+  padding: var(--surface-pad);
+  background: var(--color-paper);
+  border: 1px solid var(--color-linen);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+}
+
+/* the card's title as its header band, apart from the content */
+.admin-dashboard > section:not(.config-settings-form, .sales-dash, .admin-login-form, :has(> .product-layout)) > :is(.admin-page-head, h2:first-child) {
+  margin: calc(-1 * var(--surface-pad)) calc(-1 * var(--surface-pad)) var(--surface-pad);
+  padding: 16px var(--surface-pad);
+  border-bottom: 1px solid var(--color-linen);
+}
+
+.admin-dashboard > section > h2:first-child,
+.admin-dashboard .admin-page-head h2,
+.admin-dashboard > section:has(> .product-layout) > h2 {
+  font-size: 26px;
+  color: var(--color-ink);
+}
+
+/* product/customer form: the blocks are the cards */
+.admin-dashboard .product-block {
+  padding: 16px 20px;
+  background: var(--color-paper);
+  border: 1px solid var(--color-linen);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+}
+
+.admin-dashboard .product-block > fieldset {
+  border: 0;
+  padding: 0;
+}
+
+.admin-dashboard .product-block legend {
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+/* the filter bar: a panel of its own */
+.admin-dashboard form.admin-filters {
+  padding: 12px;
+  background: var(--color-atelier-white);
+  border: 1px solid var(--color-linen);
+  border-radius: var(--radius-sm);
+}
+
+/* fields: a small radius; the switch, checkbox and radio keep their shape */
+.admin-dashboard :is(input:not([type="checkbox"], [type="radio"], [type="file"], [type="hidden"]), select, textarea) {
+  border-radius: var(--radius-sm);
+}
+
+.admin-dashboard :is(input:not([type="checkbox"], [type="radio"], [type="file"]), select, textarea):hover {
+  border-color: var(--color-graphite);
+}
+
+/* table head: firm, in ink, on linen with a 2px rule */
+.admin-dashboard section > table > thead th,
+.admin-dashboard .log-operation-changes thead th,
+.admin-dashboard .log-history thead th {
+  background: var(--color-linen);
+  border-bottom: 2px solid var(--color-ink);
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.admin-dashboard th.admin-sortable:hover,
+.admin-dashboard th.is-sorted {
+  background: #deded9;
+}
+
+/* rows: a faint zebra, hover in linen with an ink bar on the first cell */
+.admin-dashboard section > table:has(> thead) > tbody > tr:nth-child(even) > td {
+  background: #fbfbf9;
+}
+
+.admin-dashboard section > table:has(> thead) > tbody > tr:hover > td {
+  background: var(--color-linen);
+}
+
+.admin-dashboard section > table:has(> thead) > tbody > tr:hover > td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-ink);
+}
+
+.admin-dashboard section > table:has(> thead) > tbody > tr:hover > td.admin-empty {
+  background: none;
+  box-shadow: none;
+}
+
+/* buttons: a raised key with a hover and a press */
+.admin-dashboard form button,
+.catalog-product-form button,
+.admin-dashboard a.admin-button {
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-1);
+  transition: background 0.12s, color 0.12s, box-shadow 0.12s, transform 0.06s;
+}
+
+.admin-dashboard form button:hover,
+.catalog-product-form button:hover {
+  box-shadow: var(--shadow-2);
+}
+
+.admin-dashboard form button:active,
+.catalog-product-form button:active,
+.admin-dashboard a.admin-button:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.admin-dashboard .admin-button-primary,
+.admin-dashboard a.admin-button.admin-button-primary,
+.admin-dashboard form button.admin-button-primary {
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-weight: 600;
+  box-shadow: var(--shadow-2);
+}
+
+.admin-dashboard .admin-button-primary:hover,
+.admin-dashboard a.admin-button.admin-button-primary:hover,
+.admin-dashboard form button.admin-button-primary:hover {
+  background: var(--color-graphite);
+  border-color: var(--color-graphite);
+  color: var(--color-paper);
+}
+
+.admin-dashboard button:disabled,
+.admin-dashboard button:disabled:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+/* row actions: small outlined keys, "Remover" in the danger color */
+.admin-dashboard td.admin-row-action > a {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-1);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.admin-dashboard td.admin-row-action > a:hover {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  text-decoration: none;
+}
+
+.admin-dashboard td.admin-row-action form[data-confirm] button[type="submit"] {
+  padding: 3px 10px;
+  border: 1px solid #e4c4c4;
+  background: var(--color-paper);
+}
+
+.admin-dashboard td.admin-row-action form[data-confirm] button[type="submit"]:hover {
+  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: var(--color-paper);
+  text-decoration: none;
+}
+
+/* the pager's keys */
+.admin-pager-arrows > a,
+.admin-pager-arrows > span {
+  background: var(--color-paper);
+}
+
+.admin-pager-arrows > :first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.admin-pager-arrows > :last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+
+/* State chip: order situation, active/inactive. Color only for state (DESIGN.md → Admin) */
+.admin-status {
+  display: inline-block;
+  padding: 2px 9px;
+  border: 1px solid var(--color-linen);
+  border-radius: 999px;
+  background: var(--color-atelier-white);
+  color: var(--color-graphite);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  line-height: 1.5;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.admin-status-complete,
+.admin-status-on {
+  border-color: #cfe3d6;
+  background: var(--surface-success);
+  color: var(--color-success);
+}
+
+.admin-status-pending_payment {
+  border-color: #ecdcb8;
+  background: var(--surface-warning);
+  color: var(--color-warning);
+}
+
+.admin-status-processing,
+.admin-status-shipped {
+  border-color: var(--color-ink);
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+.admin-status-canceled {
+  border-color: #ecc9c9;
+  background: var(--surface-danger);
+  color: var(--color-danger);
+}
+
+.admin-status-off {
+  color: var(--color-text-muted);
+}
+
+/* in the order's title, the chip sits on the serif line */
+.admin-dashboard h2 .admin-status {
+  margin-left: 4px;
+  font-size: 13px;
+  vertical-align: 4px;
+}
+
+/* E-mails: the failed ones as a red chip-like label */
+.mail-sent-list td.mail-status-2,
+.mail-message-view td.mail-status-2 {
+  color: var(--color-danger);
+}
+
+/* Configurações: the cards already float; on the atelier canvas the scope bar becomes white */
+/* the dark floating bar keeps its own keys (Descartar is a ghost on ink) */
+.admin-dashboard .config-settings-form .config-savebar.is-floating button {
+  box-shadow: none;
+}
+
+.admin-dashboard .config-settings-form .config-savebar.is-floating button[type="reset"] {
+  background: transparent;
+}
+
+.admin-dashboard .config-settings-form .config-savebar.is-floating button[type="reset"]:hover {
+  background: var(--color-graphite);
+}
+
+.admin-dashboard .config-settings-form .config-head h2 {
+  font-size: 26px;
+}
+
+.admin-dashboard .config-settings-form form.config-scope {
+  background: var(--color-paper);
+}
+
+/* Painel: the KPIs and the charts as cards on the canvas (the grid still divides the screen) */
+.sales-dash .dash-kpi,
+.sales-dash .dash-card {
+  padding: 10px 14px;
+  background: var(--color-paper);
+  border: 1px solid var(--color-linen);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+}
+
+.sales-dash .dash-kpi {
+  border-top: 3px solid var(--color-ink);
+}
+
+.sales-dash .dash-row {
+  gap: 12px;
+}
+
+.sales-dash .dash-kpis {
+  gap: 12px;
+}
+
+.sales-dash .dash-bar select,
+.sales-dash .seg {
+  background: var(--color-paper);
+  box-shadow: var(--shadow-1);
+}
+
+@media (max-width: 900px) {
+  :root { --surface-pad: 16px; }
+  .admin-dashboard section > table:not(:has(> thead)) td { overflow-wrap: anywhere; }
+  .sales-dash .dash-card-head { flex-wrap: wrap; }
+  .admin-dashboard .sales-order-view table.sales-order-info th,
+  .admin-dashboard .mail-message-view table.mail-message-info th,
+  .admin-dashboard .log-operation-view table.log-operation-info th { width: 34%; }
+  .admin-menu { border-right: 0; }
+  .admin-dashboard > section > h2:first-child,
+  .admin-dashboard .admin-page-head h2 { font-size: 22px; }
 }

@@ -1,6 +1,8 @@
 <section class="customer-group-list">
-    <h2>Grupos de clientes</h2>
-    <p><a href="/admin/customergroup/create">+ Novo grupo</a></p>
+    <div class="admin-page-head">
+        <h2>Grupos de clientes</h2>
+        <a class="admin-button admin-button-primary" href="/admin/customergroup/create">+ Novo grupo</a>
+    </div>
     <table>
         <thead>
             <tr>
@@ -13,7 +15,7 @@
         </thead>
         <tbody>
 <?php if (empty($groups)): ?>
-            <tr><td colspan="5">Nenhum grupo cadastrado.</td></tr>
+            <tr><td colspan="5" class="admin-empty">Nenhum grupo cadastrado.</td></tr>
 <?php else: ?>
     <?php foreach ($groups as $group): ?>
             <tr>
@@ -21,10 +23,10 @@
                 <td><?= htmlspecialchars((string) $group['code']) ?></td>
                 <td><?= htmlspecialchars((string) $group['name']) ?></td>
                 <td><?= (int) $group['customer_count'] ?></td>
-                <td>
+                <td class="admin-row-action">
                     <a href="/admin/customergroup/edit?id=<?= (int) $group['customer_group_id'] ?>">Editar</a>
         <?php if (!$group['customer_count']): ?>
-                    <form method="post" action="/admin/customergroup/delete" style="display:inline" data-confirm="Remover este grupo?">
+                    <form method="post" action="/admin/customergroup/delete" data-confirm="Remover este grupo?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="customer_group_id" value="<?= (int) $group['customer_group_id'] ?>">
                         <button type="submit">Remover</button>

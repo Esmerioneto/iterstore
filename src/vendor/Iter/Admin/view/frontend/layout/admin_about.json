@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "about": "admin/about-page"
+        }
+    }
+}

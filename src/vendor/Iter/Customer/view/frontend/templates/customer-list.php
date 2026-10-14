@@ -12,8 +12,10 @@ $select = static function (string $name, string $all, array $options) use ($filt
 <?php };
 ?>
 <section class="customer-list">
-    <h2>Clientes</h2>
-    <p><a href="/admin/customer/create">+ Novo cliente</a></p>
+    <div class="admin-page-head">
+        <h2>Clientes</h2>
+        <a class="admin-button admin-button-primary" href="/admin/customer/create">+ Novo cliente</a>
+    </div>
     <form method="get" action="/admin/customer/index" class="admin-filters">
 <?php
 $select('customer_type', 'PF e PJ', ['pf' => 'Pessoa física', 'pj' => 'Pessoa jurídica']);
@@ -43,7 +45,7 @@ $select('is_active', 'Ativos e inativos', ['1' => 'Só ativos', '0' => 'Só inat
         </thead>
         <tbody>
 <?php if (empty($customers)): ?>
-            <tr><td colspan="10">Nenhum cliente encontrado.</td></tr>
+            <tr><td colspan="10" class="admin-empty">Nenhum cliente encontrado.</td></tr>
 <?php else: ?>
     <?php foreach ($customers as $customer): ?>
             <tr>
@@ -54,11 +56,11 @@ $select('is_active', 'Ativos e inativos', ['1' => 'Só ativos', '0' => 'Só inat
                 <td><?= $e(CustomerService::formatTaxvat($customer['taxvat'])) ?></td>
                 <td><?= $e($customer['group_name']) ?></td>
                 <td><?= $e($customer['website_name']) ?></td>
-                <td<?= $customer['is_active'] ? '' : ' class="customer-inactive"' ?>><?= $customer['is_active'] ? 'Ativo' : 'Inativo' ?></td>
+                <td<?= $customer['is_active'] ? '' : ' class="customer-inactive"' ?>><span class="admin-status admin-status-<?= $customer['is_active'] ? 'on' : 'off' ?>"><?= $customer['is_active'] ? 'Ativo' : 'Inativo' ?></span></td>
                 <td><?= $e(date('d/m/Y', strtotime((string) $customer['created_at']))) ?></td>
                 <td class="admin-row-action">
                     <a href="/admin/customer/edit?id=<?= (int) $customer['customer_id'] ?>">Editar</a>
-                    <form method="post" action="/admin/customer/delete" style="display:inline" data-confirm="Remover este cliente?">
+                    <form method="post" action="/admin/customer/delete" data-confirm="Remover este cliente?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="customer_id" value="<?= (int) $customer['customer_id'] ?>">
                         <button type="submit">Remover</button>

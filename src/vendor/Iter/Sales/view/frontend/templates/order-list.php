@@ -8,14 +8,7 @@ $money = static fn ($v) => 'R$ ' . number_format((float) $v, 2, ',', '.');
 $query = array_filter($filters, 'strlen')
     + ($limit === OrderList::PAGE_SIZES[0] ? [] : ['limit' => $limit])
     + ($sort === 'created_at' && $dir === 'desc' ? [] : ['sort' => $sort, 'dir' => $dir]);
-// a title sorts by its column; clicked again, it flips the direction (back to page 1)
-$sortHeader = static function (string $key, string $label) use ($query, $sort, $dir): string {
-    $active = $key === $sort;
-    $next = $active && $dir === 'asc' ? 'desc' : 'asc';
-    $href = '/admin/order/index?' . http_build_query(array_diff_key($query, ['sort' => 1, 'dir' => 1]) + ['sort' => $key, 'dir' => $next]);
-    return '<th class="admin-sortable' . ($active ? ' is-sorted' : '') . '"' . ($active ? ' aria-sort="' . ($dir === 'asc' ? 'ascending' : 'descending') . '"' : '') . '>'
-        . '<a href="' . htmlspecialchars($href) . '">' . htmlspecialchars($label) . ($active ? ($dir === 'asc' ? ' ▲' : ' ▼') : '') . '</a></th>';
-};
+$sortHeader = static fn (string $key, string $label): string => \Iter\Admin\View\Sort::th($key, $label, $sort, $dir, $query, '/admin/order/index');
 ?>
 <section class="mail-list sales-order-list">
     <h2>Pedidos</h2>
@@ -81,7 +74,7 @@ $sortHeader = static function (string $key, string $label) use ($query, $sort, $
         </thead>
         <tbody>
 <?php if (!$orders): ?>
-            <tr><td colspan="9">Nenhum pedido encontrado.</td></tr>
+            <tr><td colspan="9" class="admin-empty">Nenhum pedido encontrado.</td></tr>
 <?php endif; ?>
 <?php foreach ($orders as $order): ?>
             <tr>
@@ -92,7 +85,7 @@ $sortHeader = static function (string $key, string $label) use ($query, $sort, $
                 <td><?= $e($order['sales_channel']) ?></td>
                 <td><?= $e($order['payment_label'] ?? '—') ?></td>
                 <td><?= $money($order['grand_total']) ?></td>
-                <td><?= $e(OrderService::STATUS_LABELS[$order['status']] ?? $order['status']) ?><?= $order['status'] === 'canceled' ? '<br><small>' . $e(OrderService::CANCEL_REASONS[$order['cancel_reason'] ?? ''] ?? 'Não informado') . '</small>' : '' ?></td>
+                <td><span class="admin-status admin-status-<?= $e($order['status']) ?>"><?= $e(OrderService::STATUS_LABELS[$order['status']] ?? $order['status']) ?></span><?= $order['status'] === 'canceled' ? '<br><small>' . $e(OrderService::CANCEL_REASONS[$order['cancel_reason'] ?? ''] ?? 'Não informado') . '</small>' : '' ?></td>
                 <td class="admin-row-action"><a href="/admin/order/view?id=<?= (int) $order['order_id'] ?>">Ver</a></td>
             </tr>
 <?php endforeach; ?>

@@ -1,6 +1,8 @@
 <section class="admin-user-list">
-    <h2>Usuários admin</h2>
-    <p><a href="/admin/user/create">+ Novo usuário</a></p>
+    <div class="admin-page-head">
+        <h2>Usuários admin</h2>
+        <a class="admin-button admin-button-primary" href="/admin/user/create">+ Novo usuário</a>
+    </div>
     <table>
         <thead>
             <tr>
@@ -15,7 +17,7 @@
         </thead>
         <tbody>
 <?php if (empty($users)): ?>
-            <tr><td colspan="7">Nenhum usuário cadastrado.</td></tr>
+            <tr><td colspan="7" class="admin-empty">Nenhum usuário cadastrado.</td></tr>
 <?php else: ?>
     <?php foreach ($users as $user): ?>
             <tr>
@@ -25,9 +27,9 @@
                 <td><?= htmlspecialchars($user['email'] ?? '') ?></td>
                 <td><?= htmlspecialchars($user['role_name'] ?? '—') ?></td>
                 <td><?= $user['is_active'] ? 'Sim' : 'Não' ?></td>
-                <td>
+                <td class="admin-row-action">
                     <a href="/admin/user/edit?id=<?= (int) $user['user_id'] ?>">Editar</a>
-                    <form method="post" action="/admin/user/delete" style="display:inline" data-confirm="Remover este usuário?">
+                    <form method="post" action="/admin/user/delete" data-confirm="Remover este usuário?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="user_id" value="<?= (int) $user['user_id'] ?>">
                         <button type="submit">Remover</button>

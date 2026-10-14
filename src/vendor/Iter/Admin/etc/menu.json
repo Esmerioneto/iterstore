@@ -1,6 +1,8 @@
 [
     { "label": "Painel", "resource": "Iter_Admin::dashboard", "url": "/admin/index", "sort_order": 0 },
     { "id": "sistema", "label": "Sistema", "resource": "Iter_Admin::user", "url": "/admin/user/index", "sort_order": 90 },
+    { "label": "Sobre", "resource": "Iter_Admin::about", "url": "/admin/about/index", "sort_order": 100 },
+    { "label": "Sair", "url": "/admin/auth/logout", "sort_order": 110 },
     { "label": "Usuários admin", "resource": "Iter_Admin::user", "url": "/admin/user/index", "parent": "sistema", "sort_order": 0 },
     { "label": "Perfis", "resource": "Iter_Admin::role", "url": "/admin/role/index", "parent": "sistema", "sort_order": 10 },
     { "label": "API (GraphiQL)", "resource": "Iter_Admin::graphiql", "url": "/admin/graphiql/index", "parent": "sistema", "sort_order": 30 }

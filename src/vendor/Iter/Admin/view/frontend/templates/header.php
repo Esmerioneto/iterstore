@@ -2,6 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= htmlspecialchars($title) ?></title>
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -15,6 +16,10 @@
 <body>
 <div class="admin-shell">
 <header class="admin-header">
+<?php if ($username): ?>
+    <?php /* narrow screens: opens the menu as a drawer (admin.js); hidden on wide ones */ ?>
+    <button type="button" class="admin-menu-toggle" aria-controls="admin-menu" aria-expanded="false">Menu</button>
+<?php endif; ?>
     <h1><?= htmlspecialchars($title) ?></h1>
 <?php if (!$username): ?>
     <img class="admin-logo" src="/imagem/logo.png" alt="Iter">

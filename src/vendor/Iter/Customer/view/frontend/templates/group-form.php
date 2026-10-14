@@ -16,7 +16,7 @@
             </label>
         </p>
         <p>
-            <button type="submit">Salvar</button>
+            <button type="submit" class="admin-button-primary">Salvar</button>
             <a href="/admin/customergroup/index">Cancelar</a>
         </p>
     </form>

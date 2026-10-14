@@ -1,8 +1,10 @@
 <section class="eav-attribute-list">
-    <h2>Atributos</h2>
+    <div class="admin-page-head">
+        <h2>Atributos</h2>
 <?php if ($can_manage): ?>
-    <p><a href="/admin/attribute/create<?= $filters['entity_type'] !== '' ? '?entity_type=' . urlencode($filters['entity_type']) : '' ?>">+ Novo atributo</a></p>
+        <a class="admin-button admin-button-primary" href="/admin/attribute/create<?= $filters['entity_type'] !== '' ? '?entity_type=' . urlencode($filters['entity_type']) : '' ?>">+ Novo atributo</a>
 <?php endif; ?>
+    </div>
     <form method="get" action="/admin/attribute/index" class="admin-filters">
         <select name="entity_type">
             <option value="">Todas as entidades</option>
@@ -39,7 +41,7 @@
         </thead>
         <tbody>
 <?php if (empty($attributes)): ?>
-            <tr><td colspan="8">Nenhum atributo encontrado.</td></tr>
+            <tr><td colspan="8" class="admin-empty">Nenhum atributo encontrado.</td></tr>
 <?php else: ?>
     <?php foreach ($attributes as $attribute): ?>
             <tr>
@@ -53,7 +55,7 @@
                 <td class="admin-row-action">
                     <a href="/admin/attribute/edit?id=<?= (int) $attribute['attribute_id'] ?>">Editar</a>
         <?php if ($can_manage && !$attribute['is_system']): ?>
-                    <form method="post" action="/admin/attribute/delete" style="display:inline" data-confirm="Remover este atributo?">
+                    <form method="post" action="/admin/attribute/delete" data-confirm="Remover este atributo?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="attribute_id" value="<?= (int) $attribute['attribute_id'] ?>">
                         <button type="submit">Remover</button>

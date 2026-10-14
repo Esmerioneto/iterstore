@@ -1,6 +1,8 @@
 <section class="store-website-list">
-    <h2>Websites</h2>
-    <p><a href="/admin/website/create">+ Novo website</a></p>
+    <div class="admin-page-head">
+        <h2>Websites</h2>
+        <a class="admin-button admin-button-primary" href="/admin/website/create">+ Novo website</a>
+    </div>
     <table>
         <thead>
             <tr>
@@ -14,7 +16,7 @@
         </thead>
         <tbody>
 <?php if (empty($websites)): ?>
-            <tr><td colspan="6">Nenhum website cadastrado.</td></tr>
+            <tr><td colspan="6" class="admin-empty">Nenhum website cadastrado.</td></tr>
 <?php else: ?>
     <?php foreach ($websites as $website): ?>
             <tr>
@@ -23,9 +25,9 @@
                 <td><?= htmlspecialchars((string) $website['name']) ?></td>
                 <td><?= (int) $website['sort_order'] ?></td>
                 <td><?= $website['is_default'] ? 'Sim' : '' ?></td>
-                <td>
+                <td class="admin-row-action">
                     <a href="/admin/website/edit?id=<?= (int) $website['website_id'] ?>">Editar</a>
-                    <form method="post" action="/admin/website/delete" style="display:inline" data-confirm="Remover este website e seus grupos?">
+                    <form method="post" action="/admin/website/delete" data-confirm="Remover este website e seus grupos?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="website_id" value="<?= (int) $website['website_id'] ?>">
                         <button type="submit">Remover</button>

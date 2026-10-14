@@ -5,19 +5,14 @@ usort($extra, static fn ($a, $b) => $b['sortable'] <=> $a['sortable']); // heade
 $query = array_filter($filters, 'strlen')
     + ($limit === \Iter\Catalog\View\ProductList::PAGE_SIZES[0] ? [] : ['limit' => $limit])
     + ($sort === 'name' && $dir === 'asc' ? [] : ['sort' => $sort, 'dir' => $dir]);
-// a title sorts by its column; clicked again, it flips the direction (back to page 1)
-$sortHeader = static function (string $key, string $label) use ($query, $sort, $dir): string {
-    $active = $key === $sort;
-    $next = $active && $dir === 'asc' ? 'desc' : 'asc';
-    $href = '/admin/product/index?' . http_build_query(array_diff_key($query, ['sort' => 1, 'dir' => 1]) + ['sort' => $key, 'dir' => $next]);
-    return '<th class="admin-sortable' . ($active ? ' is-sorted' : '') . '"' . ($active ? ' aria-sort="' . ($dir === 'asc' ? 'ascending' : 'descending') . '"' : '') . '>'
-        . '<a href="' . htmlspecialchars($href) . '">' . htmlspecialchars($label) . ($active ? ($dir === 'asc' ? ' ▲' : ' ▼') : '') . '</a></th>';
-};
+$sortHeader = static fn (string $key, string $label): string => \Iter\Admin\View\Sort::th($key, $label, $sort, $dir, $query, '/admin/product/index');
 ?>
 <section class="catalog-product-list">
-    <h2>Produtos</h2>
-    <p><a href="/admin/product/create">+ Novo produto</a></p>
-    <form method="get" action="/admin/product/index">
+    <div class="admin-page-head">
+        <h2>Produtos</h2>
+        <a class="admin-button admin-button-primary" href="/admin/product/create">+ Novo produto</a>
+    </div>
+    <form method="get" action="/admin/product/index" class="admin-filters">
 <?php if (count($websites) > 1): ?>
         <select name="website_id">
             <option value="">Todos os websites</option>
@@ -63,7 +58,7 @@ $sortHeader = static function (string $key, string $label) use ($query, $sort, $
         </thead>
         <tbody>
 <?php if (empty($products)): ?>
-            <tr><td colspan="<?= 7 + count($extra) ?>">Nenhum produto encontrado.</td></tr>
+            <tr><td colspan="<?= 7 + count($extra) ?>" class="admin-empty">Nenhum produto encontrado.</td></tr>
 <?php else: ?>
     <?php foreach ($products as $product): ?>
             <tr>
@@ -72,13 +67,13 @@ $sortHeader = static function (string $key, string $label) use ($query, $sort, $
                 <td><?= htmlspecialchars((string) $product['set_label']) ?></td>
                 <td><?= htmlspecialchars(implode(', ', $product_categories[(int) $product['product_id']] ?? [])) ?></td>
                 <td><?= implode(' – ', array_map(static fn ($p) => 'R$ ' . number_format((float) $p, 2, ',', '.'), array_unique(array_filter($product['type'] === 'configurable' ? [$product['price_min'], $product['price_max']] : [$product['price']], static fn ($p) => $p !== null)))) ?></td>
-                <td><?= $product['is_active'] ? 'Ativo' : 'Inativo' ?></td>
+                <td><span class="admin-status admin-status-<?= $product['is_active'] ? 'on' : 'off' ?>"><?= $product['is_active'] ? 'Ativo' : 'Inativo' ?></span></td>
         <?php foreach ($extra as $column): ?>
                 <td><?= htmlspecialchars((string) ($column['values'][(int) $product['product_id']] ?? '')) ?></td>
         <?php endforeach; ?>
-                <td>
+                <td class="admin-row-action">
                     <a href="/admin/product/edit?id=<?= (int) $product['product_id'] ?>">Editar</a>
-                    <form method="post" action="/admin/product/delete" style="display:inline" data-confirm="Remover este produto?">
+                    <form method="post" action="/admin/product/delete" data-confirm="Remover este produto?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="product_id" value="<?= (int) $product['product_id'] ?>">
                         <button type="submit">Remover</button>

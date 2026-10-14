@@ -60,7 +60,7 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
         <thead><tr><th>SKU</th><th>Produto</th><th>Preço</th><th>Qtd.</th><th>Total</th><th></th></tr></thead>
         <tbody>
 <?php if (!$cart['items']): ?>
-            <tr><td colspan="6">Nenhum item. Busque um produto abaixo.</td></tr>
+            <tr><td colspan="6" class="admin-empty">Nenhum item. Busque um produto abaixo.</td></tr>
 <?php endif; ?>
 <?php foreach ($cart['items'] as $item): ?>
             <tr>
@@ -84,7 +84,7 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
         <thead><tr><th>SKU</th><th>Produto</th><th>Preço</th><th>Disponível</th><th>Adicionar</th></tr></thead>
         <tbody>
     <?php if (!$products): ?>
-            <tr><td colspan="5">Nenhum produto ativo encontrado neste website.</td></tr>
+            <tr><td colspan="5" class="admin-empty">Nenhum produto ativo encontrado neste website.</td></tr>
     <?php endif; ?>
     <?php foreach ($products as $product): ?>
         <?php if (!$product['variants']): ?>
@@ -165,7 +165,7 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
     <?= $missing ? '' : $form('place', ($can_confirm_payment ? '<p><label><input type="checkbox" name="payment_received" value="1"> Pagamento recebido (já confirma o pagamento)</label></p>' : '')
         . '<p><label><input type="checkbox" name="notify" value="1" checked> Avisar o cliente por e-mail</label></p>'
         . '<p><label>Comentário interno (não vai para o cliente)<br><textarea name="comment" rows="2" maxlength="5000"></textarea></label></p>'
-        . '<p><button type="submit">Criar pedido</button></p>') ?>
+        . '<p><button type="submit" class="admin-button-primary">Criar pedido</button></p>') ?>
 <?php if ($missing): ?>
     <p><button type="button" disabled>Criar pedido</button></p>
 <?php endif; ?>

@@ -52,7 +52,7 @@ $name = static fn (array $c) => trim($c['firstname'] . ' ' . $c['lastname']);
         </thead>
         <tbody>
 <?php if (!$conversations): ?>
-            <tr><td colspan="6">Nenhuma conversa encontrada.</td></tr>
+            <tr><td colspan="6" class="admin-empty">Nenhuma conversa encontrada.</td></tr>
 <?php endif; ?>
 <?php foreach ($conversations as $c): ?>
             <tr<?= $c['unread'] ? ' class="message-unread"' : '' ?>>

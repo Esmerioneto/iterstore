@@ -116,7 +116,7 @@ if ($type === 'configurable' && $is_edit) {
             </tr>
     <?php endforeach; ?>
     <?php if (!$variants): ?>
-            <tr><td colspan="7">Nenhuma variação ainda: marque as opções acima e clique em "Gerar variações".</td></tr>
+            <tr><td colspan="7" class="admin-empty">Nenhuma variação ainda: marque as opções acima e clique em "Gerar variações".</td></tr>
     <?php endif; ?>
         </tbody>
     </table>
@@ -196,7 +196,7 @@ foreach ($children ?? [] as $name => $html) {
 })($blocks, $layout, $can_arrange); ?>
 
     <p class="product-form-submit">
-        <button type="submit" form="product-form">Salvar</button>
+        <button type="submit" form="product-form" class="admin-button-primary">Salvar</button>
         <a href="/admin/product/index">Cancelar</a>
     </p>
 </section>

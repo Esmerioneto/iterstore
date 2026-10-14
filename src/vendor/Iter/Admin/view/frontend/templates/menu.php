@@ -2,7 +2,7 @@
 $e = static fn ($v) => htmlspecialchars((string) $v);
 $badge = static fn (int $n) => $n > 0 ? '<span class="admin-badge" aria-label="' . $n . ' pendente(s)">' . ($n > 99 ? '99+' : $n) . '</span>' : '';
 ?>
-<nav class="admin-menu" aria-label="Menu">
+<nav class="admin-menu" id="admin-menu" aria-label="Menu">
     <ul>
 <?php foreach ($items as $item): ?>
 <?php if (!empty($item['children'])): ?>

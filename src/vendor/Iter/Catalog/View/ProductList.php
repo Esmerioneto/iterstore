@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Catalog\View;
 
 use Iter\Admin\View\Pager;
+use Iter\Admin\View\Sort;
 use Iter\Catalog\Model\Category;
 use Iter\Catalog\Model\Product;
 use Iter\Core\Db\Expr;
@@ -29,8 +30,7 @@ class ProductList implements ViewComponentInterface
             $filters[$key] = trim((string) ($_GET[$key] ?? ''));
         }
         $sortable = self::sortable($layoutData['columns'] ?? []);
-        $sort = isset($sortable[$_GET['sort'] ?? '']) ? (string) $_GET['sort'] : 'name';
-        $dir = ($_GET['dir'] ?? '') === 'desc' ? 'desc' : 'asc';
+        [$sort, $dir] = Sort::read(array_map('strval', array_keys($sortable)), 'name');
         [$result, $pager] = Pager::search(static fn (int $page, int $limit) => (new Product())->getResource()->search($filters, $page, $limit, $sortable[$sort], $dir), self::PAGE_SIZES);
         ['page' => $page, 'limit' => $limit, 'total_pages' => $totalPages] = $pager;
         $categoryResource = (new Category())->getResource();

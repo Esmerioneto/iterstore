@@ -18,15 +18,15 @@
                 <td><?= htmlspecialchars($module['group']) ?></td>
                 <td><?= htmlspecialchars($module['vendor']) ?></td>
                 <td><?= htmlspecialchars($module['name']) ?></td>
-                <td><?= $module['enabled'] ? 'Ativo' : 'Inativo' ?></td>
+                <td><span class="admin-status admin-status-<?= $module['enabled'] ? 'on' : 'off' ?>"><?= $module['enabled'] ? 'Ativo' : 'Inativo' ?></span></td>
     <?php if ($can_toggle): ?>
-                <td>
+                <td class="admin-row-action">
         <?php if ($module['enabled'] && $module['required']): ?>
                     <small>Essencial</small>
         <?php elseif ($module['enabled'] && $module['dependents']): ?>
                     <small>Usado por <?= htmlspecialchars(implode(', ', $module['dependents'])) ?></small>
         <?php else: ?>
-                    <form method="post" action="/admin/config/module" style="display:inline"
+                    <form method="post" action="/admin/config/module"
                         <?= $module['enabled'] ? 'data-confirm="Desativar o módulo ' . htmlspecialchars($module['name']) . '? As telas, menus e a API dele saem do ar; os dados continuam no banco." data-confirm-button="Desativar"' : '' ?>>
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="module" value="<?= htmlspecialchars($module['key']) ?>">

@@ -96,6 +96,6 @@ $productItem = static function (int $categoryId, array $p, bool $chosen) use ($e
     <?php endforeach; ?>
         </ol>
 <?php endif; ?>
-        <p><button type="submit">Salvar</button></p>
+        <p><button type="submit" class="admin-button-primary">Salvar</button></p>
     </form>
 </section>

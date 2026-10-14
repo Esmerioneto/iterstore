@@ -45,7 +45,7 @@
                 </tr>
             </tbody>
         </table>
-        <p><button type="submit">Salvar estoque</button> <small>Quantidades na origem escolhida; os totais são de antes de salvar.</small></p>
+        <p><button type="submit" class="admin-button-primary">Salvar estoque</button> <small>Quantidades na origem escolhida; os totais são de antes de salvar.</small></p>
     </form>
     <?php endif; ?>
 </section>
@@ -82,7 +82,7 @@
     <?php endforeach; ?>
             </tbody>
         </table>
-        <p><button type="submit">Salvar estoque</button></p>
+        <p><button type="submit" class="admin-button-primary">Salvar estoque</button></p>
     </form>
 </section>
 <?php endif; ?>
