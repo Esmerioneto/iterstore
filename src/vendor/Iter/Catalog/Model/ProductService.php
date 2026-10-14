@@ -10,6 +10,7 @@ use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\AttributeSet;
 use Iter\Eav\Model\ValueService;
+use Iter\Log\Model\OperationLog;
 use Iter\Store\Model\Website;
 
 /**
@@ -43,7 +44,7 @@ class ProductService
         $fields['url_key'] = $this->urlKey((string) ($data['url_key'] ?? ''), $fields, $websiteIds);
 
         // one transaction; values last, as write() deletes the files they replaced
-        return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $websiteIds, $categoryIds, $configurable, $variantAttributeIds): Product {
+        $model = Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $websiteIds, $categoryIds, $configurable, $variantAttributeIds): Product {
             $model = (new Product())->addData($fields + ['attribute_set_id' => (int) $set->getId(), 'type' => $configurable ? 'configurable' : 'simple'])->save();
             $model->getResource()->setWebsites((int) $model->getId(), $websiteIds);
             $model->getResource()->setVariantAttributes((int) $model->getId(), $variantAttributeIds);
@@ -52,12 +53,16 @@ class ProductService
 
             return $model;
         });
+        OperationLog::active() && OperationLog::record('create', 'product', (int) $model->getId(), self::logLabel($model), [], $this->snapshot((int) $model->getId()));
+
+        return $model;
     }
 
     /** the attribute set is chosen on creation and doesn't change */
     public function update(int $id, array $data, array $attributes = []): Product
     {
         $model = $this->get($id);
+        $before = OperationLog::active() ? $this->snapshot($id) : [];
         $parentId = $model->getData('parent_id');
         if ($parentId !== null) { // a variant: name, websites and categories are the parent's; the combination is fixed
             $data = ['name' => $model->getData('name')] + array_diff_key($data, array_flip(['name', 'website_ids', 'category_ids']));
@@ -82,7 +87,7 @@ class ProductService
                 : $model->getData('url_key');
         }
 
-        return Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $websiteIds, $categoryIds, $configurable): Product {
+        $model = Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $websiteIds, $categoryIds, $configurable): Product {
             $model->addData($fields)->save();
             if ($websiteIds !== null) {
                 $model->getResource()->setWebsites($id, $websiteIds);
@@ -95,6 +100,37 @@ class ProductService
 
             return $model;
         });
+        OperationLog::active() && OperationLog::record('update', 'product', $id, self::logLabel($model), $before, $this->snapshot($id));
+
+        return $model;
+    }
+
+    /**
+     * The product as the operation log shows it: label => readable value
+     *
+     * @return array<string, string>
+     */
+    public function snapshot(int $id): array
+    {
+        $model = $this->get($id);
+        $websites = array_column((new Website())->getList(), 'name', 'website_id');
+        $categories = array_column((new Category())->getResource()->getTree(), 'name', 'category_id');
+        $names = static fn (array $ids, array $all): string => implode(', ', array_map(static fn ($i) => $all[$i] ?? $i, $ids));
+
+        return [
+            'SKU' => (string) $model->getData('sku'),
+            'Nome' => (string) $model->getData('name'),
+            'Ativo' => $model->getData('is_active') ? 'Sim' : 'Não',
+            'Chave de URL' => (string) $model->getData('url_key'),
+            'Websites' => $names($this->getWebsiteIds($id), $websites),
+            'Categorias' => $names($this->getCategoryIds($id), $categories),
+        ] + (new ValueService())->readable(Product::ENTITY_TYPE, $id);
+    }
+
+    /** "BLUSA-001 — Blusa Linho" */
+    public static function logLabel(Product $model): string
+    {
+        return $model->getData('sku') . ' — ' . $model->getData('name');
     }
 
     /** @return array<string, mixed> the product's EAV values, code => value */
@@ -195,7 +231,10 @@ class ProductService
     public function delete(int $id): void
     {
         $model = $this->get($id);
-        $variantIds = array_map('intval', array_column($model->getResource()->getVariantRows($id), 'product_id')); // rows go by FK CASCADE
+        $variantRows = $model->getResource()->getVariantRows($id);
+        $variantIds = array_map('intval', array_column($variantRows, 'product_id')); // rows go by FK CASCADE
+        $before = !OperationLog::active() ? [] : $this->snapshot($id) + ($variantRows ? ['Variações' => implode(', ', array_column($variantRows, 'sku'))] : []);
+        $label = self::logLabel($model);
         // values after the product: deleteEntity() deletes their files
         Connection::get()->adapter()->transaction(static function () use ($model, $id, $variantIds): void {
             $model->delete();
@@ -203,6 +242,7 @@ class ProductService
                 (new ValueService())->deleteEntity(Product::ENTITY_TYPE, $entityId);
             }
         });
+        OperationLog::record('delete', 'product', $id, $label, $before, []);
     }
 
     public function get(int $id): Product

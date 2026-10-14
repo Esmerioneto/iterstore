@@ -1,0 +1,5 @@
+[
+    { "path": "system/operation_log/enabled", "group": "Log do sistema", "block": "Log de operações", "block_toggle": true, "admin_only": true, "label": "Log de operações", "hint": "Quem fez o quê no admin, com o antes e o depois. Desligar e religar ficam registrados.", "type": "boolean", "default": 1 },
+
+    { "path": "system/operation_log/retention_days", "group": "Log do sistema", "block": "Log de operações", "label": "Guardar o log de operações por", "hint": "0 ou vazio = nunca apagar.", "unit": "dias", "type": "number", "default": 0, "min": 0, "max": 36500, "required": false }
+]

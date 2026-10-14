@@ -218,6 +218,7 @@ $purge = static function () use ($pdo, $savedConfig, $savedMedia, $savedModules,
     foreach ($savedTemplates as $row) {
         $restoreTemplate->execute($row);
     }
+    $pdo->exec("DELETE FROM log_operation WHERE admin_user_id IN (SELECT user_id FROM admin_user WHERE username LIKE 'selftest\\_%') OR admin_name LIKE 'selftest\\_%'");
     $pdo->exec("DELETE FROM admin_user WHERE username LIKE 'selftest\\_%'");
     $pdo->exec("DELETE FROM admin_role WHERE role_name LIKE 'selftest\\_%'");
     $pdo->exec('DELETE FROM core_config_data');
@@ -266,6 +267,7 @@ Config::save([
     'mail/queue/max_attempts' => '5',
     'system/api/max_depth' => '15',
     'system/api/max_complexity' => '500',
+    'system/operation_log/enabled' => '1',
     // the payment tests count the methods offered; the Mercado Pago tests turn these on themselves
     'payment/mercadopago_pix/active' => '0',
     'payment/mercadopago_credit/active' => '0',
@@ -3356,6 +3358,81 @@ assertSame([true, true, $viewUrl, true, true, true, ['Escreva a mensagem.'], '/a
 $send('vou cancelar a conta', $spToken);
 (new CustomerService())->delete($spId);
 assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM customer_message WHERE customer_id = {$spId}")->fetchColumn(), 'mensagens: apagar o cliente apaga a conversa dele');
+
+// --- operation log (LOG-OPERATION-PLAN delivery 1) ---------------------------------------------
+$opLines = static function (string $where) use ($pdo): array {
+    return $pdo->query("SELECT action, source, admin_name, entity_type, entity_id, entity_label, changes FROM log_operation WHERE {$where} ORDER BY log_id")->fetchAll(PDO::FETCH_ASSOC);
+};
+$opChanges = static fn (array $line): array => json_decode((string) $line['changes'], true) ?? [];
+$opLast = (int) $pdo->query('SELECT COALESCE(MAX(log_id), 0) FROM log_operation')->fetchColumn();
+$opNew = static function () use (&$opLast, $opLines, $pdo): array { // the lines written since the last call
+    $lines = $opLines("log_id > {$opLast} AND admin_name LIKE 'selftest%'");
+    $opLast = (int) $pdo->query('SELECT COALESCE(MAX(log_id), 0) FROM log_operation')->fetchColumn();
+    return $lines;
+};
+assertSame([true, true], [
+    (bool) $opLines("action = 'login_locked' AND admin_name = 'selftest_victim'"),
+    (bool) $opLines("action = 'login_failed' AND admin_name = 'selftest_admin'"),
+], 'log de operações: senha errada grava login_failed, o bloqueio grava login_locked');
+(new Browser($base))->login('selftest_ninguem', 'errada1234');
+$opUser = new Browser($base);
+$opUser->login('selftest_admin');
+$opUser->request('/admin/auth/logout');
+assertSame([['login_failed', 'selftest_ninguem'], ['login', 'selftest_admin'], ['logout', 'selftest_admin']], array_map(static fn ($l) => [$l['action'], $l['admin_name']], $opNew()), 'log de operações: login de usuário que não existe guarda o login digitado; login e logout');
+
+$opPost = ['attribute_set_id' => $defaultProductSet, 'type' => 'simple', 'sku' => 'selftest-op', 'name' => 'Caneca', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory], 'attributes' => ['price' => '10']];
+$admin->submit('/admin/product/create?set=' . $defaultProductSet, '/admin/product/save', $opPost);
+$opId = (int) $pdo->query("SELECT product_id FROM catalog_product WHERE sku = 'selftest-op'")->fetchColumn();
+$created = $opNew();
+assertSame([['create', 'admin', 'product', $opId, 'selftest-op — Caneca'], [null, 'Caneca'], [null, '10']], [
+    array_values(array_intersect_key($created[0] ?? [], array_flip(['action', 'source', 'entity_type', 'entity_id', 'entity_label']))),
+    $opChanges($created[0] ?? [])['Nome'] ?? null, $opChanges($created[0] ?? [])['Preço'] ?? null,
+], 'log de operações: criar produto grava os valores iniciais');
+$admin->submit('/admin/product/edit?id=' . $opId, '/admin/product/save', ['product_id' => $opId, 'name' => 'Caneca Azul', 'attributes' => ['price' => '12,5']] + $opPost);
+$updated = $opNew();
+assertSame([1, 'update', ['Chave de URL' => ['caneca-selftest-op', 'caneca-azul'], 'Nome' => ['Caneca', 'Caneca Azul'], 'Preço' => ['10', '12.5']]], [count($updated), $updated[0]['action'] ?? null, (static fn (array $c) => ksort($c) ? $c : $c)($opChanges($updated[0] ?? []))],
+    'log de operações: alterar nome e preço grava uma linha só, com o antes e o depois (a chave de URL acompanha o nome)');
+$admin->submit('/admin/product/edit?id=' . $opId, '/admin/product/save', ['product_id' => $opId, 'name' => 'Caneca Azul', 'attributes' => ['price' => '12,5']] + $opPost);
+assertSame([], $opNew(), 'log de operações: salvar sem mudar nada não grava');
+$opSource = (string) $pdo->query("SELECT name FROM inventory_source WHERE code = 'default'")->fetchColumn();
+$admin->submit('/admin/product/edit?id=' . $opId, '/admin/stock/save', ['product_id' => $opId, 'stock' => ['default' => ['quantity' => '7', 'status' => '1']]]);
+assertSame([['update', ['Estoque — ' . $opSource => ['0', '7']]]], array_map(static fn ($l) => [$l['action'], $opChanges($l)], $opNew()), 'log de operações: estoque grava um campo por origem');
+$gql($admin, 'mutation ($id: ID!) { updateProduct(id: $id, name: "Caneca Verde") { id } }', ['id' => (string) $opId]);
+assertSame([['api', ['Nome' => ['Caneca Azul', 'Caneca Verde']]]], array_map(static fn ($l) => [$l['source'], $opChanges($l)], $opNew()), 'log de operações: a mesma alteração pela API grava a origem api');
+
+$opGrid = ['attribute_set_id' => $roupa, 'sku' => 'selftest-op-grade', 'name' => 'Meia Op', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]];
+$admin->submit('/admin/product/create?set=' . $roupa . '&type=configurable', '/admin/product/save', $opGrid + ['type' => 'configurable', 'variant_attributes' => ['selftest_tam']]);
+$opParent = (int) $pdo->query("SELECT product_id FROM catalog_product WHERE sku = 'selftest-op-grade'")->fetchColumn();
+$admin->submit('/admin/product/edit?id=' . $opParent, '/admin/product/save', $opGrid + ['product_id' => $opParent, 'grade' => ['selftest_tam' => ['m']], 'grade_price' => '70']);
+$opNewVariant = (int) $pdo->query("SELECT product_id FROM catalog_product WHERE parent_id = {$opParent}")->fetchColumn();
+$admin->submit('/admin/product/edit?id=' . $opParent, '/admin/product/save', $opGrid + ['product_id' => $opParent]);
+$gridLines = array_values(array_filter($opNew(), static fn ($l) => $l['entity_id'] === $opNewVariant));
+assertSame([['create', '70'], ['delete', '70']], array_map(static fn ($l) => [$l['action'], $opChanges($l)['Preço'][$l['action'] === 'create' ? 1 : 0] ?? null], $gridLines),
+    'log de operações: variação gerada e removida pela grade gravam create e delete com o id da variação');
+
+$admin->submit('/admin/config/index', '/admin/config/save', ['website_id' => 0, 'config' => ['mail/smtp/password' => 'segredo-selftest']]);
+$admin->submit('/admin/config/index', '/admin/config/save', ['website_id' => 0, 'config' => ['mail/smtp/password' => '']]);
+$opConfig = $opNew();
+assertSame([[['config', ['Servidor SMTP: Senha SMTP'], 'alterada']], false], [array_map(static fn ($l) => [$l['action'], array_keys($opChanges($l)), $opChanges($l)['Servidor SMTP: Senha SMTP'][1] ?? null], $opConfig), str_contains(json_encode($opConfig), 'segredo-selftest')],
+    'log de operações: senha das Configurações aparece como "alterada", nunca o valor; senha vazia mantém a salva e não grava');
+$makeUser('selftest_config', ['Iter_Config::config']);
+$opConfigUser = new Browser($base);
+$opConfigUser->login('selftest_config');
+$opConfigPage = $opConfigUser->request('/admin/config/index')['body'];
+$opConfigUser->submit('/admin/config/index', '/admin/config/save', ['website_id' => 0, 'config' => ['system/operation_log/enabled' => '0']]);
+assertSame([true, '1', []], [
+    (bool) preg_match('/name="config\[system\/operation_log\/enabled\]" value="1" checked disabled/', $opConfigPage),
+    (string) Config::get('system/operation_log/enabled'),
+    array_filter($opNew(), static fn ($l) => $l['admin_name'] === 'selftest_config' && $l['action'] !== 'login'),
+], 'log de operações: só o perfil Administrador muda a chave (travada na tela, ignorada num POST forjado)');
+$admin->submit('/admin/config/index', '/admin/config/save', ['website_id' => 0, 'config' => ['system/operation_log/enabled' => '0']]);
+$admin->submit('/admin/product/edit?id=' . $opId, '/admin/product/save', ['product_id' => $opId, 'name' => 'Caneca Roxa', 'attributes' => ['price' => '12,5']] + $opPost);
+$admin->submit('/admin/config/index', '/admin/config/save', ['website_id' => 0, 'config' => ['system/operation_log/enabled' => '1']]);
+assertSame([['log_off', ['Log de operações' => ['ligado', 'desligado']]], ['log_on', ['Log de operações' => ['desligado', 'ligado']]]], array_map(static fn ($l) => [$l['action'], $opChanges($l)], $opNew()),
+    'log de operações: desligado não grava nada; desligar e religar ficam registrados');
+$admin->submit('/admin/product/index', '/admin/product/delete', ['product_id' => $opId]);
+$opDeleted = $opNew();
+assertSame([['delete', 'Caneca Roxa', null]], array_map(static fn ($l) => [$l['action'], $opChanges($l)['Nome'][0] ?? null, $opChanges($l)['Nome'][1] ?? null], $opDeleted), 'log de operações: excluir grava os últimos valores');
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());

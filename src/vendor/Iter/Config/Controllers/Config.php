@@ -11,6 +11,8 @@ use Iter\Core\Config as SystemConfig;
 use Iter\Core\Crypt;
 use Iter\Core\Messages;
 use Iter\Core\View\Layout;
+use Iter\Log\Model\OperationLog;
+use Iter\Store\Model\Website;
 
 class Config
 {
@@ -43,6 +45,7 @@ class Config
         $errors = [];
         $uploads = []; // path => [tmp file, extension], moved only when nothing failed
         $oldFiles = []; // this scope's replaced/removed images, deleted after saving
+        $labels = []; // path => label, for the operation log
 
         // only declared paths are saved (in a website, only "scope": "website" ones); anything else posted is ignored
         foreach (SystemConfig::fields() as $path => $field) {
@@ -52,6 +55,11 @@ class Config
             if ($websiteId && ($field['scope'] ?? '') !== 'website') {
                 continue;
             }
+            // "admin_only": only the Administrador profile changes it (the operation log's switch); for others it's ignored
+            if (!empty($field['admin_only']) && !Auth::isAllowed('Iter_Admin::root')) {
+                continue;
+            }
+            $labels[$path] = $field['label'];
             if ($websiteId && !empty($useDefault[$path])) {
                 $defaults[] = $path;
                 continue;
@@ -149,10 +157,13 @@ class Config
                     $oldFiles[] = SystemConfig::websiteValue($path, $websiteId);
                 }
             }
+            $touched = array_intersect_key($labels, array_flip([...array_keys($values), ...$defaults]));
+            $before = self::readable($touched, $websiteId, $values);
             SystemConfig::save($values, $websiteId ?: null);
             if ($defaults) {
                 SystemConfig::clear($defaults, $websiteId);
             }
+            self::record($touched, $websiteId, $before, self::readable($touched, $websiteId, $values, true));
             foreach ($oldFiles as $old) {
                 if (preg_match('#^config/[0-9a-f]{32}\.(png|jpg|webp)$#', (string) $old)) {
                     @unlink(SystemConfig::mediaDir() . $old);
@@ -185,6 +196,42 @@ class Config
 
         header('Location: /admin/config/index');
         exit;
+    }
+
+    /**
+     * The settings as the operation log shows them: label => readable value
+     *
+     * @param array<string, string> $touched path => label
+     * @param array<string, string> $values what's being saved (a password is never shown, only whether it changed)
+     */
+    private static function readable(array $touched, int $websiteId, array $values, bool $after = false): array
+    {
+        $readable = [];
+        foreach ($touched as $path => $label) {
+            $field = SystemConfig::fields()[$path];
+            $value = $websiteId ? SystemConfig::websiteValue($path, $websiteId) : SystemConfig::get($path);
+            $readable[$label] = match (true) {
+                $value === null => $websiteId ? 'usa o valor padrão' : '',
+                ($field['type'] ?? '') === 'password' => (string) $value === '' ? '' : ($after && array_key_exists($path, $values) ? 'alterada' : 'definida'),
+                ($field['type'] ?? '') === 'boolean' => (string) $value === '1' ? 'ligado' : 'desligado',
+                ($field['type'] ?? '') === 'select' => (string) ($field['options'][$value] ?? $value),
+                default => (string) $value,
+            };
+        }
+
+        return $readable;
+    }
+
+    /** one line per save; turning the operation log off or on is its own action, written even while it's off */
+    private static function record(array $touched, int $websiteId, array $before, array $after): void
+    {
+        $action = 'config';
+        $switch = $touched[OperationLog::ENABLED] ?? null;
+        if ($switch !== null && ($before[$switch] ?? null) !== ($after[$switch] ?? null)) {
+            $action = $after[$switch] === 'ligado' ? 'log_on' : 'log_off';
+        }
+        $scope = $websiteId ? 'Website: ' . (array_column((new Website())->getList(), 'name', 'website_id')[$websiteId] ?? $websiteId) : 'Padrão';
+        OperationLog::record($action, 'config', $websiteId ?: null, 'Configurações — ' . $scope, $before, $after);
     }
 
     /** config[<path>] file from the multipart form; null when none was chosen */

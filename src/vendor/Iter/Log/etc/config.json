@@ -1,0 +1,9 @@
+{
+  "name": "iter_log",
+  "version": "1.0.0",
+  "description": "Log de operações",
+  "enabled": true,
+  "index": "0",
+  "author": "Esmerio",
+  "depends": ["iter_admin", "iter_config"]
+}

@@ -90,6 +90,31 @@ class ValueService
         return $values;
     }
 
+    /**
+     * load() as a person reads it, for the operation log: the attribute's label => value,
+     * options by their label, lists joined, Sim/Não
+     *
+     * @return array<string, string>
+     */
+    public function readable(string $entityType, int $entityId): array
+    {
+        $values = $this->load($entityType, $entityId);
+        $readable = [];
+        foreach ((new Attribute())->getResource()->getByEntityType($this->entityTypeId($entityType)) as $attribute) {
+            if (!array_key_exists($attribute['code'], $values)) {
+                continue;
+            }
+            $value = $values[$attribute['code']];
+            if ($this->type($attribute)['supports_options']) {
+                $labels = array_column((new Attribute())->getResource()->getOptions((int) $attribute['attribute_id']), 'label', 'value');
+                $value = array_map(static fn ($v) => $labels[$v] ?? $v, (array) $value);
+            }
+            $readable[$attribute['label']] = is_bool($value) ? ($value ? 'Sim' : 'Não') : (is_array($value) ? implode(', ', $value) : (string) $value);
+        }
+
+        return $readable;
+    }
+
     /** a stored value (text) as the code uses it: lists, integers, Sim/Não, decimals without trailing zeros */
     private function cast(array $row): string|int|bool|array
     {
