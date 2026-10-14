@@ -81,7 +81,7 @@
             </p>
         </fieldset>
         <p class="inventory-source-full inventory-source-actions">
-            <button type="submit">Salvar</button>
+            <button type="submit" class="admin-button-primary">Salvar</button>
             <a href="/admin/source/index">Cancelar</a>
         </p>
     </form>

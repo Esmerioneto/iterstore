@@ -1,6 +1,8 @@
 <section class="inventory-source-list">
-    <h2>Origens de estoque</h2>
-    <p><a href="/admin/source/create">+ Nova origem</a></p>
+    <div class="admin-page-head">
+        <h2>Origens de estoque</h2>
+        <a class="admin-button admin-button-primary" href="/admin/source/create">+ Nova origem</a>
+    </div>
     <table>
         <thead>
             <tr>
@@ -25,13 +27,13 @@
                 <td><?= htmlspecialchars((string) $source['code']) ?></td>
                 <td><?= htmlspecialchars((string) $source['name']) ?></td>
                 <td><?= htmlspecialchars(implode(' / ', array_filter([(string) $source['city'], (string) $source['region']]))) ?></td>
-                <td><?= $source['is_enabled'] ? 'Ativa' : 'Inativa' ?></td>
+                <td><span class="admin-status admin-status-<?= $source['is_enabled'] ? 'on' : 'off' ?>"><?= $source['is_enabled'] ? 'Ativa' : 'Inativa' ?></span></td>
                 <td><?= (int) $source['priority'] ?></td>
                 <td><?= (int) $source['products'] ?></td>
-                <td>
+                <td class="admin-row-action">
                     <a href="/admin/source/edit?id=<?= (int) $source['source_id'] ?>">Editar</a>
     <?php if ($source['code'] !== \Iter\Inventory\Model\Source::DEFAULT_CODE): ?>
-                    <form method="post" action="/admin/source/delete" style="display:inline" data-confirm="Remover esta origem?">
+                    <form method="post" action="/admin/source/delete" data-confirm="Remover esta origem?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="source_id" value="<?= (int) $source['source_id'] ?>">
                         <button type="submit">Remover</button>

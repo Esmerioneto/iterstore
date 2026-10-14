@@ -41,7 +41,7 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
         <thead><tr><th>Cliente</th><th>E-mail</th><th>CPF/CNPJ</th><th></th></tr></thead>
         <tbody>
     <?php if (!$customers): ?>
-            <tr><td colspan="4">Nenhum cliente ativo encontrado neste website.</td></tr>
+            <tr><td colspan="4" class="admin-empty">Nenhum cliente ativo encontrado neste website.</td></tr>
     <?php endif; ?>
     <?php foreach ($customers as $customer): ?>
             <tr>
@@ -53,7 +53,7 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
                         <?= FormKey::field() ?>
                         <input type="hidden" name="website_id" value="<?= (int) $website_id ?>">
                         <input type="hidden" name="customer_id" value="<?= (int) $customer['customer_id'] ?>">
-                        <button type="submit">Iniciar pedido</button>
+                        <button type="submit" class="admin-button-primary">Iniciar pedido</button>
                     </form>
                 </td>
             </tr>

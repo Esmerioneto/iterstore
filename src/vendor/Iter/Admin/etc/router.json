@@ -61,5 +61,13 @@
         "controller_name": "graphiql",
         "controller_action": "index",
         "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Admin",
+        "controller_name": "about",
+        "controller_action": "index",
+        "method": "GET"
     }
 ]

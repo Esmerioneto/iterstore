@@ -28,7 +28,7 @@ $brandName = $brand ? ($brands[$brand] ?? ucfirst($brand)) : '';
 $brandIcon = ['master' => 'master', 'debmaster' => 'master', 'visa' => 'visa', 'debvisa' => 'visa', 'elo' => 'elo', 'debelo' => 'elo', 'amex' => 'amex'][(string) $brand] ?? null;
 ?>
 <section class="mail-view sales-order-view">
-    <h2>Pedido <?= $e($order['increment_id']) ?> · <?= $e($order['status_label']) ?></h2>
+    <h2>Pedido <?= $e($order['increment_id']) ?> · <span class="admin-status admin-status-<?= $e($order['status']) ?>"><?= $e($order['status_label']) ?></span></h2>
     <table class="sales-order-info">
         <tr><th>Loja</th><td><?= $e($order['website_name'] ?? '—') ?></td></tr>
         <tr><th>Canal</th><td><?= $e($order['sales_channel']) ?></td></tr>
@@ -123,7 +123,7 @@ $brandIcon = ['master' => 'master', 'debmaster' => 'master', 'visa' => 'visa', '
 <?php foreach ($order['history'] as $row): ?>
             <tr>
                 <td><?= $e(substr((string) $row['created_at'], 0, 16)) ?></td>
-                <td><?= $e(OrderService::STATUS_LABELS[$row['status']] ?? $row['status']) ?></td>
+                <td><span class="admin-status admin-status-<?= $e($row['status']) ?>"><?= $e(OrderService::STATUS_LABELS[$row['status']] ?? $row['status']) ?></span></td>
                 <td style="white-space: pre-line;"><?= $e($row['comment']) ?></td>
                 <td><?= $row['is_customer_notified'] ? 'Sim' : 'Não' ?></td>
                 <td><?= $e($row['admin_username'] ?? '—') ?></td>

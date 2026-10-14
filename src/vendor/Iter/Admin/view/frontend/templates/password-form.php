@@ -18,7 +18,7 @@
             </label>
         </p>
         <p>
-            <button type="submit">Salvar</button>
+            <button type="submit" class="admin-button-primary">Salvar</button>
         </p>
     </form>
 </section>

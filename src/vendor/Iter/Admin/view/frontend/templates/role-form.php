@@ -20,7 +20,7 @@
 <?php endforeach; ?>
         </fieldset>
         <p>
-            <button type="submit">Salvar</button>
+            <button type="submit" class="admin-button-primary">Salvar</button>
             <a href="/admin/role/index">Cancelar</a>
         </p>
     </form>

@@ -17,7 +17,7 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
                 <td><a href="/admin/order/view?id=<?= (int) $order['order_id'] ?>"><?= $e($order['increment_id']) ?></a></td>
                 <td><?= $e(substr((string) $order['created_at'], 0, 16)) ?></td>
                 <td>R$ <?= number_format((float) $order['grand_total'], 2, ',', '.') ?></td>
-                <td><?= $e(OrderService::STATUS_LABELS[$order['status']] ?? $order['status']) ?></td>
+                <td><span class="admin-status admin-status-<?= $e($order['status']) ?>"><?= $e(OrderService::STATUS_LABELS[$order['status']] ?? $order['status']) ?></span></td>
             </tr>
     <?php endforeach; ?>
         </tbody>

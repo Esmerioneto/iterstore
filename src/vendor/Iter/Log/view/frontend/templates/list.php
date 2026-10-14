@@ -50,7 +50,7 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
         </thead>
         <tbody>
 <?php if (!$lines): ?>
-            <tr><td colspan="8">Nenhuma operação encontrada.</td></tr>
+            <tr><td colspan="8" class="admin-empty">Nenhuma operação encontrada.</td></tr>
 <?php endif; ?>
 <?php foreach ($lines as $line): ?>
             <tr>

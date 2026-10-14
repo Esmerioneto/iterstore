@@ -9,6 +9,7 @@ return [
     'admin/dashboard-welcome' => \Iter\Admin\View\DashboardWelcome::class,
     'admin/dashboard-shell' => \Iter\Admin\View\DashboardShell::class,
     'admin/dashboard-users' => \Iter\Admin\View\DashboardUsers::class,
+    'admin/about-page' => \Iter\Admin\View\AboutPage::class,
     'admin/user-list' => \Iter\Admin\View\UserList::class,
     'admin/user-form' => \Iter\Admin\View\UserForm::class,
     'admin/role-list' => \Iter\Admin\View\RoleList::class,

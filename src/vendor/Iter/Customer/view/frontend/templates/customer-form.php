@@ -199,7 +199,7 @@ foreach ($groupFields as $group => $fields) {
 })($blocks, $layout, $can_arrange); ?>
 
     <p class="product-form-submit">
-        <button type="submit" form="customer-form">Salvar</button>
+        <button type="submit" form="customer-form" class="admin-button-primary">Salvar</button>
         <a href="/admin/customer/index">Cancelar</a>
     </p>
 </section>

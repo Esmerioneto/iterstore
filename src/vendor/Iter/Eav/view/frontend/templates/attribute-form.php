@@ -104,7 +104,7 @@ $locked = static fn (string $field) => $is_system && !in_array($field, $editable
             </label>
         </p>
         <p>
-            <button type="submit">Salvar</button>
+            <button type="submit" class="admin-button-primary">Salvar</button>
             <a href="/admin/attribute/index">Cancelar</a>
         </p>
     </form>

@@ -1,7 +1,9 @@
 <section class="eav-attribute-set-list">
-    <h2>Conjuntos de atributos</h2>
-    <p><a href="/admin/attributeset/create<?= $entity_type !== '' ? '?entity_type=' . urlencode($entity_type) : '' ?>">+ Novo conjunto</a></p>
-    <form method="get" action="/admin/attributeset/index">
+    <div class="admin-page-head">
+        <h2>Conjuntos de atributos</h2>
+        <a class="admin-button admin-button-primary" href="/admin/attributeset/create<?= $entity_type !== '' ? '?entity_type=' . urlencode($entity_type) : '' ?>">+ Novo conjunto</a>
+    </div>
+    <form method="get" action="/admin/attributeset/index" class="admin-filters">
         <select name="entity_type" data-autosubmit>
             <option value="">Todas as entidades</option>
 <?php foreach ($entity_types as $code => $type): ?>
@@ -23,7 +25,7 @@
         </thead>
         <tbody>
 <?php if (empty($sets)): ?>
-            <tr><td colspan="6">Nenhum conjunto cadastrado.</td></tr>
+            <tr><td colspan="6" class="admin-empty">Nenhum conjunto cadastrado.</td></tr>
 <?php else: ?>
     <?php foreach ($sets as $set): ?>
             <tr>
@@ -32,11 +34,11 @@
                 <td><?= htmlspecialchars((string) $set['label']) ?></td>
                 <td><?= (int) $set['attribute_count'] ?></td>
                 <td><?= $set['is_default'] ? 'Sim' : '' ?></td>
-                <td>
+                <td class="admin-row-action">
                     <a href="/admin/attributeset/edit?id=<?= (int) $set['attribute_set_id'] ?>">Editar</a>
                     <a href="/admin/attributeset/preview?id=<?= (int) $set['attribute_set_id'] ?>">Pré-visualizar</a>
         <?php if (!$set['is_default']): ?>
-                    <form method="post" action="/admin/attributeset/delete" style="display:inline" data-confirm="Remover este conjunto?">
+                    <form method="post" action="/admin/attributeset/delete" data-confirm="Remover este conjunto?">
                         <?= \Iter\Core\FormKey::field() ?>
                         <input type="hidden" name="attribute_set_id" value="<?= (int) $set['attribute_set_id'] ?>">
                         <button type="submit">Remover</button>

@@ -34,7 +34,7 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
         </thead>
         <tbody>
 <?php if (!$messages): ?>
-            <tr><td colspan="7">Nenhum e-mail encontrado.</td></tr>
+            <tr><td colspan="7" class="admin-empty">Nenhum e-mail encontrado.</td></tr>
 <?php endif; ?>
 <?php foreach ($messages as $message): ?>
             <tr>

@@ -80,7 +80,7 @@
             </p>
         </fieldset>
         <p>
-            <button type="submit">Salvar</button>
+            <button type="submit" class="admin-button-primary">Salvar</button>
             <a href="/admin/category/index">Cancelar</a>
         </p>
     </form>

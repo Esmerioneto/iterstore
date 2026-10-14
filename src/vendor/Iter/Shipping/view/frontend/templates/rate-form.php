@@ -38,6 +38,6 @@ $cep = static fn (string $v) => $v === '' ? '' : substr($v, 0, 5) . '-' . substr
             <button type="button" data-add-row="shipping-rate-rows">+ Adicionar faixa</button>
             <small>Linhas em branco são ignoradas: apague os campos de uma faixa para removê-la.</small>
         </p>
-        <p><button type="submit">Salvar faixas</button></p>
+        <p><button type="submit" class="admin-button-primary">Salvar faixas</button></p>
     </form>
 </section>

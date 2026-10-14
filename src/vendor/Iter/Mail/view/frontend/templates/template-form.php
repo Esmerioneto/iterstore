@@ -24,7 +24,7 @@ $isLayout = $template['code'] === Template::LAYOUT;
             <small><code>{{ nome }}</code> escapa o valor; <code>{{{ nome }}}</code> insere sem escapar (só para conteúdo confiável, como o <code>content</code> do layout).</small>
         </p>
         <p>
-            <button type="submit">Salvar</button>
+            <button type="submit" class="admin-button-primary">Salvar</button>
             <button type="submit" formaction="/admin/mailtemplate/preview" formtarget="mail-template-preview" formnovalidate>Pré-visualizar</button>
             <a href="/admin/mailtemplate/index">Voltar</a>
         </p>

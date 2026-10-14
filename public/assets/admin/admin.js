@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', function () {
         toast: true,
         position: 'top-end',
         icon: icons[type] || 'info',
-        iconColor: inkColor(),
+        iconColor: stateColor(type),
         title: message.dataset.label,
         text: message.textContent,
         showConfirmButton: false,
@@ -78,11 +78,47 @@ document.addEventListener('DOMContentLoaded', function () {
         // Success fades out by itself; errors and warnings stay until closed.
         timer: type === 'success' ? 4000 : undefined,
         timerProgressBar: type === 'success',
-        customClass: { popup: 'admin-swal admin-swal-toast' }
+        customClass: { popup: 'admin-swal admin-swal-toast admin-swal-toast-' + type }
       });
     });
   }, Promise.resolve());
 });
+
+// The state's color (--color-success/-danger/-warning in theme.css) for a toast's icon; ink otherwise.
+function stateColor(type) {
+  var name = { success: '--color-success', error: '--color-danger', warning: '--color-warning' }[type];
+  return (name && getComputedStyle(document.documentElement).getPropertyValue(name).trim()) || inkColor();
+}
+
+// Narrow screens: the header's "Menu" button opens the sidebar as a drawer; a click outside it,
+// a link inside it or Esc closes it. On wide screens the button is hidden and nothing changes.
+(function () {
+  var shell = document.querySelector('.admin-shell');
+  var toggle = document.querySelector('.admin-menu-toggle');
+  var menu = document.getElementById('admin-menu');
+  if (!shell || !toggle || !menu) {
+    return;
+  }
+  function setOpen(open) {
+    shell.classList.toggle('is-menu-open', open);
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  toggle.addEventListener('click', function (event) {
+    event.stopPropagation();
+    setOpen(!shell.classList.contains('is-menu-open'));
+  });
+  document.addEventListener('click', function (event) {
+    if (shell.classList.contains('is-menu-open') && (!menu.contains(event.target) || event.target.closest('a'))) {
+      setOpen(false);
+    }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && shell.classList.contains('is-menu-open')) {
+      setOpen(false);
+      toggle.focus();
+    }
+  });
+})();
 
 // A select with data-options-box shows that block only while the chosen
 // <option> has data-supports-options="1"; disabling the fieldset also keeps
