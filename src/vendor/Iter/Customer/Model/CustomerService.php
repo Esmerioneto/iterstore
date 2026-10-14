@@ -14,6 +14,7 @@ use Iter\Eav\Model\AttributeSet;
 use Iter\Eav\Model\Taxvat;
 use Iter\Eav\Model\ValueService;
 use Iter\Mail\Model\MailException;
+use Iter\Log\Model\OperationLog;
 use Iter\Mail\Model\MailService;
 use Iter\Store\Model\Website;
 
@@ -40,7 +41,7 @@ class CustomerService
         $values = new ValueService();
         $rows = $this->rows($values, $fields, $this->setValues($set, $attributes));
 
-        return Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $addresses, $welcome): Customer {
+        $model = Connection::get()->adapter()->transaction(function () use ($fields, $set, $values, $rows, $addresses, $welcome): Customer {
             $this->assertUnique($fields);
             $model = (new Customer())->addData($fields + ['attribute_set_id' => (int) $set->getId()])->save();
             if ($addresses !== null) {
@@ -51,6 +52,9 @@ class CustomerService
 
             return $model;
         });
+        OperationLog::active() && OperationLog::record('create', 'customer', (int) $model->getId(), self::logLabel($model), [], $this->snapshot((int) $model->getId()));
+
+        return $model;
     }
 
     /** queues the welcome e-mail, when Configurações → Clientes has it on for the customer's website */
@@ -75,11 +79,12 @@ class CustomerService
     public function update(int $id, array $data, array $attributes = [], ?array $addresses = null): Customer
     {
         $model = $this->get($id);
+        $before = OperationLog::active() ? $this->snapshot($id) : [];
         $fields = $this->fields($data, $id);
         $values = new ValueService();
         $rows = $this->rows($values, $fields, $this->setValues($this->set((int) $model->getData('attribute_set_id')), $attributes), $id);
 
-        return Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $addresses): Customer {
+        $model = Connection::get()->adapter()->transaction(function () use ($model, $fields, $values, $id, $rows, $addresses): Customer {
             $this->assertUnique($fields, $id);
             $model->addData($fields)->save();
             if ($addresses !== null) {
@@ -89,6 +94,41 @@ class CustomerService
 
             return $model;
         });
+        OperationLog::active() && OperationLog::record('update', 'customer', $id, self::logLabel($model), $before, $this->snapshot($id));
+
+        return $model;
+    }
+
+    /**
+     * The customer as the operation log shows it: website, group, status, the EAV fields by label
+     * and one line per address
+     *
+     * @return array<string, string>
+     */
+    public function snapshot(int $id): array
+    {
+        $model = $this->get($id);
+        $values = new ValueService();
+        $snapshot = [
+            'Website' => (string) (array_column((new Website())->getList(), 'name', 'website_id')[$model->getData('website_id')] ?? $model->getData('website_id')),
+            'Grupo' => (string) (new Group())->load((int) $model->getData('group_id'))->getData('name'),
+            'Ativo' => $model->getData('is_active') ? 'Sim' : 'Não',
+        ] + $values->readable(Customer::ENTITY_TYPE, $id);
+        foreach ((new AddressService())->getList($id) as $address) {
+            $flags = array_filter([$address['is_default_shipping'] ? 'entrega padrão' : null, $address['is_default_billing'] ? 'cobrança padrão' : null]);
+            $snapshot['Endereço ' . $address['address_id']] = implode('; ', array_map(static fn ($l, $v) => "{$l}: {$v}", array_keys($r = $values->readable(AddressService::ENTITY_TYPE, (int) $address['address_id'])), $r))
+                . ($flags ? ' (' . implode(', ', $flags) . ')' : '');
+        }
+
+        return $snapshot;
+    }
+
+    /** "ana@loja.com — Ana Souza" */
+    public static function logLabel(Customer $model): string
+    {
+        $values = (new ValueService())->load(Customer::ENTITY_TYPE, (int) $model->getId());
+
+        return trim(($values['email'] ?? '') . ' — ' . trim(($values['firstname'] ?? '') . ' ' . ($values['lastname'] ?? '')));
     }
 
     /** @return array<string, mixed> code => value, without the registration fields (they're on the model) */
@@ -100,11 +140,14 @@ class CustomerService
     public function delete(int $id): void
     {
         $model = $this->get($id);
+        $before = OperationLog::active() ? $this->snapshot($id) : [];
+        $label = self::logLabel($model);
         Connection::get()->adapter()->transaction(static function () use ($model, $id): void {
             (new AddressService())->save($id, []); // address values have no FK to cascade
             $model->delete();
             (new ValueService())->deleteEntity(Customer::ENTITY_TYPE, $id);
         });
+        OperationLog::record('delete', 'customer', $id, $label, $before, []);
     }
 
     public function get(int $id): Customer

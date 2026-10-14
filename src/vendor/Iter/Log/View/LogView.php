@@ -26,6 +26,7 @@ class LogView implements ViewComponentInterface
     {
         return match ($line['entity_type']) {
             'product' => \isModuleEnabled('iter_catalog') && (new \Iter\Catalog\Model\Product())->load((int) $line['entity_id'])->getId() ? '/admin/product/edit?id=' . (int) $line['entity_id'] : null,
+            'customer' => \isModuleEnabled('iter_customer') && (new \Iter\Customer\Model\Customer())->load((int) $line['entity_id'])->getId() ? '/admin/customer/edit?id=' . (int) $line['entity_id'] : null,
             'config' => '/admin/config/index' . ($line['entity_id'] ? '?website=' . (int) $line['entity_id'] : ''),
             default => null,
         };

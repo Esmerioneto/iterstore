@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "history": "log/history"
+        }
+    }
+}

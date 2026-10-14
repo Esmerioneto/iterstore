@@ -3478,6 +3478,31 @@ assertSame([0, 1, 0], [
     (int) $pdo->query("SELECT COUNT(*) FROM log_operation WHERE admin_name = 'selftest_antigo'")->fetchColumn(),
 ], 'log de operações: a limpeza apaga só as linhas mais velhas que o prazo; 0 não apaga nada');
 
+// --- operation log: customers (LOG-OPERATION-PLAN delivery 3) -------------------------------------
+$opCustomer = ['attribute_set_id' => $custSet, 'website_id' => $websiteId, 'group_id' => $custGroup, 'email' => 'oplog@selftest.local',
+    'firstname' => 'Olga', 'lastname' => 'Log', 'customer_type' => 'pf', 'cpf' => '935.411.347-80', 'is_active' => '1'];
+$opAddress = ['postcode' => '01310-100', 'street' => 'Avenida Paulista', 'number' => '1000', 'district' => 'Bela Vista', 'city' => 'São Paulo', 'region' => 'SP'];
+$opNew();
+$admin->submit('/admin/customer/create', '/admin/customer/save', $opCustomer + ['addresses' => [$opAddress]]);
+$opCustId = (int) $pdo->query("SELECT customer_id FROM customer_flat WHERE email = 'oplog@selftest.local'")->fetchColumn();
+$opAddrId = (int) $pdo->query("SELECT address_id FROM customer_address WHERE customer_id = {$opCustId}")->fetchColumn();
+$opCreated = $opNew();
+assertSame([['create', 'customer', $opCustId, 'oplog@selftest.local — Olga Log'], 'Olga', true], [
+    array_values(array_intersect_key($opCreated[0] ?? [], array_flip(['action', 'entity_type', 'entity_id', 'entity_label']))),
+    $opChanges($opCreated[0] ?? [])['Nome'][1] ?? null,
+    str_contains((string) ($opChanges($opCreated[0] ?? [])['Endereço ' . $opAddrId][1] ?? ''), 'Avenida Paulista'),
+], 'log de operações: criar cliente grava os valores iniciais, com o endereço');
+$admin->submit('/admin/customer/edit?id=' . $opCustId, '/admin/customer/save', ['customer_id' => $opCustId, 'lastname' => 'Logada', 'addresses' => [['address_id' => $opAddrId, 'number' => '1500'] + $opAddress]] + $opCustomer);
+$opUpdated = $opNew();
+$opAddrChange = $opChanges($opUpdated[0] ?? [])['Endereço ' . $opAddrId] ?? [null, null];
+assertSame([1, ['Log', 'Logada'], true, true], [count($opUpdated), $opChanges($opUpdated[0] ?? [])['Sobrenome'] ?? null, str_contains((string) $opAddrChange[0], '1000'), str_contains((string) $opAddrChange[1], '1500')],
+    'log de operações: alterar sobrenome e endereço do cliente grava uma linha, com o endereço antes e depois');
+$opCustPage = $admin->request('/admin/customer/edit?id=' . $opCustId)['body'];
+assertSame([true, true], [str_contains($opCustPage, 'Histórico de alterações'), str_contains($opCustPage, 'href="/admin/log/index?entity=customer:' . $opCustId . '"')], 'log de operações: a edição do cliente mostra o histórico dele');
+assertSame(true, str_contains($admin->request('/admin/log/view?id=' . $opLine("entity_type = 'customer' AND entity_id = {$opCustId} AND action = 'update'"))['body'], 'href="/admin/customer/edit?id=' . $opCustId . '"'), 'log de operações: o detalhe leva ao cliente');
+$admin->submit('/admin/customer/index', '/admin/customer/delete', ['customer_id' => $opCustId]);
+assertSame([['delete', 'Logada', null]], array_map(static fn ($l) => [$l['action'], $opChanges($l)['Sobrenome'][0] ?? null, $opChanges($l)['Sobrenome'][1] ?? null], $opNew()), 'log de operações: excluir cliente grava os últimos valores');
+
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());
 assertSame(true, abs($dbNow - time()) < 5, 'banco e PHP usam o mesmo fuso (' . date_default_timezone_get() . ')');

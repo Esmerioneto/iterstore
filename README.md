@@ -29,7 +29,7 @@ O arquivo `src/etc/env.ini` guarda a chave que criptografa os segredos gravados 
 
 | Caminho | Conteúdo |
 |---|---|
-| `src/vendor/Iter/` | Módulos do sistema: Core, Router, Admin, Config, Eav, Catalog, Inventory, Customer, Sales, Adminsales, Payment, Shipping, Mercadopago, Melhorenvio, Promotion, Message, Store, Mail |
+| `src/vendor/Iter/` | Módulos do sistema: Core, Router, Admin, Config, Eav, Catalog, Inventory, Customer, Sales, Adminsales, Payment, Shipping, Mercadopago, Melhorenvio, Promotion, Message, Log, Store, Mail |
 | `src/app/code/` | Módulos locais |
 | `src/etc/` | Configuração: banco, e-mail, chave e módulos ativos (`config.json`) |
 | `public/` | Raiz web: `index.php`, assets e mídia enviada |
@@ -37,6 +37,8 @@ O arquivo `src/etc/env.ini` guarda a chave que criptografa os segredos gravados 
 | `var/` | Logs, e-mails gerados e backups |
 
 Os módulos são ativados e desativados em Admin → Configurações. Depois de ativar um módulo pela primeira vez, rode `php bin/migrate.php up`.
+
+O módulo Log guarda o log de operações: quem fez o quê no admin (tela ou API), com o antes e o depois de cada campo alterado. A consulta fica em Sistema → Log de operações; os detalhes estão em `src/vendor/Iter/Log/README.md`.
 
 ## Scripts
 
@@ -53,11 +55,11 @@ Os módulos são ativados e desativados em Admin → Configurações. Depois de 
 * * * * *  php /caminho/do/iterstore/bin/mail-worker.php   # envia a fila de e-mails
 15 * * * * php /caminho/do/iterstore/bin/order-clean.php   # cancela pedidos não pagos
 0,10,20,30,40,50 * * * * php /caminho/do/iterstore/bin/mercadopago-sync.php   # confere pagamentos do Mercado Pago
-10 0 * * * php /caminho/do/iterstore/bin/log-clean.php     # apaga logs antigos
+10 0 * * * php /caminho/do/iterstore/bin/log-clean.php     # apaga logs antigos (arquivos e log de operações)
 20 0 * * * php /caminho/do/iterstore/bin/quote-clean.php   # apaga carrinhos abandonados
 ```
 
-Sem o `mail-worker`, os e-mails ficam parados na fila. Os prazos usados pelos outros três scripts são definidos em Admin → Configurações.
+Sem o `mail-worker`, os e-mails ficam parados na fila. Os prazos usados pelos outros scripts são definidos em Admin → Configurações.
 
 ## Testes
 
