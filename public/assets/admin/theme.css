@@ -774,7 +774,10 @@ a {
 .customer-list thead th,
 .eav-attribute-list thead th,
 .mail-sent-list thead th,
-.message-list thead th {
+.message-list thead th,
+.log-operation-list thead th,
+.log-operation-changes thead th,
+.log-history thead th {
   background: var(--color-atelier-white);
   border-bottom: 1px solid var(--color-ink);
 }
@@ -1460,7 +1463,8 @@ a {
 }
 
 /* E-mail enviado: labels in a narrow column, a preview as tall as a message, the text version in a box, actions at the end */
-.mail-message-view table.mail-message-info th {
+.mail-message-view table.mail-message-info th,
+.log-operation-view table.log-operation-info th {
   width: 200px;
   vertical-align: top;
 }
@@ -1490,7 +1494,8 @@ a {
   font-size: 13px;
 }
 
-.mail-message-actions {
+.mail-message-actions,
+.log-operation-actions {
   display: flex;
   align-items: center;
   gap: var(--spacing-16);
@@ -1500,6 +1505,36 @@ a {
 
 .mail-message-actions form {
   margin: 0;
+}
+
+/* Log de operações: Campo / Antes / Depois with the field names as row labels; empty in grey; refused logins and deletions in red */
+.log-operation-changes tbody th {
+  width: 240px;
+  font-weight: 600;
+  vertical-align: top;
+}
+
+.log-operation-changes td {
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.log-operation-view .log-empty {
+  color: var(--color-stone);
+  font-style: italic;
+}
+
+.log-action-delete,
+.log-action-login_failed,
+.log-action-login_locked,
+.log-action-log_off {
+  color: #a33;
+  font-weight: 600;
+}
+
+.log-history td small {
+  display: block;
+  color: var(--color-stone);
 }
 
 /* On/off switch for a yes/no choice (Sim/Não, ligado/desligado, habilitado/desabilitado): a checkbox drawn as a sliding key */
