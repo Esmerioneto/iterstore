@@ -1349,6 +1349,14 @@ $post = ['product_id' => $parentId, 'attribute_set_id' => $roupa, 'sku' => 'self
 [, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId, '/admin/product/save', $post);
 $v = $varService->getVariants($parentId);
 assertSame([['Produto atualizado com sucesso.'], ['selftest-var-az-p', 'selftest-var-PRETO-P', 'selftest-var-PRETO-M'], ['56', '50', '60']], [$msgs, array_column($v, 'sku'), array_column($v, 'price')], 'tela: edita, remove e gera variações ao salvar o pai');
+$listed = array_column(array_map(static fn ($r) => ['id' => $r['product_id'], 'row' => ['sku' => $r['sku'], 'price' => (string) $r['price'], 'is_active' => 1]], $v), 'row', 'id');
+$addAzM = ['variants' => $listed, 'grade' => ['selftest_vcor' => ['az'], 'selftest_tam' => ['m']], 'grade_price' => ''] + $post;
+[, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId, '/admin/product/save', ['variants' => array_map(static fn ($r) => ['price' => ''] + $r, $listed)] + $addAzM);
+$noPriceMsgs = $msgs;
+[, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId, '/admin/product/save', $addAzM);
+assertSame([['Informe o "Preço das novas variações" para gerar as combinações marcadas.'], ['Produto atualizado com sucesso.'], ['56', '50', '60', '56']], [$noPriceMsgs, $msgs, array_column($varService->getVariants($parentId), 'price')], 'nova cor sem "Preço das novas variações" usa o preço da primeira variação; sem nenhum preço, pede o campo');
+[, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId, '/admin/product/save', ['variants' => $listed, 'grade' => []] + $post);
+assertSame(3, count($varService->getVariants($parentId)), 'variação gerada no teste é removida');
 $post['name'] = 'Outro';
 $post['variants'] = [$v[0]['product_id'] => ['sku' => $v[1]['sku'], 'price' => '56']];
 [, $msgs] = $admin->submit('/admin/product/edit?id=' . $parentId, '/admin/product/save', $post);
