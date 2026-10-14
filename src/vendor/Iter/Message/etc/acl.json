@@ -1,1 +1,7 @@
-[{"id":"Iter_Message::manage","parent":"Iter_Admin::root","title":"Mensagens com clientes"}]
+[
+  {
+    "id": "Iter_Message::manage",
+    "parent": "Iter_Admin::root",
+    "title": "Mensagens com clientes"
+  }
+]

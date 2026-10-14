@@ -1,1 +1,9 @@
-{"name":"iter_message","version":"1.0.0","description":"Mensagens com clientes","enabled":true,"index":"0","author":"Esmerio","depends":["iter_customer","iter_store"]}
+{
+  "name": "iter_message",
+  "version": "1.0.0",
+  "description": "Mensagens com clientes",
+  "enabled": true,
+  "index": "0",
+  "author": "Esmerio",
+  "depends": ["iter_customer", "iter_store"]
+}
