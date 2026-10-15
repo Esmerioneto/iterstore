@@ -3,18 +3,28 @@
         <h2>Origens de estoque</h2>
         <a class="admin-button admin-button-primary" href="/admin/source/create">+ Nova origem</a>
     </div>
+    <form method="get" action="/admin/source/index" class="admin-filters">
+        <select name="is_enabled">
+            <option value="">Ativas e inativas</option>
+            <option value="1" <?= $is_enabled === '1' ? 'selected' : '' ?>>Só ativas</option>
+            <option value="0" <?= $is_enabled === '0' ? 'selected' : '' ?>>Só inativas</option>
+        </select>
+        <input type="search" name="q" placeholder="Código, nome ou cidade" value="<?= htmlspecialchars($q) ?>">
+        <?= \Iter\Admin\View\Sort::hidden() ?>
+        <button type="submit">Filtrar</button>
+    </form>
     <table>
         <thead>
             <tr>
 <?php if (count($websites) > 1): ?>
-                <th>Website</th>
+                <?= \Iter\Admin\View\Sort::th('website', 'Website', $sort, $dir) ?>
 <?php endif; ?>
-                <th>Código</th>
-                <th>Nome</th>
-                <th>Cidade</th>
-                <th>Situação</th>
-                <th>Prioridade</th>
-                <th>Produtos com estoque</th>
+                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('city', 'Cidade', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('is_enabled', 'Situação', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('priority', 'Prioridade', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('products', 'Produtos com estoque', $sort, $dir) ?>
                 <th></th>
             </tr>
         </thead>

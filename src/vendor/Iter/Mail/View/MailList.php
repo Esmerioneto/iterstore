@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Mail\View;
 
 use Iter\Admin\View\Pager;
+use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Mail\Model\MailService;
 
@@ -22,11 +23,14 @@ class MailList implements ViewComponentInterface
             $filters[$key] = trim((string) ($_GET[$key] ?? ''));
         }
         $service = new MailService();
-        [$result, $pager] = Pager::search(static fn (int $page, int $limit) => $service->search($filters, $page, $limit));
+        [$sort, $dir] = Sort::read(array_keys(MailService::SORTS), 'date', 'desc');
+        [$result, $pager] = Pager::search(static fn (int $page, int $limit) => $service->search($filters, $page, $limit, $sort, $dir));
 
         return [
             'messages' => $result['items'],
             'filters' => $filters,
+            'sort' => $sort,
+            'dir' => $dir,
             'pager' => $pager,
             'total' => $result['total'],
             'stalled' => $service->stalledCount(),

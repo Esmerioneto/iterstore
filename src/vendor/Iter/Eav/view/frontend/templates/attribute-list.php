@@ -24,18 +24,19 @@
             <option value="0" <?= $filters['is_system'] === '0' ? 'selected' : '' ?>>Só personalizados</option>
         </select>
         <input type="search" name="q" placeholder="Código ou nome" value="<?= htmlspecialchars($filters['q']) ?>">
+        <?= \Iter\Admin\View\Sort::hidden() ?>
         <button type="submit">Filtrar</button>
     </form>
     <table>
         <thead>
             <tr>
-                <th>Código</th>
-                <th>Nome</th>
-                <th>Entidade</th>
-                <th>Tipo</th>
-                <th>Armazenamento</th>
-                <th>Sistema</th>
-                <th>Posição</th>
+                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('entity', 'Entidade', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('type', 'Tipo', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('storage', 'Armazenamento', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('is_system', 'Sistema', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('position', 'Posição', $sort, $dir) ?>
                 <th></th>
             </tr>
         </thead>

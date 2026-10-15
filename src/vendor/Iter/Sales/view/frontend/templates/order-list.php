@@ -11,7 +11,9 @@ $query = array_filter($filters, 'strlen')
 $sortHeader = static fn (string $key, string $label): string => \Iter\Admin\View\Sort::th($key, $label, $sort, $dir, $query, '/admin/order/index');
 ?>
 <section class="mail-list sales-order-list">
-    <h2>Pedidos</h2>
+    <div class="admin-page-head">
+        <h2>Pedidos</h2>
+    </div>
     <form method="get" action="/admin/order/index" class="admin-filters">
         <select name="status">
             <option value="">Todas as situações</option>
@@ -55,6 +57,9 @@ $sortHeader = static fn (string $key, string $label): string => \Iter\Admin\View
         <input type="search" name="q" placeholder="Número, e-mail ou nome" value="<?= $e($filters['q']) ?>">
         <label>De <input type="date" name="from" value="<?= $e($filters['from']) ?>"></label>
         <label>até <input type="date" name="to" value="<?= $e($filters['to']) ?>"></label>
+<?php foreach (array_diff_key($query, $filters) as $name => $value): ?>
+        <input type="hidden" name="<?= $e($name) ?>" value="<?= $e($value) ?>">
+<?php endforeach; ?>
         <button type="submit">Filtrar</button>
     </form>
     <p class="admin-list-summary"><?= (int) $total ?> pedido(s) · total <?= $money($amount) ?> (sem os cancelados)</p>

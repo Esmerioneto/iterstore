@@ -23,9 +23,16 @@ class Attribute extends AbstractDb
      * @param array{entity_type?: string, input_type?: string, is_system?: string, q?: string} $filters
      * @return array{items: array<int, array<string, mixed>>, total: int}
      */
-    public function search(array $filters, int $page, int $perPage): array
+    /** the admin list's sortable columns: key => SQL (whitelist); "entity" is the list's own order */
+    public const SORTS = [
+        'entity' => 'et.code', 'code' => 'main_table.code', 'name' => 'main_table.label', 'type' => 'main_table.input_type',
+        'storage' => 'main_table.storage_type', 'is_system' => 'main_table.is_system', 'position' => 'main_table.sort_order',
+    ];
+
+    public function search(array $filters, int $page, int $perPage, string $sort = 'entity', string $dir = 'asc'): array
     {
-        $collection = (new Collection())->setOrder('et.code', 'ASC')->setOrder('sort_order', 'ASC')->setOrder('code', 'ASC')
+        $collection = (new Collection())->setOrder(new Expr(self::SORTS[$sort] ?? self::SORTS['entity']), $dir)
+            ->setOrder('sort_order', 'ASC')->setOrder('code', 'ASC')
             ->setPageSize($perPage)->setCurPage($page);
         if (($filters['entity_type'] ?? '') !== '') {
             $collection->addFieldToFilter('et.code', $filters['entity_type']);

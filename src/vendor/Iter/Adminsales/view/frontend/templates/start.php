@@ -4,7 +4,9 @@ use Iter\Core\FormKey;
 $e = static fn ($v) => htmlspecialchars((string) $v);
 ?>
 <section class="mail-list adminsales-start">
-    <h2>Novo pedido</h2>
+    <div class="admin-page-head">
+        <h2>Novo pedido</h2>
+    </div>
 <?php if ($open): ?>
     <h3>Em montagem</h3>
     <table>

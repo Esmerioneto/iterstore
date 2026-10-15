@@ -3,6 +3,11 @@
         <h2>Categorias</h2>
         <a class="admin-button admin-button-primary" href="/admin/category/create">+ Nova categoria</a>
     </div>
+    <form method="get" action="/admin/category/index" class="admin-filters">
+        <input type="search" name="q" placeholder="Nome ou chave de URL" value="<?= htmlspecialchars($q) ?>">
+        <?= \Iter\Admin\View\Sort::hidden() ?>
+        <button type="submit">Filtrar</button>
+    </form>
     <table>
         <thead>
             <tr>

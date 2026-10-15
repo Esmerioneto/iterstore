@@ -1,12 +1,22 @@
-<section class="config-settings-list">
-    <h2>Modulos do Sistema</h2>
+<section class="config-settings-list" id="modulos">
+    <div class="admin-page-head">
+        <h2>Modulos do Sistema</h2>
+    </div>
+    <form method="get" action="/admin/config/index#modulos" class="admin-filters">
+<?php if (ctype_digit((string) ($_GET['website'] ?? ''))): ?>
+        <input type="hidden" name="website" value="<?= (int) $_GET['website'] ?>">
+<?php endif; ?>
+        <input type="search" name="q" placeholder="Grupo, vendor ou módulo" value="<?= htmlspecialchars($q) ?>">
+        <?= \Iter\Admin\View\Sort::hidden() ?>
+        <button type="submit">Filtrar</button>
+    </form>
     <table>
         <thead>
             <tr>
-                <th>Grupo</th>
-                <th>Vendor</th>
-                <th>Modulo</th>
-                <th>Status</th>
+                <?= \Iter\Admin\View\Sort::th('group', 'Grupo', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('vendor', 'Vendor', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Modulo', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('enabled', 'Status', $sort, $dir) ?>
 <?php if ($can_toggle): ?>
                 <th>Ações</th>
 <?php endif; ?>

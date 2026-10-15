@@ -4,7 +4,9 @@ use Iter\Mail\Model\MailService;
 $e = static fn ($v) => htmlspecialchars((string) $v);
 ?>
 <section class="mail-list mail-sent-list">
-    <h2>E-mails enviados</h2>
+    <div class="admin-page-head">
+        <h2>E-mails enviados</h2>
+    </div>
 <?php if ($stalled): ?>
     <p class="mail-warning"><?= (int) $stalled ?> e-mail(s) esperando há mais de 15 minutos. Confira se o cron roda <code>php bin/mail-worker.php</code> a cada minuto.</p>
 <?php endif; ?>
@@ -18,17 +20,18 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
         <input type="search" name="q" placeholder="Destinatário" value="<?= $e($filters['q']) ?>">
         <label>De <input type="date" name="from" value="<?= $e($filters['from']) ?>"></label>
         <label>até <input type="date" name="to" value="<?= $e($filters['to']) ?>"></label>
+        <?= \Iter\Admin\View\Sort::hidden() ?>
         <button type="submit">Filtrar</button>
     </form>
     <table>
         <thead>
             <tr>
-                <th>Data</th>
-                <th>Destinatário</th>
-                <th>Assunto</th>
-                <th>Modelo</th>
-                <th>Situação</th>
-                <th>Tentativas</th>
+                <?= \Iter\Admin\View\Sort::th('date', 'Data', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('to', 'Destinatário', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('subject', 'Assunto', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('template', 'Modelo', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('status', 'Situação', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('attempts', 'Tentativas', $sort, $dir) ?>
                 <th></th>
             </tr>
         </thead>

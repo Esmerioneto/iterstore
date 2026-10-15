@@ -40,6 +40,39 @@ final class Sort
             . '<a href="' . htmlspecialchars($href) . '">' . htmlspecialchars($label) . ($active ? ($dir === 'asc' ? ' ▲' : ' ▼') : '') . '</a></th>';
     }
 
+    /**
+     * A list already loaded, the whole pattern at once: ?q= searched in $searchFields, sorted by a
+     * whitelisted ?sort= ($columns: sort key => row field), then the page (Pager::slice).
+     *
+     * @param array<string, string> $columns
+     * @param string[] $searchFields
+     * @param int[] $sizes
+     * @return array{0: array, 1: array, 2: string, 3: string, 4: string} [rows, pager, sort, dir, q]
+     */
+    public static function slice(array $rows, array $columns, string $default, string $defaultDir, array $searchFields, array $sizes = Pager::PAGE_SIZES): array
+    {
+        [$sort, $dir] = self::read(array_keys($columns), $default, $defaultDir);
+        $q = trim((string) ($_GET['q'] ?? ''));
+        $rows = self::search($rows, $searchFields, $q);
+        // ponytail: without ?sort= the rows keep the order they were loaded in (each list's natural one, led by $default)
+        [$rows, $pager] = Pager::slice(isset($_GET['sort']) ? self::rows($rows, $columns[$sort], $dir) : $rows, $sizes);
+
+        return [$rows, $pager, $sort, $dir, $q];
+    }
+
+    /** Hidden inputs that keep the sort and the page size when a list's filter form is sent */
+    public static function hidden(): string
+    {
+        $html = '';
+        foreach (['sort', 'dir', 'limit'] as $name) {
+            if (is_string($_GET[$name] ?? null) && $_GET[$name] !== '') {
+                $html .= '<input type="hidden" name="' . $name . '" value="' . htmlspecialchars($_GET[$name]) . '">';
+            }
+        }
+
+        return $html;
+    }
+
     /** Loaded rows by one field: numbers as numbers, text case- and accent-insensitive; keys kept */
     public static function rows(array $rows, string $field, string $dir): array
     {

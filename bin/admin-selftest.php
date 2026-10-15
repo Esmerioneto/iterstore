@@ -1953,6 +1953,20 @@ $list = $admin->request('/admin/customer/index?q=529.982.247-25')['body'];
 assertSame([2, true], [substr_count($list, '/admin/customer/edit?id='), str_contains($list, '529.982.247-25')], 'busca por CPF formatado, lista mostra o CPF com máscara');
 assertSame(1, substr_count($admin->request('/admin/customer/index?q=selftest.local&website_id=' . $website2)['body'], '/admin/customer/edit?id='), 'filtro por website');
 assertSame(403, $dash->request('/admin/customer/index')['status'], 'perfil sem Clientes recebe 403');
+// grids (Iter\Admin\View\Sort): a list searched in the database sorts by a whitelisted column; anything else falls back to the default
+$emailsOf = static fn (string $html) => preg_match_all('#<td>([^<]*@selftest\.local)</td>#', $html, $m) ? $m[1] : [];
+$byEmail = $admin->request('/admin/customer/index?q=selftest.local&sort=email&dir=asc&limit=100')['body'];
+$byEmailDesc = $emailsOf($admin->request('/admin/customer/index?q=selftest.local&sort=email&dir=desc&limit=100')['body']);
+$sortedEmails = $emailsOf($byEmail);
+$expectedEmails = $sortedEmails;
+sort($expectedEmails);
+$badSort = $admin->request('/admin/customer/index?q=selftest.local&sort=' . urlencode('email; DROP TABLE x') . '&dir=sideways')['body'];
+assertSame([true, $expectedEmails, array_reverse($expectedEmails), true, true, true], [
+    count($sortedEmails) > 1, $sortedEmails, $byEmailDesc,
+    str_contains($byEmail, '<th class="admin-sortable is-sorted" aria-sort="ascending"><a href="/admin/customer/index?q=selftest.local&amp;limit=100&amp;sort=email&amp;dir=desc">E-mail ▲</a></th>'),
+    str_contains($badSort, '<th class="admin-sortable is-sorted" aria-sort="descending"><a href="/admin/customer/index?q=selftest.local&amp;sort=id&amp;dir=asc">ID ▼</a></th>'),
+    str_contains($byEmail, '<input type="hidden" name="sort" value="email"><input type="hidden" name="dir" value="asc"><input type="hidden" name="limit" value="100">'),
+], 'grids: clientes ordenam por coluna permitida nos dois sentidos, o filtro guarda a ordem e um sort inválido cai no padrão (ID ▼)');
 assertSame([true, false], [str_contains($admin->request('/admin/index')['body'], '<h2>Clientes</h2>'), str_contains($dash->request('/admin/index')['body'], '<h2>Clientes</h2>')], 'card Clientes no painel só para quem tem Clientes');
 
 // --- GraphQL: customers (admin only) --------------------------------------------------------------
@@ -3504,6 +3518,20 @@ assertSame([true, true], [str_contains($opCustPage, 'Histórico de alterações'
 assertSame(true, str_contains($admin->request('/admin/log/view?id=' . $opLine("entity_type = 'customer' AND entity_id = {$opCustId} AND action = 'update'"))['body'], 'href="/admin/customer/edit?id=' . $opCustId . '"'), 'log de operações: o detalhe leva ao cliente');
 $admin->submit('/admin/customer/index', '/admin/customer/delete', ['customer_id' => $opCustId]);
 assertSame([['delete', 'Logada', null]], array_map(static fn ($l) => [$l['action'], $opChanges($l)['Sobrenome'][0] ?? null, $opChanges($l)['Sobrenome'][1] ?? null], $opNew()), 'log de operações: excluir cliente grava os últimos valores');
+
+// --- grids: a list already loaded (Pager::slice) searched and sorted in PHP -----------------------
+$rolesOf = static fn (string $html) => preg_match_all('#<td>(selftest_[^<]*)</td>#', $html, $m) ? $m[1] : [];
+$rolesDesc = $rolesOf($admin->request('/admin/role/index?q=SELFTEST_&sort=name&dir=desc&limit=100')['body']);
+$expectedRoles = $rolesDesc;
+rsort($expectedRoles);
+$rolesAll = $admin->request('/admin/role/index?limit=100')['body'];
+$rolesBad = $admin->request('/admin/role/index?sort=nope&dir=asc&q=zzz-nenhum')['body'];
+assertSame([true, $expectedRoles, true, true, true], [
+    count($rolesDesc) > 1, $rolesDesc,
+    count($rolesOf($rolesAll)) === count($rolesDesc) && substr_count($rolesAll, '/admin/role/edit?id=') > count($rolesDesc),
+    str_contains($rolesBad, '<th class="admin-sortable is-sorted" aria-sort="ascending"><a href="/admin/role/index?q=zzz-nenhum&amp;sort=id&amp;dir=desc">ID ▲</a></th>'),
+    str_contains($rolesBad, 'Nenhum perfil cadastrado.'),
+], 'grids: perfis buscados (sem diferenciar maiúsculas) e ordenados em PHP; sort inválido cai no padrão (ID ▲); busca sem resultado mostra o vazio');
 
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());

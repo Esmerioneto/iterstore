@@ -18,7 +18,7 @@ $address = static function (?array $a) use ($e): string {
     }
     return implode('<br>', array_map($e, array_filter($lines, 'strlen')));
 };
-$form = static fn (string $action, string $inner, string $confirm = '') => '<form method="post" action="/admin/order/' . $action . '"' . ($confirm ? ' data-confirm="' . htmlspecialchars($confirm) . '"' : '') . '>'
+$form = static fn (string $action, string $inner, string $confirm = '') => '<form method="post" action="/admin/order/' . $action . '"' . ($confirm ? ' data-confirm="' . htmlspecialchars($confirm) . '" data-confirm-button="Sim, cancelar o pedido"' : '') . '>'
     . FormKey::field() . '<input type="hidden" name="order_id" value="' . $id . '">' . $inner . '</form>';
 // Mercado Pago's payment_method.id → the brand's name; the newest charge with a card says which one
 // (logos in /assets/admin/card-brands; a brand without one shows just the name)
