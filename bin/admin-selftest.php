@@ -2014,6 +2014,7 @@ assertSame(['Módulo Adminsales desativado. Os dados dele continuam no banco.'],
 assertSame(['Módulo Payment desativado. Os dados dele continuam no banco.'], $toggle('iter_payment', 0), 'Payment desativado pelo admin');
 assertSame(true, str_starts_with($gql($admin, '{ cart { paymentMethod { code } } }')['errors'][0]['message'] ?? '', 'Cannot query field "paymentMethod" on type "Cart".'), 'Payment desativado: sem pagamento no carrinho');
 assertSame(['Módulo Melhorenvio desativado. Os dados dele continuam no banco.'], $toggle('iter_melhorenvio', 0), 'Melhor Envio desativado pelo admin');
+assertSame(['Módulo Correios desativado. Os dados dele continuam no banco.'], $toggle('iter_correios', 0), 'Correios desativado pelo admin');
 assertSame(['Módulo Shipping desativado. Os dados dele continuam no banco.'], $toggle('iter_shipping', 0), 'Shipping desativado pelo admin');
 assertSame(['Módulo Promotion desativado. Os dados dele continuam no banco.'], $toggle('iter_promotion', 0), 'Promotion desativado pelo admin');
 assertSame(true, str_contains($gql($admin, 'mutation { applyCartCoupon(code: "TESTE") { total } }')['errors'][0]['message'] ?? '', 'Cannot query field') && str_contains($gql($admin, 'mutation { applyCartCoupon(code: "TESTE") { total } }')['errors'][0]['message'] ?? '', 'applyCartCoupon'), 'Promotion desativado: sem mutações de cupom');
@@ -2050,6 +2051,7 @@ $toggle('iter_customer', 1);
 $toggle('iter_sales', 1);
 $toggle('iter_shipping', 1);
 $toggle('iter_melhorenvio', 1);
+$toggle('iter_correios', 1);
 $toggle('iter_payment', 1);
 $toggle('iter_mercadopago', 1);
 $toggle('iter_adminsales', 1);

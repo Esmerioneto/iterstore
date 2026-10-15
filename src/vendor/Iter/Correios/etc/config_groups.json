@@ -1,0 +1,4 @@
+[
+    { "group": "Correios", "section": "Vendas", "position": 75, "icon": "📦", "description": "Autenticação, preço e prazo de entrega dos Correios",
+      "chips": [{ "label": "Ambiente", "path": "correios/environment" }, { "label": "Cotações ativas", "path": "shipping/correios/active" }] }
+]
