@@ -142,7 +142,7 @@ class CartSchema
                 'couponCode' => ['type' => Type::string(), 'resolve' => fn ($c) => $c['coupon_code'] ?? null],
                 'couponMessage' => ['type' => Type::string(), 'resolve' => fn ($c) => $c['coupon_message'] ?? null],
                 'discounts' => ['type' => Type::nonNull(Type::listOf(Type::nonNull(new ObjectType(['name' => 'CartDiscount', 'fields' => [
-                    'name' => Type::nonNull(Type::string()), 'couponCode' => Type::string(), 'amount' => Type::nonNull(Type::float()),
+                    'name' => Type::nonNull(Type::string()), 'couponCode' => ['type' => Type::string(), 'resolve' => fn ($d) => $d['coupon_code'] ?? null], 'amount' => Type::nonNull(Type::float()),
                 ]])))), 'resolve' => fn ($c) => $c['discounts'] ?? []],
                 'total' => ['type' => Type::nonNull(Type::float()), 'description' => 'Subtotal menos descontos mais frete escolhido.'],
                 'hasErrors' => ['type' => Type::nonNull(Type::boolean()), 'description' => 'Algum item com error.', 'resolve' => fn ($c) => $c['has_errors']],
@@ -184,7 +184,7 @@ class CartSchema
                 'discountAmount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($o) => (float) ($o['discount_amount'] ?? 0)],
                 'couponCode' => ['type' => Type::string(), 'resolve' => fn ($o) => $o['coupon_code'] ?? null],
                 'discounts' => ['type' => Type::nonNull(Type::listOf(Type::nonNull(new ObjectType(['name' => 'OrderDiscount', 'fields' => [
-                    'name' => Type::nonNull(Type::string()), 'couponCode' => Type::string(),
+                    'name' => Type::nonNull(Type::string()), 'couponCode' => ['type' => Type::string(), 'resolve' => fn ($d) => $d['coupon_code'] ?? null],
                     'amount' => Type::nonNull(Type::float()),
                 ]])))), 'resolve' => fn ($o) => array_map(static fn ($d) => ['name' => $d['promotion_name'], 'coupon_code' => $d['coupon_code'], 'amount' => (float) $d['discount_amount']], $o['discounts'] ?? [])],
                 'shippingAmount' => ['type' => Type::nonNull(Type::float()), 'resolve' => fn ($o) => (float) $o['shipping_amount']],

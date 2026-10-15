@@ -169,6 +169,7 @@ $savedSequences = $pdo->query('SELECT website_id, last_value FROM sales_order_se
 $savedMedia = glob(Config::mediaDir() . 'config/*') ?: [];
 $purge = static function () use ($pdo, $savedConfig, $savedMedia, $savedModules, $savedTemplates, $savedRates, $savedSequences): void {
     $pdo->exec("DELETE FROM sales_order WHERE email LIKE '%@selftest.local'"); // before the websites, which they hold
+    $pdo->exec("DELETE FROM promotion WHERE name LIKE 'selftest%'"); // after the orders, whose coupon uses hold it
     $pdo->exec('DELETE FROM sales_order_sequence');
     $restoreSequence = $pdo->prepare('INSERT INTO sales_order_sequence (website_id, last_value) VALUES (?, ?)');
     foreach ($savedSequences as $row) {
@@ -2535,6 +2536,135 @@ assertSame([true, ['Faixas de frete salvas.'], [['postcode_from' => '01000000', 
     str_starts_with($bad[0] ?? '', 'Faixa 1:'), $seller->request('/admin/shippingrate/index')['status'],
 ], 'faixas de frete: a tela mostra e grava a tabela (vírgula decimal, linha em branco ignorada), valida e exige Iter_Shipping::rates');
 
+// --- promotions and coupons (PROMO-PLAN): screens, order, release on cancel, race, TOTAL_CHANGED ----
+// every test promotion is tied to selftest-promo: the store's real carts, on the same website, never see it
+$promoProduct = (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => 'selftest-promo', 'name' => 'Vaso promo', 'is_active' => 1,
+    'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '50'])->getId();
+$stock->save($promoProduct, ['selftest_var_cd' => ['quantity' => '10']]);
+$promoForm = static fn (array $fields) => $fields + ['name' => 'selftest promo', 'is_active' => '1', 'application_type' => 'automatic', 'discount_type' => 'percent', 'discount_amount' => '10',
+    'website_ids' => [$defaultWebsite], 'product_ids' => (string) $promoProduct, 'coupon_usage_mode' => 'unlimited', 'priority' => '1'];
+$promoSave = static fn (Browser $b, array $fields) => $b->submit('/admin/promotion/create', '/admin/promotion/save', $promoForm($fields))[1];
+$promoId = static fn (string $name) => (int) $pdo->query("SELECT promotion_id FROM promotion WHERE name = " . $pdo->quote($name))->fetchColumn();
+$makeUser('selftest_promo', ['Iter_Promotion::manage']);
+$promoUser = new Browser($base);
+$promoUser->login('selftest_promo');
+assertSame([['Revise nome, websites, desconto, subtotais e período da promoção.'], ['Revise nome, websites, desconto, subtotais e período da promoção.'],
+    ['Não foi possível salvar a promoção: Uma promoção por cupom precisa ter ao menos um código de cupom.'], 0], [
+    $promoSave($admin, ['website_ids' => []]), $promoSave($admin, ['discount_amount' => '120']),
+    $promoSave($admin, ['name' => 'selftest sem cupom', 'application_type' => 'coupon']), $promoId('selftest sem cupom'),
+], 'promoções: sem website, com mais de 100% ou por cupom sem código é recusado e nada é gravado');
+assertSame([['Promoção salva com sucesso.'], ['Promoção salva com sucesso.'], ['Não foi possível salvar a promoção: O cupom SELFTESTPROMO já pertence a outra promoção.'], ['SELFTESTPROMO', 1]], [
+    $promoSave($admin, ['name' => 'selftest auto 10%']),
+    $promoSave($promoUser, ['name' => 'selftest cupom 20%', 'application_type' => 'coupon', 'discount_amount' => '20', 'priority' => '2', 'coupon_codes' => " selftestpromo \n", 'coupon_usage_mode' => 'once_total']),
+    $promoSave($admin, ['name' => 'selftest outro cupom', 'application_type' => 'coupon', 'coupon_codes' => 'SELFTESTPROMO']),
+    $pdo->query("SELECT code, usage_limit FROM promotion_coupon WHERE promotion_id = " . $promoId('selftest cupom 20%'))->fetch(PDO::FETCH_NUM),
+], 'promoções: o perfil com Iter_Promotion::manage cria; o cupom é gravado em maiúsculas, uso único; código de outra promoção é recusado');
+$autoPromo = $promoId('selftest auto 10%');
+$couponPromo = $promoId('selftest cupom 20%');
+$promoList = $admin->request('/admin/promotion/index?q=selftest')['body'];
+assertSame([true, true, true, 403, 200], [
+    str_contains($promoList, 'selftest auto 10%') && str_contains($promoList, 'selftest cupom 20%'),
+    str_contains($admin->request('/admin/promotion/edit?id=' . $couponPromo)['body'], 'SELFTESTPROMO'),
+    str_contains($admin->request('/admin/promotion/index?q=selftest&is_active=0')['body'], 'Nenhuma promoção cadastrada.'),
+    $seller->request('/admin/promotion/index')['status'], $promoUser->request('/admin/promotion/uses?id=' . $couponPromo)['status'],
+], 'promoções: a lista filtra e o formulário mostra os cupons; sem Iter_Promotion::manage, 403; quem tem manage vê os usos (Iter_Promotion::usages é filho dele)');
+
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'order_place:%'");
+$promoCart = static function (string $email) use ($api, $addr): string {
+    $cart = $api('mutation { createCart }')[1]['data']['createCart'] ?? '';
+    foreach (["addToCart(cartId: \"{$cart}\", sku: \"selftest-promo\")", "setCartGuestInfo(cartId: \"{$cart}\", email: \"{$email}\", firstname: \"Pro\", lastname: \"Mo\", taxvat: \"529.982.247-25\")",
+        "setCartShippingAddress(cartId: \"{$cart}\", {$addr})", "setCartShippingMethod(cartId: \"{$cart}\", code: \"pickup\")", "setCartPaymentMethod(cartId: \"{$cart}\", code: \"offline\")"] as $call) {
+        $api("mutation { {$call} { total } }");
+    }
+    return $cart;
+};
+$quoteOf = static fn (string $cart) => (int) $pdo->query("SELECT quote_id FROM sales_quote WHERE token_hash = '" . hash('sha256', $cart) . "'")->fetchColumn();
+$couponFields = '{ total discountAmount couponCode couponMessage discounts { name couponCode amount } }';
+$applyCoupon = static fn (string $cart, string $code = 'selftestpromo') => $api("mutation { applyCartCoupon(cartId: \"{$cart}\", code: \"{$code}\") {$couponFields} }")[1];
+$usages = static fn () => $pdo->query("SELECT status, COUNT(*) FROM promotion_coupon_usage u JOIN promotion_coupon c USING (coupon_id) WHERE c.code = 'SELFTESTPROMO' GROUP BY status ORDER BY status")->fetchAll(PDO::FETCH_KEY_PAIR);
+$cart1 = $promoCart('promo1@selftest.local');
+$auto = $api("{ cart(cartId: \"{$cart1}\") {$couponFields} }")[1]['data']['cart'] ?? [];
+$withCoupon = $applyCoupon($cart1)['data']['applyCartCoupon'] ?? [];
+$promoOrder = $api("mutation { placeOrder(cartId: \"{$cart1}\") { id number total discountAmount couponCode discounts { name couponCode amount } items { discountAmount } } }")[1]['data']['placeOrder'] ?? [];
+$promoOrderId = (int) ($promoOrder['id'] ?? 0);
+$floats = static function (array $values) use (&$floats): array { // JSON gives 45, not 45.0
+    return array_map(static fn ($v) => is_int($v) ? (float) $v : (is_array($v) ? $floats($v) : $v), $values);
+};
+assertSame([
+    ['total' => 45.0, 'discountAmount' => 5.0, 'couponCode' => null, 'couponMessage' => null, 'discounts' => [['name' => 'selftest auto 10%', 'couponCode' => null, 'amount' => 5.0]]],
+    ['total' => 40.0, 'discountAmount' => 10.0, 'couponCode' => 'SELFTESTPROMO', 'couponMessage' => null, 'discounts' => [['name' => 'selftest cupom 20%', 'couponCode' => 'SELFTESTPROMO', 'amount' => 10.0]]],
+    [40.0, 10.0, 'SELFTESTPROMO', [['name' => 'selftest cupom 20%', 'couponCode' => 'SELFTESTPROMO', 'amount' => 10.0]], [['discountAmount' => 10.0]]],
+    ['used' => 1],
+], [$floats($auto), $floats($withCoupon),
+    $floats([$promoOrder['total'] ?? null, $promoOrder['discountAmount'] ?? null, $promoOrder['couponCode'] ?? null, $promoOrder['discounts'] ?? null, $promoOrder['items'] ?? null]),
+    $usages(),
+], 'cupom no pedido: a promoção automática dá 10%; o cupom de 20% (não acumulativo) vence; o pedido grava o desconto por item, o cupom e um uso');
+$cart2 = $promoCart('promo2@selftest.local');
+$usesPage = $admin->request('/admin/promotion/uses?id=' . $couponPromo)['body'];
+assertSame(['COUPON_USED_UP', true, ['Não é possível remover uma promoção que já tenha usos registrados. Desative-a em vez disso.'], true], [
+    $gqlCode([0, $applyCoupon($cart2)]),
+    str_contains($usesPage, '>' . ($promoOrder['number'] ?? 'x') . '</a>') && str_contains($usesPage, 'SELFTESTPROMO'),
+    $admin->submit('/admin/promotion/edit?id=' . $couponPromo, '/admin/promotion/delete', ['promotion_id' => $couponPromo])[1],
+    $promoId('selftest cupom 20%') === $couponPromo,
+], 'cupom de uso único: o segundo carrinho é recusado; a tela de usos lista o pedido; promoção com uso não é apagada');
+(new OrderService())->cancel($promoOrderId, 'customer', $adminId, notify: false);
+assertSame([['released' => 1], 'SELFTESTPROMO'], [$usages(), $applyCoupon($cart2)['data']['applyCartCoupon']['couponCode'] ?? null],
+    'cancelar o pedido libera o uso do cupom: outro carrinho volta a usá-lo');
+
+// two orders race for the single-use coupon: this connection holds the coupon row, both wait on it, then go at once
+$cart3 = $promoCart('promo3@selftest.local');
+$applyCoupon($cart3);
+$racers = $racerOut = [];
+$pdo->beginTransaction();
+$pdo->query("SELECT 1 FROM promotion_coupon WHERE code = 'SELFTESTPROMO' FOR UPDATE");
+foreach ([$cart2, $cart3] as $cart) { // pg_locks, not pg_stat_activity (a snapshot inside a transaction); the second waits behind the first on the row (tuple)
+    $code = 'require "' . dirname(__DIR__) . '/path.php"; require "' . dirname(__DIR__) . '/vendor/autoload.php"; require FUNCTIONS . "bootstrap.php";'
+        . ' try { echo (new Iter\Sales\Model\OrderService())->place(' . $quoteOf($cart) . ', false) > 0 ? "placed" : "?"; } catch (Iter\Sales\Model\SalesException $e) { echo $e->errorCode; }';
+    $racers[] = proc_open([PHP_BINARY, '-r', $code], [1 => ['pipe', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, null, ['XDEBUG_MODE' => 'off'] + getenv());
+    $racerOut[] = $pipes[1];
+}
+for ($i = 0; $i < 100 && (int) $pdo->query("SELECT COUNT(DISTINCT pid) FROM pg_locks WHERE NOT granted AND (pg_backend_pid() = ANY (pg_blocking_pids(pid)) OR (locktype = 'tuple' AND relation = 'promotion_coupon'::regclass))")->fetchColumn() < 2; $i++) {
+    usleep(100000);
+}
+$bothWaited = $i < 100;
+$pdo->commit();
+$results = array_map(static fn ($out) => stream_get_contents($out), $racerOut);
+array_map('proc_close', $racers);
+sort($results);
+assertSame([true, ['COUPON_USED_UP', 'placed'], ['released' => 1, 'used' => 1]], [$bothWaited, $results, $usages()],
+    'cupom de uso único com dois pedidos ao mesmo tempo: um fecha, o outro recebe COUPON_USED_UP; um único uso gravado');
+
+// the total changes between the review and the confirmation: the order isn't placed and the cart stays open
+$pdo->exec("UPDATE promotion_coupon SET usage_limit = NULL, usage_per_customer = 1 WHERE code = 'SELFTESTPROMO'");
+$cart4 = $promoCart('promo4@selftest.local');
+$loginRequired = $gqlCode([0, $applyCoupon($cart4)]);
+$reviewed = (float) ($api("{ cart(cartId: \"{$cart4}\") { total } }")[1]['data']['cart']['total'] ?? 0);
+$admin->submit('/admin/promotion/edit?id=' . $autoPromo, '/admin/promotion/save', $promoForm(['promotion_id' => $autoPromo, 'name' => 'selftest auto 10%', 'is_active' => '']));
+$changed = $api("mutation { placeOrder(cartId: \"{$cart4}\", expectedTotal: {$reviewed}) { number } }")[1];
+$stillOpen = $api("{ cart(cartId: \"{$cart4}\") { total } }")[1]['data']['cart']['total'] ?? null;
+$confirmed = $api("mutation { placeOrder(cartId: \"{$cart4}\", expectedTotal: 50) { total discountAmount } }")[1]['data']['placeOrder'] ?? null;
+assertSame(['COUPON_LOGIN_REQUIRED', 45.0, 'TOTAL_CHANGED', 50.0, ['total' => 50.0, 'discountAmount' => 0.0]], [
+    $loginRequired, $reviewed, $gqlCode([0, $changed]), (float) $stillOpen, $floats((array) $confirmed),
+], 'checkout sem surpresa: cupom de um uso por cliente exige login; a promoção desligada depois da revisão dá TOTAL_CHANGED, o carrinho continua aberto e fecha com o total novo');
+
+// the validity counts to the minute, in Brasília time (the form sends datetime-local, read as America/Sao_Paulo)
+$cart5 = $promoCart('promo5@selftest.local');
+$validity = static function (string $from, string $to) use ($admin, $promoForm, $autoPromo, $api, $cart5): float {
+    $admin->submit('/admin/promotion/edit?id=' . $autoPromo, '/admin/promotion/save', $promoForm(['promotion_id' => $autoPromo, 'name' => 'selftest auto 10%',
+        'starts_at' => $from === '' ? '' : date('Y-m-d\TH:i', strtotime($from)), 'ends_at' => $to === '' ? '' : date('Y-m-d\TH:i', strtotime($to))]));
+    return (float) ($api("{ cart(cartId: \"{$cart5}\") { discountAmount } }")[1]['data']['cart']['discountAmount'] ?? -1);
+};
+$expire = $pdo->prepare('UPDATE promotion SET ends_at = :to WHERE promotion_id = :id');
+$expire->execute(['to' => date('Y-m-d H:i:s', strtotime('-1 minute')), 'id' => $couponPromo]);
+$expiredCoupon = $gqlCode([0, $applyCoupon($cart5)]);
+assertSame([0.0, 5.0, 0.0, 5.0, 'America/Sao_Paulo', date('Y-m-d H:i', strtotime('+1 hour')), 'COUPON_EXPIRED', true], [
+    $validity('+1 hour', ''), $validity('-1 hour', '+1 hour'), $validity('-1 hour', '-1 minute'), $validity('', ''),
+    $pdo->query("SELECT current_setting('TimeZone')")->fetchColumn(),
+    (static function () use ($validity, $pdo, $autoPromo): string { $validity('-1 hour', '+1 hour'); return substr((string) $pdo->query("SELECT ends_at FROM promotion WHERE promotion_id = {$autoPromo}")->fetchColumn(), 0, 16); })(),
+    $expiredCoupon,
+    str_contains($admin->request('/admin/promotion/index?q=selftest+auto')['body'], date('d/m/Y H:i', strtotime('-1 hour')) . ' a ' . date('d/m/Y H:i', strtotime('+1 hour'))),
+], 'validade da promoção com hora (Brasília): começa daqui a 1 h, não vale; entre -1 h e +1 h, vale; terminou há 1 min, não vale; o horário digitado é gravado como está; cupom vencido há 1 min é recusado; a lista mostra a validade com data e hora');
+
 // --- orders in the admin API (COMMERCE-PLAN delivery 6b) --------------------------------------------
 $apiCart = $api('mutation { createCart }')[1]['data']['createCart'] ?? '';
 $ac = '"' . $apiCart . '"';
@@ -2921,6 +3051,24 @@ assertSame(['LOGIN_REQUIRED', 'pending_payment', 1, 2, 'CART_NOT_FOUND'], [
     $openBefore,
     (static function () use ($adminCarts, $discardId) { try { $adminCarts->resolve($discardId); } catch (Iter\Sales\Model\SalesException $e) { return $e->errorCode; } })(),
 ], 'pedido do admin: visitante só com "Vender para visitante" ligado (desligado = LOGIN_REQUIRED), avisa o cliente; pedidos em montagem listados e descartados');
+
+// the automatic promotion (selftest-promo only) in an order made by the admin: the cart, the Novo pedido screen and the order
+$pdo->exec("UPDATE promotion SET is_active = 1, starts_at = NULL, ends_at = NULL WHERE promotion_id = {$autoPromo}");
+$promoQuote = $adminCarts->resolve($adminCarts->create($defaultWebsite, null, $adminId));
+$cartService->setGuestInfo($promoQuote, 'admin-promo@selftest.local', 'Pro', 'Mo', '529.982.247-25');
+$cartService->addItem($promoQuote, 'selftest-promo', 2);
+$cartService->setAddress($promoQuote, 'shipping', $address);
+$cartService->setShippingMethod($promoQuote, 'pickup');
+$cartService->setPaymentMethod($promoQuote, 'offline');
+$promoScreen = $admin->request('/admin/ordercreate/edit?id=' . $promoQuote)['body'];
+$adminPromoOrder = $adminCarts->place($promoQuote, $adminId, notify: false, expectedTotal: 90.0);
+assertSame([true, ['90.00', '10.00'], [['selftest auto 10%', null, '10.00']], '10.00', 'Atendimento'], [
+    str_contains($promoScreen, 'selftest auto 10%: − R$ 10,00') && str_contains($promoScreen, 'Total R$ 90,00'),
+    $pdo->query("SELECT grand_total, discount_amount FROM sales_order WHERE order_id = {$adminPromoOrder}")->fetch(PDO::FETCH_NUM),
+    $pdo->query("SELECT promotion_name, coupon_code, discount_amount FROM sales_order_discount WHERE order_id = {$adminPromoOrder}")->fetchAll(PDO::FETCH_NUM),
+    $pdo->query("SELECT discount_amount FROM sales_order_item WHERE order_id = {$adminPromoOrder}")->fetchColumn(),
+    $pdo->query("SELECT sales_channel FROM sales_order WHERE order_id = {$adminPromoOrder}")->fetchColumn(),
+], 'pedido do admin com promoção: a tela Novo pedido mostra o desconto e o total; o pedido grava 10% de 2 × R$ 50 (total R$ 90) e a promoção, como na loja');
 
 // --- Vendas → Novo pedido (ADMINSALES-PLAN delivery 2) ------------------------------------------------
 $startPage = $admin->request('/admin/ordercreate/index')['body'];
