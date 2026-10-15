@@ -3,7 +3,9 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
 $name = static fn (array $c) => trim($c['firstname'] . ' ' . $c['lastname']);
 ?>
 <section class="message-list">
-    <h2>Mensagens</h2>
+    <div class="admin-page-head">
+        <h2>Mensagens</h2>
+    </div>
     <form method="get" action="/admin/message/index" class="admin-filters">
         <label class="mobile-switch"><input type="hidden" name="unread_only" value="0"><input type="checkbox" class="admin-switch" name="unread_only" value="1" <?= $filters['unread_only'] ? 'checked' : '' ?>> Só não lidas</label>
 <?php if (count($websites) > 1): ?>
@@ -15,6 +17,7 @@ $name = static fn (array $c) => trim($c['firstname'] . ' ' . $c['lastname']);
         </select>
 <?php endif; ?>
         <input type="search" name="q" placeholder="Nome ou e-mail" value="<?= $e($filters['q']) ?>">
+        <?= \Iter\Admin\View\Sort::hidden() ?>
         <button type="submit">Filtrar</button>
     </form>
     <details class="message-new"<?= $find !== '' ? ' open' : '' ?>>
@@ -42,11 +45,11 @@ $name = static fn (array $c) => trim($c['firstname'] . ' ' . $c['lastname']);
     <table>
         <thead>
             <tr>
-                <th>Cliente</th>
-                <th>Website</th>
+                <?= \Iter\Admin\View\Sort::th('customer', 'Cliente', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('website', 'Website', $sort, $dir) ?>
                 <th>Última mensagem</th>
-                <th>Data</th>
-                <th>Não lidas</th>
+                <?= \Iter\Admin\View\Sort::th('date', 'Data', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('unread', 'Não lidas', $sort, $dir) ?>
                 <th></th>
             </tr>
         </thead>

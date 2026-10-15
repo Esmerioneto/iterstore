@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Iter\Eav\View;
 
 use Iter\Admin\View\Pager;
+use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Eav\InputTypeRegistry;
 use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeService;
+use Iter\Eav\Model\ResourceModel\Attribute as AttributeResource;
 
 class AttributeList implements ViewComponentInterface
 {
@@ -24,11 +26,14 @@ class AttributeList implements ViewComponentInterface
             $filters[$key] = trim((string) ($_GET[$key] ?? ''));
         }
         $resource = (new Attribute())->getResource();
-        [$result, $pager] = Pager::search(static fn (int $page, int $limit) => $resource->search($filters, $page, $limit));
+        [$sort, $dir] = Sort::read(array_keys(AttributeResource::SORTS), 'entity');
+        [$result, $pager] = Pager::search(static fn (int $page, int $limit) => $resource->search($filters, $page, $limit, $sort, $dir));
 
         return [
             'attributes' => $result['items'],
             'filters' => $filters,
+            'sort' => $sort,
+            'dir' => $dir,
             'pager' => $pager,
             'total' => $result['total'],
             'entity_types' => $resource->getEntityTypes(),

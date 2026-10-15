@@ -4,7 +4,9 @@ use Iter\Log\Model\OperationLog;
 $e = static fn ($v) => htmlspecialchars((string) $v);
 ?>
 <section class="log-operation-list">
-    <h2>Log de operações</h2>
+    <div class="admin-page-head">
+        <h2>Log de operações</h2>
+    </div>
     <form method="get" action="/admin/log/index" class="admin-filters">
 <?php if ($filters['entity'] !== ''): // "Ver todas" of a record's history: kept until "Limpar" ?>
         <input type="hidden" name="entity" value="<?= $e($filters['entity']) ?>">
@@ -30,6 +32,7 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
 <?php endforeach; ?>
         </select>
         <input type="search" name="q" placeholder="Registro (SKU, nome, e-mail…)" value="<?= $e($filters['q']) ?>">
+        <?= \Iter\Admin\View\Sort::hidden() ?>
         <button type="submit">Filtrar</button>
     </form>
 <?php if ($filters['entity'] !== ''): ?>
@@ -38,12 +41,12 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
     <table>
         <thead>
             <tr>
-                <th>Data</th>
-                <th>Usuário</th>
-                <th>Origem</th>
-                <th>Ação</th>
-                <th>Área</th>
-                <th>Registro</th>
+                <?= \Iter\Admin\View\Sort::th('date', 'Data', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('user', 'Usuário', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('source', 'Origem', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('action', 'Ação', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('area', 'Área', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('record', 'Registro', $sort, $dir) ?>
                 <th>Resumo</th>
                 <th></th>
             </tr>

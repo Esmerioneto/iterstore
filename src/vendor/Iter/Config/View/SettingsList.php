@@ -6,6 +6,7 @@ namespace Iter\Config\View;
 
 use Iter\Admin\Auth;
 use Iter\Admin\View\Pager;
+use Iter\Admin\View\Sort;
 use Iter\Config\ModuleManager;
 use Iter\Core\View\ViewComponentInterface;
 
@@ -18,8 +19,8 @@ class SettingsList implements ViewComponentInterface
 
     public function getData(): array
     {
-        [$modules, $pager] = Pager::slice(ModuleManager::all());
+        [$modules, $pager, $sort, $dir, $q] = Sort::slice(ModuleManager::all(), ['group' => 'group', 'vendor' => 'vendor', 'name' => 'name', 'enabled' => 'enabled'], 'group', 'asc', ['group', 'vendor', 'name']);
 
-        return ['modules' => $modules, 'pager' => $pager, 'can_toggle' => Auth::isAllowed('Iter_Config::modules')];
+        return ['modules' => $modules, 'pager' => $pager, 'sort' => $sort, 'dir' => $dir, 'q' => $q, 'can_toggle' => Auth::isAllowed('Iter_Config::modules')];
     }
 }

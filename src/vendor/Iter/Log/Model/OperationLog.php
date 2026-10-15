@@ -82,7 +82,10 @@ class OperationLog
      *
      * @return array{items: array<int, array>, total: int}
      */
-    public static function search(array $filters, int $page, int $perPage): array
+    /** the list's sortable columns: key => SQL (whitelist; the request only picks a key) */
+    public const SORTS = ['date' => 'log_id', 'user' => 'admin_name', 'source' => 'source', 'action' => 'action', 'area' => 'entity_type', 'record' => 'entity_label'];
+
+    public static function search(array $filters, int $page, int $perPage, string $sort = 'date', string $dir = 'desc'): array
     {
         $db = Connection::get()->adapter();
         $select = $db->select()->from('log_operation', ['COUNT(*)']);
@@ -107,7 +110,8 @@ class OperationLog
             $select->where('entity_type = ?', $m[1])->where('entity_id IN (?)', self::entityIds($m[1], (int) $m[2]));
         }
         $total = (int) $db->fetchOne($select);
-        $select->reset(Select::COLUMNS)->columns(['*'])->order('log_id DESC')->limitPage($page, $perPage);
+        $select->reset(Select::COLUMNS)->columns(['*'])
+            ->order((self::SORTS[$sort] ?? 'log_id') . ($dir === 'asc' ? ' ASC' : ' DESC'))->order('log_id DESC')->limitPage($page, $perPage);
 
         return ['items' => array_map(self::decode(...), $db->fetchAll($select)), 'total' => $total];
     }

@@ -3,11 +3,16 @@
         <h2>Perfis</h2>
         <a class="admin-button admin-button-primary" href="/admin/role/create">+ Novo perfil</a>
     </div>
+    <form method="get" action="/admin/role/index" class="admin-filters">
+        <input type="search" name="q" placeholder="Nome do perfil" value="<?= htmlspecialchars($q) ?>">
+        <?= \Iter\Admin\View\Sort::hidden() ?>
+        <button type="submit">Filtrar</button>
+    </form>
     <table>
         <thead>
             <tr>
-                <th>ID</th>
-                <th>Nome</th>
+                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
                 <th></th>
             </tr>
         </thead>

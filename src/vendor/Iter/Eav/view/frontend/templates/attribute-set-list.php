@@ -10,15 +10,17 @@
             <option value="<?= htmlspecialchars($code) ?>" <?= $entity_type === $code ? 'selected' : '' ?>><?= htmlspecialchars($type['label']) ?></option>
 <?php endforeach; ?>
         </select>
-        <noscript><button type="submit">Filtrar</button></noscript>
+        <input type="search" name="q" placeholder="Código ou nome" value="<?= htmlspecialchars($q) ?>">
+        <?= \Iter\Admin\View\Sort::hidden() ?>
+        <button type="submit">Filtrar</button>
     </form>
     <table>
         <thead>
             <tr>
-                <th>Entidade</th>
-                <th>Código</th>
-                <th>Nome</th>
-                <th>Atributos</th>
+                <?= \Iter\Admin\View\Sort::th('entity', 'Entidade', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('attributes', 'Atributos', $sort, $dir) ?>
                 <th>Padrão</th>
                 <th></th>
             </tr>

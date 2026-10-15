@@ -1,5 +1,19 @@
 <?php
 $e = static fn ($v) => htmlspecialchars((string) $v);
+$iconSvgs = [
+    '✉️' => '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>',
+    '🌐' => '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>',
+    '🏬' => '<svg viewBox="0 0 24 24"><path d="M3 10h18l-2-6H5l-2 6ZM5 10v10h14V10M9 20v-6h6v6"/><path d="M3 10a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/></svg>',
+    '👤' => '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>',
+    '💳' => '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></svg>',
+    '📍' => '<svg viewBox="0 0 24 24"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+    '📜' => '<svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
+    '📦' => '<svg viewBox="0 0 24 24"><path d="m3 7 9-4 9 4-9 5-9-5Z"/><path d="M3 7v10l9 4 9-4V7M12 12v9"/></svg>',
+    '🔒' => '<svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3M12 14v3"/></svg>',
+    '🧩' => '<svg viewBox="0 0 24 24"><path d="M9 3h3a2 2 0 1 1 4 0h3v6a2 2 0 1 1 0 4v8h-6a2 2 0 1 0-4 0H3v-6a2 2 0 1 1 0-4V3h2a2 2 0 1 0 4 0Z"/></svg>',
+    '🧾' => '<svg viewBox="0 0 24 24"><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+    '🚚' => '<svg viewBox="0 0 24 24"><path d="M3 5h11v12H3zM14 9h4l3 4v4h-7z"/><circle cx="7" cy="19" r="2"/><circle cx="18" cy="19" r="2"/></svg>',
+];
 $total = array_sum(array_column($groups, 'count'));
 // one field: label, the control (with its unit), the hint below and the scope's extra choices
 $renderField = static function (array $field) use ($e, $website_id): void {
@@ -118,7 +132,7 @@ $renderField = static function (array $field) use ($e, $website_id): void {
         <?php endif; ?>
         <details class="config-group" id="<?= $e($group['id']) ?>" <?= $i === 0 ? 'open' : '' ?>>
             <summary>
-                <span class="config-icon" aria-hidden="true"><?= $e($group['icon']) ?></span>
+                <span class="config-icon" aria-hidden="true"><?= $iconSvgs[$group['icon']] ?? '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>' ?></span>
                 <span class="config-title"><b><?= $e($group['label']) ?></b><?php if ($group['description'] !== ''): ?><small><?= $e($group['description']) ?></small><?php endif; ?></span>
                 <span class="config-chips">
         <?php foreach ($group['chips'] as $chip): ?>

@@ -18,9 +18,12 @@ class CategoryList implements ViewComponentInterface
 
     public function getData(): array
     {
-        [$categories, $pager] = Pager::slice((new Category())->getResource()->getTree());
+        // a tree: searched (each match keeps its level), never sorted
+        $q = trim((string) ($_GET['q'] ?? ''));
+        [$categories, $pager] = Pager::slice(\Iter\Admin\View\Sort::search((new Category())->getResource()->getTree(), ['name', 'url_key'], $q));
 
         return [
+            'q' => $q,
             'categories' => $categories,
             'pager' => $pager,
             'websites' => array_column((new Website())->getList(), 'name', 'website_id'),

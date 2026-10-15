@@ -4,7 +4,9 @@ $number = static fn ($v) => $v === null ? '' : str_replace('.', ',', (string) $v
 $cep = static fn (string $v) => $v === '' ? '' : substr($v, 0, 5) . '-' . substr($v, 5);
 ?>
 <section class="mail-list shipping-rate-form">
-    <h2>Faixas de frete</h2>
+    <div class="admin-page-head">
+        <h2>Faixas de frete</h2>
+    </div>
 <?php if (count($websites) > 1): ?>
     <form method="get" action="/admin/shippingrate/index">
         <label>Website

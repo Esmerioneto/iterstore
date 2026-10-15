@@ -26,20 +26,21 @@ if (count($websites) > 1) {
 $select('is_active', 'Ativos e inativos', ['1' => 'Só ativos', '0' => 'Só inativos']);
 ?>
         <input type="search" name="q" placeholder="Nome, razão social, e-mail ou CPF/CNPJ" value="<?= $e($filters['q']) ?>">
+        <?= \Iter\Admin\View\Sort::hidden() ?>
         <button type="submit">Filtrar</button>
     </form>
     <table>
         <thead>
             <tr>
-                <th>ID</th>
-                <th>Tipo</th>
-                <th>Nome</th>
-                <th>E-mail</th>
-                <th>CPF/CNPJ</th>
-                <th>Grupo</th>
-                <th>Website</th>
-                <th>Status</th>
-                <th>Cadastro</th>
+                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('type', 'Tipo', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('email', 'E-mail', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('taxvat', 'CPF/CNPJ', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('group', 'Grupo', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('website', 'Website', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('is_active', 'Status', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('created_at', 'Cadastro', $sort, $dir) ?>
                 <th></th>
             </tr>
         </thead>

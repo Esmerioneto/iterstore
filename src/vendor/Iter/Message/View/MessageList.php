@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Message\View;
 
 use Iter\Admin\View\Pager;
+use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Customer\Model\Customer;
 use Iter\Message\Model\MessageService;
@@ -26,12 +27,15 @@ final class MessageList implements ViewComponentInterface
             'website_id' => (int) ($_GET['website_id'] ?? 0) ?: null,
         ];
         $service = new MessageService();
-        [$result, $pager] = Pager::search(static fn (int $page, int $limit) => $service->inbox($filters, $page, $limit));
+        [$sort, $dir] = Sort::read(array_keys(MessageService::SORTS), 'date', 'desc');
+        [$result, $pager] = Pager::search(static fn (int $page, int $limit) => $service->inbox($filters, $page, $limit, $sort, $dir));
         $find = trim((string) ($_GET['find'] ?? ''));
 
         return [
             'conversations' => $result['items'],
             'filters' => $filters,
+            'sort' => $sort,
+            'dir' => $dir,
             'pager' => $pager,
             'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
             'find' => $find,

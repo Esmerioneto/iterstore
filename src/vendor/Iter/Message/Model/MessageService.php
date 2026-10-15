@@ -95,8 +95,12 @@ final class MessageService
      * @param array{unread_only?: bool, q?: string, website_id?: ?int} $filters q: part of the name or the e-mail
      * @return array{items: list<array>, total: int}
      */
-    public function inbox(array $filters, int $page = 1, int $limit = self::PAGE_SIZE): array
+    /** the inbox's sortable columns: key => SQL (whitelist; the request only picks a key) */
+    public const SORTS = ['date' => 't.last_id', 'customer' => "c.firstname || ' ' || c.lastname", 'website' => 'w.name', 'unread' => 't.unread'];
+
+    public function inbox(array $filters, int $page = 1, int $limit = self::PAGE_SIZE, string $sort = 'date', string $dir = 'desc'): array
     {
+        $order = (self::SORTS[$sort] ?? 't.last_id') . ($dir === 'asc' ? ' ASC' : ' DESC') . ', t.last_id DESC';
         $where = ['TRUE'];
         $bind = [];
         if (!empty($filters['unread_only'])) {
@@ -123,7 +127,7 @@ final class MessageService
             JOIN customer_message m ON m.message_id = t.last_id
             JOIN store_website w ON w.website_id = t.website_id
             $where
-            ORDER BY t.last_id DESC LIMIT " . max(1, $limit) . ' OFFSET ' . (max(1, $page) - 1) * max(1, $limit), $bind);
+            ORDER BY $order LIMIT " . max(1, $limit) . ' OFFSET ' . (max(1, $page) - 1) * max(1, $limit), $bind);
 
         return ['items' => $items, 'total' => $total];
     }

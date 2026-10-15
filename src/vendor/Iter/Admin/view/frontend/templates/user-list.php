@@ -3,15 +3,25 @@
         <h2>Usuários admin</h2>
         <a class="admin-button admin-button-primary" href="/admin/user/create">+ Novo usuário</a>
     </div>
+    <form method="get" action="/admin/user/index" class="admin-filters">
+        <select name="is_active">
+            <option value="">Ativos e inativos</option>
+            <option value="1" <?= $is_active === '1' ? 'selected' : '' ?>>Só ativos</option>
+            <option value="0" <?= $is_active === '0' ? 'selected' : '' ?>>Só inativos</option>
+        </select>
+        <input type="search" name="q" placeholder="Usuário, nome ou e-mail" value="<?= htmlspecialchars($q) ?>">
+        <?= \Iter\Admin\View\Sort::hidden() ?>
+        <button type="submit">Filtrar</button>
+    </form>
     <table>
         <thead>
             <tr>
-                <th>ID</th>
-                <th>Usuário</th>
-                <th>Nome</th>
-                <th>E-mail</th>
-                <th>Perfil</th>
-                <th>Ativo</th>
+                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('username', 'Usuário', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('email', 'E-mail', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('role', 'Perfil', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('is_active', 'Ativo', $sort, $dir) ?>
                 <th></th>
             </tr>
         </thead>
@@ -26,7 +36,7 @@
                 <td><?= htmlspecialchars(trim(($user['firstname'] ?? '') . ' ' . ($user['lastname'] ?? ''))) ?></td>
                 <td><?= htmlspecialchars($user['email'] ?? '') ?></td>
                 <td><?= htmlspecialchars($user['role_name'] ?? '—') ?></td>
-                <td><?= $user['is_active'] ? 'Sim' : 'Não' ?></td>
+                <td><span class="admin-status admin-status-<?= $user['is_active'] ? 'on' : 'off' ?>"><?= $user['is_active'] ? 'Sim' : 'Não' ?></span></td>
                 <td class="admin-row-action">
                     <a href="/admin/user/edit?id=<?= (int) $user['user_id'] ?>">Editar</a>
                     <form method="post" action="/admin/user/delete" data-confirm="Remover este usuário?">

@@ -3,14 +3,19 @@
         <h2>Lojas</h2>
         <a class="admin-button admin-button-primary" href="/admin/store/create">+ Nova loja</a>
     </div>
+    <form method="get" action="/admin/store/index" class="admin-filters">
+        <input type="search" name="q" placeholder="Nome, website, webview ou tema" value="<?= htmlspecialchars($q) ?>">
+        <?= \Iter\Admin\View\Sort::hidden() ?>
+        <button type="submit">Filtrar</button>
+    </form>
     <table>
         <thead>
             <tr>
-                <th>ID</th>
-                <th>Nome</th>
-                <th>Website / Grupo</th>
-                <th>Webview</th>
-                <th>Tema</th>
+                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('website', 'Website / Grupo', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('webview', 'Webview', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('theme', 'Tema', $sort, $dir) ?>
                 <th></th>
             </tr>
         </thead>

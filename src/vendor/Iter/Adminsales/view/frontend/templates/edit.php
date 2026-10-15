@@ -169,6 +169,6 @@ $addressForm = static function (string $type, ?array $current) use ($e, $form, $
 <?php if ($missing): ?>
     <p><button type="button" disabled>Criar pedido</button></p>
 <?php endif; ?>
-    <?= $form('discard', '<button type="submit">Descartar</button>', ' data-confirm="Descartar este pedido em montagem?"') ?>
+    <?= $form('discard', '<button type="submit">Descartar</button>', ' data-confirm="Descartar este pedido em montagem?" data-confirm-button="Descartar"') ?>
     <p class="sales-order-back"><a href="/admin/ordercreate/index">← Voltar para Novo pedido</a></p>
 </section>

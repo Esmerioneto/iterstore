@@ -33,9 +33,23 @@ class Customer extends AbstractDb
      * @param ?string[] $attributes addAttributeToSelect(): each row gets 'attributes' (code => value); '*' = all
      * @return array{items: array<int, array<string, mixed>>, total: int} rows + group_name, website_name
      */
-    public function search(array $filters, int $page, int $perPage, ?array $attributes = null): array
+    /** the admin list's sortable columns: key => SQL (whitelist; the request only picks a key) */
+    public const SORTS = [
+        'id' => 'main_table.customer_id',
+        'type' => 'main_table.customer_type',
+        'name' => "COALESCE(NULLIF(main_table.company_name, ''), main_table.firstname || ' ' || main_table.lastname)",
+        'email' => 'main_table.email',
+        'taxvat' => 'main_table.taxvat',
+        'group' => 'g.name',
+        'website' => 'w.name',
+        'is_active' => 'main_table.is_active',
+        'created_at' => 'main_table.created_at',
+    ];
+
+    public function search(array $filters, int $page, int $perPage, ?array $attributes = null, string $sort = 'id', string $dir = 'desc'): array
     {
-        $collection = (new Collection())->setOrder('customer_id')->setPageSize($perPage)->setCurPage($page);
+        $collection = (new Collection())->setOrder(new Expr(self::SORTS[$sort] ?? self::SORTS['id']), $dir)->setOrder('customer_id')
+            ->setPageSize($perPage)->setCurPage($page);
         $attributes === null || $collection->addAttributeToSelect($attributes);
         if (in_array($filters['customer_type'] ?? '', ['pf', 'pj'], true)) {
             $collection->addFieldToFilter('customer_type', $filters['customer_type']);

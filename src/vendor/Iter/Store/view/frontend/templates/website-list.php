@@ -3,13 +3,18 @@
         <h2>Websites</h2>
         <a class="admin-button admin-button-primary" href="/admin/website/create">+ Novo website</a>
     </div>
+    <form method="get" action="/admin/website/index" class="admin-filters">
+        <input type="search" name="q" placeholder="Código ou nome" value="<?= htmlspecialchars($q) ?>">
+        <?= \Iter\Admin\View\Sort::hidden() ?>
+        <button type="submit">Filtrar</button>
+    </form>
     <table>
         <thead>
             <tr>
-                <th>ID</th>
-                <th>Código</th>
-                <th>Nome</th>
-                <th>Ordem</th>
+                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('sort_order', 'Ordem', $sort, $dir) ?>
                 <th>Padrão</th>
                 <th></th>
             </tr>

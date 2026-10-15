@@ -143,7 +143,10 @@ class MailService
      *
      * @return array{items: array, total: int}
      */
-    public function search(array $filters, int $page, int $perPage): array
+    /** the list's sortable columns: key => SQL (whitelist; the request only picks a key) */
+    public const SORTS = ['date' => 'message_id', 'to' => 'to_email', 'subject' => 'subject', 'template' => 'template_code', 'status' => 'status', 'attempts' => 'attempts'];
+
+    public function search(array $filters, int $page, int $perPage, string $sort = 'date', string $dir = 'desc'): array
     {
         $db = $this->db();
         $select = $db->select()->from('mail_queue', ['COUNT(*)']);
@@ -162,7 +165,7 @@ class MailService
         $total = (int) $db->fetchOne($select);
         $select->reset(Select::COLUMNS)
             ->columns(['message_id', 'template_code', 'to_email', 'subject', 'status', 'attempts', 'created_at', 'sent_at'])
-            ->order('message_id DESC')->limitPage($page, $perPage);
+            ->order((self::SORTS[$sort] ?? 'message_id') . ($dir === 'asc' ? ' ASC' : ' DESC'))->order('message_id DESC')->limitPage($page, $perPage);
 
         return ['items' => $db->fetchAll($select), 'total' => $total];
     }
