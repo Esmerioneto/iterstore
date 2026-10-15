@@ -22,6 +22,7 @@
             "php bin/view-selftest.php",
             "php bin/db-selftest.php",
             "php bin/admin-selftest.php",
+            "php bin/promotion-selftest.php",
             "php bin/shipping-provider-selftest.php"
         ]
     }
