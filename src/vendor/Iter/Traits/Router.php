@@ -8,20 +8,9 @@ use Iter\Core\Log;
 
 trait Router{
 
-    /**
-     * System routes, shared across all instances for the lifetime of the request
-     * @var array
-     */
-    private static $routes = [];
+    /** path => controller, action, method; shared by every instance for the request */
+    private static array $routes = [];
 
-    /**
-     * addRoute
-     * @param string $path
-     * @param string $controller
-     * @param string $action
-     * @param string $method
-     * @return void
-     */
     public function addRoute(string $path, string $controller, string $action, string $method = 'GET'): void
     {
         self::$routes[$path] = [
@@ -31,20 +20,8 @@ trait Router{
         ];
     }
 
-    /**
-     * Get System Routes
-     * @return array
-     */
-    public function getRoutes(): array
+    public function execute(): void
     {
-        return self::$routes;
-    }
-
-    /**
-     * execute
-     * @return void
-     */
-    public function execute() {
         $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
         $method = $_SERVER['REQUEST_METHOD'];
 
@@ -59,7 +36,6 @@ trait Router{
                     return;
                 }
 
-                // Instantiate the controller and call the action
                 try {
                     if (!\Iter\Admin\Auth::authorize($controller, $uri)) {
                         return;
@@ -74,7 +50,6 @@ trait Router{
             }
         }
 
-        // No matching route found
         ErrorPage::render(404, 'Página não encontrada', 'O endereço acessado não existe ou foi removido.', ['Início' => '/']);
     }
 

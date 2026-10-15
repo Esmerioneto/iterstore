@@ -22,11 +22,6 @@ class Messages
         self::add('error', $text);
     }
 
-    public static function addWarning(string $text): void
-    {
-        self::add('warning', $text);
-    }
-
     private static function add(string $type, string $text): void
     {
         $_SESSION[self::SESSION_KEY][] = ['type' => $type, 'text' => $text];

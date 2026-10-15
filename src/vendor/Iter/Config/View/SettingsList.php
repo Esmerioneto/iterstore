@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Iter\Config\View;
 
 use Iter\Admin\Auth;
-use Iter\Admin\View\Pager;
 use Iter\Admin\View\Sort;
 use Iter\Config\ModuleManager;
 use Iter\Core\View\ViewComponentInterface;

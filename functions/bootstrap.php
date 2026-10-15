@@ -41,9 +41,16 @@ function autoload(array $moduleNames): void
     }
 }
 
-function getModules(): array
+/** The modules switch file, read once per request; $reload after writing it (ModuleManager) */
+function getModules(bool $reload = false): array
 {
-    return json_decode(file_get_contents(ETC . 'config.json'), true) ?? [];
+    static $modules = null;
+    if ($reload) {
+        $modules = null;
+        getModuleJson('', true);
+    }
+
+    return $modules ??= json_decode(file_get_contents(ETC . 'config.json'), true) ?? [];
 }
 
 function isModuleEnabled(string $module): bool
@@ -120,9 +127,17 @@ function setRoute(array $router): array
 /**
  * Merges a JSON list file (e.g. "etc/config_fields.json") from every enabled
  * module, vendor first then app/code — same discovery order as routes.
+ * Read once per request; getModules(true) empties it.
  */
-function getModuleJson(string $relativePath): array
+function getModuleJson(string $relativePath, bool $reset = false): array
 {
+    static $cache = [];
+    if ($reset) {
+        return $cache = [];
+    }
+    if (isset($cache[$relativePath])) {
+        return $cache[$relativePath];
+    }
     $items = [];
 
     foreach (getModules() as $group) {
@@ -147,5 +162,5 @@ function getModuleJson(string $relativePath): array
         }
     }
 
-    return $items;
+    return $cache[$relativePath] = $items;
 }

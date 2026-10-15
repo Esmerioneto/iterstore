@@ -162,12 +162,6 @@ class Product extends AbstractDb
         });
     }
 
-    /** @return int[] the configurable product's variant attributes, in grid order */
-    public function getVariantAttributeIds(int $productId): array
-    {
-        return $this->getVariantAttributeIdsMany([$productId])[$productId] ?? [];
-    }
-
     /** @return array<int, int[]> product id => its grid's attribute ids in order, for many products in one query */
     public function getVariantAttributeIdsMany(array $productIds): array
     {

@@ -8,7 +8,6 @@ use Iter\Core\Config;
 use Iter\Core\Db\Connection;
 use Iter\Core\Log;
 use Iter\Eav\Form\FormSchemaGenerator;
-use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeException;
 use Iter\Eav\Model\AttributeSet;
 use Iter\Eav\Model\Taxvat;
