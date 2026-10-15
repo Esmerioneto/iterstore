@@ -70,6 +70,7 @@ class ModuleManager
             @unlink($tmp);
             throw new \DomainException('Não foi possível gravar ' . $file . ' (permissão de escrita?).');
         }
+        \getModules(true);
     }
 
     private static function meta(string $key): array

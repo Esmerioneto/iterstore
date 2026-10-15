@@ -17,34 +17,7 @@ class AclRegistry
      */
     public static function all(): array
     {
-        $nodes = [];
-
-        foreach (\getModules() as $group) {
-            foreach ($group as $moduleKey => $enabled) {
-                if ($enabled != 1) {
-                    continue;
-                }
-
-                $vendor = \getModuleVendor($moduleKey);
-                $name = \getModuleName($moduleKey);
-
-                foreach ([\getVendorPath(), \getCodePath()] as $basePath) {
-                    $file = $basePath . ucfirst($vendor) . DIRECTORY_SEPARATOR . ucfirst($name) .
-                        DIRECTORY_SEPARATOR . 'etc' . DIRECTORY_SEPARATOR . 'acl.json';
-
-                    if (!is_file($file)) {
-                        continue;
-                    }
-
-                    $decoded = json_decode((string) file_get_contents($file), true);
-                    if (is_array($decoded)) {
-                        $nodes = array_merge($nodes, $decoded);
-                    }
-                }
-            }
-        }
-
-        return $nodes;
+        return \getModuleJson('etc' . DIRECTORY_SEPARATOR . 'acl.json');
     }
 
     /**
@@ -52,12 +25,7 @@ class AclRegistry
      */
     public static function byId(): array
     {
-        $byId = [];
-        foreach (self::all() as $node) {
-            $byId[$node['id']] = $node;
-        }
-
-        return $byId;
+        return array_column(self::all(), null, 'id');
     }
 
     /**

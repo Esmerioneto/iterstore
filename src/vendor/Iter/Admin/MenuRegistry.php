@@ -16,33 +16,7 @@ class MenuRegistry
      */
     public static function flat(): array
     {
-        $items = [];
-
-        foreach (\getModules() as $group) {
-            foreach ($group as $moduleKey => $enabled) {
-                if ($enabled != 1) {
-                    continue;
-                }
-
-                $vendor = \getModuleVendor($moduleKey);
-                $name = \getModuleName($moduleKey);
-
-                foreach ([\getVendorPath(), \getCodePath()] as $basePath) {
-                    $file = $basePath . ucfirst($vendor) . DIRECTORY_SEPARATOR . ucfirst($name) .
-                        DIRECTORY_SEPARATOR . 'etc' . DIRECTORY_SEPARATOR . 'menu.json';
-
-                    if (!is_file($file)) {
-                        continue;
-                    }
-
-                    $decoded = json_decode((string) file_get_contents($file), true);
-                    if (is_array($decoded)) {
-                        $items = array_merge($items, $decoded);
-                    }
-                }
-            }
-        }
-
+        $items = \getModuleJson('etc' . DIRECTORY_SEPARATOR . 'menu.json');
         usort($items, static fn (array $a, array $b) => ($a['sort_order'] ?? 0) <=> ($b['sort_order'] ?? 0));
 
         return $items;

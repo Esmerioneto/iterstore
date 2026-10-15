@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Iter\Store\View;
 
-use Iter\Admin\View\Pager;
 use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Store\Model\Group;

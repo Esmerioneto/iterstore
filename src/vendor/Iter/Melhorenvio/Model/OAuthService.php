@@ -104,15 +104,6 @@ class OAuthService
         return $access;
     }
 
-    public function disconnect(): void
-    {
-        Config::save([
-            'melhorenvio/oauth/access_token' => '',
-            'melhorenvio/oauth/refresh_token' => '',
-            'melhorenvio/oauth/expires_at' => '0',
-        ]);
-    }
-
     private function assertCredentials(): void
     {
         if (trim((string) Config::get('melhorenvio/client_id')) === ''
