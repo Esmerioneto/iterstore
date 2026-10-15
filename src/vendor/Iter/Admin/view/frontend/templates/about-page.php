@@ -52,6 +52,47 @@
     .iter-about .iter-about-content > section {
         margin-bottom: 1.75rem;
     }
+    .iter-about .iter-about-signoff {
+        margin-top: 2rem;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color, #e5e7eb);
+        border-radius: .9rem;
+        text-align: center;
+    }
+    .iter-about .iter-about-company-logo {
+        display: block;
+        width: 6rem;
+        height: auto;
+        max-height: 6.5rem;
+        object-fit: contain;
+        margin: 0 auto 1rem;
+    }
+    .iter-about .iter-about-signoff > strong {
+        display: block;
+        margin-bottom: .35rem;
+        font-size: 1rem;
+    }
+    .iter-about .iter-about-signoff > p {
+        margin: .5rem 0;
+    }
+    .iter-about .iter-about-contact {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        color: var(--primary-color, #4338ca);
+        text-decoration: none;
+        overflow-wrap: anywhere;
+    }
+    .iter-about .iter-about-contact:hover {
+        text-decoration: underline;
+    }
+    .iter-about .iter-about-copyright {
+        margin-top: 1rem !important;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-color, #e5e7eb);
+        font-size: .875rem;
+        color: var(--text-muted, #6b7280);
+    }
     @media (max-width: 600px) {
         .iter-about .iter-about-features {
             grid-template-columns: 1fr;
@@ -149,8 +190,25 @@
         </section>
 
         <footer class="iter-about-signoff">
-            <span>IterStore</span>
+            <img
+                class="iter-about-company-logo"
+                src="/assets/admin/egsn-logo.png"
+                alt="Logo da EGSN"
+                loading="lazy"
+            >
+            <strong>IterStore</strong>
+            <p>Projetado e desenvolvido por <strong>Esmerio Neto</strong>.</p>
             <p>Uma base modular para centralizar o comércio, conectar canais e evoluir com a operação.</p>
+            <p>
+                <a class="iter-about-contact" href="mailto:esmerioneto@gmail.com">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                        <path d="m3 7 9 6 9-6"></path>
+                    </svg>
+                    esmerioneto@gmail.com
+                </a>
+            </p>
+            <p class="iter-about-copyright">&copy; <?= date('Y') ?> EGSN. Todos os direitos reservados.</p>
         </footer>
     </div>
 </section>
