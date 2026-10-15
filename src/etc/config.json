@@ -16,6 +16,7 @@
         "iter_adminsales": "1",
         "iter_mercadopago": "1",
         "iter_melhorenvio": "1",
+        "iter_correios": "1",
         "iter_promotion": "1",
         "iter_message": "1",
         "iter_log": "1"

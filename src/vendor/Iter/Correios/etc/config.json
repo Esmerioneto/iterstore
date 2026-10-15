@@ -1,0 +1,9 @@
+{
+  "name": "iter_correios",
+  "version": "1.0.0",
+  "description": "Integração de cotação de frete com as APIs Correios Token, Preço e Prazo",
+  "enabled": true,
+  "index": "0",
+  "author": "Esmerio",
+  "depends": ["iter_shipping"]
+}

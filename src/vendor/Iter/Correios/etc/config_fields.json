@@ -1,0 +1,16 @@
+[
+    { "path": "correios/environment", "group": "Correios", "label": "Ambiente", "block": "Conexão", "type": "select", "default": "homologacao", "options": {"homologacao":"Homologação","producao":"Produção"}, "required": true },
+    { "path": "correios/username", "group": "Correios", "label": "Usuário Meu Correios (idCorreios)", "hint": "Vai com o código de acesso na autenticação da API Token.", "block": "Credenciais", "type": "text", "default": "", "required": false },
+    { "path": "correios/access_code", "group": "Correios", "label": "Código de acesso", "hint": "Gerado no CWS dos Correios; não é a senha do Meu Correios.", "block": "Credenciais", "type": "password", "default": "", "required": false },
+    { "path": "correios/contract_number", "group": "Correios", "label": "Número do contrato", "block": "Contrato", "type": "text", "default": "", "required": false },
+    { "path": "correios/regional_code", "group": "Correios", "label": "Regional / DR / SE", "hint": "Obrigatória quando o contrato é informado.", "block": "Contrato", "type": "text", "default": "", "required": false },
+    { "path": "correios/posting_card", "group": "Correios", "label": "Número do cartão de postagem", "block": "Contrato", "type": "text", "default": "", "required": false },
+    { "path": "shipping/correios/active", "group": "Correios", "label": "Ativar cotações dos Correios", "block": "Cotação", "type": "boolean", "default": 0, "scope": "website" },
+    { "path": "shipping/correios/origin_postcode", "group": "Correios", "label": "CEP de origem", "hint": "CEP de onde as encomendas serão postadas, com 8 dígitos.", "block": "Cotação", "type": "text", "default": "", "required": false, "scope": "website", "mask": "cep" },
+    { "path": "shipping/correios/services", "group": "Correios", "label": "Códigos de serviço", "hint": "Códigos de produto dos Correios separados por vírgula, conforme os serviços habilitados no contrato. Ex.: 03220, 03298.", "block": "Cotação", "type": "text", "default": "", "required": false, "scope": "website" },
+    { "path": "shipping/correios/declared_value", "group": "Correios", "label": "Enviar valor declarado", "hint": "Envia o valor dos itens como valor declarado; confira na homologação se o serviço contratado aceita.", "block": "Cotação", "type": "boolean", "default": 0, "scope": "website" },
+    { "path": "shipping/correios/default_weight", "group": "Correios", "label": "Peso padrão do produto", "hint": "Usado quando o produto não tem peso cadastrado.", "unit": "kg", "block": "Embalagem", "type": "number", "default": 0.3, "min": 0.001, "max": 30, "scope": "website" },
+    { "path": "shipping/correios/default_width", "group": "Correios", "label": "Largura padrão", "unit": "cm", "block": "Embalagem", "type": "number", "default": 15, "min": 1, "max": 200, "scope": "website" },
+    { "path": "shipping/correios/default_height", "group": "Correios", "label": "Altura padrão", "unit": "cm", "block": "Embalagem", "type": "number", "default": 10, "min": 1, "max": 200, "scope": "website" },
+    { "path": "shipping/correios/default_length", "group": "Correios", "label": "Comprimento padrão", "unit": "cm", "block": "Embalagem", "type": "number", "default": 20, "min": 1, "max": 200, "scope": "website" }
+]
