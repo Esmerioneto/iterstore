@@ -1835,6 +1835,18 @@ Config::save([]); // saved over HTTP: drop this process's cache
 $secret = (string) Config::websiteValue('mail/smtp/password', $websiteId);
 assertSame([['Configurações salvas.'], 'w@selftest.local', null, 'Selftest Loja'], [$msgs, Config::get('mail/from_email', $websiteId), Config::websiteValue('admin/security/max_failures', $websiteId), Config::get('mail/from_name')], 'website tem valor próprio; campo sem escopo de website é ignorado');
 assertSame([true, 'segredo-smtp', false, false], [str_starts_with($secret, 'enc:'), \Iter\Core\Crypt::decrypt($secret), str_contains($admin->request($scoped)['body'], 'segredo-smtp'), str_contains($admin->request($scoped)['body'], $secret)], 'senha SMTP gravada cifrada e nunca mostrada de volta');
+$secretAfter = static function (array $post) use ($admin, $scoped, $websiteId): ?string {
+    $admin->submit($scoped, '/admin/config/save', ['website_id' => $websiteId] + $post);
+    Config::save([]);
+    $value = Config::websiteValue('mail/smtp/password', $websiteId);
+
+    return $value === null || $value === '' ? '' : \Iter\Core\Crypt::decrypt((string) $value);
+};
+assertSame(['segredo-smtp', 'outro-smtp', ''], [
+    $secretAfter(['config' => ['mail/smtp/password' => '']]),
+    $secretAfter(['config' => ['mail/smtp/password' => 'outro-smtp'], 'config_clear' => ['mail/smtp/password' => '1']]),
+    $secretAfter(['config' => ['mail/smtp/password' => ''], 'config_clear' => ['mail/smtp/password' => '1']]),
+], 'senha nas Configurações: vazio mantém a salva; "Apagar a senha salva" com uma nova digitada grava a nova; marcado e vazio apaga');
 $id = $mail->send('mail_test', 'site@selftest.local', [], ['website_id' => $websiteId], now: true);
 assertSame(true, str_contains($eml($id), 'From: Loja W <w@selftest.local>'), 'e-mail do website sai com o remetente dele');
 $admin->submit($scoped, '/admin/config/save', ['website_id' => $websiteId, 'config_default' => ['mail/from_name' => '1']]);

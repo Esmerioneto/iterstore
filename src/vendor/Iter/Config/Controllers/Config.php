@@ -83,7 +83,8 @@ class Config
                 }
                 continue;
             }
-            if ($type === 'password' && !empty($clear[$path])) {
+            // "Apagar a senha salva" ticked together with a new one typed: the new one wins
+            if ($type === 'password' && !empty($clear[$path]) && trim((string) ($input[$path] ?? '')) === '') {
                 $values[$path] = '';
                 continue;
             }
