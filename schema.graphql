@@ -1656,7 +1656,7 @@ type Mutation {
     card: MercadopagoCardInput
   ): OrderPayment!
 
-  "O cliente do token escreve para a loja (1 a 2000 caracteres). Erros: MESSAGE_EMPTY, MESSAGE_TOO_LONG."
+  "O cliente do token escreve para a loja (1 a 2000 caracteres). Erros: MESSAGE_EMPTY, MESSAGE_TOO_LONG, TOO_MANY_REQUESTS (Configurações → Clientes → mensagens por minuto)."
   sendCustomerMessage(body: String!): CustomerMessage!
 
   "A loja escreve para o cliente, mesmo sem conversa anterior. Erros: MESSAGE_EMPTY, MESSAGE_TOO_LONG, CUSTOMER_NOT_FOUND."

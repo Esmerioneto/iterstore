@@ -47,6 +47,25 @@ class RateLimit
         return $remote;
     }
 
+    /**
+     * What the per-IP limits count: the IPv4 itself, an IPv6 by its /64 (one connection usually gets a whole
+     * /64, so counting each address would let a client switch addresses on every call). An IPv4 written as
+     * IPv6 (::ffff:1.2.3.4) is the IPv4.
+     */
+    public static function bucket(?string $ip = null): string
+    {
+        $ip ??= self::ip();
+        $bin = @inet_pton($ip);
+        if ($bin === false || strlen($bin) !== 16) {
+            return $ip;
+        }
+        if (str_starts_with($bin, str_repeat("\0", 10) . "\xff\xff")) {
+            return (string) inet_ntop(substr($bin, 12));
+        }
+
+        return inet_ntop(substr($bin, 0, 8) . str_repeat("\0", 8)) . '/64';
+    }
+
     /** the request came over HTTPS (to this server, or to a trusted proxy that says so in X-Forwarded-Proto) */
     public static function https(): bool
     {

@@ -252,7 +252,7 @@ class CartSchema
                     'args' => ['websiteId' => ['type' => Type::id(), 'description' => 'Omitido = website padrão.']],
                     'resolve' => static function ($root, array $args) use ($service): string {
                         // ponytail: per-IP limit against empty carts filling the table; bin/quote-clean.php removes the old ones
-                        if (!RateLimit::hit('cart_create:' . RateLimit::ip(), (int) Config::get('sales/quote/create_per_minute'))) {
+                        if (!RateLimit::hit('cart_create:' . RateLimit::bucket(), (int) Config::get('sales/quote/create_per_minute'))) {
                             http_response_code(429);
                             throw new Error('Muitos carrinhos criados. Aguarde um minuto.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
                         }
@@ -336,7 +336,7 @@ class CartSchema
                     'description' => 'Fecha o pedido: confere o carrinho (o erro diz o que falta), reserva o estoque e envia o e-mail "pedido recebido". Chamar de novo com o mesmo carrinho devolve o mesmo pedido. O canal de venda vem do cabeçalho X-Sales-Channel (ex.: "App mobile", "Web"; sem ele, "App mobile").',
                     'args' => $cartIdArg + ['expectedTotal' => ['type' => Type::float(), 'description' => 'Total que o cliente confirmou na revisão; se mudou, retorna TOTAL_CHANGED e não fecha o pedido.']],
                     'resolve' => static function ($root, array $args) use ($service): array {
-                        if (!RateLimit::hit('order_place:' . RateLimit::ip(), (int) Config::get('sales/checkout/place_per_minute'))) {
+                        if (!RateLimit::hit('order_place:' . RateLimit::bucket(), (int) Config::get('sales/checkout/place_per_minute'))) {
                             http_response_code(429);
                             throw new Error('Muitos pedidos seguidos. Aguarde um minuto.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
                         }

@@ -143,6 +143,7 @@ class ProductSchema
                         'resolve' => static fn ($c) => array_map(static fn ($id) => $categories()[$id], $c['children']),
                     ],
                     'products' => [
+                        'complexity' => Schema::paged(),
                         'type' => Type::nonNull($productList),
                         'description' => 'Inclui os produtos das subcategorias.',
                         'args' => [
@@ -608,6 +609,7 @@ class ProductSchema
                     },
                 ],
                 'products' => [
+                    'complexity' => Schema::paged(),
                     'type' => Type::nonNull($productList),
                     'args' => [
                         'search' => ['type' => Type::string(), 'description' => 'Parte do SKU ou do nome.'],
@@ -662,6 +664,7 @@ class ProductSchema
                     },
                 ],
                 'mobileCategoryProducts' => [
+                    'complexity' => Schema::paged(),
                     'type' => $mobileProductsType,
                     'description' => 'O "mostrar mais" de uma seção de mobileHome: os produtos depois dos primeiros, na mesma ordem. null quando a categoria não está no app.',
                     'args' => [

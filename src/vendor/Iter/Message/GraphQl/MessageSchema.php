@@ -9,7 +9,9 @@ use GraphQL\Type\Definition\EnumType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use Iter\Admin\Auth;
+use Iter\Core\Config;
 use Iter\Core\GraphQl\Schema;
+use Iter\Core\RateLimit;
 use Iter\Customer\Model\CustomerAuth;
 use Iter\Message\Model\MessageService;
 
@@ -60,6 +62,7 @@ class MessageSchema
                     'resolve' => static fn () => $service->unread($customerId()),
                 ],
                 'adminMessageInbox' => [
+                    'complexity' => Schema::paged(MessageService::PAGE_SIZE),
                     'type' => Type::nonNull(new ObjectType([
                         'name' => 'MessageInbox',
                         'fields' => [
@@ -106,9 +109,18 @@ class MessageSchema
             'mutation' => [
                 'sendCustomerMessage' => [
                     'type' => Type::nonNull($messageType),
-                    'description' => 'O cliente do token escreve para a loja (1 a ' . MessageService::MAX_LENGTH . ' caracteres). Erros: MESSAGE_EMPTY, MESSAGE_TOO_LONG.',
+                    'description' => 'O cliente do token escreve para a loja (1 a ' . MessageService::MAX_LENGTH . ' caracteres). Erros: MESSAGE_EMPTY, MESSAGE_TOO_LONG, TOO_MANY_REQUESTS (Configurações → Clientes → mensagens por minuto).',
                     'args' => ['body' => Type::nonNull(Type::string())],
-                    'resolve' => static fn ($root, array $args): array => $service->send($customerId(), 'customer', $args['body']),
+                    'resolve' => static function ($root, array $args) use ($service, $customerId): array {
+                        $id = $customerId();
+                        // per customer, not per IP: the same customer on many IPs stays limited, a shared Wi-Fi doesn't
+                        if (!RateLimit::hit('message:' . $id, (int) Config::get('customer/messages/per_minute'))) {
+                            http_response_code(429);
+                            throw new Error('Muitas mensagens seguidas. Aguarde um minuto e tente de novo.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
+                        }
+
+                        return $service->send($id, 'customer', $args['body']);
+                    },
                 ],
                 'adminSendCustomerMessage' => [
                     'type' => Type::nonNull($messageType),

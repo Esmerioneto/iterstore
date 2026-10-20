@@ -59,7 +59,7 @@ class AdminSchema
                     'description' => 'Login do admin pela API. Erra junto com o painel: tentativas contam para o bloqueio.',
                     'args' => ['username' => Type::nonNull(Type::string()), 'password' => Type::nonNull(Type::string())],
                     'resolve' => static function ($root, array $args): array {
-                        if (!RateLimit::hit('admin_login:' . RateLimit::ip(), (int) Config::get('admin/security/api_login_per_minute'))) {
+                        if (!RateLimit::hit('admin_login:' . RateLimit::bucket(), (int) Config::get('admin/security/api_login_per_minute'))) {
                             http_response_code(429);
                             throw new Error('Muitas tentativas de login. Aguarde um minuto e tente de novo.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
                         }

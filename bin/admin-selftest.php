@@ -22,6 +22,7 @@ use Iter\Catalog\Model\VariantService;
 use Iter\Core\Config;
 use Iter\Core\Db\Connection;
 use Iter\Core\Log;
+use Iter\Core\RateLimit;
 use Iter\Core\View\LayoutParser;
 use Iter\Core\View\LayoutRenderer;
 use Iter\Eav\Form\FormSchemaGenerator;
@@ -273,7 +274,11 @@ Config::save([
     'mail/limit_per_hour' => '10',
     'mail/queue/max_attempts' => '5',
     'system/api/max_depth' => '15',
-    'system/api/max_complexity' => '500',
+    'system/api/max_complexity' => '1500',
+    'system/api/max_complexity_admin' => '0',
+    'system/api/max_body_kb' => '64',
+    'system/api/max_body_kb_admin' => '8192',
+    'customer/messages/per_minute' => '0',
     'system/operation_log/enabled' => '1',
     // the payment tests count the methods offered; the Mercado Pago tests turn these on themselves
     'payment/mercadopago_pix/active' => '0',
@@ -803,9 +808,9 @@ assertSame([true, true], [str_contains($gql($guest, '{ __schema { queryType { na
 $pdo->exec("DELETE FROM core_config_data WHERE path = 'system/api/introspection'");
 
 // --- API protections: introspection, app key, limits per IP, trusted proxy, HTTPS ---------------------------------
-$raw = static function (string $query, array $headers = [], string $path = '/core/graphql/index') use ($base): array { // a separate program: no cookies
+$raw = static function (string $query, array $headers = [], string $path = '/core/graphql/index', ?array $variables = null) use ($base): array { // a separate program: no cookies
     $ch = curl_init($base . $path);
-    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POSTFIELDS => json_encode(['query' => $query]), CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $headers)]);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POSTFIELDS => json_encode(['query' => $query] + ($variables === null ? [] : ['variables' => $variables])), CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $headers)]);
     $body = json_decode((string) curl_exec($ch), true);
 
     return [curl_getinfo($ch, CURLINFO_RESPONSE_CODE), $body['errors'][0]['extensions']['code'] ?? (isset($body['data']) ? 'OK' : null)];
@@ -869,6 +874,53 @@ $https[] = $raw('{ websites { id } }', ['X-Forwarded-Proto: https'])[0];
 $apiConfig(['web/secure/force_https' => '0', 'web/secure/trusted_proxies' => '']);
 assertSame([301, 'https://127.0.0.1:' . parse_url($base, PHP_URL_PORT) . '/admin/auth/login', [403, 403, 200]], [$plain['status'], (string) curl_getinfo((new ReflectionProperty(Browser::class, 'ch'))->getValue($guest), CURLINFO_REDIRECT_URL), $https],
     'só HTTPS: página por http é redirecionada; a API por http é recusada (403), mesmo com X-Forwarded-Proto de quem não é proxy confiável; atrás do proxy confiável que diz https, passa');
+
+// API-HARDENING-PLAN: a paged list costs its fields × pageSize, so many big lists in one call are refused
+$bigList = static fn (int $size, int $aliases) => '{ ' . implode(' ', array_map(static fn (int $i) => "p{$i}: products(pageSize: {$size}) { items { sku name stock { salable_quantity is_in_stock } attributes { code value } variants { sku name stock { salable_quantity is_in_stock } attributes { code value } } } total }", range(1, $aliases))) . ' }';
+$myOrders = '{ myOrders(page: 1, pageSize: 20) { items { id number status statusLabel createdAt email firstname lastname subtotal discountAmount couponCode discounts { name couponCode amount } shippingAmount total shippingMethod shippingLabel paymentMethod paymentLabel websiteName items { sku name options quantity price regularPrice rowTotal discountAmount } } total } }';
+assertSame(['QUERY_LIMIT_EXCEEDED', 'OK', 'QUERY_LIMIT_EXCEEDED', 'OK', 'UNAUTHENTICATED'], [
+    $raw($bigList(100, 3))[1],
+    $raw($bigList(20, 3))[1],
+    $raw('query ($n: Int!) { products(pageSize: $n) { items { sku name stock { salable_quantity is_in_stock } attributes { code value } variants { sku name stock { salable_quantity is_in_stock } attributes { code value } } } } }', [], '/core/graphql/index', ['n' => 100])[1],
+    isset($gql($admin, $bigList(100, 3))['data']) ? 'OK' : null,
+    $raw($myOrders)[1], // the app's most expensive query (GetMyOrders) is checked for the limit before the login
+], 'complexidade: 3 listas de 100 produtos com variações numa chamada são recusadas (também com o pageSize numa variável); com 20 por página, como o app, passa; o admin logado tem limite próprio (0 = sem limite); a consulta mais cara do app cabe no limite');
+
+// the body has a size cap, read with a ceiling: also without Content-Length
+$padded = '{ websites { id } } #' . str_repeat('x', 70 * 1024);
+$chunked = (static function () use ($base, $padded): int {
+    $ch = curl_init($base . '/core/graphql/index');
+    $left = json_encode(['query' => $padded]);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Transfer-Encoding: chunked'],
+        CURLOPT_READFUNCTION => static function ($ch, $fd, int $length) use (&$left): string {
+            [$part, $left] = [substr($left, 0, $length), substr($left, $length)];
+
+            return $part;
+        }]);
+    curl_exec($ch);
+
+    return curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+})();
+assertSame([[413, 'PAYLOAD_TOO_LARGE'], 'OK', 413, [200, 'OK']], [$raw($padded), isset($gql($admin, $padded)['data']) ? 'OK' : null, $chunked, $raw('{ websites { id } }')],
+    'tamanho da chamada: 70 KB sem login de admin dá 413 PAYLOAD_TOO_LARGE (também sem Content-Length); o admin passa; a chamada normal segue');
+
+// "Did you mean" would list the schema's names with the introspection off; the admin (GraphiQL) keeps it
+assertSame(['Cannot query field "customr" on type "Query".', true], [$gql($guest, '{ customr { id } }')['errors'][0]['message'] ?? null,
+    str_contains($gql($admin, '{ customr { id } }')['errors'][0]['message'] ?? '', 'Did you mean')],
+    'erros de consulta: sem login de admin, sem as sugestões de nomes; o admin logado recebe');
+
+// an IPv6 client is counted by its /64: one connection usually gets a whole block
+assertSame(['2001:db8:1:2::/64', '2001:db8:1:2::/64', '2001:db8:1:3::/64', '1.2.3.4', '1.2.3.4'],
+    array_map(RateLimit::bucket(...), ['2001:db8:1:2::1', '2001:db8:1:2:ffff:ffff:ffff:9', '2001:db8:1:3::1', '::ffff:1.2.3.4', '1.2.3.4']),
+    'IPv6: o limite conta o bloco /64; o IPv4 escrito como IPv6 é o IPv4');
+$apiConfig(['web/secure/trusted_proxies' => '127.0.0.1', 'system/api/requests_per_minute' => '2']);
+$v6 = array_map(static fn (string $ip) => $raw('{ websites { id } }', ["X-Forwarded-For: {$ip}"])[0], ['2001:db8:9:9::1', '2001:db8:9:9::2', '2001:db8:9:9::3', '2001:db8:9:8::1']);
+$raw('mutation { generateAdminToken(username: "selftest_ip_log", password: "errada") { token } }', ['X-Forwarded-For: 203.0.113.9']);
+$apiConfig(['web/secure/trusted_proxies' => '', 'system/api/requests_per_minute' => '0']);
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'api:%' OR rate_key LIKE 'admin_login:%'");
+assertSame([[200, 200, 429, 200], '203.0.113.9'], [$v6, $pdo->query("SELECT ip FROM log_operation WHERE admin_name = 'selftest_ip_log' ORDER BY log_id DESC LIMIT 1")->fetchColumn()],
+    'IPv6 pela API: endereços do mesmo /64 contam juntos, outro /64 conta à parte; o log de operações grava o IP do cliente atrás do proxy confiável');
+$pdo->exec("DELETE FROM log_operation WHERE admin_name = 'selftest_ip_log'");
 
 // the screen: a new key shown once, then only its hint; revoked from the list
 [, $keyMsgs] = $admin->submit('/admin/apikey/index', '/admin/apikey/create', ['name' => 'Selftest Tela']);
@@ -3632,6 +3684,13 @@ assertSame([true, true, $viewUrl, true, true, true, ['Escreva a mensagem.'], '/a
     $admin->request('/admin/message/view?customer_id=0')['location'],
     str_contains($page, 'data-refresh="30"'),
 ], 'mensagens na tela: contador vermelho no menu; "Enviar mensagem" no cadastro; a loja responde pela conversa; o texto do cliente sai escapado; abrir marca as do cliente como lidas; vazio é recusado; cliente inexistente volta para a caixa; a conversa se atualiza a cada 30 s');
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'message:%'");
+$apiConfig(['customer/messages/per_minute' => '2']);
+$burst = array_map(static fn (int $i) => $send("seguida {$i}", $lojaToken)['errors'][0]['extensions']['code'] ?? 'OK', [1, 2, 3]);
+$burst[] = isset($api('mutation { adminSendCustomerMessage(customerId: ' . $lojaId . ', body: "Calma") { body } }', $adminToken)[1]['data']) ? 'OK' : null;
+$apiConfig(['customer/messages/per_minute' => '0']);
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'message:%'");
+assertSame(['OK', 'OK', 'TOO_MANY_REQUESTS', 'OK'], $burst, 'mensagens: com o limite em 2 por minuto, a 3ª do cliente é recusada; a loja respondendo não tem limite');
 $send('vou cancelar a conta', $spToken);
 (new CustomerService())->delete($spId);
 assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM customer_message WHERE customer_id = {$spId}")->fetchColumn(), 'mensagens: apagar o cliente apaga a conversa dele');

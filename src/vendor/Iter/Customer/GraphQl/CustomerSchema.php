@@ -241,7 +241,7 @@ class CustomerSchema
         };
         // sign-up and login share a per-IP limit against password guessing and spam accounts
         $limit = static function (): void {
-            if (!RateLimit::hit('customer_login:' . RateLimit::ip(), (int) Config::get('customer/security/api_login_per_minute'))) {
+            if (!RateLimit::hit('customer_login:' . RateLimit::bucket(), (int) Config::get('customer/security/api_login_per_minute'))) {
                 http_response_code(429);
                 throw new Error('Muitas tentativas. Aguarde um minuto e tente de novo.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
             }
@@ -332,6 +332,7 @@ class CustomerSchema
                     'resolve' => static fn () => CustomerAuth::customer()?->getData(),
                 ],
                 'customers' => [
+                    'complexity' => Schema::paged(),
                     'type' => Type::nonNull($customerList),
                     'args' => [
                         'search' => ['type' => Type::string(), 'description' => 'Parte do nome, razão social, e-mail ou CPF/CNPJ.'],

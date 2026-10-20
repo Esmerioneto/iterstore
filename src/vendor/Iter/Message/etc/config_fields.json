@@ -1,0 +1,3 @@
+[
+    { "path": "customer/messages/per_minute", "group": "Clientes", "label": "Mensagens do cliente por minuto", "hint": "Pelo app (sendCustomerMessage). Acima disso, a mensagem é recusada até o minuto seguinte. As respostas da loja não têm limite. 0 = sem limite.", "unit": "por minuto", "type": "number", "default": 10, "min": 0, "max": 1000 }
+]

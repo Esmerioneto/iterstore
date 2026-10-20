@@ -65,7 +65,7 @@ class ShippingSchema
                         'destinationCep' => Type::nonNull(Type::string()),
                     ],
                     'resolve' => static function ($root, array $args) use ($carts, $service): array {
-                        if (!RateLimit::hit('shipping_quote:' . RateLimit::ip(), (int) Config::get('system/api/shipping_quotes_per_minute'))) {
+                        if (!RateLimit::hit('shipping_quote:' . RateLimit::bucket(), (int) Config::get('system/api/shipping_quotes_per_minute'))) {
                             throw new Error('Muitas cotações de frete seguidas. Aguarde um minuto e tente de novo.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
                         }
                         $cep = preg_replace('/\\D/', '', (string) $args['destinationCep']);

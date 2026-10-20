@@ -32,7 +32,7 @@ class Auth
     public function Loginpost(): void
     {
         // the same per-IP count as generateAdminToken: the per-user lock alone lets one IP try every username
-        if (!RateLimit::hit('admin_login:' . RateLimit::ip(), (int) Config::get('admin/security/api_login_per_minute'))) {
+        if (!RateLimit::hit('admin_login:' . RateLimit::bucket(), (int) Config::get('admin/security/api_login_per_minute'))) {
             Messages::addError('Muitas tentativas de login. Aguarde um minuto e tente de novo.');
             header('Location: /admin/auth/login');
             exit;
@@ -103,7 +103,7 @@ class Auth
     public function Forgotpost(): void
     {
         $email = trim((string) ($_POST['email'] ?? ''));
-        if (!RateLimit::hit('admin_forgot:' . RateLimit::ip(), (int) Config::get('admin/security/api_login_per_minute'))) {
+        if (!RateLimit::hit('admin_forgot:' . RateLimit::bucket(), (int) Config::get('admin/security/api_login_per_minute'))) {
             Messages::addError('Muitas solicitações seguidas. Aguarde um minuto e tente de novo.');
             header('Location: /admin/auth/forgot');
             exit;

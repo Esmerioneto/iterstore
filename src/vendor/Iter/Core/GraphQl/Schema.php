@@ -44,6 +44,16 @@ class Schema
     }
 
     /**
+     * The cost of a paged list for the QueryComplexity rule (Configurações → API → complexidade máxima): its
+     * fields × the page size, so 70 aliases of products(pageSize: 100) don't pass as 70 fields. $fixed = a list
+     * with its own page size; $max = the resolver's cap; $divisor for lists of plain values (the report's rows).
+     */
+    public static function paged(?int $fixed = null, int $divisor = 1, int $max = 100): \Closure
+    {
+        return static fn (int $children, array $args): int => $children * max(1, intdiv($fixed ?? max(1, min($max, (int) ($args['pageSize'] ?? 20))), $divisor)) + 1;
+    }
+
+    /**
      * A file sent by the GraphQL multipart request spec (Controllers/Graphql.php puts it in the variables);
      * the value is its $_FILES entry (error, name, tmp_name, size), which Eav\Model\ValueService::uploaded() checks.
      * One instance: a schema can't have two types with one name.

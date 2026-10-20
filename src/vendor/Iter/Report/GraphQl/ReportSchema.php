@@ -10,6 +10,7 @@ use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use Iter\Admin\Auth;
+use Iter\Core\GraphQl\Schema;
 use Iter\Log\Model\OperationLog;
 use Iter\Report\Controllers\Report as ReportController;
 use Iter\Report\Model\Report;
@@ -97,6 +98,7 @@ class ReportSchema
                     },
                 ],
                 'report' => [
+                    'complexity' => Schema::paged(divisor: 10, max: self::MAX_PAGE_SIZE), // the rows are plain values
                     'type' => Type::nonNull($result),
                     'description' => 'Um relatório, como na tela: as linhas de uma página, o total e os indicadores. Os relatórios de clientes e financeiros ficam no log de operações, como as exportações.',
                     'args' => [

@@ -90,7 +90,7 @@ class MercadopagoSchema
                     ],
                     'resolve' => static function ($root, array $args) use ($service, $orders): array {
                         // the guest's number + e-mail is a weak secret: the same limit as guestOrder
-                        if (!RateLimit::hit('order_pay:' . RateLimit::ip(), (int) Config::get('sales/order/guest_lookup_per_minute'))) {
+                        if (!RateLimit::hit('order_pay:' . RateLimit::bucket(), (int) Config::get('sales/order/guest_lookup_per_minute'))) {
                             http_response_code(429);
                             throw new Error('Muitas tentativas seguidas. Aguarde um minuto.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
                         }

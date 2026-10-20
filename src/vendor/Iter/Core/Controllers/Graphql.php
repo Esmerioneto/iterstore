@@ -39,16 +39,11 @@ class Graphql
         }
 
         header('Content-Type: application/json');
-
-        $input = json_decode(file_get_contents('php://input'), true) ?? [];
         // file upload: GraphQL multipart request spec, operations = {query, variables}, map = {"0": ["variables.file"]}
+        // (PHP already parsed it, limited by upload_max_filesize / post_max_size)
         $multipart = isset($_POST['operations']);
-        if ($multipart) {
-            $input = self::multipart();
-        }
-        $query = $input['query'] ?? '';
-        $variables = $input['variables'] ?? null;
 
+        // who calls is known from the headers alone: checked before the body is read
         // API login: a Bearer token acts as its admin user (generateAdminToken) or customer (generateCustomerToken,
         // which never passes the admin guard); a bad one is refused, not ignored
         $authorization = $_SERVER['HTTP_AUTHORIZATION'] ?? (function_exists('getallheaders') ? (array_change_key_case(getallheaders())['authorization'] ?? '') : '');
@@ -69,7 +64,7 @@ class Graphql
             echo json_encode(['errors' => [['message' => 'Chave do aplicativo ausente ou inválida (cabeçalho X-Api-Key).', 'extensions' => ['code' => 'API_KEY_INVALID']]]]);
             return;
         }
-        if (!$admin && !RateLimit::hit('api:' . RateLimit::ip(), (int) Config::get('system/api/requests_per_minute'))) {
+        if (!$admin && !RateLimit::hit('api:' . RateLimit::bucket(), (int) Config::get('system/api/requests_per_minute'))) {
             http_response_code(429);
             header('Retry-After: 60');
             echo json_encode(['errors' => [['message' => 'Muitas requisições. Aguarde um minuto e tente de novo.', 'extensions' => ['code' => 'TOO_MANY_REQUESTS']]]]);
@@ -83,6 +78,23 @@ class Graphql
             return;
         }
 
+        // the JSON body has a size cap (Configurações → API), read with a ceiling: Content-Length can be missing (chunked)
+        $maxBytes = (int) Config::get($admin ? 'system/api/max_body_kb_admin' : 'system/api/max_body_kb') * 1024;
+        $body = '';
+        if (!$multipart) {
+            $in = fopen('php://input', 'rb');
+            $body = $maxBytes > 0 && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > $maxBytes ? null : (string) stream_get_contents($in, $maxBytes > 0 ? $maxBytes + 1 : -1);
+            fclose($in);
+            if ($body === null || ($maxBytes > 0 && strlen($body) > $maxBytes)) {
+                http_response_code(413);
+                echo json_encode(['errors' => [['message' => 'Chamada grande demais: o máximo é ' . intdiv($maxBytes, 1024) . ' KB.', 'extensions' => ['code' => 'PAYLOAD_TOO_LARGE']]]]);
+                return;
+            }
+        }
+        $input = $multipart ? self::multipart() : (json_decode($body, true) ?? []);
+        $query = $input['query'] ?? '';
+        $variables = $input['variables'] ?? null;
+
         $schema = Schema::build();
         if ($schema === null) {
             echo json_encode(['errors' => [['message' => 'Nenhum módulo com API está ativo.']]]);
@@ -91,7 +103,10 @@ class Graphql
         // a huge or deeply nested query is refused before running (0 = no limit)
         $rules = DocumentValidator::allRules();
         $rules[] = new QueryDepth((int) Config::get('system/api/max_depth'));
-        $rules[] = new QueryComplexity((int) Config::get('system/api/max_complexity'));
+        // a paged list costs its fields × pageSize (Schema::paged); the admin has its own limit (0 = none)
+        $complexity = new QueryComplexity((int) Config::get($admin ? 'system/api/max_complexity_admin' : 'system/api/max_complexity'));
+        $complexity->setRawVariableValues(is_array($variables) ? $variables : null); // else products(pageSize: $n) would cost the default page
+        $rules[] = $complexity;
         if (!$admin && !Config::get('system/api/introspection')) {
             $rules[] = new DisableIntrospection(DisableIntrospection::ENABLED);
         }
@@ -100,7 +115,7 @@ class Graphql
         // every error carries extensions.code, so the clients branch on it instead of the message
         // Keep the real cause of unexpected resolver failures in the system log; GraphQL otherwise
         // masks it as "Internal server error", leaving checkout failures impossible to diagnose.
-        $result->setErrorFormatter(static function (Error $e): array {
+        $result->setErrorFormatter(static function (Error $e) use ($admin): array {
             if (!$e->isClientSafe()) {
                 $cause = $e->getPrevious();
                 Log::error('GraphQL internal error: ' . ($cause ? get_class($cause) . ': ' . $cause->getMessage() : $e->getMessage()), [
@@ -115,6 +130,10 @@ class Graphql
                 $e->getPath() === null => 'GRAPHQL_VALIDATION_FAILED', // unknown field, wrong argument/variable, introspection off
                 default => 'BAD_REQUEST',
             };
+            // "Did you mean ...?" would list the schema's names to anyone, with the introspection off; the admin (GraphiQL) keeps it
+            if (!$admin && $formatted['extensions']['code'] === 'GRAPHQL_VALIDATION_FAILED') {
+                $formatted['message'] = (string) preg_replace('/ Did you mean .*\?$/s', '', $formatted['message']);
+            }
 
             return $formatted;
         });

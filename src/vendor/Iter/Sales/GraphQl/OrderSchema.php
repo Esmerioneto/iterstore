@@ -71,6 +71,7 @@ class OrderSchema
         return [
             'query' => [
                 'orders' => [
+                    'complexity' => Schema::paged(),
                     'type' => Type::nonNull(new ObjectType([
                         'name' => 'OrderList',
                         'fields' => [
@@ -105,6 +106,7 @@ class OrderSchema
                     }),
                 ],
                 'myOrders' => [
+                    'complexity' => Schema::paged(),
                     'type' => Type::nonNull(new ObjectType([
                         'name' => 'MyOrderList',
                         'fields' => ['items' => Type::nonNull(Type::listOf(Type::nonNull($orderType))), 'total' => Type::nonNull(Type::int())],
@@ -132,7 +134,7 @@ class OrderSchema
                     'args' => ['number' => Type::nonNull(Type::string()), 'email' => Type::nonNull(Type::string()), 'websiteId' => ['type' => Type::id(), 'description' => 'Quando dois websites usam o mesmo prefixo.']],
                     'resolve' => static function ($root, array $args) use ($service, $view): ?array {
                         // number + e-mail is a weak secret: the limit keeps it from being guessed
-                        if (!RateLimit::hit('order_lookup:' . RateLimit::ip(), (int) Config::get('sales/order/guest_lookup_per_minute'))) {
+                        if (!RateLimit::hit('order_lookup:' . RateLimit::bucket(), (int) Config::get('sales/order/guest_lookup_per_minute'))) {
                             http_response_code(429);
                             throw new Error('Muitas consultas seguidas. Aguarde um minuto.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
                         }

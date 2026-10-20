@@ -192,7 +192,7 @@ class OperationLog
                 'admin_user_id' => $user ? (int) $user->getId() : null,
                 'admin_name' => mb_substr($name, 0, 255),
                 'source' => str_starts_with((string) ($_SERVER['REQUEST_URI'] ?? ''), '/core/graphql') ? 'api' : 'admin',
-                'ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+                'ip' => isset($_SERVER['REMOTE_ADDR']) ? \Iter\Core\RateLimit::ip() : null, // the user's, behind a trusted proxy too
                 'action' => $action,
                 'entity_type' => $entityType,
                 'entity_id' => $entityId,
