@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Admin\Controllers;
 
+use Iter\Admin\Acl;
 use Iter\Admin\Auth;
 use Iter\Admin\Breadcrumb;
 use Iter\Admin\Model\AdminUser;
@@ -95,6 +96,9 @@ class User
 
         try {
             $model->save();
+            if ($id === (int) Auth::user()->getId() && !empty($data['password'])) {
+                Auth::passwordChanged(); // your own new password ends your other sessions, not this one
+            }
             Messages::addSuccess($id ? 'Usuário atualizado com sucesso.' : 'Usuário criado com sucesso.');
         } catch (\PDOException $e) {
             Messages::addError('Não foi possível salvar: nome de usuário já existe.');
@@ -112,6 +116,8 @@ class User
         $id = !empty($_POST['user_id']) ? (int) $_POST['user_id'] : 0;
         if ($id === (int) Auth::user()->getId()) {
             Messages::addError('Você não pode remover o próprio usuário.');
+        } elseif ($id > 0 && Acl::beyondMine((int) (new AdminUser())->load($id)->getData('role_id'))) {
+            Messages::addError('Você não pode remover um usuário com permissões que o seu perfil não tem.');
         } elseif ($id > 0) {
             (new AdminUser())->setId($id)->delete();
             Messages::addSuccess('Usuário removido com sucesso.');
@@ -146,6 +152,14 @@ class User
             if ((int) ($data['role_id'] ?? 0) !== (int) $self->getData('role_id')) {
                 $errors[] = 'Você não pode alterar o próprio perfil.';
             }
+        }
+
+        // managing users can't make anyone (yourself included) stronger than you, nor take over a stronger account
+        if (Acl::beyondMine(!empty($data['role_id']) ? (int) $data['role_id'] : null)) {
+            $errors[] = 'Você só pode dar um perfil com permissões que o seu próprio perfil tem.';
+        }
+        if ($id !== null && Acl::beyondMine((int) (new AdminUser())->load($id)->getData('role_id'))) {
+            $errors[] = 'Você não pode alterar um usuário com permissões que o seu perfil não tem.';
         }
 
         if (!empty($data['password']) && $data['password'] !== ($data['password_confirm'] ?? '')) {

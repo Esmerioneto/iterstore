@@ -2653,3 +2653,20 @@ input[type="checkbox"].admin-switch:disabled {
 .admin-apikey-new code[data-copy] { font-size: 14px; padding: 6px 10px; background: #fff; user-select: all; word-break: break-all; }
 .admin-apikey-status { margin: 0 0 var(--spacing-16); padding: var(--spacing-8) var(--spacing-16); border-left: 3px solid var(--color-pebble); background: var(--color-linen); font-size: 13px; }
 .admin-apikey-status-off { border-left-color: #e08a1e; }
+
+/* "Sair" is a POST form (no logout by a link from another site), looking like the links beside it */
+.admin-user-nav form { display: contents; }
+.admin-user-nav button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.admin-user-nav button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

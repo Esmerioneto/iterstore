@@ -21,6 +21,8 @@ class Auth
     private const SESSION_KEY = 'iter_admin_user_id';
     /** the time of the last request: the session ends after admin/security/session_minutes without one */
     private const SEEN_KEY = 'iter_admin_seen';
+    /** when the session logged in: a session lasts admin/security/session_max_hours, and a newer password ends it */
+    private const LOGIN_KEY = 'iter_admin_login_at';
     /** request header of a screen's automatic refresh (Painel de vendas): it isn't use, so it doesn't keep the session alive */
     public const POLL_HEADER = 'HTTP_X_ADMIN_POLL';
 
@@ -37,10 +39,17 @@ class Auth
 
         session_regenerate_id(true);
         $_SESSION[self::SESSION_KEY] = (int) $user->getId();
-        $_SESSION[self::SEEN_KEY] = time();
+        $_SESSION[self::SEEN_KEY] = $_SESSION[self::LOGIN_KEY] = time();
         self::$user = $user;
 
         return true;
+    }
+
+    /** After changing your own password: this session goes on (with a new id), the others end. */
+    public static function passwordChanged(): void
+    {
+        session_regenerate_id(true);
+        $_SESSION[self::LOGIN_KEY] = time();
     }
 
     /**
@@ -53,6 +62,8 @@ class Auth
         $user->getResource()->load($user, $username, 'username');
 
         if (!$user->getId() || !$user->getData('is_active')) {
+            // as slow as a wrong password, so the time doesn't tell which usernames exist
+            password_verify($password, '$2y$10$' . str_repeat('a', 53));
             OperationLog::login('login_failed', $username, $user);
             return null;
         }
@@ -159,15 +170,29 @@ class Auth
     {
         if (self::$user === null && !empty($_SESSION[self::SESSION_KEY])) {
             $minutes = (int) Config::get('admin/security/session_minutes');
-            if (time() - (int) ($_SESSION[self::SEEN_KEY] ?? 0) > $minutes * 60) {
+            $hours = (int) Config::get('admin/security/session_max_hours');
+            $loginAt = $_SESSION[self::LOGIN_KEY] ??= time(); // a session from before this rule counts from now
+            $expired = match (true) {
+                time() - (int) ($_SESSION[self::SEEN_KEY] ?? 0) > $minutes * 60 => "Sua sessão expirou depois de {$minutes} minutos sem uso. Entre de novo.",
+                $hours > 0 && time() - $loginAt > $hours * 3600 => "Sua sessão passou do limite de {$hours} horas. Entre de novo.",
+                default => null,
+            };
+            if ($expired !== null) {
                 unset($_SESSION[self::SESSION_KEY]);
-                Messages::addError("Sua sessão expirou depois de {$minutes} minutos sem uso. Entre de novo.");
+                Messages::addError($expired);
                 return null;
             }
             if (empty($_SERVER[self::POLL_HEADER])) {
                 $_SESSION[self::SEEN_KEY] = time();
             }
             $user = (new AdminUser())->load((int) $_SESSION[self::SESSION_KEY]);
+            // the password changed after this login (here or elsewhere, e.g. "Esqueci a senha" after a leak): the session ends
+            $changedAt = $user->getId() ? $user->getResource()->getPasswordChangedAt((int) $user->getId()) : null;
+            if ($changedAt !== null && $changedAt > $loginAt) {
+                unset($_SESSION[self::SESSION_KEY]);
+                Messages::addError('Sua senha foi alterada. Entre de novo com a nova senha.');
+                return null;
+            }
             if ($user->getId() && $user->getData('is_active')) {
                 self::$user = $user;
             } else {
@@ -203,6 +228,14 @@ class Auth
         $resource = defined($controller . '::ADMIN_RESOURCE')
             ? constant($controller . '::ADMIN_RESOURCE')
             : ($isAdmin ? 'Iter_Admin::root' : null);
+
+        // no admin page inside another site's frame (clickjacking); no MIME guessing; the URL doesn't leave the site
+        if ($isAdmin && !headers_sent()) {
+            header('X-Frame-Options: DENY');
+            header("Content-Security-Policy: frame-ancestors 'none'");
+            header('X-Content-Type-Options: nosniff');
+            header('Referrer-Policy: same-origin');
+        }
 
         // every admin form POST (login included) must carry the session's form_key
         if ($isAdmin && $_SERVER['REQUEST_METHOD'] === 'POST' && !FormKey::isValid($_POST['form_key'] ?? null)) {

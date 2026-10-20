@@ -78,6 +78,14 @@ class Graphql
             return;
         }
 
+        // on the panel's session cookie, JSON only: a form from another site can't send application/json without a
+        // CORS preflight, so SameSite isn't the only thing between a sibling subdomain and the admin's API
+        if ($admin && !isset($m[1]) && !$multipart && stripos((string) ($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json') !== 0) {
+            http_response_code(415);
+            echo json_encode(['errors' => [['message' => 'Envie a chamada com Content-Type: application/json.', 'extensions' => ['code' => 'UNSUPPORTED_MEDIA_TYPE']]]]);
+            return;
+        }
+
         // the JSON body has a size cap (Configurações → API), read with a ceiling: Content-Length can be missing (chunked)
         $maxBytes = (int) Config::get($admin ? 'system/api/max_body_kb_admin' : 'system/api/max_body_kb') * 1024;
         $body = '';

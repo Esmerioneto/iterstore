@@ -28,7 +28,7 @@
     <nav class="admin-user-nav">
         <span><?= htmlspecialchars($username) ?></span>
         <a href="/admin/auth/password">Alterar senha</a>
-        <a href="/admin/auth/logout">Sair</a>
+        <form method="post" action="/admin/auth/logoutpost"><?= \Iter\Core\FormKey::field() ?><button type="submit">Sair</button></form>
     </nav>
 <?php endif; ?>
 </header>

@@ -75,6 +75,13 @@ class Role
             exit;
         }
 
+        if (Acl::beyondMine(is_array($resources) ? $resources : []) || ($id !== null && Acl::beyondMine($id))) {
+            Messages::addError('Você só pode dar ou alterar permissões que o seu próprio perfil tem.');
+            $_SESSION['iter_old_input'] = ['role_name' => $roleName, 'resources' => $resources];
+            header('Location: ' . $redirect);
+            exit;
+        }
+
         if ($roleName === '') {
             Messages::addError('Nome do perfil é obrigatório.');
             $_SESSION['iter_old_input'] = ['role_name' => $roleName, 'resources' => $resources];
@@ -109,6 +116,8 @@ class Role
         $id = !empty($_POST['role_id']) ? (int) $_POST['role_id'] : 0;
         if ($id === (int) Auth::user()->getData('role_id')) {
             Messages::addError('Você não pode remover o próprio perfil.');
+        } elseif ($id > 0 && Acl::beyondMine($id)) {
+            Messages::addError('Você não pode remover um perfil com permissões que o seu não tem.');
         } elseif ($id > 0) {
             (new AdminRole())->setId($id)->delete();
             Messages::addSuccess('Perfil removido com sucesso.');

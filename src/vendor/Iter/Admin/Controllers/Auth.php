@@ -9,6 +9,7 @@ use Iter\Admin\MenuRegistry;
 use Iter\Admin\Model\AdminUser as AdminUserModel;
 use Iter\Core\Config;
 use Iter\Core\Log;
+use Iter\Core\FormKey;
 use Iter\Core\Messages;
 use Iter\Core\RateLimit;
 use Iter\Core\View\Layout;
@@ -90,6 +91,7 @@ class Auth
         }
 
         $user->setPassword($new)->save();
+        AdminAuth::passwordChanged();
         Messages::addSuccess('Senha alterada com sucesso.');
         header('Location: ' . self::homeUrl());
         exit;
@@ -197,7 +199,16 @@ class Auth
         return $user->getId() && $user->isResetTokenValid($token) ? $user : null;
     }
 
+    /** a confirmation: a link or <img> on another site can't log anyone out, only the form's POST (with the form_key) */
     public function Logout(): void
+    {
+        echo '<!doctype html><html lang="pt-br"><meta charset="utf-8"><title>Sair</title>'
+            . '<body style="font-family:sans-serif;max-width:600px;margin:80px auto;text-align:center;color:#333">'
+            . '<form method="post" action="/admin/auth/logoutpost">' . FormKey::field()
+            . '<h1 style="font-size:22px">Sair do painel?</h1><p><button type="submit">Sair</button> · <a href="/admin/index">Voltar</a></p></form></body></html>';
+    }
+
+    public function Logoutpost(): void
     {
         AdminAuth::logout();
         header('Location: /admin/auth/login');

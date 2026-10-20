@@ -43,4 +43,16 @@ class Acl
 
         return false;
     }
+
+    /**
+     * True when $roleId reaches something the logged-in user doesn't: Perfis and Usuários can't hand out (or touch)
+     * more than the one using them has, or managing them would be the same as being root.
+     */
+    public static function beyondMine(int|array|null $roleOrResources): bool
+    {
+        $mine = (new AdminRole())->getGrantedResources((int) Auth::user()?->getData('role_id'));
+        $theirs = is_array($roleOrResources) ? $roleOrResources : ($roleOrResources ? (new AdminRole())->getGrantedResources($roleOrResources) : []);
+
+        return (bool) array_filter($theirs, static fn ($r) => !self::covers($mine, (string) $r));
+    }
 }

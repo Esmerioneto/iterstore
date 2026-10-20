@@ -417,7 +417,7 @@ class MercadopagoService
      * x-signature of a notification (Webhooks → assinatura secreta): "ts=...,v1=..." where v1 is the
      * HMAC-SHA256 of "id:<data.id>;request-id:<x-request-id>;ts:<ts>;" (a missing part is left out).
      */
-    public static function validSignature(string $header, string $requestId, string $dataId, string $secret): bool
+    public static function validSignature(string $header, string $requestId, string $dataId, string $secret, ?int $now = null): bool
     {
         $parts = [];
         foreach (explode(',', $header) as $pair) {
@@ -425,6 +425,11 @@ class MercadopagoService
             $parts[$name] = $value;
         }
         if (($parts['ts'] ?? '') === '' || ($parts['v1'] ?? '') === '') {
+            return false;
+        }
+        // a notification captured and sent again later is refused: ts (seconds or milliseconds) within 10 minutes
+        $ts = (int) $parts['ts'];
+        if (abs(($now ?? time()) - ($ts > 9999999999 ? intdiv($ts, 1000) : $ts)) > 600) {
             return false;
         }
         $manifest = ($dataId !== '' ? 'id:' . strtolower($dataId) . ';' : '') . ($requestId !== '' ? "request-id:{$requestId};" : '') . "ts:{$parts['ts']};";

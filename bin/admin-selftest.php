@@ -262,6 +262,7 @@ Config::save([
     'admin/security/password_history' => '4',
     'admin/security/password_lifetime' => '90',
     'admin/security/session_minutes' => '480',
+    'admin/security/session_max_hours' => '12',
     // hundreds of anonymous API calls from 127.0.0.1, over plain http: the API protections are tested on their own below
     'system/api/requests_per_minute' => '0',
     'system/api/shipping_quotes_per_minute' => '0',
@@ -420,6 +421,65 @@ assertSame(['Você não pode remover o próprio usuário.'], $msgs, 'admin não 
 $ownRole = (int) (new AdminUser())->load($adminId)->getData('role_id');
 [, $msgs] = $admin->submit('/admin/role/index', '/admin/role/save', ['role_id' => $ownRole, 'role_name' => 'selftest_admin', 'resources' => ['Iter_Admin::dashboard']]);
 assertSame(['O seu próprio perfil precisa manter acesso a Perfis.'], $msgs, 'admin não tira de si o acesso a Perfis');
+
+// --- managing roles and users doesn't make you root ---------------------------------------
+$makeUser('selftest_gestor', ['Iter_Admin::role', 'Iter_Admin::user']);
+$gestor = new Browser($base);
+$gestor->login('selftest_gestor');
+$gestorRole = (int) $pdo->query("SELECT role_id FROM admin_user WHERE username = 'selftest_gestor'")->fetchColumn();
+$saveUser = static fn (array $fields) => $gestor->submit('/admin/user/create', '/admin/user/save', $fields + ['email' => 'x@selftest.local', 'is_active' => '1'])[1];
+$beyondRole = 'Você só pode dar ou alterar permissões que o seu próprio perfil tem.';
+assertSame([[$beyondRole], [$beyondRole], [$beyondRole], ['Perfil criado com sucesso.'],
+    ['Você só pode dar um perfil com permissões que o seu próprio perfil tem.'],
+    ['Você só pode dar um perfil com permissões que o seu próprio perfil tem.', 'Você não pode alterar um usuário com permissões que o seu perfil não tem.'],
+    ['Você não pode remover um usuário com permissões que o seu perfil não tem.']], [
+    $gestor->submit('/admin/role/create', '/admin/role/save', ['role_name' => 'selftest_tudo', 'resources' => ['Iter_Admin::root']])[1],
+    $gestor->submit('/admin/role/index', '/admin/role/save', ['role_id' => $gestorRole, 'role_name' => 'selftest_gestor', 'resources' => ['Iter_Admin::role', 'Iter_Admin::user', 'Iter_Admin::config']])[1],
+    $gestor->submit('/admin/role/index', '/admin/role/save', ['role_id' => $ownRole, 'role_name' => 'selftest_admin', 'resources' => ['Iter_Admin::dashboard']])[1],
+    $gestor->submit('/admin/role/create', '/admin/role/save', ['role_name' => 'selftest_menor', 'resources' => ['Iter_Admin::user']])[1],
+    $saveUser(['username' => 'selftest_novo_root', 'password' => 'Escala2026x', 'password_confirm' => 'Escala2026x', 'role_id' => $ownRole]),
+    $saveUser(['user_id' => $adminId, 'username' => 'selftest_admin', 'password' => 'Tomada2026x', 'password_confirm' => 'Tomada2026x', 'role_id' => $ownRole]),
+    $gestor->submit('/admin/user/index', '/admin/user/delete', ['user_id' => $adminId])[1],
+], 'Perfis e Usuários: quem gerencia só dá o que tem; não edita nem remove perfil ou usuário com mais acesso (não vira admin total)');
+assertSame([true, '1'], [password_verify(PASSWORD, (string) (new AdminUser())->load($adminId)->getData('password')), (string) $pdo->query("SELECT COUNT(*) FROM admin_role WHERE role_name = 'selftest_tudo'")->fetchColumn() === '0' ? '1' : '0'],
+    'Perfis e Usuários: a senha do admin total não mudou e o perfil com tudo não foi criado');
+
+// --- session end: absolute limit, password changed elsewhere, logout by POST only ------------
+$sessionOf = static fn (Browser $b) => getPath('var') . 'sessions' . DIRECTORY_SEPARATOR . 'sess_' . $b->cookie(session_name());
+$loggedAt = static fn (Browser $b, int $ago) => file_put_contents($sessionOf($b), preg_replace('/iter_admin_login_at\|i:\d+;/', 'iter_admin_login_at|i:' . (time() - $ago) . ';', (string) file_get_contents($sessionOf($b))));
+// a login 11 hours ago needs a password older than that (selftest_gestor was just created)
+$pdo->exec("UPDATE admin_passwords SET last_updated = last_updated - 86400 WHERE user_id = (SELECT user_id FROM admin_user WHERE username = 'selftest_gestor')");
+$long = new Browser($base);
+$long->login('selftest_gestor');
+$loggedAt($long, 11 * 3600);
+$stillIn = $long->request('/admin/user/index')['status'];
+$loggedAt($long, 13 * 3600);
+assertSame([200, '/admin/auth/login', ['Sua sessão passou do limite de 12 horas. Entre de novo.']], [$stillIn, $long->request('/admin/user/index')['location'], Browser::messages($long->request('/admin/auth/login')['body'])],
+    'sessão: mesmo em uso, termina 12 horas depois do login (admin/security/session_max_hours)');
+$other = new Browser($base);
+$other->login('selftest_gestor');
+$loggedAt($other, 5);
+$changePassword = static fn (Browser $b, string $current, string $new) => $b->submit('/admin/auth/password', '/admin/auth/passwordpost', [
+    'current_password' => $current, 'password' => $new, 'password_confirm' => $new,
+])[1];
+assertSame(['Senha alterada com sucesso.'], $changePassword($gestor, PASSWORD, 'Gestor2026x'), 'troca de senha do gestor');
+assertSame([200, '/admin/auth/login', ['Sua senha foi alterada. Entre de novo com a nova senha.']], [$gestor->request('/admin/user/index')['status'], $other->request('/admin/user/index')['location'], Browser::messages($other->request('/admin/auth/login')['body'])],
+    'trocar a senha encerra as outras sessões do usuário; a sessão que trocou continua');
+$gestor->request('/admin/auth/logout');
+$getStillIn = $gestor->request('/admin/user/index')['status'];
+[$logoutTo] = $gestor->submit('/admin/auth/logout', '/admin/auth/logoutpost', []);
+assertSame([200, '/admin/auth/login', '/admin/auth/login'], [$getStillIn, $logoutTo, $gestor->request('/admin/user/index')['location']],
+    'logout: um GET (link ou <img> de outro site) não desloga; o POST com form_key do botão Sair desloga');
+$headers = (static function () use ($base): string {
+    $ch = curl_init("{$base}/admin/auth/login");
+    curl_setopt_array($ch, [CURLOPT_HEADER => true, CURLOPT_RETURNTRANSFER => true]);
+    return strtolower((string) curl_exec($ch));
+})();
+assertSame([true, true, true, true], [str_contains($headers, 'x-frame-options: deny'), str_contains($headers, "frame-ancestors 'none'"), str_contains($headers, 'x-content-type-options: nosniff'), str_contains($headers, 'referrer-policy: same-origin')],
+    'admin: não abre dentro de frame de outro site (clickjacking), sem adivinhar tipo, sem mandar a URL para fora');
+$formGraphql = $admin->request('/core/graphql/index', ['query' => '{ currentAdmin { username } }']);
+assertSame([415, 'selftest_admin'], [$formGraphql['status'], json_decode($admin->request('/core/graphql/index', null, json_encode(['query' => '{ currentAdmin { username } }']))['body'], true)['data']['currentAdmin']['username'] ?? null],
+    'API com a sessão do painel: só JSON (um formulário de outro site dá 415); o GraphiQL continua funcionando');
 
 // --- website -> group -> store --------------------------------------------------------------
 $admin->submit('/admin/website/create', '/admin/website/save', ['code' => 'selftest_w', 'name' => 'Selftest W']);
@@ -3116,8 +3176,8 @@ assertSame([true, ['zip_code' => '01310100', 'street_name' => 'Av Paulista', 'st
     Iter\Mercadopago\Model\MercadopagoService::payerContact(['telephone' => '123']),
 ], 'Mercado Pago: a cobrança leva os itens, o endereço do pagador e o nome na fatura (cortado em 13 caracteres); o telefone só com DDD, sem o 55 da frente');
 $cardHeaders = current(array_filter($mpCalls, static fn ($c) => $c[0] === 'POST' && $c[1] === '/v1/orders' && ($c[2]['transactions']['payments'][0]['payment_method']['token'] ?? '') === 'tok-ok'));
-assertSame(['others', 'armor.selftest-device', false], [$cardCall['items'][0]['category_id'] ?? null, $cardHeaders[3] ?? null, isset($cardCall['additional_info'])],
-    'Mercado Pago: cada item leva a categoria das Configurações (padrão "others"); o Device ID do app vai junto; pedido de visitante não leva dados de cadastro');
+assertSame([(string) Config::get('payment/mercadopago/item_category', $defaultWebsite), 'armor.selftest-device', false], [$cardCall['items'][0]['category_id'] ?? null, $cardHeaders[3] ?? null, isset($cardCall['additional_info'])],
+    'Mercado Pago: cada item leva a categoria das Configurações; o Device ID do app vai junto; pedido de visitante não leva dados de cadastro');
 // the Orders API refuses items that don't add up to the total (order_items_total_amount_mismatch, RJ000057 with shipping)
 $itemsFor = static function (float $shipping, float $discount) use ($fakeMp, $unpaid, $mpId, $pdo, &$mpCalls): array {
     $id = $mpId($unpaid('mercadopago_credit'));
@@ -3156,13 +3216,17 @@ $webhook = static fn (string $query, array $headers = []) => (static function ()
     return curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
 })();
 $setConfig(['payment/mercadopago/webhook_secret' => Iter\Core\Crypt::encrypt($secret)]);
-assertSame([true, false, false, 200, 200, 401], [
-    Iter\Mercadopago\Model\MercadopagoService::validSignature($header, 'req-1', '123ABC', $secret),
-    Iter\Mercadopago\Model\MercadopagoService::validSignature($header, 'req-2', '123abc', $secret),
-    Iter\Mercadopago\Model\MercadopagoService::validSignature('ts=1704908010', 'req-1', '123abc', $secret),
+$ms = (time() - 60) * 1000; // Mercado Pago's ts may come in milliseconds
+$fresh = "ts={$ms},v1=" . hash_hmac('sha256', "id:123abc;request-id:req-1;ts:{$ms};", $secret);
+assertSame([true, false, false, true, false, 200, 200, 401], [
+    Iter\Mercadopago\Model\MercadopagoService::validSignature($header, 'req-1', '123ABC', $secret, 1704908010 + 300),
+    Iter\Mercadopago\Model\MercadopagoService::validSignature($header, 'req-2', '123abc', $secret, 1704908010),
+    Iter\Mercadopago\Model\MercadopagoService::validSignature('ts=1704908010', 'req-1', '123abc', $secret, 1704908010),
+    Iter\Mercadopago\Model\MercadopagoService::validSignature($fresh, 'req-1', '123abc', $secret),
+    Iter\Mercadopago\Model\MercadopagoService::validSignature($header, 'req-1', '123abc', $secret), // replayed long after
     $webhook('type=payment&data.id=1'), $webhook('type=order&data.id=ORD1'),
     $webhook("type=order&data.id={$late['external_id']}", ['x-signature: ts=1,v1=errado', 'x-request-id: r']),
-], 'Mercado Pago webhook: assinatura conferida pelo segredo; outro tópico ou pagamento de fora dá 200; assinatura errada dá 401');
+], 'Mercado Pago webhook: assinatura conferida pelo segredo e pelo horário (ts em segundos ou milissegundos, até 10 min: reenviada depois é recusada); outro tópico ou pagamento de fora dá 200; assinatura errada dá 401');
 // --- Mercado Pago in the cancellation (CANCEL-PLAN delivery 2) ----------------------------------------
 $mpOrders = new OrderService($fakeMp);
 $mpNewPix = static function (bool $paid = false) use ($unpaid, $pdo, $mpId, $fakeMp, $mpStatus): array {
@@ -3773,7 +3837,7 @@ assertSame([true, true], [
 (new Browser($base))->login('selftest_ninguem', 'errada1234');
 $opUser = new Browser($base);
 $opUser->login('selftest_admin');
-$opUser->request('/admin/auth/logout');
+$opUser->submit('/admin/auth/logout', '/admin/auth/logoutpost', []);
 assertSame([['login_failed', 'selftest_ninguem'], ['login', 'selftest_admin'], ['logout', 'selftest_admin']], array_map(static fn ($l) => [$l['action'], $l['admin_name']], $opNew()), 'log de operações: login de usuário que não existe guarda o login digitado; login e logout');
 
 $opPost = ['attribute_set_id' => $defaultProductSet, 'type' => 'simple', 'sku' => 'selftest-op', 'name' => 'Caneca', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory], 'attributes' => ['price' => '10']];
