@@ -44,7 +44,8 @@ class ProductForm implements ViewComponentInterface
         $parent = !empty($product['parent_id']) ? (new Product())->load((int) $product['parent_id'])->getData() : null;
         $grid = $type === 'configurable' && $id ? $variantService->getAttributes($id) : ($parent ? $variantService->getAttributes((int) $parent['product_id']) : []);
         $schema = (new FormSchemaGenerator())->generate(Product::ENTITY_TYPE, $sets[$setId]['code']);
-        $schema['fields'] = $type === 'configurable' ? [] : array_values(array_filter($schema['fields'], static fn ($f) => !in_array($f['name'], array_column($grid, 'code'), true)));
+        $hidden = [...array_column($grid, 'code'), ...(Auth::isAllowed(Product::COST_RESOURCE) ? [] : [Product::COST])];
+        $schema['fields'] = $type === 'configurable' ? [] : array_values(array_filter($schema['fields'], static fn ($f) => !in_array($f['name'], $hidden, true)));
 
         return [
             'is_edit' => $product !== null,
@@ -67,6 +68,7 @@ class ProductForm implements ViewComponentInterface
             // a new product starts in the default website
             'website_ids' => array_map('intval', (array) ($old['website_ids'] ?? ($id ? (new ProductService())->getWebsiteIds($id) : [(new Website())->getResource()->getDefaultId()]))),
             // without the permission, the default layout (even if one was saved before it was revoked)
+            'can_cost' => Auth::isAllowed(Product::COST_RESOURCE),
             'can_arrange' => $canArrange = Auth::isAllowed('Iter_Catalog::product_layout'),
             'layout' => (new FormLayout(Product::ENTITY_TYPE))->get($canArrange ? (int) Auth::user()->getId() : null),
             'category_ids' => array_map('intval', (array) ($old['category_ids'] ?? ($id ? (new ProductService())->getCategoryIds($id) : []))),

@@ -314,7 +314,8 @@ class ProductSchema
                     // a list's rows come with the values (preload); a product read alone loads them
                     'resolve' => static function ($p) use ($loaded, $typeOf, $optionsOf, $labelOf): array {
                         $rows = [];
-                        foreach ($loaded($p, 'attributes', ['values'])['attributes'] as $code => $value) {
+                        $hidden = Auth::isAllowed(Product::COST_RESOURCE) ? [] : [Product::COST => true];
+                        foreach (array_diff_key($loaded($p, 'attributes', ['values'])['attributes'], $hidden) as $code => $value) {
                             $options = $optionsOf($code);
                             // an option removed after being chosen shows its value
                             $labels = $options === null ? null : array_map(static fn ($v) => $options[$v] ?? (string) $v, (array) $value);
@@ -520,6 +521,9 @@ class ProductSchema
                 static fn ($a) => ['code' => $a['code'], 'value' => $a['values'] ?? $a['value'] ?? ''],
                 $args['attributes'] ?? []
             ), 'value', 'code');
+            if (array_key_exists(Product::COST, $values) && !Auth::isAllowed(Product::COST_RESOURCE)) {
+                throw new Error('Sem permissão para o custo do produto.', extensions: ['code' => 'FORBIDDEN']);
+            }
             $set = (new AttributeSet())->load($setId);
             if ($values && $set->getId()) { // invalid set: ProductService reports it
                 $fields = array_column((new FormSchemaGenerator())->generate(Product::ENTITY_TYPE, $set->getData('code'))['fields'], 'name');

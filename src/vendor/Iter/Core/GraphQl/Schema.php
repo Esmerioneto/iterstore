@@ -22,6 +22,7 @@ use Iter\Adminsales\GraphQl\AdminSalesSchema;
 use Iter\Shipping\GraphQl\ShippingSchema;
 use Iter\Mercadopago\GraphQl\MercadopagoSchema;
 use Iter\Message\GraphQl\MessageSchema;
+use Iter\Report\GraphQl\ReportSchema;
 use Iter\Store\Model\Store as StoreModel;
 use Iter\Store\Model\Website as WebsiteModel;
 
@@ -142,6 +143,7 @@ class Schema
         $shipping = \isModuleEnabled('iter_shipping') ? ShippingSchema::fields() : ['query' => [], 'mutation' => []];
         $mercadopago = isset($sales['types']) && \isModuleEnabled('iter_mercadopago') ? MercadopagoSchema::fields($sales['types']['order']) : ['query' => [], 'mutation' => []];
         $messages = \isModuleEnabled('iter_message') ? MessageSchema::fields() : ['query' => [], 'mutation' => []];
+        $reports = \isModuleEnabled('iter_report') ? ReportSchema::fields() : ['query' => [], 'mutation' => []];
 
         $queryType = new ObjectType([
             'name' => 'Query',
@@ -176,7 +178,7 @@ class Schema
                         return $id === null || Config::websiteExists($id) ? ['id' => $id] : null;
                     },
                 ],
-            ] : []) + $product['query'] + $stock['query'] + $customer['query'] + $eav['query'] + $sales['query'] + $orders['query'] + $shipping['query'] + $mercadopago['query'] + $messages['query'] + $admin['query'],
+            ] : []) + $product['query'] + $stock['query'] + $customer['query'] + $eav['query'] + $sales['query'] + $orders['query'] + $shipping['query'] + $mercadopago['query'] + $messages['query'] + $reports['query'] + $admin['query'],
         ]);
 
         $mutationType = new ObjectType([

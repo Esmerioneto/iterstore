@@ -1,0 +1,1 @@
+[{"code": "v8", "group": "sales", "title": "Promoções e cupons", "description": "usos, desconto concedido e ticket com e sem desconto", "class": "Iter\\Promotion\\Reports\\PromotionUsage", "resource": "Iter_Report::sales"}]

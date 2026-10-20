@@ -54,5 +54,21 @@
         "controller_name": "productlayout",
         "controller_action": "save,reset",
         "method": "POST"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Catalog",
+        "controller_name": "productcost",
+        "controller_action": "index,template",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Catalog",
+        "controller_name": "productcost",
+        "controller_action": "import",
+        "method": "POST"
     }
 ]

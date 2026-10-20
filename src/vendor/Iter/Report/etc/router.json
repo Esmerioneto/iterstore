@@ -1,0 +1,1 @@
+[{"route":"admin","vendor":"Iter","module_name":"Report","controller_name":"report","controller_action":"index,view,export","method":"GET"}]

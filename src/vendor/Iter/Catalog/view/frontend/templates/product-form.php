@@ -93,6 +93,9 @@ if ($type === 'configurable' && $is_edit) {
     </p>
     <?php endforeach; ?>
     <p><label>Preço das novas variações <input form="product-form" type="text" name="grade_price" inputmode="decimal" size="10"></label>
+<?php if ($can_cost): ?>
+        <label>Custo das novas variações <input form="product-form" type="text" name="grade_cost" inputmode="decimal" size="10"></label>
+<?php endif; ?>
         <button type="submit" form="product-form">Gerar variações</button>
         <small>Cria as combinações marcadas que ainda não existem, com o SKU sugerido; o produto é salvo junto. Preço vazio: usa o da primeira variação.</small></p>
     <table>

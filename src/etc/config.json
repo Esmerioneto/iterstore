@@ -16,10 +16,11 @@
         "iter_adminsales": "1",
         "iter_mercadopago": "1",
         "iter_melhorenvio": "1",
-        "iter_correios": "1",
+        "iter_correios": "0",
         "iter_promotion": "1",
         "iter_message": "1",
-        "iter_log": "1"
+        "iter_log": "1",
+        "iter_report": "1"
     },
     "customized": {
         "egsn_user": "1"

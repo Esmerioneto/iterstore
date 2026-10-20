@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "cost_import": "catalog/cost-import"
+        }
+    }
+}

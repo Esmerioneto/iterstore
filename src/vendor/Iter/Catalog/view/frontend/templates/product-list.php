@@ -10,7 +10,12 @@ $sortHeader = static fn (string $key, string $label): string => \Iter\Admin\View
 <section class="catalog-product-list">
     <div class="admin-page-head">
         <h2>Produtos</h2>
-        <a class="admin-button admin-button-primary" href="/admin/product/create">+ Novo produto</a>
+        <div class="admin-page-actions">
+<?php if (\Iter\Admin\Auth::isAllowed(\Iter\Catalog\Model\Product::COST_RESOURCE)): ?>
+            <a class="admin-button" href="/admin/productcost/index">Importar custos</a>
+<?php endif; ?>
+            <a class="admin-button admin-button-primary" href="/admin/product/create">+ Novo produto</a>
+        </div>
     </div>
     <form method="get" action="/admin/product/index" class="admin-filters">
 <?php if (count($websites) > 1): ?>

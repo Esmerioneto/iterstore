@@ -766,6 +766,18 @@ assertSame('ATTRIBUTE_SET_IN_USE', $throws(static fn () => $setService->delete($
 [, $msgs] = $admin->submit('/admin/product/index', '/admin/product/delete', ['product_id' => $p2]);
 assertSame([['Produto removido com sucesso.'], false, []], [$msgs, $productRow('selftest-2'), $values->load('product', $p2)], 'produto removido com os seus valores');
 
+// Importar custos: the screen, the model file and a file with an error (nothing saved, the line in the message)
+$costPage = $admin->request('/admin/productcost/index');
+$costModel = $admin->request('/admin/productcost/template')['body'];
+file_put_contents($costCsv = sys_get_temp_dir() . '/selftest-custos-' . getmypid() . '.csv', "SKU;Custo\nSELFTEST-NAO-EXISTE;1,00\n");
+preg_match('/name="form_key" value="([0-9a-f]{64})"/', $costPage['body'], $costKey);
+$costBody = $admin->request($admin->request('/admin/productcost/import', ['form_key' => $costKey[1] ?? '', 'file' => new CURLFile($costCsv, 'text/csv', 'custos.csv')])['location'])['body'];
+$costMsgs = [Browser::messages($costBody), str_contains($costBody, '<li>Linha 2: o SKU &quot;SELFTEST-NAO-EXISTE&quot; não existe.</li>'), str_contains($admin->request('/admin/productcost/index')['body'], 'catalog-cost-import-errors')];
+unlink($costCsv);
+assertSame([200, true, true, "\xEF\xBB\xBFSKU;Nome;Custo", [['Nenhum custo foi salvo: corrija o arquivo e envie de novo.'], true, false], 403],
+    [$costPage['status'], str_contains($costPage['body'], 'name="file"'), str_contains($admin->request('/admin/product/index')['body'], '/admin/productcost/index'), strtok($costModel, "\n"), $costMsgs, $dash->request('/admin/productcost/index')['status']],
+    'Importar custos: a tela (com o botão na lista de produtos), o modelo .csv, um arquivo com erro não salva e lista as linhas na tela (uma vez só); sem a permissão do custo, 403');
+
 // --- GraphQL: products ------------------------------------------------------------------------
 $gql = static function (Browser $b, string $query, array $variables = []): array {
     return json_decode($b->request('/core/graphql/index', null, json_encode(['query' => $query, 'variables' => $variables ?: null]))['body'], true);
@@ -2026,7 +2038,7 @@ assertSame(true, str_starts_with($gql($admin, '{ mercadopagoSettings { publicKey
 assertSame(['O módulo Core é essencial e não pode ser desativado.'], $toggle('iter_core', 0), 'módulo essencial não é desativado');
 assertSame(['Desative antes os módulos que dependem de Eav: Catalog, Customer.'], $toggle('iter_eav', 0), 'módulo com dependentes ativos não é desativado');
 assertSame(['Desative antes os módulos que dependem de Catalog: Inventory, Sales, Promotion.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com Inventory e Sales ativos');
-assertSame(['Desative antes os módulos que dependem de Sales: Shipping, Payment, Adminsales, Promotion.'], $toggle('iter_sales', 0), 'Sales não é desativado com Shipping, Payment e Adminsales ativos');
+assertSame(['Desative antes os módulos que dependem de Sales: Shipping, Payment, Adminsales, Promotion, Report.'], $toggle('iter_sales', 0), 'Sales não é desativado com Shipping, Payment e Adminsales ativos');
 assertSame(['Módulo Adminsales desativado. Os dados dele continuam no banco.'], $toggle('iter_adminsales', 0), 'Adminsales desativado pelo admin');
 assertSame(['Módulo Payment desativado. Os dados dele continuam no banco.'], $toggle('iter_payment', 0), 'Payment desativado pelo admin');
 assertSame(true, str_starts_with($gql($admin, '{ cart { paymentMethod { code } } }')['errors'][0]['message'] ?? '', 'Cannot query field "paymentMethod" on type "Cart".'), 'Payment desativado: sem pagamento no carrinho');
@@ -2039,6 +2051,7 @@ assertSame([true, true], [
     str_starts_with($gql($admin, '{ cart { shippingMethod { code } } }')['errors'][0]['message'] ?? '', 'Cannot query field "shippingMethod" on type "Cart".'),
     str_starts_with($gql($admin, '{ shippingTableRates { price } }')['errors'][0]['message'] ?? '', 'Cannot query field "shippingTableRates" on type "Query".'),
 ], 'Shipping desativado: sem frete no carrinho nem faixas na API');
+assertSame(['Módulo Report desativado. Os dados dele continuam no banco.'], $toggle('iter_report', 0), 'Report desativado pelo admin');
 assertSame(['Módulo Sales desativado. Os dados dele continuam no banco.'], $toggle('iter_sales', 0), 'Sales desativado pelo admin');
 assertSame('Cannot query field "cart" on type "Query".', $gql($admin, '{ cart { total } }')['errors'][0]['message'] ?? null, 'Sales desativado: sem carrinho na API');
 assertSame(['Módulo Inventory desativado. Os dados dele continuam no banco.'], $toggle('iter_inventory', 0), 'Inventory desativado pelo admin');
@@ -2412,8 +2425,16 @@ $api("mutation { setCartPaymentMethod(cartId: {$oc}, code: \"offline\") { total 
 assertSame('PAYMENT_METHOD_REQUIRED', $gqlCode([0, $place($shipCart)]), 'pedido: sem forma de pagamento escolhida é recusado');
 $setConfig(['payment/pix/active' => '1']);
 $api("mutation { setCartPaymentMethod(cartId: {$sc}, code: \"pix\") { total } }");
+$costId = (int) $pdo->query("SELECT attribute_id FROM eav_attribute WHERE code = 'cost' AND entity_type_id = (SELECT entity_type_id FROM eav_entity_type WHERE code = 'product')")->fetchColumn();
+$setCost = static fn (string $cost) => $pdo->exec("INSERT INTO eav_value_decimal (attribute_id, entity_id, value) VALUES ({$costId}, {$v0}, {$cost}) ON CONFLICT (attribute_id, entity_id) DO UPDATE SET value = EXCLUDED.value");
+$setCost('12.5');
 $order = $place($shipCart)['data']['placeOrder'] ?? [];
 $again = $place($shipCart)['data']['placeOrder'] ?? [];
+$orderCost = static fn () => $pdo->query('SELECT cost FROM sales_order_item WHERE order_id = ' . (int) ($order['id'] ?? 0))->fetchColumn();
+$atOrder = $orderCost();
+$setCost('99');
+assertSame(['12.5000', '12.5000'], [$atOrder, $orderCost()], 'pedido: o custo do produto vai para o item (sales_order_item.cost) e não muda quando o custo muda depois');
+$pdo->exec("DELETE FROM eav_value_decimal WHERE attribute_id = {$costId} AND entity_id = {$v0}");
 assertSame([1, 'pending_payment', 'Aguardando pagamento', 'frete@selftest.local', '52998224725', 74.7, 0, 'pickup', 'pix', "Chave Pix: pix@selftest.local\nEnvie o comprovante.",
     [['sku' => $v0Sku, 'name' => 'Caneca', 'options' => null, 'quantity' => 3, 'price' => 24.9, 'regularPrice' => null, 'rowTotal' => 74.7]], ['postcode' => '30130000', 'city' => 'São Paulo'], '30130000'], [
     preg_match('/^ST-\d{6}$/', (string) ($order['number'] ?? '')), $order['status'] ?? null, $order['statusLabel'] ?? null, $order['email'] ?? null, $order['taxvat'] ?? null,

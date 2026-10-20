@@ -141,7 +141,7 @@ class VariantService
      * stock goes by FK CASCADE), listed ones updated, those without product_id created.
      * A variant's combination is fixed once created.
      *
-     * @param array<int, array{product_id?: int, options?: array<string, string>, sku?: string, price?: string, is_active?: int}> $variants
+     * @param array<int, array{product_id?: int, options?: array<string, string>, sku?: string, price?: string, cost?: string, is_active?: int}> $variants
      * @param int|false|null $imageVariantId the variant that gives the parent its images (imageCandidates); null clears, false keeps
      */
     public function save(int $parentId, array $variants, int|false|null $imageVariantId = false): void
@@ -180,6 +180,9 @@ class VariantService
             $eav = $id ? [] : $options; // the combination is only written on creation
             if (array_key_exists('price', $variant) || !$id) {
                 $eav['price'] = $variant['price'] ?? '';
+            }
+            if (array_key_exists(Product::COST, $variant)) {
+                $eav[Product::COST] = $variant[Product::COST];
             }
             $rows[] = [
                 'id' => $id,

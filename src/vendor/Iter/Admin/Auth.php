@@ -178,11 +178,17 @@ class Auth
         return self::$user;
     }
 
-    public static function isAllowed(string $resourceId): bool
+    /** @param string|string[] $resourceId a list = any of them (a controller or menu item shared by two permissions) */
+    public static function isAllowed(string|array $resourceId): bool
     {
         $roleId = self::user()?->getData('role_id');
+        foreach ((array) $resourceId as $id) {
+            if (Acl::isAllowed($roleId === null ? null : (int) $roleId, $id)) {
+                return true;
+            }
+        }
 
-        return Acl::isAllowed($roleId === null ? null : (int) $roleId, $resourceId);
+        return false;
     }
 
     /**

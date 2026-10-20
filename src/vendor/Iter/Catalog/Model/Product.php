@@ -18,6 +18,10 @@ class Product extends AbstractModel
     /** the attribute values finalPrice() reads */
     public const PRICE_CODES = ['price', 'price_promo', 'price_promo_from', 'price_promo_to'];
 
+    /** the cost (REPORT-PLAN): only admins with COST_RESOURCE see or change it; never in the store's API */
+    public const COST = 'cost';
+    public const COST_RESOURCE = 'Iter_Catalog::cost';
+
     protected string $_idFieldName = 'product_id';
 
     /**

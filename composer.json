@@ -15,7 +15,9 @@
     "require": {
         "webonyx/graphql-php": "^15.37",
         "symfony/mailer": "^7",
-        "guzzlehttp/guzzle": "^8.2"
+        "guzzlehttp/guzzle": "^8.2",
+        "openspout/openspout": "^5.3",
+        "dompdf/dompdf": "^3.1"
     },
     "scripts": {
         "test": [
@@ -23,6 +25,7 @@
             "php bin/db-selftest.php",
             "php bin/admin-selftest.php",
             "php bin/promotion-selftest.php",
+            "php bin/report-selftest.php",
             "php bin/shipping-provider-selftest.php"
         ]
     }

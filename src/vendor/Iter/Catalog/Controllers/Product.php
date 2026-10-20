@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Catalog\Controllers;
 
+use Iter\Admin\Auth;
 use Iter\Admin\Breadcrumb;
 use Iter\Catalog\Model\Product as ProductModel;
 use Iter\Catalog\Model\ProductService;
@@ -76,6 +77,10 @@ class Product
         try {
             $attributes = ValueService::fromRequest('attributes');
             $service = new ProductService();
+            if (!Auth::isAllowed(ProductModel::COST_RESOURCE)) { // the form doesn't show it: keep the stored cost
+                unset($attributes[ProductModel::COST]);
+                $id && $attributes += array_intersect_key($service->getValues($id), [ProductModel::COST => true]);
+            }
             $product = Connection::get()->adapter()->transaction(static function () use ($service, $id, $data, $attributes) {
                 $product = $id ? $service->update($id, $data, $attributes) : $service->create($data, $attributes);
                 if ($id && $product->getData('type') === 'configurable') {
@@ -121,8 +126,9 @@ class Product
         if ($new && $price === '') {
             throw new AttributeException('VALUE_REQUIRED', 'Informe o "Preço das novas variações" para gerar as combinações marcadas.');
         }
+        $cost = Auth::isAllowed(ProductModel::COST_RESOURCE) ? [ProductModel::COST => trim((string) ($_POST['grade_cost'] ?? ''))] : [];
         foreach ($new as $options) {
-            $variants[] = ['options' => $options, 'price' => $price, 'is_active' => 1];
+            $variants[] = ['options' => $options, 'price' => $price, 'is_active' => 1] + $cost;
         }
         // the radio is only there when the product has variants; absent = keep the choice
         $image = array_key_exists('image_variant_id', $_POST) ? ((int) $_POST['image_variant_id'] ?: null) : false;

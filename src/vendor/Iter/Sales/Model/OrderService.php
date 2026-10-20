@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Iter\Sales\Model;
 
+use Iter\Catalog\Model\Product;
 use Iter\Core\Config;
 use Iter\Core\Db\Connection;
 use Iter\Core\Db\Expr;
 use Iter\Core\Db\Select;
 use Iter\Core\Log;
+use Iter\Eav\Model\ValueService;
 use Iter\Inventory\Model\StockService;
 use Iter\Mail\Model\MailException;
 use Iter\Mail\Model\MailService;
@@ -133,6 +135,8 @@ class OrderService
             ]);
             $orderId = (int) $order['order_id'];
             $options = $this->variantOptions(array_column($cart['items'], 'product_id'));
+            // the cost as it is now, for the margin in the reports (null = no cost on the product)
+            $costs = (new ValueService())->loadMany(Product::ENTITY_TYPE, array_column($cart['items'], 'product_id'), [Product::COST]);
             $db->insertMultiple('sales_order_item', array_map(static fn (array $i) => [
                 'order_id' => $orderId,
                 'product_id' => $i['product_id'],
@@ -144,6 +148,7 @@ class OrderService
                 'regular_price' => $i['regular_price'],
                 'discount_amount' => $i['discount_amount'] ?? 0,
                 'row_total' => $i['row_total'],
+                'cost' => isset($costs[$i['product_id']][Product::COST]) && $costs[$i['product_id']][Product::COST] !== '' ? $costs[$i['product_id']][Product::COST] : null,
             ], $cart['items']));
             foreach (($cart['discounts'] ?? []) as $discount) {
                 $db->insert('sales_order_discount', [

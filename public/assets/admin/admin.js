@@ -924,3 +924,45 @@ document.addEventListener('DOMContentLoaded', function () {
     search.addEventListener('input', filter);
   }
 });
+
+// Product form: under "Custo", the margin of the typed price (REPORT-PLAN); a cost above the price is a warning.
+// Report forms: picking a period preset fills the dates, typing a date goes back to "Personalizado".
+document.addEventListener('DOMContentLoaded', function () {
+  var cost = document.querySelector('input[name="attributes[cost]"]');
+  var price = document.querySelector('input[name="attributes[price]"]');
+  if (cost && price) {
+    var hint = document.createElement('small');
+    hint.className = 'catalog-cost-margin';
+    cost.insertAdjacentElement('afterend', hint);
+    var number = function (input) { return parseFloat(String(input.value).replace(/\./g, input.type === 'number' ? '.' : '').replace(',', '.')); };
+    var money = function (v) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); };
+    var update = function () {
+      var p = number(price);
+      var c = number(cost);
+      hint.hidden = !(p > 0 && c >= 0);
+      if (hint.hidden) {
+        return;
+      }
+      hint.classList.toggle('is-negative', c > p);
+      hint.textContent = (c > p ? 'Custo acima do preço: ' : 'Margem com o preço atual: ') + money(p - c)
+        + ' (' + ((p - c) / p * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%) · só no painel, não aparece no app';
+    };
+    cost.addEventListener('input', update);
+    price.addEventListener('input', update);
+    update();
+  }
+
+  document.querySelectorAll('[data-report-period]').forEach(function (form) {
+    var preset = form.querySelector('[name="preset"]');
+    form.querySelectorAll('input[type="date"]').forEach(function (date) {
+      ['input', 'change'].forEach(function (type) { date.addEventListener(type, function () { preset.value = ''; }); });
+    });
+    preset.addEventListener('change', function () {
+      var option = preset.selectedOptions[0];
+      if (option.dataset.from) {
+        form.querySelector('[name="from"]').value = option.dataset.from;
+        form.querySelector('[name="to"]').value = option.dataset.to;
+      }
+    });
+  });
+});

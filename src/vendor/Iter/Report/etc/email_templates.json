@@ -1,0 +1,1 @@
+[{"code":"report_digest","label":"Relatórios por e-mail (envio automático)","subject":"Relatórios {{ period }} - {{ store_name }}","file":"report-digest","vars":{"period":"de 05/10/2026 a 11/10/2026","reports":"<li>Vendas por período</li><li>Vendas por produto</li>","total":"R$ 20.735,47","orders":"115","store_name":"Iterstore"}}]

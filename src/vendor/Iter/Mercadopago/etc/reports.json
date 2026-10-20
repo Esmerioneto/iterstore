@@ -1,0 +1,1 @@
+[{"code": "f2", "group": "finance", "title": "Conciliação Mercado Pago", "description": "aprovados, recusas por motivo, estornos e o que estornar", "class": "Iter\\Mercadopago\\Reports\\Reconciliation", "resource": "Iter_Report::finance"}]

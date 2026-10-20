@@ -241,6 +241,27 @@ type Query {
     beforeId: ID
   ): [CustomerMessage!]!
 
+  "Os relatórios que o admin do token pode abrir, com os filtros de cada um."
+  reports: [ReportInfo!]!
+
+  "Um relatório, como na tela: as linhas de uma página, o total e os indicadores. Os relatórios de clientes e financeiros ficam no log de operações, como as exportações."
+  report(
+    "O código do relatório (reports), ex.: \"v1\"."
+    code: String!
+
+    "preset (month, today, 7d, 30d, last_month, 90d, year ou \"\" com from e to em AAAA-MM-DD), website_id, sales_channel, payment_method e os filtros do relatório (checkbox: \"1\" ou \"\"). O que faltar fica no padrão."
+    filters: [ReportFilterInput!]
+
+    "A chave de uma coluna; sem ela (ou inválida), a ordem padrão do relatório."
+    sort: String
+
+    direction: ReportSortDirection
+    page: Int = 1
+
+    "Máximo 1000."
+    pageSize: Int = 100
+  ): ReportResult!
+
   "O usuário do token (ou da sessão do painel); null sem login."
   currentAdmin: AdminUser
 }
@@ -1039,6 +1060,105 @@ type MessageConversation {
 
   "Do cliente, não lidas pela loja."
   unread: Int!
+}
+
+type ReportInfo {
+  code: String!
+
+  "sales, operation, stock, customers ou finance."
+  group: String!
+
+  groupLabel: String!
+  title: String!
+  description: String!
+
+  "Os filtros comuns que ele usa: period (preset, from, to), website_id, sales_channel, payment_method."
+  common: [String!]!
+
+  defaultPreset: String!
+
+  "Os filtros próprios do relatório."
+  filters: [ReportFilter!]!
+}
+
+type ReportFilter {
+  key: String!
+  label: String!
+
+  "select, search, number ou checkbox."
+  type: String!
+
+  "Só no select; a primeira é o padrão."
+  options: [ReportFilterOption!]
+
+  "O padrão de number e checkbox (\"1\" = marcado)."
+  default: String
+}
+
+type ReportFilterOption {
+  value: String!
+  label: String!
+}
+
+input ReportFilterInput {
+  key: String!
+  value: String!
+}
+
+enum ReportSortDirection {
+  ASC
+  DESC
+}
+
+type ReportResult {
+  report: ReportInfo!
+
+  "Os filtros usados de fato (período, website e os do relatório), depois de trocar os inválidos pelo padrão."
+  applied: [ReportValue!]!
+
+  "Avisos sobre os filtros (ex.: período acima de 366 dias)."
+  errors: [String!]!
+
+  columns: [ReportColumn!]!
+
+  "Uma lista por linha, com os valores na ordem de columns."
+  rows: [[String]!]!
+
+  "Linhas em todas as páginas."
+  total: Int!
+
+  "A linha de total, na ordem de columns (null onde não soma)."
+  totals: [String]!
+
+  "Os indicadores do topo da tela, já formatados."
+  tiles: [ReportTile!]!
+
+  note: String!
+}
+
+type ReportValue {
+  key: String!
+  value: String
+}
+
+type ReportColumn {
+  key: String!
+  label: String!
+
+  "text, int, qty, money, pct (0.125 = 12,5%), date, datetime ou age (horas)."
+  type: String!
+
+  "O endereço no admin, com {coluna} trocado pelo valor da linha."
+  link: String
+}
+
+type ReportTile {
+  label: String!
+  value: String!
+  note: String
+
+  "ok, warn ou bad."
+  tone: String
 }
 
 type AdminUser {
