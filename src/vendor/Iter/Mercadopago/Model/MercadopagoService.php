@@ -124,6 +124,7 @@ class MercadopagoService
         $websiteId = (int) $order['website_id'];
         $taxvat = (string) $order['taxvat'];
         $amount = number_format((float) $order['grand_total'], 2, '.', '');
+        $category = (string) Config::get('payment/mercadopago/item_category', $websiteId) ?: null;
         $body = [
             'type' => 'online',
             'processing_mode' => 'automatic',
@@ -143,9 +144,20 @@ class MercadopagoService
                 'description' => $i['options'] ? mb_substr((string) $i['options'], 0, 255) : null,
                 'quantity' => max(1, (int) round((float) $i['quantity'])),
                 'unit_price' => number_format((float) $i['price'], 2, '.', ''),
-                'category_id' => (string) Config::get('payment/mercadopago/item_category', $websiteId) ?: null,
+                'category_id' => $category,
             ], static fn ($v) => $v !== null), $order['items']),
         ];
+        // the Orders API refuses items that don't add up to total_amount (order_items_total_amount_mismatch): shipping goes
+        // as an item; a discount (or rounding) that still leaves a gap sends the whole order as one item
+        if ((float) $order['shipping_amount'] > 0) {
+            $body['items'][] = array_filter(['external_code' => 'frete', 'title' => 'Frete', 'quantity' => 1,
+                'unit_price' => number_format((float) $order['shipping_amount'], 2, '.', ''), 'category_id' => $category]);
+        }
+        $cents = array_sum(array_map(static fn (array $i) => $i['quantity'] * (int) round((float) $i['unit_price'] * 100), $body['items']));
+        if ($cents !== (int) round((float) $amount * 100)) {
+            $body['items'] = [array_filter(['external_code' => $order['increment_id'], 'title' => "Pedido {$order['increment_id']}",
+                'quantity' => 1, 'unit_price' => $amount, 'category_id' => $category])];
+        }
         $history = $this->payerHistory($order);
         if ($history) {
             $body['additional_info'] = $history;

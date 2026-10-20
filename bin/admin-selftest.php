@@ -3118,6 +3118,20 @@ assertSame([true, ['zip_code' => '01310100', 'street_name' => 'Av Paulista', 'st
 $cardHeaders = current(array_filter($mpCalls, static fn ($c) => $c[0] === 'POST' && $c[1] === '/v1/orders' && ($c[2]['transactions']['payments'][0]['payment_method']['token'] ?? '') === 'tok-ok'));
 assertSame(['others', 'armor.selftest-device', false], [$cardCall['items'][0]['category_id'] ?? null, $cardHeaders[3] ?? null, isset($cardCall['additional_info'])],
     'Mercado Pago: cada item leva a categoria das Configurações (padrão "others"); o Device ID do app vai junto; pedido de visitante não leva dados de cadastro');
+// the Orders API refuses items that don't add up to the total (order_items_total_amount_mismatch, RJ000057 with shipping)
+$itemsFor = static function (float $shipping, float $discount) use ($fakeMp, $unpaid, $mpId, $pdo, &$mpCalls): array {
+    $id = $mpId($unpaid('mercadopago_credit'));
+    $pdo->prepare('UPDATE sales_order SET shipping_amount = ?, discount_amount = ?, grand_total = grand_total + ? - ? WHERE order_id = ?')->execute([$shipping, $discount, $shipping, $discount, $id]);
+    $fakeMp->pay($id, ['token' => 'tok-recusa', 'payment_method_id' => 'visa', 'installments' => 1]);
+    $body = end($mpCalls)[2];
+    (new Iter\Sales\Model\OrderService())->cancel($id, 'customer', null, '', false); // gives the stock back
+    $cents = array_sum(array_map(static fn ($i) => $i['quantity'] * (int) round($i['unit_price'] * 100), $body['items']));
+
+    return [$cents === (int) round($body['total_amount'] * 100), array_column($body['items'], 'external_code')];
+};
+[$withShipping, $withDiscount] = [$itemsFor(5.0, 0.0), $itemsFor(0.0, 1.0)];
+assertSame([true, 'frete', true, 1], [$withShipping[0], end($withShipping[1]), $withDiscount[0], count($withDiscount[1])],
+    'Mercado Pago: os itens somam o total do pedido; o frete vai como item; com desconto o pedido vai como um item só');
 assertSame(['4509 95•• •••• 3704', null, null], [$approved['card_number'], $declined['card_number'], $pix['card_number']],
     'Mercado Pago cartão: o número mascarado vem do token lido antes de cobrar; token ilegível não impede a cobrança');
 $chargesPage = $orderPage($admin, $mpId($mpCredit));
