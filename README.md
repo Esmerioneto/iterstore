@@ -29,7 +29,7 @@ O arquivo `src/etc/env.ini` guarda a chave que criptografa os segredos gravados 
 
 | Caminho | Conteúdo |
 |---|---|
-| `src/vendor/Iter/` | Módulos do sistema: Core, Router, Admin, Config, Eav, Catalog, Inventory, Customer, Sales, Adminsales, Payment, Shipping, Mercadopago, Melhorenvio, Promotion, Message, Log, Store, Mail |
+| `src/vendor/Iter/` | Módulos do sistema: Core, Router, Admin, Config, Eav, Catalog, Inventory, Customer, Sales, Adminsales, Payment, Shipping, Mercadopago, Melhorenvio, Correios, Promotion, Message, Log, Report, Store, Mail |
 | `src/app/code/` | Módulos locais |
 | `src/etc/` | Configuração: banco, e-mail, chave e módulos ativos (`config.json`) |
 | `public/` | Raiz web: `index.php`, assets e mídia enviada |
@@ -37,6 +37,8 @@ O arquivo `src/etc/env.ini` guarda a chave que criptografa os segredos gravados 
 | `var/` | Logs, e-mails gerados e backups |
 
 Os módulos são ativados e desativados em Admin → Configurações. Depois de ativar um módulo pela primeira vez, rode `php bin/migrate.php up`.
+
+O módulo Report tem os relatórios (Relatórios no menu), com exportação em CSV, Excel e PDF, envio automático por e-mail e as consultas `reports` e `report` na API do admin.
 
 O módulo Log guarda o log de operações: quem fez o quê no admin (tela ou API), com o antes e o depois de cada campo alterado. A consulta fica em Sistema → Log de operações; os detalhes estão em `src/vendor/Iter/Log/README.md`.
 
@@ -54,9 +56,10 @@ O módulo Log guarda o log de operações: quem fez o quê no admin (tela ou API
 ```cron
 * * * * *  php /caminho/do/iterstore/bin/mail-worker.php   # envia a fila de e-mails
 15 * * * * php /caminho/do/iterstore/bin/order-clean.php   # cancela pedidos não pagos
-0,10,20,30,40,50 * * * * php /caminho/do/iterstore/bin/mercadopago-sync.php   # confere pagamentos do Mercado Pago
+* * * * *  /caminho/do/iterstore/bin/mercadopago-sync-loop.sh   # confere pagamentos do Mercado Pago a cada 5 s
 10 0 * * * php /caminho/do/iterstore/bin/log-clean.php     # apaga logs antigos (arquivos e log de operações)
 20 0 * * * php /caminho/do/iterstore/bin/quote-clean.php   # apaga carrinhos abandonados
+30 7 * * * php /caminho/do/iterstore/bin/report-mail.php   # relatórios por e-mail (se ligado)
 ```
 
 Sem o `mail-worker`, os e-mails ficam parados na fila. Os prazos usados pelos outros scripts são definidos em Admin → Configurações.
@@ -67,4 +70,4 @@ Sem o `mail-worker`, os e-mails ficam parados na fila. Os prazos usados pelos ou
 composer test
 ```
 
-O comando roda `view-selftest`, `db-selftest`, `admin-selftest` e `shipping-provider-selftest` (Melhor Envio com um cliente falso, sem rede). O `php bin/promotion-selftest.php` testa o cálculo das promoções. O `admin-selftest` usa o banco real: sobe um `php -S`, cria registros `selftest_*` e apaga tudo ao terminar. Ele também falha se o `schema.graphql` estiver desatualizado.
+O comando roda `view-selftest`, `db-selftest`, `admin-selftest`, `promotion-selftest` (o cálculo das promoções), `report-selftest` (os relatórios, as exportações e a API de relatórios, numa transação desfeita) e `shipping-provider-selftest` (Melhor Envio e Correios com um cliente falso, sem rede; os Correios só com o módulo ligado). O `admin-selftest` usa o banco real: sobe um `php -S`, cria registros `selftest_*` e apaga tudo ao terminar. Ele também falha se o `schema.graphql` estiver desatualizado.

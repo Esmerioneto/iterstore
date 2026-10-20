@@ -89,7 +89,11 @@ class ReportSchema
                     'resolve' => static function (): array {
                         self::authenticate();
 
-                        return array_values(array_filter(array_map([ReportService::class, 'get'], array_keys(ReportService::all())), static fn (?Report $r) => $r !== null && ReportService::allowed($r)));
+                        $reports = array_values(array_filter(array_map([ReportService::class, 'get'], array_keys(ReportService::all())), static fn (?Report $r) => $r !== null && ReportService::allowed($r)));
+                        $order = array_flip(array_keys(ReportService::GROUPS));
+                        usort($reports, static fn (Report $a, Report $b) => ($order[$a->info['group']] ?? 99) <=> ($order[$b->info['group']] ?? 99)); // the screen's groups; usort keeps the order inside one
+
+                        return $reports;
                     },
                 ],
                 'report' => [
