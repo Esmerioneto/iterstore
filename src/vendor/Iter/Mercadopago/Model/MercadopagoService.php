@@ -107,10 +107,11 @@ class MercadopagoService
      * token sent twice (double click) gets the same payment (idempotency key).
      *
      * @param ?array{token: string, payment_method_id: string, installments?: int, issuer_id?: string} $card from the SDK
+     * @param string $deviceId the SDK's device id (X-meli-session-id), for Mercado Pago's fraud check
      * @return array the payment (get())
      * @throws SalesException PAYMENT_METHOD_INVALID, ORDER_STATUS_INVALID, CARD_REQUIRED, INSTALLMENTS_INVALID, PAYMENT_FAILED, PAYMENT_UNAVAILABLE
      */
-    public function pay(int $orderId, ?array $card = null): array
+    public function pay(int $orderId, ?array $card = null, string $deviceId = ''): array
     {
         $order = (new OrderService())->get($orderId);
         $method = (string) $order['payment_method'];
@@ -142,8 +143,13 @@ class MercadopagoService
                 'description' => $i['options'] ? mb_substr((string) $i['options'], 0, 255) : null,
                 'quantity' => max(1, (int) round((float) $i['quantity'])),
                 'unit_price' => number_format((float) $i['price'], 2, '.', ''),
+                'category_id' => (string) Config::get('payment/mercadopago/item_category', $websiteId) ?: null,
             ], static fn ($v) => $v !== null), $order['items']),
         ];
+        $history = $this->payerHistory($order);
+        if ($history) {
+            $body['additional_info'] = $history;
+        }
         // the Orders API refuses notification_url: the webhook (topic Order) is set in Suas integrações; the cron reads back the rest
 
         if ($method === 'mercadopago_pix') {
@@ -197,7 +203,7 @@ class MercadopagoService
         }
         $body['transactions'] = ['payments' => [$payment]];
 
-        [$status, $mpOrder] = $this->call('POST', '/v1/orders', $websiteId, $body, $key);
+        [$status, $mpOrder] = $this->call('POST', '/v1/orders', $websiteId, $body, $key, $deviceId);
         // a declined card comes back as 4xx with the order (status failed) inside errors' data
         $mpOrder = isset($mpOrder['id']) ? $mpOrder : ($mpOrder['data'] ?? $mpOrder);
         if (!isset($mpOrder['id'])) {
@@ -327,6 +333,28 @@ class MercadopagoService
             ?: throw new SalesException('PAYMENT_NOT_FOUND', 'Pagamento não encontrado.');
 
         return ['status_label' => self::STATUS_LABELS[$row['status']] ?? $row['status'], 'amount' => (float) $row['amount'], 'card_number' => self::maskCard($row)] + $row;
+    }
+
+    /**
+     * additional_info.payer for Mercado Pago's fraud check: when the customer signed up, whether this is their first
+     * order here and when the one before was. A guest has no account: nothing is sent.
+     */
+    private function payerHistory(array $order): array
+    {
+        if (empty($order['customer_id'])) {
+            return [];
+        }
+        $db = Connection::get()->adapter();
+        $created = $db->fetchOne($db->select()->from('customer_entity', ['created_at'])->where('customer_id = ?', (int) $order['customer_id']));
+        $last = $db->fetchOne($db->select()->from('sales_order', ['MAX(created_at)'])->where('customer_id = ?', (int) $order['customer_id'])
+            ->where('order_id <> ?', (int) $order['order_id'])->where("status <> 'canceled'"));
+        $date = static fn ($v) => $v ? (new \DateTimeImmutable((string) $v))->format(DATE_RFC3339_EXTENDED) : null;
+
+        return array_filter([
+            'payer.registration_date' => $date($created),
+            'payer.is_first_purchase_online' => !$last,
+            'payer.last_purchase' => $date($last),
+        ], static fn ($v) => $v !== null);
     }
 
     /** payer.phone and payer.address of an order's address (Brazilian phone: DDD + number; a 55 in front is dropped) */
@@ -465,18 +493,19 @@ class MercadopagoService
     }
 
     /** @return array{0: int, 1: array} HTTP status and the decoded body */
-    private function call(string $method, string $path, int $websiteId, ?array $body = null, ?string $idempotencyKey = null): array
+    private function call(string $method, string $path, int $websiteId, ?array $body = null, ?string $idempotencyKey = null, string $deviceId = ''): array
     {
         $token = self::token($websiteId);
         if ($token === '') {
             throw new SalesException('PAYMENT_UNAVAILABLE', 'O Mercado Pago não está configurado nesta loja.');
         }
         if ($this->http !== null) {
-            return ($this->http)($method, $path, $body);
+            return ($this->http)($method, $path, $body, $deviceId);
         }
         $ch = curl_init(self::API . $path);
         $headers = ['Authorization: Bearer ' . $token, 'Content-Type: application/json'];
         $idempotencyKey === null || $headers[] = 'X-Idempotency-Key: ' . $idempotencyKey;
+        preg_match('/^[\w\-:.]{1,128}$/', $deviceId) && $headers[] = 'X-meli-session-id: ' . $deviceId;
         curl_setopt_array($ch, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30, CURLOPT_HTTPHEADER => $headers]
             + ($body === null ? [] : [CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE)]));
         $response = curl_exec($ch);

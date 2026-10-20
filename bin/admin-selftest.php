@@ -3030,8 +3030,8 @@ $mpStatus = static function (string $id, string $status, string $detail) use (&$
 };
 $mpDown = false; // the network fails (cancel/refund)
 $mpRefuse = []; // ids whose cancel/refund Mercado Pago refuses
-$fakeMp = new Iter\Mercadopago\Model\MercadopagoService(static function (string $method, string $path, ?array $body) use (&$mpCalls, &$mpNext, &$mpDown, &$mpRefuse): array {
-    $mpCalls[] = [$method, $path, $body];
+$fakeMp = new Iter\Mercadopago\Model\MercadopagoService(static function (string $method, string $path, ?array $body, string $deviceId = '') use (&$mpCalls, &$mpNext, &$mpDown, &$mpRefuse): array {
+    $mpCalls[] = [$method, $path, $body, $deviceId];
     if ($method === 'POST' && preg_match('#^/v1/orders/([^/]+)/(cancel|refund)$#', $path, $m)) {
         if ($mpDown) {
             throw new Iter\Sales\Model\SalesException('PAYMENT_UNAVAILABLE', 'Não foi possível falar com o Mercado Pago.');
@@ -3091,7 +3091,7 @@ $cardCode = static function (array $card) use ($fakeMp, $mpId, $mpCredit): ?stri
 $card = ['token' => 'tok-recusa', 'payment_method_id' => 'visa', 'installments' => 3];
 assertSame(['CARD_REQUIRED', 'INSTALLMENTS_INVALID'], [$cardCode([]), $cardCode(['installments' => 7] + $card)], 'Mercado Pago cartão: sem token ou acima do máximo de parcelas é recusado antes de cobrar');
 $declined = $fakeMp->pay($mpId($mpCredit), $card);
-$approved = $fakeMp->pay($mpId($mpCredit), ['token' => 'tok-ok'] + $card);
+$approved = $fakeMp->pay($mpId($mpCredit), ['token' => 'tok-ok'] + $card, 'armor.selftest-device');
 $debit = $fakeMp->pay($mpId($mpDebit), ['token' => 'tok-debito', 'payment_method_id' => 'debelo', 'installments' => 5]);
 $debitPm = end($mpCalls)[2]['transactions']['payments'][0]['payment_method'];
 $prepaidPm = (static function () use ($fakeMp, $unpaid, $mpId, &$mpCalls): array {
@@ -3115,6 +3115,9 @@ assertSame([true, ['zip_code' => '01310100', 'street_name' => 'Av Paulista', 'st
     Iter\Mercadopago\Model\MercadopagoService::payerContact(['telephone' => '(11) 3456-7890'])['phone'] ?? null,
     Iter\Mercadopago\Model\MercadopagoService::payerContact(['telephone' => '123']),
 ], 'Mercado Pago: a cobrança leva os itens, o endereço do pagador e o nome na fatura (cortado em 13 caracteres); o telefone só com DDD, sem o 55 da frente');
+$cardHeaders = current(array_filter($mpCalls, static fn ($c) => $c[0] === 'POST' && $c[1] === '/v1/orders' && ($c[2]['transactions']['payments'][0]['payment_method']['token'] ?? '') === 'tok-ok'));
+assertSame(['others', 'armor.selftest-device', false], [$cardCall['items'][0]['category_id'] ?? null, $cardHeaders[3] ?? null, isset($cardCall['additional_info'])],
+    'Mercado Pago: cada item leva a categoria das Configurações (padrão "others"); o Device ID do app vai junto; pedido de visitante não leva dados de cadastro');
 assertSame(['4509 95•• •••• 3704', null, null], [$approved['card_number'], $declined['card_number'], $pix['card_number']],
     'Mercado Pago cartão: o número mascarado vem do token lido antes de cobrar; token ilegível não impede a cobrança');
 $chargesPage = $orderPage($admin, $mpId($mpCredit));

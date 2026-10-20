@@ -1653,6 +1653,9 @@ type Mutation {
     "Quando dois websites usam o mesmo prefixo."
     websiteId: ID
 
+    "O identificador do aparelho gerado pelo SDK do Mercado Pago (MP_DEVICE_SESSION_ID); vai no cabeçalho X-meli-session-id e melhora a aprovação."
+    deviceId: String
+
     card: MercadopagoCardInput
   ): OrderPayment!
 

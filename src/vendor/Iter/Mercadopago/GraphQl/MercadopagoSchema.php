@@ -78,6 +78,7 @@ class MercadopagoSchema
                         'number' => Type::nonNull(Type::string()),
                         'email' => ['type' => Type::string(), 'description' => 'O do pedido, para o visitante.'],
                         'websiteId' => ['type' => Type::id(), 'description' => 'Quando dois websites usam o mesmo prefixo.'],
+                        'deviceId' => ['type' => Type::string(), 'description' => 'O identificador do aparelho gerado pelo SDK do Mercado Pago (MP_DEVICE_SESSION_ID); vai no cabeçalho X-meli-session-id e melhora a aprovação.'],
                         'card' => new InputObjectType([
                             'name' => 'MercadopagoCardInput',
                             'fields' => [
@@ -104,7 +105,7 @@ class MercadopagoSchema
                         $card = isset($args['card']) ? ['token' => $args['card']['token'], 'payment_method_id' => $args['card']['paymentMethodId'],
                             'installments' => $args['card']['installments'], 'issuer_id' => $args['card']['issuerId'] ?? ''] : null;
 
-                        return $service->pay($id, $card);
+                        return $service->pay($id, $card, (string) ($args['deviceId'] ?? ''));
                     },
                 ],
             ],
