@@ -15,17 +15,6 @@ use Iter\Report\Model\Report;
  */
 final class Reconciliation extends Report
 {
-    /** Mercado Pago's status_detail (without "cc_rejected_") => what it means */
-    public const REASONS = [
-        'accredited' => 'Pagamento aprovado', 'insufficient_amount' => 'Saldo ou limite insuficiente', 'bad_filled_card_data' => 'Dados do cartão errados',
-        'bad_filled_card_number' => 'Número do cartão errado', 'bad_filled_date' => 'Validade errada', 'bad_filled_security_code' => 'Código de segurança errado',
-        'bad_filled_other' => 'Dados do cartão errados', 'rejected_by_issuer' => 'Recusado pelo banco', 'other_reason' => 'Recusado pelo banco',
-        'call_for_authorize' => 'O cliente precisa autorizar com o banco', 'required_call_for_authorize' => 'O cliente precisa autorizar com o banco',
-        'processing_error' => 'Erro no processamento', 'high_risk' => 'Recusado por risco de fraude', 'duplicated_payment' => 'Pagamento duplicado',
-        'card_disabled' => 'Cartão desativado', 'max_attempts' => 'Tentativas demais', 'blacklist' => 'Cartão bloqueado',
-        'canceled_transaction' => 'Cancelado', 'expired' => 'Expirou sem pagamento', 'by_collector' => 'Cancelado pela loja', 'refunded' => 'Estornado',
-    ];
-
     public function common(): array
     {
         return ['period', 'website_id', 'payment_method'];
@@ -113,7 +102,7 @@ final class Reconciliation extends Report
         }
         $detail = "REGEXP_REPLACE(COALESCE(m.status_detail, ''), '^cc_rejected_', '')";
         $reason = "CASE {$detail}";
-        foreach (self::REASONS as $code => $label) {
+        foreach (MercadopagoService::REASONS as $code => $label) {
             $reason .= " WHEN :r_{$code} THEN :rl_{$code}";
             $bind["r_{$code}"] = $code;
             $bind["rl_{$code}"] = $label;

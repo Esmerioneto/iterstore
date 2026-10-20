@@ -336,6 +336,17 @@ $attacker->login('selftest_victim', 'errada1234');
 $attacker->login('selftest_victim', 'errada1234');
 assertSame('/admin/auth/login', $attacker->login('selftest_victim'), 'após 2 erros a senha certa é recusada (bloqueio)');
 
+// session fixation: an id the server never issued (planted in the victim's browser) is replaced, not adopted
+$planted = (static function () use ($base): string {
+    $ch = curl_init($base . '/admin/auth/login');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HEADER => true, CURLOPT_COOKIE => session_name() . '=plantadopeloatacante123']);
+    preg_match('/^Set-Cookie: ' . session_name() . '=([^;]*)/mi', (string) curl_exec($ch), $m);
+
+    return $m[1] ?? '';
+})();
+assertSame([true, false], [$planted !== '' && $planted !== 'plantadopeloatacante123', is_file(getPath('var') . 'sessions' . DIRECTORY_SEPARATOR . 'sess_plantadopeloatacante123')],
+    'sessão: um id que o servidor não criou é trocado por um novo (modo estrito), sem arquivo de sessão com o id plantado');
+
 // --- session time (admin/security/session_minutes = 480) ---------------------------------
 $idle = new Browser($base);
 $idle->login('selftest_dash');
@@ -3024,7 +3035,7 @@ $fakeMp = new Iter\Mercadopago\Model\MercadopagoService(static function (string 
         $pm = $payment['payment_method'];
         [$status, $detail, $pm] = $pm['id'] === 'pix'
             ? ['action_required', 'waiting_transfer', $pm + ['qr_code' => '00020126pix', 'qr_code_base64' => 'iVBOR', 'ticket_url' => 'https://mp.local/ticket']]
-            : ($pm['token'] === 'tok-recusa' ? ['failed', 'card_insufficient_amount', $pm] : ['processed', 'accredited', $pm]);
+            : ($pm['token'] === 'tok-recusa' ? ['failed', 'insufficient_amount', $pm] : ['processed', 'accredited', $pm]);
         $mpNext[$id] = ['id' => $id, 'status' => $status, 'total_amount' => $body['total_amount'], 'transactions' => ['payments' => [[
             'id' => 'PAY' . $id, 'amount' => $payment['amount'], 'status_detail' => $detail, 'payment_method' => $pm,
         ] + ($pm['id'] === 'pix' ? ['date_of_expiration' => date('c', time() + 24 * 3600)] : [])]]];
@@ -3070,14 +3081,17 @@ $declined = $fakeMp->pay($mpId($mpCredit), $card);
 $approved = $fakeMp->pay($mpId($mpCredit), ['token' => 'tok-ok'] + $card);
 $debit = $fakeMp->pay($mpId($mpDebit), ['token' => 'tok-debito', 'payment_method_id' => 'elo', 'installments' => 5]);
 $debitPm = end($mpCalls)[2]['transactions']['payments'][0]['payment_method'];
-assertSame(['rejected', 'approved', 'processing', ["Mercado Pago #{$declined['external_id']}: Recusado (card_insufficient_amount), 3x.", "Mercado Pago #{$approved['external_id']}: Aprovado (accredited), 3x."],
+assertSame(['rejected', 'approved', 'processing', ["Mercado Pago #{$declined['external_id']}: Recusado (insufficient_amount), 3x.", "Mercado Pago #{$approved['external_id']}: Aprovado (accredited), 3x."],
     'ORDER_STATUS_INVALID', [1, 'debit_card'], 'processing', 'visa'], [
     $declined['status'], $approved['status'], $unpaidStatus($mpCredit), $mpComments($mpCredit), $cardCode(['token' => 'tok-3'] + $card),
     [$debitPm['installments'], $debitPm['type']], $unpaidStatus($mpDebit), $approved['card_brand'],
 ], 'Mercado Pago cartão: recusado fica aguardando e pode tentar de novo; aprovado confirma; pedido pago não cobra de novo; débito sempre em 1x');
 assertSame(['4509 95•• •••• 3704', null, null], [$approved['card_number'], $declined['card_number'], $pix['card_number']],
     'Mercado Pago cartão: o número mascarado vem do token lido antes de cobrar; token ilegível não impede a cobrança');
-assertSame(true, str_contains($orderPage($admin, $mpId($mpCredit)), 'Visa 4509 95•• •••• 3704 · 3x'), 'Pedido no admin: a cobrança do Mercado Pago com a bandeira e o cartão mascarado');
+$chargesPage = $orderPage($admin, $mpId($mpCredit));
+assertSame([true, true, true, 2], [str_contains($chargesPage, 'Visa 4509 95•• •••• 3704 · 3x'), str_contains($chargesPage, 'Saldo ou limite insuficiente'),
+    str_contains($chargesPage, '#' . $declined['external_id']), substr_count(explode('</table>', (string) strstr($chargesPage, 'Tentativas de cobrança'))[0], '<tr>') - 1],
+    'Pedido no admin: as tentativas de cobrança do Mercado Pago, a recusada com o motivo e a aprovada com a bandeira e o cartão mascarado');
 
 $late = $fakeMp->pay($mpId($mpLate));
 (new OrderService($fakeMp))->cancel($mpId($mpLate), 'customer', null, 'Cliente desistiu');
@@ -3157,7 +3171,7 @@ assertSame([true, [null, 'canceled', 'refunded', true, $refundMailsBefore + 1], 
     [$refunded, $pdo->query("SELECT status FROM sales_order WHERE order_id = {$raceId}")->fetchColumn(), $chargeStatus($raceExt),
         (bool) preg_match('/Estornado R\$ [\d,]+ no Mercado Pago \(cobrança #' . $raceExt . '\)/', $lastHistory($raceId)), $refundMails()],
     [$failed, $noNote, $withNote, $pdo->query("SELECT status FROM sales_order WHERE order_id = {$failId}")->fetchColumn(), $chargeStatus($failExt), str_contains($lastHistory($failId), 'Valor devolvido: Estornado no painel do Mercado Pago')],
-    str_contains($orderPage($admin, $raceId), 'Estornado · '),
+    str_contains($orderPage($admin, $raceId), '">Estornado</span>'),
 ], 'cancelar pedido pago pelo Mercado Pago: "Estornar" vem ligado e estorna o valor todo antes de cancelar (histórico, e-mail, cobrança "Estornado"); estorno recusado não cancela; sem estornar, pede como o valor foi devolvido');
 
 foreach ([$mpPix, $mpCredit, $mpDebit] as $n) {

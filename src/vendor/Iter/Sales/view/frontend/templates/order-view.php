@@ -1,6 +1,7 @@
 <?php
 use Iter\Core\FormKey;
 use Iter\Inventory\Model\StockService;
+use Iter\Mercadopago\Model\MercadopagoService;
 use Iter\Sales\Model\OrderService;
 
 $e = static fn ($v) => htmlspecialchars((string) $v);
@@ -20,10 +21,10 @@ $address = static function (?array $a) use ($e): string {
 };
 $form = static fn (string $action, string $inner, string $confirm = '') => '<form method="post" action="/admin/order/' . $action . '"' . ($confirm ? ' data-confirm="' . htmlspecialchars($confirm) . '" data-confirm-button="Sim, cancelar o pedido"' : '') . '>'
     . FormKey::field() . '<input type="hidden" name="order_id" value="' . $id . '">' . $inner . '</form>';
-// Mercado Pago's payment_method.id → the brand's name; the newest charge with a card says which one
-// (logos in /assets/admin/card-brands; a brand without one shows just the name)
+// Mercado Pago's payment_method.id → the brand's name; the charge that paid says which one, a declined card
+// before a Pix doesn't (logos in /assets/admin/card-brands; a brand without one shows just the name)
 $brands = ['master' => 'Mastercard', 'amex' => 'American Express', 'hipercard' => 'Hipercard', 'elo' => 'Elo', 'visa' => 'Visa', 'debvisa' => 'Visa', 'debmaster' => 'Mastercard', 'debelo' => 'Elo'];
-$brand = current(array_filter(array_column($charges, 'card_brand'))) ?: null;
+$brand = current(array_column(array_filter($charges, static fn ($c) => in_array($c['status'], ['approved', 'refunded', 'charged_back', 'in_mediation'], true)), 'card_brand')) ?: null;
 $brandName = $brand ? ($brands[$brand] ?? ucfirst($brand)) : '';
 $brandIcon = ['master' => 'master', 'debmaster' => 'master', 'visa' => 'visa', 'debvisa' => 'visa', 'elo' => 'elo', 'debelo' => 'elo', 'amex' => 'amex'][(string) $brand] ?? null;
 ?>
@@ -40,9 +41,9 @@ $brandIcon = ['master' => 'master', 'debmaster' => 'master', 'visa' => 'visa', '
             <?= $order['customer_id'] === null ? ' (visitante)' : ' · <a href="/admin/customer/edit?id=' . (int) $order['customer_id'] . '">ver cliente</a>' ?></td></tr>
         <tr><th>Frete</th><td><?= $e($order['shipping_label'] ?? '—') ?> · <?= $money($order['shipping_amount']) ?><?= $order['shipping_days'] !== null ? ' · ' . (int) $order['shipping_days'] . ' dia(s) útil(eis)' : '' ?></td></tr>
         <tr><th>Pagamento</th><td><?= in_array($order['payment_method'] ?? '', ['pix', 'mercadopago_pix'], true) ? '<img class="sales-card-brand" src="/assets/admin/card-brands/pix.svg" alt="" width="38" height="24"> ' : '' ?><?= $e($order['payment_label'] ?? '—') ?><?= $brand ? ' · ' . ($brandIcon ? '<img class="sales-card-brand" src="/assets/admin/card-brands/' . $brandIcon . '.svg" alt="" width="38" height="24"> ' : '') . '<strong>' . $e($brandName) . '</strong>' : '' ?><?php if ($order['payment_instructions']): ?><br><small style="white-space: pre-line;"><?= $e($order['payment_instructions']) ?></small><?php endif; ?>
-<?php foreach ($charges as $c): ?>
-            <br><small>Mercado Pago #<?= $e($c['external_id']) ?> · <?= $e($c['status_label']) ?><?= $c['card_brand'] ? ' · ' . $e($brands[$c['card_brand']] ?? ucfirst($c['card_brand'])) : '' ?><?= $c['card_number'] ? ' ' . $e($c['card_number']) : '' ?><?= $c['installments'] > 1 ? ' · ' . (int) $c['installments'] . 'x' : '' ?> · <?= $money($c['amount']) ?></small>
-<?php endforeach; ?></td></tr>
+<?php if ($charges): ?>
+            <br><small><?= count($charges) ?> tentativa(s) de cobrança no Mercado Pago (abaixo).</small>
+<?php endif; ?></td></tr>
 <?php if ($order['shipment']): ?>
         <tr><th>Entrega</th><td>Saiu de <?= $e($order['shipment']['source_name']) ?> em <?= $e(substr((string) $order['shipment']['created_at'], 0, 16)) ?>
             <?= $order['shipment']['carrier'] ? ' · ' . $e($order['shipment']['carrier']) : '' ?><?= $order['shipment']['tracking_code'] ? ' · rastreio ' . $e($order['shipment']['tracking_code']) : '' ?></td></tr>
@@ -68,6 +69,26 @@ $brandIcon = ['master' => 'master', 'debmaster' => 'master', 'visa' => 'visa', '
     </table>
     <?php if (!empty($order['discounts'])): ?><h3>Promoções aplicadas</h3><ul><?php foreach ($order['discounts'] as $discount): ?><li><?= $e($discount['promotion_name']) ?><?= $discount['coupon_code'] ? ' · cupom ' . $e($discount['coupon_code']) : '' ?>: − <?= $money($discount['discount_amount']) ?></li><?php endforeach; ?></ul><?php endif; ?>
     <p class="sales-order-totals">Subtotal <?= $money($order['subtotal']) ?><?= !empty($order['discount_amount']) ? ' · Descontos − ' . $money($order['discount_amount']) : '' ?> · Frete <?= $money($order['shipping_amount']) ?> · <strong>Total <?= $money($order['grand_total']) ?></strong></p>
+
+<?php if ($charges): ?>
+    <h3>Tentativas de cobrança (Mercado Pago)</h3>
+    <table class="sales-order-charges">
+        <thead><tr><th>Data</th><th>Forma</th><th>Situação</th><th>Motivo</th><th>Cartão</th><th>Valor</th></tr></thead>
+        <tbody>
+<?php foreach ($charges as $c): ?>
+<?php $detail = preg_replace('/^cc_rejected_/', '', (string) $c['status_detail']); ?>
+            <tr>
+                <td><?= $e(substr((string) $c['created_at'], 0, 16)) ?><br><small>#<?= $e($c['external_id']) ?></small></td>
+                <td><?= $e(MercadopagoService::METHODS[$c['method']] ?? $c['method']) ?></td>
+                <td><span class="admin-status admin-status-<?= ['approved' => 'complete', 'pending' => 'pending_payment', 'in_process' => 'pending_payment', 'authorized' => 'pending_payment', 'rejected' => 'canceled'][$c['status']] ?? 'off' ?>"><?= $e($c['status_label']) ?></span><?= $c['status'] === 'pending' && $c['expires_at'] ? '<br><small>vence ' . $e(substr((string) $c['expires_at'], 0, 16)) . '</small>' : '' ?></td>
+                <td><?= $detail === '' ? '—' : $e(MercadopagoService::REASONS[$detail] ?? $detail) ?></td>
+                <td><?= $c['card_brand'] ? $e($brands[$c['card_brand']] ?? ucfirst($c['card_brand'])) . ($c['card_number'] ? ' ' . $e($c['card_number']) : '') . ($c['installments'] > 1 ? ' · ' . (int) $c['installments'] . 'x' : '') : '—' ?></td>
+                <td><?= $money($c['amount']) ?></td>
+            </tr>
+<?php endforeach; ?>
+        </tbody>
+    </table>
+<?php endif; ?>
 
 <?php if ($actions): ?>
     <h3>Ações</h3>

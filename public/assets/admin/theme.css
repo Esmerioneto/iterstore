@@ -676,6 +676,11 @@ a {
   text-align: right;
 }
 
+.sales-order-view table.sales-order-charges th:last-child,
+.sales-order-view table.sales-order-charges td:last-child {
+  text-align: right;
+}
+
 .sales-order-view td small,
 .adminsales-edit td small {
   color: var(--color-text-muted);

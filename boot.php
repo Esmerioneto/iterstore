@@ -24,8 +24,9 @@
         }
         header('Strict-Transport-Security: max-age=31536000');
     }
-    // SameSite=Lax: cross-site POSTs arrive without the session cookie; Secure: over HTTPS, never sent over http
-    session_start(['cookie_httponly' => true, 'cookie_samesite' => 'Lax', 'cookie_secure' => $https, 'save_path' => getPath('var') . 'sessions',
+    // SameSite=Lax: cross-site POSTs arrive without the session cookie; Secure: over HTTPS, never sent over http;
+    // strict mode: an id the server never issued (one planted by an attacker) gets a new one instead of being adopted
+    session_start(['cookie_httponly' => true, 'cookie_samesite' => 'Lax', 'cookie_secure' => $https, 'use_strict_mode' => true, 'save_path' => getPath('var') . 'sessions',
         'gc_maxlifetime' => $sessionSeconds + 60, 'gc_probability' => 1, 'gc_divisor' => 100]);
 
     $modules = getModules();

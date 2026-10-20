@@ -37,6 +37,17 @@ class MercadopagoService
         'in_mediation' => 'Em disputa',
     ];
 
+    /** status_detail (without "cc_rejected_") => what it means: the order screen and the reconciliation report */
+    public const REASONS = [
+        'accredited' => 'Pagamento aprovado', 'insufficient_amount' => 'Saldo ou limite insuficiente', 'bad_filled_card_data' => 'Dados do cartão errados',
+        'bad_filled_card_number' => 'Número do cartão errado', 'bad_filled_date' => 'Validade errada', 'bad_filled_security_code' => 'Código de segurança errado',
+        'bad_filled_other' => 'Dados do cartão errados', 'rejected_by_issuer' => 'Recusado pelo banco', 'other_reason' => 'Recusado pelo banco',
+        'call_for_authorize' => 'O cliente precisa autorizar com o banco', 'required_call_for_authorize' => 'O cliente precisa autorizar com o banco',
+        'processing_error' => 'Erro no processamento', 'high_risk' => 'Recusado por risco de fraude', 'duplicated_payment' => 'Pagamento duplicado',
+        'card_disabled' => 'Cartão desativado', 'max_attempts' => 'Tentativas demais', 'blacklist' => 'Cartão bloqueado',
+        'canceled_transaction' => 'Cancelado', 'expired' => 'Expirou sem pagamento', 'by_collector' => 'Cancelado pela loja', 'refunded' => 'Estornado',
+    ];
+
     /** order status (and status_detail) of the Orders API => this module's status, the Payments API's names */
     private const ORDER_STATUS = [
         'created' => 'pending',
