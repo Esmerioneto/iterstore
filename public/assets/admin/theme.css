@@ -984,6 +984,7 @@ a {
 
 /* Sortable list titles:the header row stands out; the sorted column is in ink with its arrow */
 .catalog-product-list thead th,
+.admin-apikey-list thead th,
 .sales-order-list thead th,
 .customer-list thead th,
 .eav-attribute-list thead th,
@@ -2641,3 +2642,9 @@ input[type="checkbox"].admin-switch:disabled {
 .catalog-cost-import-errors ul { margin: 6px 0 0; padding-left: 20px; color: #a33; }
 .admin-dashboard .catalog-cost-import-form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-8); }
 .admin-dashboard .catalog-cost-import-form input[type="file"] { flex: 1 1 280px; font-size: 13px; }
+
+/* Sistema → Chaves da API */
+.admin-apikey-new { margin-bottom: var(--spacing-16); padding: var(--spacing-8) var(--spacing-16); border-left: 3px solid var(--color-ink); background: var(--color-linen); font-size: 13px; display: grid; gap: 6px; }
+.admin-apikey-new code[data-copy] { font-size: 14px; padding: 6px 10px; background: #fff; user-select: all; word-break: break-all; }
+.admin-apikey-status { margin: 0 0 var(--spacing-16); padding: var(--spacing-8) var(--spacing-16); border-left: 3px solid var(--color-pebble); background: var(--color-linen); font-size: 13px; }
+.admin-apikey-status-off { border-left-color: #e08a1e; }

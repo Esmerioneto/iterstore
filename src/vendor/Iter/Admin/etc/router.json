@@ -69,5 +69,21 @@
         "controller_name": "about",
         "controller_action": "index",
         "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Admin",
+        "controller_name": "apikey",
+        "controller_action": "index",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Admin",
+        "controller_name": "apikey",
+        "controller_action": "create,revoke",
+        "method": "POST"
     }
 ]

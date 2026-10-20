@@ -27,7 +27,7 @@ class OperationLog
         'login' => 'Entrou', 'logout' => 'Saiu', 'login_failed' => 'Login recusado', 'login_locked' => 'Bloqueado',
         'log_off' => 'Desligou o log', 'log_on' => 'Religou o log', 'export' => 'Exportou',
     ];
-    public const AREAS = ['product' => 'Produto', 'customer' => 'Cliente', 'config' => 'Configurações', 'report' => 'Relatório'];
+    public const AREAS = ['product' => 'Produto', 'customer' => 'Cliente', 'config' => 'Configurações', 'report' => 'Relatório', 'api_key' => 'Chave da API'];
 
     /**
      * $before/$after: label => readable value ("Preço" => "49.9"). create = $before empty,

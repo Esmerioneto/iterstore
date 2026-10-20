@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Iter\Core\Controllers;
 
 use Iter\Admin\Auth;
+use Iter\Admin\Model\ApiKey;
 use Iter\Core\Config;
 use Iter\Core\Log;
+use Iter\Core\RateLimit;
 use GraphQL\Error\Error;
 use GraphQL\Error\FormattedError;
 use GraphQL\Error\SyntaxError;
@@ -27,7 +29,7 @@ class Graphql
         if ($origin !== '' && (in_array('*', $allowed, true) || in_array($origin, $allowed, true))) {
             header('Access-Control-Allow-Origin: ' . $origin);
             header('Access-Control-Allow-Methods: POST, OPTIONS');
-            header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Sales-Channel');
+            header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Sales-Channel, X-Api-Key');
             header('Access-Control-Max-Age: 86400');
         }
         header('Vary: Origin');
@@ -57,6 +59,20 @@ class Graphql
             return;
         }
 
+        // an admin (panel session or admin token) is trusted: no app key, no general limit, and introspection for GraphiQL
+        $admin = Auth::user() !== null;
+        if (!$admin && Config::get('system/api/require_key') && !ApiKey::valid(trim((string) ($_SERVER['HTTP_X_API_KEY'] ?? '')))) {
+            http_response_code(401);
+            echo json_encode(['errors' => [['message' => 'Chave do aplicativo ausente ou inválida (cabeçalho X-Api-Key).', 'extensions' => ['code' => 'API_KEY_INVALID']]]]);
+            return;
+        }
+        if (!$admin && !RateLimit::hit('api:' . RateLimit::ip(), (int) Config::get('system/api/requests_per_minute'))) {
+            http_response_code(429);
+            header('Retry-After: 60');
+            echo json_encode(['errors' => [['message' => 'Muitas requisições. Aguarde um minuto e tente de novo.', 'extensions' => ['code' => 'TOO_MANY_REQUESTS']]]]);
+            return;
+        }
+
         // a multipart form from another site skips the CORS preflight: with the session cookie alone it would be CSRF
         if ($multipart && !isset($m[1])) {
             http_response_code(400);
@@ -73,7 +89,7 @@ class Graphql
         $rules = DocumentValidator::allRules();
         $rules[] = new QueryDepth((int) Config::get('system/api/max_depth'));
         $rules[] = new QueryComplexity((int) Config::get('system/api/max_complexity'));
-        if (!Config::get('system/api/introspection')) {
+        if (!$admin && !Config::get('system/api/introspection')) {
             $rules[] = new DisableIntrospection(DisableIntrospection::ENABLED);
         }
         $result = \GraphQL\GraphQL::executeQuery($schema, $query, null, null, $variables, null, null, $rules);

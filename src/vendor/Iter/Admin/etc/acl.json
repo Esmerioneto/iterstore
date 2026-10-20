@@ -4,5 +4,6 @@
     { "id": "Iter_Admin::about", "parent": "Iter_Admin::root", "title": "Sobre" },
     { "id": "Iter_Admin::user", "parent": "Iter_Admin::root", "title": "Usuários" },
     { "id": "Iter_Admin::role", "parent": "Iter_Admin::root", "title": "Perfis" },
-    { "id": "Iter_Admin::graphiql", "parent": "Iter_Admin::root", "title": "GraphiQL" }
+    { "id": "Iter_Admin::graphiql", "parent": "Iter_Admin::root", "title": "GraphiQL" },
+    { "id": "Iter_Admin::api_key", "parent": "Iter_Admin::root", "title": "Chaves da API" }
 ]

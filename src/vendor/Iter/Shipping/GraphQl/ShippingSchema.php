@@ -8,7 +8,9 @@ use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
 use GraphQL\Error\Error;
+use Iter\Core\Config;
 use Iter\Core\Log;
+use Iter\Core\RateLimit;
 use Iter\Customer\Model\CustomerAuth;
 use Iter\Sales\Model\CartService;
 use Iter\Core\GraphQl\Schema;
@@ -63,6 +65,9 @@ class ShippingSchema
                         'destinationCep' => Type::nonNull(Type::string()),
                     ],
                     'resolve' => static function ($root, array $args) use ($carts, $service): array {
+                        if (!RateLimit::hit('shipping_quote:' . RateLimit::ip(), (int) Config::get('system/api/shipping_quotes_per_minute'))) {
+                            throw new Error('Muitas cotações de frete seguidas. Aguarde um minuto e tente de novo.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
+                        }
                         $cep = preg_replace('/\\D/', '', (string) $args['destinationCep']);
                         if (strlen($cep) !== 8) {
                             throw new Error('Informe um CEP de destino com 8 dígitos.', extensions: ['code' => 'SHIPPING_CEP_INVALID']);

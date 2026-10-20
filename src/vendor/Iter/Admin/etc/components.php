@@ -14,6 +14,7 @@ return [
     'admin/user-form' => \Iter\Admin\View\UserForm::class,
     'admin/role-list' => \Iter\Admin\View\RoleList::class,
     'admin/role-form' => \Iter\Admin\View\RoleForm::class,
+    'admin/apikey-list' => \Iter\Admin\View\ApiKeyList::class,
     'admin/login-form' => \Iter\Admin\View\LoginForm::class,
     'admin/password-form' => \Iter\Admin\View\PasswordForm::class,
     'admin/reset-form' => \Iter\Admin\View\ResetForm::class,

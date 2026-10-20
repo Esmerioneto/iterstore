@@ -261,6 +261,12 @@ Config::save([
     'admin/security/password_history' => '4',
     'admin/security/password_lifetime' => '90',
     'admin/security/session_minutes' => '480',
+    // hundreds of anonymous API calls from 127.0.0.1, over plain http: the API protections are tested on their own below
+    'system/api/requests_per_minute' => '0',
+    'system/api/shipping_quotes_per_minute' => '0',
+    'system/api/require_key' => '0',
+    'web/secure/force_https' => '0',
+    'web/secure/trusted_proxies' => '',
     'mail/transport' => 'log', // .eml files in var/mail instead of SMTP
     'mail/from_email' => 'loja@selftest.local',
     'mail/from_name' => 'Selftest Loja',
@@ -795,6 +801,84 @@ assertSame(['GRAPHQL_VALIDATION_FAILED', 'GRAPHQL_PARSE_FAILED', 'GRAPHQL_VALIDA
 $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'system/api/introspection', '0') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '0'");
 assertSame([true, true], [str_contains($gql($guest, '{ __schema { queryType { name } } }')['errors'][0]['message'] ?? '', 'introspection'), isset($gql($guest, '{ categories { id } }')['data'])], 'GraphQL: introspecção desligada nas Configurações');
 $pdo->exec("DELETE FROM core_config_data WHERE path = 'system/api/introspection'");
+
+// --- API protections: introspection, app key, limits per IP, trusted proxy, HTTPS ---------------------------------
+$raw = static function (string $query, array $headers = [], string $path = '/core/graphql/index') use ($base): array { // a separate program: no cookies
+    $ch = curl_init($base . $path);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POSTFIELDS => json_encode(['query' => $query]), CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $headers)]);
+    $body = json_decode((string) curl_exec($ch), true);
+
+    return [curl_getinfo($ch, CURLINFO_RESPONSE_CODE), $body['errors'][0]['extensions']['code'] ?? (isset($body['data']) ? 'OK' : null)];
+};
+$apiConfig = static function (array $values) use ($pdo): void {
+    $save = $pdo->prepare("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, ?, ?) ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = EXCLUDED.value");
+    foreach ($values as $path => $value) {
+        $save->execute([$path, $value]);
+    }
+};
+$schemaQuery = '{ __schema { queryType { name } } }';
+assertSame(['GRAPHQL_VALIDATION_FAILED', 'OK'], [$raw($schemaQuery)[1], isset($gql($admin, $schemaQuery)['data']['__schema']) ? 'OK' : null],
+    'introspecção: desligada por padrão para quem não é admin; o admin logado (GraphiQL) tem');
+
+[$keyId, $appKey] = Iter\Admin\Model\ApiKey::create('Selftest App', null);
+[$oldId, $oldKey] = Iter\Admin\Model\ApiKey::create('Selftest Antiga', null);
+Iter\Admin\Model\ApiKey::revoke($oldId);
+assertSame(['OK', 'OK'], [$raw('{ websites { id } }')[1], $raw('{ websites { id } }', ['X-Api-Key: errada'])[1]], 'chave do aplicativo: desligada, a API responde sem ela');
+$apiConfig(['system/api/require_key' => '1']);
+assertSame([[401, 'API_KEY_INVALID'], [401, 'API_KEY_INVALID'], [401, 'API_KEY_INVALID'], [200, 'OK'], 'OK'], [
+    $raw('{ websites { id } }'), $raw('{ websites { id } }', ['X-Api-Key: itk_inventada']), $raw('{ websites { id } }', ["X-Api-Key: {$oldKey}"]),
+    $raw('{ websites { id } }', ["X-Api-Key: {$appKey}"]), isset($gql($admin, '{ websites { id } }')['data']) ? 'OK' : null,
+], 'chave exigida: sem chave, inventada ou revogada dá 401 API_KEY_INVALID; a chave ativa passa; o admin logado não precisa');
+$keyLogin = $raw('mutation { generateAdminToken(username: "selftest_admin", password: "' . PASSWORD . '") { token } }', ["X-Api-Key: {$appKey}"]);
+$adminTokenNoKey = (static function () use ($base, $appKey): array {
+    $ch = curl_init($base . '/core/graphql/index');
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json', "X-Api-Key: {$appKey}"],
+        CURLOPT_POSTFIELDS => json_encode(['query' => 'mutation { generateAdminToken(username: "selftest_admin", password: "' . PASSWORD . '") { token } }'])]);
+    $token = json_decode((string) curl_exec($ch), true)['data']['generateAdminToken']['token'] ?? '';
+    curl_setopt_array($ch, [CURLOPT_HTTPHEADER => ['Content-Type: application/json', "Authorization: Bearer {$token}"], CURLOPT_POSTFIELDS => json_encode(['query' => '{ currentAdmin { username } }'])]);
+
+    return [curl_getinfo($ch, CURLINFO_RESPONSE_CODE), json_decode((string) curl_exec($ch), true)['data']['currentAdmin']['username'] ?? null];
+})();
+assertSame(['OK', 'selftest_admin', true], [$keyLogin[1], $adminTokenNoKey[1], $pdo->query("SELECT last_used_at IS NOT NULL FROM api_key WHERE key_id = {$keyId}")->fetchColumn()],
+    'chave exigida: o login do admin pela API usa a chave; depois, o token do admin basta; o último uso da chave fica gravado');
+$apiConfig(['system/api/require_key' => '0']);
+
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'api:%' OR rate_key LIKE 'shipping_quote:%'");
+$apiConfig(['system/api/requests_per_minute' => '3']);
+$burst = array_map(static fn () => $raw('{ websites { id } }'), [1, 2, 3, 4]);
+assertSame([[200, 'OK'], [200, 'OK'], [200, 'OK'], [429, 'TOO_MANY_REQUESTS'], 'OK'], [...$burst, isset($gql($admin, '{ websites { id } }')['data']) ? 'OK' : null],
+    'limite geral por IP: a 4ª chamada no minuto dá 429 TOO_MANY_REQUESTS; o admin logado não entra no limite');
+// behind a trusted proxy each client is its own IP (the last X-Forwarded-For that isn't the proxy); from anyone else the header is ignored
+$apiConfig(['web/secure/trusted_proxies' => "10.9.9.9\n127.0.0.1"]);
+$viaProxy = array_map(static fn (string $ip) => $raw('{ websites { id } }', ["X-Forwarded-For: 1.2.3.4, {$ip}"])[0], ['203.0.113.1', '203.0.113.2', '203.0.113.1', '203.0.113.1', '203.0.113.1']);
+$apiConfig(['web/secure/trusted_proxies' => '']);
+assertSame([[200, 200, 200, 200, 429], [429, 'TOO_MANY_REQUESTS']], [$viaProxy, $raw('{ websites { id } }', ['X-Forwarded-For: 198.51.100.7'])],
+    'proxy confiável: o limite conta o IP do cliente (X-Forwarded-For), não o do proxy; sem proxy configurado, o cabeçalho é ignorado');
+$apiConfig(['system/api/requests_per_minute' => '0', 'system/api/shipping_quotes_per_minute' => '2']);
+$quotes = array_map(static fn () => $raw('{ shippingQuotes(destinationCep: "1") { code } }')[1], [1, 2, 3]);
+assertSame(['SHIPPING_CEP_INVALID', 'SHIPPING_CEP_INVALID', 'TOO_MANY_REQUESTS'], $quotes, 'cotação de frete: limite próprio por IP');
+$apiConfig(['system/api/shipping_quotes_per_minute' => '0']);
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'api:%' OR rate_key LIKE 'shipping_quote:%'");
+
+$apiConfig(['web/secure/force_https' => '1']);
+$plain = $guest->request('/admin/auth/login');
+$https = [$raw('{ websites { id } }')[0], $raw('{ websites { id } }', ['X-Forwarded-Proto: https'])[0]];
+$apiConfig(['web/secure/trusted_proxies' => '127.0.0.1']);
+$https[] = $raw('{ websites { id } }', ['X-Forwarded-Proto: https'])[0];
+$apiConfig(['web/secure/force_https' => '0', 'web/secure/trusted_proxies' => '']);
+assertSame([301, 'https://127.0.0.1:' . parse_url($base, PHP_URL_PORT) . '/admin/auth/login', [403, 403, 200]], [$plain['status'], (string) curl_getinfo((new ReflectionProperty(Browser::class, 'ch'))->getValue($guest), CURLINFO_REDIRECT_URL), $https],
+    'só HTTPS: página por http é redirecionada; a API por http é recusada (403), mesmo com X-Forwarded-Proto de quem não é proxy confiável; atrás do proxy confiável que diz https, passa');
+
+// the screen: a new key shown once, then only its hint; revoked from the list
+[, $keyMsgs] = $admin->submit('/admin/apikey/index', '/admin/apikey/create', ['name' => 'Selftest Tela']);
+$keyPage = $admin->request('/admin/apikey/index')['body'];
+$created = $pdo->query("SELECT key_id, key_hint FROM api_key WHERE name = 'Selftest Tela'")->fetch(PDO::FETCH_ASSOC) ?: [];
+[, $revokeMsgs] = $admin->submit('/admin/apikey/index', '/admin/apikey/revoke', ['key_id' => $created['key_id'] ?? 0]);
+assertSame([['Chave criada. Copie-a agora: ela não aparece de novo.'], false, true, ['Chave "Selftest Tela" revogada: ela para de funcionar agora.'], 0, 403],
+    [$keyMsgs, str_contains($keyPage, 'Copie agora'), str_contains($keyPage, htmlspecialchars($created['key_hint'] ?? 'x')), $revokeMsgs,
+     (int) $pdo->query('SELECT is_active FROM api_key WHERE key_id = ' . (int) ($created['key_id'] ?? 0))->fetchColumn(), $dash->request('/admin/apikey/index')['status']],
+    'Chaves da API: criar mostra a chave uma vez (a lista guarda só o começo e o fim), revogar desliga; sem a permissão, 403');
+$pdo->exec("DELETE FROM api_key WHERE name LIKE 'Selftest%'");
 $service->create(['entity_type' => 'product', 'code' => 'selftest_novo', 'label' => 'Novo', 'input_type' => 'checkbox']);
 $service->create(['entity_type' => 'product', 'code' => 'selftest_cor', 'label' => 'Cor multipla', 'input_type' => 'multiselect', 'options' => [['value' => 'az', 'label' => 'Azul'], ['value' => 'vm', 'label' => 'Vermelho']]]);
 $service->create(['entity_type' => 'product', 'code' => 'selftest_marca', 'label' => 'Marca', 'input_type' => 'select', 'options' => [['value' => 'acme', 'label' => 'ACME Ltda']]]);
