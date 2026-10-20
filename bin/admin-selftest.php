@@ -299,6 +299,8 @@ for ($i = 0; $i < 50 && @file_get_contents($base . '/admin/auth/login') === fals
 assertSame($pdo, Connection::get()->connect(), 'connect() devolve sempre a mesma conexão');
 
 // --- login, CSRF, ACL ------------------------------------------------------------
+// every panel login of this test comes from one IP: no per-IP limit here (its own test is with the API's; the config is restored at the end)
+$pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES ('default', 0, 'admin/security/api_login_per_minute', '0') ON CONFLICT (scope, scope_id, path) DO UPDATE SET value = '0'");
 $guest = new Browser($base);
 assertSame('/admin/auth/login', $guest->request('/admin/index')['location'], 'sem login, /admin redireciona para o login');
 [, $msgs] = $guest->submit('/admin/auth/login', '/admin/auth/loginpost', ['username' => 'selftest_admin', 'password' => PASSWORD], false);
@@ -2061,17 +2063,13 @@ $toggle('iter_eav', 0);
 assertSame(['Ative antes os módulos de que Catalog depende: Eav.'], $toggle('iter_catalog', 1), 'módulo não é ativado sem as dependências');
 $toggle('iter_eav', 1);
 assertSame([true, 200], [str_starts_with($toggle('iter_catalog', 1)[0] ?? '', 'Módulo Catalog ativado.'), $admin->request('/admin/product/index')['status']], 'módulo reativado volta a funcionar');
-$toggle('iter_inventory', 1);
-$toggle('iter_customer', 1);
-$toggle('iter_sales', 1);
-$toggle('iter_shipping', 1);
-$toggle('iter_melhorenvio', 1);
-$toggle('iter_correios', 1);
-$toggle('iter_payment', 1);
-$toggle('iter_mercadopago', 1);
-$toggle('iter_adminsales', 1);
-$toggle('iter_promotion', 1);
-$toggle('iter_message', 1);
+// back on: only the modules that were on before the test (the developer may keep some off); a dependent
+// turned on before its dependency is refused, so it repeats until none is left (one pass per dependency level)
+$modulesOf = static fn (string $json): array => array_merge(...array_values(json_decode($json, true)));
+$wasOn = array_keys(array_filter($modulesOf($savedModules), static fn ($on) => $on == 1));
+for ($pass = 0; $pass < count($wasOn) && ($off = array_diff($wasOn, array_keys(array_filter($modulesOf(file_get_contents(ETC . 'config.json')), static fn ($on) => $on == 1)))); $pass++) {
+    array_map(static fn (string $module) => $toggle($module, 1), $off);
+}
 assertSame('7', (new StockService())->getSalable([$estId])[$estId], 'Inventory reativado: o estoque continua lá');
 assertSame($savedModules, file_get_contents(ETC . 'config.json'), 'config.json volta ao que era');
 assertSame(403, $dash->request('/admin/config/index')['status'], 'perfil sem Configurações não chega aos módulos');
@@ -2107,6 +2105,15 @@ $pdo->exec("INSERT INTO core_config_data (scope, scope_id, path, value) VALUES (
 $codes = array_map(static fn () => $login('errada1234'), [1, 2, 3]);
 assertSame([[200, 'INVALID_CREDENTIALS'], [200, 'INVALID_CREDENTIALS'], [429, 'TOO_MANY_REQUESTS']], array_map(static fn ($r) => [$r[0], $r[1]['errors'][0]['extensions']['code'] ?? null], $codes), 'API: login passa do limite por IP e recebe 429');
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'admin_login:%'");
+$panel = new Browser($base);
+$panelMsgs = array_map(static fn () => $panel->submit('/admin/auth/login', '/admin/auth/loginpost', ['username' => 'selftest_admin', 'password' => 'errada1234'])[1], [1, 2, 3]);
+$apiAfter = $login(PASSWORD)[1]['errors'][0]['extensions']['code'] ?? null;
+assertSame([['Usuário ou senha inválidos.'], ['Usuário ou senha inválidos.'], ['Muitas tentativas de login. Aguarde um minuto e tente de novo.'], 'TOO_MANY_REQUESTS'],
+    [...$panelMsgs, $apiAfter], 'painel: login passa do limite por IP, que é o mesmo da API');
+$forgotMsgs = array_map(static fn () => $panel->submit('/admin/auth/forgot', '/admin/auth/forgotpost', ['email' => 'ninguem@selftest.local'])[1], [1, 2, 3]);
+assertSame('Muitas solicitações seguidas. Aguarde um minuto e tente de novo.', $forgotMsgs[2][0] ?? null, 'painel: esqueci a senha também tem limite por IP');
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'admin_login:%' OR rate_key LIKE 'admin_forgot:%'");
+$pdo->exec("UPDATE core_config_data SET value = '0' WHERE path = 'admin/security/api_login_per_minute'");
 $pdo->exec("UPDATE admin_user SET failures_num = 0, lock_expires = NULL WHERE user_id = {$adminId}");
 
 // --- API: storefront customer login ---------------------------------------------------------------

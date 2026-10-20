@@ -8,5 +8,5 @@
     { "path": "admin/security/password_lifetime", "group": "Segurança do admin", "label": "A senha expira em", "hint": "0 = nunca expira.", "unit": "dias", "type": "number", "default": 90, "min": 0, "max": 3650 },
     { "path": "admin/security/session_minutes", "group": "Segurança do admin", "label": "A sessão expira sem uso em", "unit": "minutos", "type": "number", "default": 480, "min": 5, "max": 10080 },
     { "path": "admin/security/api_token_hours", "group": "Segurança do admin", "label": "Validade do token de login pela API", "unit": "horas", "type": "number", "default": 4, "min": 1, "max": 720 },
-    { "path": "admin/security/api_login_per_minute", "group": "Segurança do admin", "label": "Tentativas de login pela API, por IP", "hint": "0 = sem limite.", "unit": "por minuto", "type": "number", "default": 10, "min": 0, "max": 1000 }
+    { "path": "admin/security/api_login_per_minute", "group": "Segurança do admin", "label": "Tentativas de login por IP (painel e API)", "hint": "Vale também para \"Esqueci a senha\". 0 = sem limite.", "unit": "por minuto", "type": "number", "default": 10, "min": 0, "max": 1000 }
 ]

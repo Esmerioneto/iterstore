@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: itersotore
       POSTGRES_PASSWORD: itersotore
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432" # only this machine; 0.0.0.0 would open the DB to the network
     volumes:
       - iterstore_pgdata:/var/lib/postgresql/data
 

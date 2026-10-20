@@ -10,6 +10,7 @@ use Iter\Admin\Model\AdminUser as AdminUserModel;
 use Iter\Core\Config;
 use Iter\Core\Log;
 use Iter\Core\Messages;
+use Iter\Core\RateLimit;
 use Iter\Core\View\Layout;
 use Iter\Mail\Model\MailException;
 use Iter\Mail\Model\MailService;
@@ -30,6 +31,12 @@ class Auth
 
     public function Loginpost(): void
     {
+        // the same per-IP count as generateAdminToken: the per-user lock alone lets one IP try every username
+        if (!RateLimit::hit('admin_login:' . RateLimit::ip(), (int) Config::get('admin/security/api_login_per_minute'))) {
+            Messages::addError('Muitas tentativas de login. Aguarde um minuto e tente de novo.');
+            header('Location: /admin/auth/login');
+            exit;
+        }
         if (!AdminAuth::login((string) ($_POST['username'] ?? ''), (string) ($_POST['password'] ?? ''))) {
             // ponytail: one generic message for wrong user/password/inactive/locked, no username enumeration
             Messages::addError('Usuário ou senha inválidos.');
@@ -96,6 +103,11 @@ class Auth
     public function Forgotpost(): void
     {
         $email = trim((string) ($_POST['email'] ?? ''));
+        if (!RateLimit::hit('admin_forgot:' . RateLimit::ip(), (int) Config::get('admin/security/api_login_per_minute'))) {
+            Messages::addError('Muitas solicitações seguidas. Aguarde um minuto e tente de novo.');
+            header('Location: /admin/auth/forgot');
+            exit;
+        }
         $hours = (int) Config::get('admin/security/reset_link_hours');
 
         foreach (filter_var($email, FILTER_VALIDATE_EMAIL) ? (new AdminUserModel())->getResource()->getActiveIdsByEmail($email) : [] as $userId) {
