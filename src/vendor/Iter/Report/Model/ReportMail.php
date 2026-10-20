@@ -72,7 +72,7 @@ final class ReportMail
                 'reports' => implode('', array_map(static fn ($t) => '<li>' . htmlspecialchars($t) . '</li>', $titles)),
                 'total' => Format::show('money', $summary['total'] ?? null),
                 'orders' => Format::show('int', $summary['orders'] ?? null),
-                'store_name' => (string) (Config::get('store/info/name') ?: 'ITer Store'),
+                'store_name' => (string) (Config::get('store/info/name') ?: 'Iter Store'),
             ], ['attachments' => $files]);
         } finally {
             array_map('unlink', glob($dir . '*') ?: []); // the queue keeps its own copy (MailService::keepAttachment)

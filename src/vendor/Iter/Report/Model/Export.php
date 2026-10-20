@@ -153,7 +153,7 @@ final class Export
             'title' => $this->report->info['title'], 'description' => $this->description, 'by' => $this->by, 'note' => $this->note,
             'columns' => $this->columns, 'rows' => $this->rows, 'tiles' => $this->tiles,
             'total' => $this->totalLine(static fn (string $type, mixed $v) => $v === null || $v === '' ? '' : Format::show($type, $v)),
-            'store' => (string) (Config::get('store/info/name') ?: 'ITer Store'),
+            'store' => (string) (Config::get('store/info/name') ?: 'Iter Store'),
             'logo' => is_file($logoFile) ? $logoFile : \getPath('public') . 'imagem' . DIRECTORY_SEPARATOR . 'logo.png',
         ];
         $html = (static function (array $data): string {
