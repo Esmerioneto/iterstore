@@ -170,11 +170,14 @@ class MercadopagoService
             if ($installments < 1 || $installments > self::maxInstallments($websiteId)) {
                 throw new SalesException('INSTALLMENTS_INVALID', sprintf('Escolha de 1 a %d parcelas.', self::maxInstallments($websiteId)));
             }
+            // "Cartão de débito" takes debit cards (debvisa, debmaster, debelo...) and prepaid ones, which the SDK reports
+            // by the plain brand (elo, visa...) and Mercado Pago refuses with installments
+            $type = $method === 'mercadopago_debit' ? (str_starts_with($brand, 'deb') ? 'debit_card' : 'prepaid_card') : 'credit_card';
             $payment = ['amount' => $amount, 'payment_method' => array_filter([
                 'id' => $brand,
-                'type' => $method === 'mercadopago_debit' ? 'debit_card' : 'credit_card',
+                'type' => $type,
                 'token' => $token,
-                'installments' => $installments,
+                'installments' => $type === 'prepaid_card' ? null : $installments,
                 // the name on the buyer's card bill; a name they recognize avoids chargebacks
                 'statement_descriptor' => mb_substr(trim((string) Config::get('payment/mercadopago/statement_descriptor', $websiteId)), 0, 13) ?: null,
             ])];

@@ -3092,8 +3092,15 @@ $card = ['token' => 'tok-recusa', 'payment_method_id' => 'visa', 'installments' 
 assertSame(['CARD_REQUIRED', 'INSTALLMENTS_INVALID'], [$cardCode([]), $cardCode(['installments' => 7] + $card)], 'Mercado Pago cartão: sem token ou acima do máximo de parcelas é recusado antes de cobrar');
 $declined = $fakeMp->pay($mpId($mpCredit), $card);
 $approved = $fakeMp->pay($mpId($mpCredit), ['token' => 'tok-ok'] + $card);
-$debit = $fakeMp->pay($mpId($mpDebit), ['token' => 'tok-debito', 'payment_method_id' => 'elo', 'installments' => 5]);
+$debit = $fakeMp->pay($mpId($mpDebit), ['token' => 'tok-debito', 'payment_method_id' => 'debelo', 'installments' => 5]);
 $debitPm = end($mpCalls)[2]['transactions']['payments'][0]['payment_method'];
+$prepaidPm = (static function () use ($fakeMp, $unpaid, $mpId, &$mpCalls): array {
+    $fakeMp->pay($mpId($unpaid('mercadopago_debit')), ['token' => 'tok-prepago', 'payment_method_id' => 'elo', 'installments' => 3]);
+
+    return end($mpCalls)[2]['transactions']['payments'][0]['payment_method'];
+})();
+assertSame(['prepaid_card', false], [$prepaidPm['type'], array_key_exists('installments', $prepaidPm)],
+    'Mercado Pago débito: cartão pré-pago (bandeira sem "deb", como o Elo de teste) vai como prepaid_card e sem parcelas');
 assertSame(['rejected', 'approved', 'processing', ["Mercado Pago #{$declined['external_id']}: Recusado (insufficient_amount), 3x.", "Mercado Pago #{$approved['external_id']}: Aprovado (accredited), 3x."],
     'ORDER_STATUS_INVALID', [1, 'debit_card'], 'processing', 'visa'], [
     $declined['status'], $approved['status'], $unpaidStatus($mpCredit), $mpComments($mpCredit), $cardCode(['token' => 'tok-3'] + $card),
