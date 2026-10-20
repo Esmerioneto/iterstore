@@ -76,7 +76,7 @@ $brandIcon = ['master' => 'master', 'debmaster' => 'master', 'visa' => 'visa', '
         <thead><tr><th>Data</th><th>Forma</th><th>Situação</th><th>Motivo</th><th>Cartão</th><th>Valor</th></tr></thead>
         <tbody>
 <?php foreach ($charges as $c): ?>
-<?php $detail = preg_replace('/^cc_rejected_/', '', (string) $c['status_detail']); ?>
+<?php $detail = $c['status'] === 'refunded' ? 'refunded' : preg_replace('/^cc_rejected_/', '', (string) $c['status_detail']); // a refund keeps "accredited" ?>
             <tr>
                 <td><?= $e(substr((string) $c['created_at'], 0, 16)) ?><br><small>#<?= $e($c['external_id']) ?></small></td>
                 <td><?= $e(MercadopagoService::METHODS[$c['method']] ?? $c['method']) ?></td>

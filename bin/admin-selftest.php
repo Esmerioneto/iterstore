@@ -2995,7 +2995,8 @@ $setConfig(['payment/mercadopago/access_token' => '', 'payment/mercadopago/publi
     'payment/mercadopago_pix/active' => '1', 'payment/mercadopago_credit/active' => '1', 'payment/mercadopago_debit/active' => '1', 'payment/mercadopago_credit/max_installments' => '6',
     'payment/mercadopago_pix/cancel_hours' => '24']);
 $noToken = $mpMethods();
-$setConfig(['payment/mercadopago/access_token' => Iter\Core\Crypt::encrypt('TEST-selftest'), 'payment/mercadopago/public_key' => 'TEST-pub-selftest']);
+$setConfig(['payment/mercadopago/access_token' => Iter\Core\Crypt::encrypt('TEST-selftest'), 'payment/mercadopago/public_key' => 'TEST-pub-selftest',
+    'payment/mercadopago/statement_descriptor' => 'SELFTEST LOJA LONGA']);
 assertSame([false, ['mercadopago_pix', 'mercadopago_credit', 'mercadopago_debit'], ['publicKey' => 'TEST-pub-selftest', 'maxInstallments' => 6]], [
     in_array('mercadopago_pix', $noToken, true),
     array_values(array_filter($mpMethods(), static fn ($c) => str_starts_with($c, 'mercadopago_'))),
@@ -3086,6 +3087,15 @@ assertSame(['rejected', 'approved', 'processing', ["Mercado Pago #{$declined['ex
     $declined['status'], $approved['status'], $unpaidStatus($mpCredit), $mpComments($mpCredit), $cardCode(['token' => 'tok-3'] + $card),
     [$debitPm['installments'], $debitPm['type']], $unpaidStatus($mpDebit), $approved['card_brand'],
 ], 'Mercado Pago cartão: recusado fica aguardando e pode tentar de novo; aprovado confirma; pedido pago não cobra de novo; débito sempre em 1x');
+$cardCall = current(array_filter($mpCalls, static fn ($c) => $c[0] === 'POST' && $c[1] === '/v1/orders' && ($c[2]['transactions']['payments'][0]['payment_method']['token'] ?? '') === 'tok-ok'))[2] ?? [];
+assertSame([true, ['zip_code' => '01310100', 'street_name' => 'Av Paulista', 'street_number' => '1000', 'neighborhood' => 'Bela Vista', 'city' => 'São Paulo', 'state' => 'SP'], 'SELFTEST LOJA', false,
+    ['area_code' => '21', 'number' => '999990000'], ['area_code' => '11', 'number' => '34567890'], []], [
+    ($cardCall['items'][0]['external_code'] ?? null) !== null && ($cardCall['items'][0]['quantity'] ?? 0) >= 1 && isset($cardCall['items'][0]['title'], $cardCall['items'][0]['unit_price']),
+    $cardCall['payer']['address'] ?? null, $cardCall['transactions']['payments'][0]['payment_method']['statement_descriptor'] ?? null, isset($cardCall['payer']['phone']),
+    Iter\Mercadopago\Model\MercadopagoService::payerContact(['telephone' => '+55 (21) 99999-0000'])['phone'] ?? null,
+    Iter\Mercadopago\Model\MercadopagoService::payerContact(['telephone' => '(11) 3456-7890'])['phone'] ?? null,
+    Iter\Mercadopago\Model\MercadopagoService::payerContact(['telephone' => '123']),
+], 'Mercado Pago: a cobrança leva os itens, o endereço do pagador e o nome na fatura (cortado em 13 caracteres); o telefone só com DDD, sem o 55 da frente');
 assertSame(['4509 95•• •••• 3704', null, null], [$approved['card_number'], $declined['card_number'], $pix['card_number']],
     'Mercado Pago cartão: o número mascarado vem do token lido antes de cobrar; token ilegível não impede a cobrança');
 $chargesPage = $orderPage($admin, $mpId($mpCredit));

@@ -134,7 +134,15 @@ class MercadopagoService
                 'first_name' => $order['firstname'],
                 'last_name' => $order['lastname'],
                 'identification' => ['type' => strlen($taxvat) === 14 ? 'CNPJ' : 'CPF', 'number' => $taxvat],
-            ],
+            ] + self::payerContact($order['billing_address'] ?? $order['shipping_address'] ?? null),
+            // what was bought and the payer's phone and address raise the approval rate (Mercado Pago's quality checklist)
+            'items' => array_map(static fn (array $i) => array_filter([
+                'external_code' => (string) $i['sku'],
+                'title' => mb_substr((string) $i['name'], 0, 255),
+                'description' => $i['options'] ? mb_substr((string) $i['options'], 0, 255) : null,
+                'quantity' => max(1, (int) round((float) $i['quantity'])),
+                'unit_price' => number_format((float) $i['price'], 2, '.', ''),
+            ], static fn ($v) => $v !== null), $order['items']),
         ];
         // the Orders API refuses notification_url: the webhook (topic Order) is set in Suas integrações; the cron reads back the rest
 
@@ -162,12 +170,14 @@ class MercadopagoService
             if ($installments < 1 || $installments > self::maxInstallments($websiteId)) {
                 throw new SalesException('INSTALLMENTS_INVALID', sprintf('Escolha de 1 a %d parcelas.', self::maxInstallments($websiteId)));
             }
-            $payment = ['amount' => $amount, 'payment_method' => [
+            $payment = ['amount' => $amount, 'payment_method' => array_filter([
                 'id' => $brand,
                 'type' => $method === 'mercadopago_debit' ? 'debit_card' : 'credit_card',
                 'token' => $token,
                 'installments' => $installments,
-            ]];
+                // the name on the buyer's card bill; a name they recognize avoids chargebacks
+                'statement_descriptor' => mb_substr(trim((string) Config::get('payment/mercadopago/statement_descriptor', $websiteId)), 0, 13) ?: null,
+            ])];
             // ponytail: no 3DS (transaction_security), the app has no WebView for the challenge yet
             $key = hash('sha256', $token);
             // the digits for the admin; a token that can't be read doesn't stop the charge
@@ -314,6 +324,30 @@ class MercadopagoService
             ?: throw new SalesException('PAYMENT_NOT_FOUND', 'Pagamento não encontrado.');
 
         return ['status_label' => self::STATUS_LABELS[$row['status']] ?? $row['status'], 'amount' => (float) $row['amount'], 'card_number' => self::maskCard($row)] + $row;
+    }
+
+    /** payer.phone and payer.address of an order's address (Brazilian phone: DDD + number; a 55 in front is dropped) */
+    public static function payerContact(?array $address): array
+    {
+        if ($address === null) {
+            return [];
+        }
+        $phone = preg_replace('/\D/', '', (string) ($address['telephone'] ?? ''));
+        $phone = strlen($phone) > 11 && str_starts_with($phone, '55') ? substr($phone, 2) : $phone;
+        $street = array_filter([
+            'zip_code' => preg_replace('/\D/', '', (string) ($address['postcode'] ?? '')),
+            'street_name' => (string) ($address['street'] ?? ''),
+            'street_number' => (string) ($address['number'] ?? ''),
+            'neighborhood' => (string) ($address['district'] ?? ''),
+            'city' => (string) ($address['city'] ?? ''),
+            'state' => (string) ($address['region'] ?? ''),
+            'complement' => (string) ($address['complement'] ?? ''),
+        ], 'strlen');
+
+        return array_filter([
+            'phone' => strlen($phone) >= 10 ? ['area_code' => substr($phone, 0, 2), 'number' => substr($phone, 2)] : null,
+            'address' => $street ?: null,
+        ]);
     }
 
     /** "4509 95•• •••• 3704"; null without the digits (Pix, a charge from before them) */
