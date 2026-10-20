@@ -823,7 +823,9 @@ assertSame(['GRAPHQL_VALIDATION_FAILED', 'OK'], [$raw($schemaQuery)[1], isset($g
 [$keyId, $appKey] = Iter\Admin\Model\ApiKey::create('Selftest App', null);
 [$oldId, $oldKey] = Iter\Admin\Model\ApiKey::create('Selftest Antiga', null);
 Iter\Admin\Model\ApiKey::revoke($oldId);
-assertSame(['OK', 'OK'], [$raw('{ websites { id } }')[1], $raw('{ websites { id } }', ['X-Api-Key: errada'])[1]], 'chave do aplicativo: desligada, a API responde sem ela');
+assertSame(['OK', 'OK', 'OK', true], [$raw('{ websites { id } }')[1], $raw('{ websites { id } }', ['X-Api-Key: errada'])[1], $raw('{ websites { id } }', ["X-Api-Key: {$appKey}"])[1],
+    $pdo->query("SELECT last_used_at IS NOT NULL FROM api_key WHERE key_id = {$keyId}")->fetchColumn()],
+    'chave do aplicativo: desligada, a API responde sem ela; uma chave enviada já marca o último uso (o painel mostra que o app manda a chave antes de exigir)');
 $apiConfig(['system/api/require_key' => '1']);
 assertSame([[401, 'API_KEY_INVALID'], [401, 'API_KEY_INVALID'], [401, 'API_KEY_INVALID'], [200, 'OK'], 'OK'], [
     $raw('{ websites { id } }'), $raw('{ websites { id } }', ['X-Api-Key: itk_inventada']), $raw('{ websites { id } }', ["X-Api-Key: {$oldKey}"]),
@@ -839,8 +841,7 @@ $adminTokenNoKey = (static function () use ($base, $appKey): array {
 
     return [curl_getinfo($ch, CURLINFO_RESPONSE_CODE), json_decode((string) curl_exec($ch), true)['data']['currentAdmin']['username'] ?? null];
 })();
-assertSame(['OK', 'selftest_admin', true], [$keyLogin[1], $adminTokenNoKey[1], $pdo->query("SELECT last_used_at IS NOT NULL FROM api_key WHERE key_id = {$keyId}")->fetchColumn()],
-    'chave exigida: o login do admin pela API usa a chave; depois, o token do admin basta; o último uso da chave fica gravado');
+assertSame(['OK', 'selftest_admin'], [$keyLogin[1], $adminTokenNoKey[1]], 'chave exigida: o login do admin pela API usa a chave; depois, o token do admin basta');
 $apiConfig(['system/api/require_key' => '0']);
 
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'api:%' OR rate_key LIKE 'shipping_quote:%'");

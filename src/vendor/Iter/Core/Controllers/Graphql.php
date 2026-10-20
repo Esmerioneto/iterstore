@@ -61,7 +61,10 @@ class Graphql
 
         // an admin (panel session or admin token) is trusted: no app key, no general limit, and introspection for GraphiQL
         $admin = Auth::user() !== null;
-        if (!$admin && Config::get('system/api/require_key') && !ApiKey::valid(trim((string) ($_SERVER['HTTP_X_API_KEY'] ?? '')))) {
+        // a key sent is always checked (and its "Último uso" marked), so the panel shows the app sends it before it's required
+        $appKey = trim((string) ($_SERVER['HTTP_X_API_KEY'] ?? ''));
+        $validKey = $appKey !== '' && ApiKey::valid($appKey);
+        if (!$admin && Config::get('system/api/require_key') && !$validKey) {
             http_response_code(401);
             echo json_encode(['errors' => [['message' => 'Chave do aplicativo ausente ou inválida (cabeçalho X-Api-Key).', 'extensions' => ['code' => 'API_KEY_INVALID']]]]);
             return;
