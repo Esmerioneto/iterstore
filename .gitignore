@@ -24,3 +24,6 @@
 
 # Serena (MCP code-navigation tool), local to each developer
 .serena/
+
+# Playwright MCP (browser tool used to check screens and take the manual's prints)
+/.playwright-mcp/
