@@ -4013,6 +4013,13 @@ assertSame([true, '7'], [(bool) preg_grep('/guarde ao menos um nível/', $msgs),
 [, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['system/backup/destination' => 'b2', 'system/backup/bucket' => 'selftest']]);
 assertSame([true, 'local'], [(bool) preg_grep('/ID da chave, Chave secreta/', $msgs), (string) Config::get('system/backup/destination')], 'backup: B2 sem a chave é recusado');
 
+$dashHasBackup = static fn () => str_contains($admin->request('/admin/index')['body'], 'backup-dashboard');
+$withWarnings = $dashHasBackup();
+$admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['system/backup/dashboard_warnings' => '0']]);
+$withoutWarnings = $dashHasBackup();
+$admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['system/backup/dashboard_warnings' => '1']]);
+assertSame([true, false], [$withWarnings, $withoutWarnings], 'backup: "Avisos do backup no Dashboard" desligado tira o backup do Dashboard');
+
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());
 assertSame(true, abs($dbNow - time()) < 5, 'banco e PHP usam o mesmo fuso (' . date_default_timezone_get() . ')');
