@@ -27,6 +27,11 @@ function assertSame($expected, $actual, string $label): void
     echo "OK: {$label}\n";
 }
 
+// the cron's lock: it reads the same settings and status.json, which this test changes, so it waits for the end
+is_dir(Backup::dir()) || mkdir(Backup::dir(), 0775, true);
+$lock = fopen(Backup::dir() . 'backup.lock', 'c');
+flock($lock, LOCK_EX);
+
 $pdo = Connection::get()->connect();
 $savedConfig = $pdo->query("SELECT scope, scope_id, path, value FROM core_config_data WHERE path LIKE 'system/backup/%'")->fetchAll(PDO::FETCH_ASSOC);
 $statusFile = Backup::dir() . 'status.json';
