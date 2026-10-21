@@ -1778,7 +1778,8 @@ body.swal2-toast-shown .swal2-container.swal2-top-end:has(> .admin-swal-toast) {
 
 /* E-mail enviado: labels in a narrow column, a preview as tall as a message, the text version in a box, actions at the end */
 .mail-message-view table.mail-message-info th,
-.log-operation-view table.log-operation-info th {
+.log-operation-view table.log-operation-info th,
+.admin-dashboard table.backup-info th {
   width: 200px;
   vertical-align: top;
 }
@@ -2670,3 +2671,23 @@ input[type="checkbox"].admin-switch:disabled {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* Sistema → Backup and its recovery kit: the page's warnings as bars, the password form and the kit's actions in one line */
+.backup-note { margin: 0 0 var(--spacing-8); padding: var(--spacing-8) var(--spacing-16); border-left: 3px solid var(--color-pebble); background: var(--color-linen); font-size: 13px; }
+.backup-note-warning { border-left-color: var(--color-warning); background: var(--surface-warning); }
+.backup-note-error { border-left-color: var(--color-danger); background: var(--surface-danger); font-weight: 500; }
+.backup-status .admin-page-head form { display: contents; }
+.backup-kit-unlock, .backup-kit-actions { display: flex; gap: var(--spacing-16); align-items: flex-end; margin-top: var(--spacing-16); }
+.backup-kit-actions { align-items: center; }
+.backup-kit-unlock label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.backup-kit-unlock input { height: var(--control-h); min-width: 280px; }
+.backup-kit table.backup-info code { font-size: 13px; word-break: break-all; }
+.backup-status .admin-list-summary { margin-top: var(--spacing-16); }
+/* on the sales dashboard (one screen) only the backup's problems show, as bars above the charts */
+.admin-dashboard:has(> .sales-dash):has(> .backup-dashboard.has-warnings) { display: flex; flex-direction: column; gap: 8px; }
+.admin-dashboard:has(> .sales-dash) > .sales-dash { flex: 1; min-height: 0; }
+.admin-dashboard:has(> .sales-dash) > .backup-dashboard.has-warnings { display: block; order: -1; margin: 0; padding: 0; border: 0; box-shadow: none; background: none; }
+.admin-dashboard:has(> .sales-dash) > .backup-dashboard > h2, .admin-dashboard:has(> .sales-dash) > .backup-dashboard > p:not(.backup-note) { display: none; }
+.admin-dashboard:has(> .sales-dash) .backup-note { margin: 0 0 4px; padding: 6px 12px; }
+.backup-kit-steps { font-size: 13px; line-height: 1.8; padding-left: 20px; }
+@media print { .admin-header, .admin-menu, .admin-breadcrumb, .admin-messages, .backup-kit-actions { display: none !important; } }

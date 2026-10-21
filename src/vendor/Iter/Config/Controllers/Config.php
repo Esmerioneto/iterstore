@@ -59,6 +59,10 @@ class Config
             if (!empty($field['admin_only']) && !Auth::isAllowed('Iter_Admin::root')) {
                 continue;
             }
+            // "resource": a field only who has that permission sees and changes (Backup's destination)
+            if (isset($field['resource']) && !Auth::isAllowed($field['resource'])) {
+                continue;
+            }
             $labels[$path] = $field['label'];
             if ($websiteId && !empty($useDefault[$path])) {
                 $defaults[] = $path;
@@ -138,6 +142,16 @@ class Config
             }
 
             $values[$path] = $value;
+        }
+
+        // config_groups.json "validator": "Class::method" checks a group's fields together, with the values they'd have
+        if (!$errors && !$websiteId) {
+            $get = static fn (string $path): mixed => array_key_exists($path, $values) ? $values[$path] : SystemConfig::get($path);
+            foreach (\getModuleJson('etc' . DIRECTORY_SEPARATOR . 'config_groups.json') as $group) {
+                if (isset($group['validator']) && is_callable($group['validator'])) {
+                    array_push($errors, ...call_user_func($group['validator'], $get));
+                }
+            }
         }
 
         if ($errors) {

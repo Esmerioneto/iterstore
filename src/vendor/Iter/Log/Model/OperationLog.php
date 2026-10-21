@@ -26,8 +26,9 @@ class OperationLog
         'create' => 'Criou', 'update' => 'Alterou', 'delete' => 'Excluiu', 'config' => 'Configurações',
         'login' => 'Entrou', 'logout' => 'Saiu', 'login_failed' => 'Login recusado', 'login_locked' => 'Bloqueado',
         'log_off' => 'Desligou o log', 'log_on' => 'Religou o log', 'export' => 'Exportou',
+        'backup_run' => 'Pediu um backup', 'backup_kit' => 'Abriu o kit de recuperação', 'backup_kit_saved' => 'Guardou o kit de recuperação',
     ];
-    public const AREAS = ['product' => 'Produto', 'customer' => 'Cliente', 'config' => 'Configurações', 'report' => 'Relatório', 'api_key' => 'Chave da API'];
+    public const AREAS = ['product' => 'Produto', 'customer' => 'Cliente', 'config' => 'Configurações', 'report' => 'Relatório', 'api_key' => 'Chave da API', 'backup' => 'Backup'];
 
     /**
      * $before/$after: label => readable value ("Preço" => "49.9"). create = $before empty,

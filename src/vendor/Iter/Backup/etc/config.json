@@ -1,0 +1,9 @@
+{
+  "name": "iter_backup",
+  "version": "1.0.0",
+  "description": "Backup (restic)",
+  "enabled": true,
+  "index": "0",
+  "author": "Esmerio",
+  "depends": ["iter_admin", "iter_config"]
+}

@@ -30,6 +30,9 @@ class SettingsForm implements ViewComponentInterface
             if ($websiteId && ($field['scope'] ?? '') !== 'website') {
                 continue;
             }
+            if (isset($field['resource']) && !\Iter\Admin\Auth::isAllowed($field['resource'])) {
+                continue;
+            }
             $own = Config::websiteValue($path, $websiteId);
             $field['uses_default'] = $websiteId && $own === null;
             $field['value'] = ($field['type'] ?? 'text') === 'password' ? '' : ($old[$path] ?? Config::get($path, $websiteId ?: null));

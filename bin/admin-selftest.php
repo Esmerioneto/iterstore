@@ -3977,6 +3977,42 @@ assertSame([true, $expectedRoles, true, true, true], [
     str_contains($rolesBad, 'Nenhum perfil cadastrado.'),
 ], 'grids: perfis buscados (sem diferenciar maiúsculas) e ordenados em PHP; sort inválido cai no padrão (ID ▲); busca sem resultado mostra o vazio');
 
+// --- backup: Sistema → Backup, the recovery kit (root only, password again) and the settings' checks -----
+$backupPage = $admin->request('/admin/backup/index')['body'];
+$runNow = Iter\Backup\Model\Backup::dir() . 'run-now';
+$hadRunNow = is_file($runNow);
+[$runAt] = $admin->submit('/admin/backup/index', '/admin/backup/run', []);
+$requested = is_file($runNow);
+$hadRunNow || @unlink($runNow); // the cron (if running) would make a real copy
+assertSame([true, '/admin/backup/index', true], [str_contains($backupPage, 'Fazer backup agora'), $runAt, $requested], 'backup: a tela abre e "Fazer backup agora" deixa o pedido para o cron');
+assertSame([true, false], [
+    str_contains($admin->request('/admin/backup/kit')['body'], 'name="password"'),
+    str_contains($admin->request('/admin/backup/kit')['body'], 'crypt_key='),
+], 'backup: o kit pede a senha antes de mostrar');
+[, $msgs] = $admin->submit('/admin/backup/kit', '/admin/backup/kitpost', ['password' => 'errada']);
+assertSame(['Senha incorreta.'], $msgs, 'backup: kit com a senha errada é recusado');
+preg_match('/name="form_key" value="([0-9a-f]{64})"/', $admin->request('/admin/backup/kit')['body'], $m);
+$kitPage = $admin->request('/admin/backup/kitpost', ['form_key' => $m[1], 'password' => PASSWORD])['body'];
+assertSame([true, true, 1], [
+    str_contains($kitPage, 'crypt_key="'), str_contains($kitPage, 'Já guardei nos dois lugares'),
+    (int) $pdo->query("SELECT COUNT(*) FROM log_operation WHERE action = 'backup_kit' AND admin_user_id = {$adminId}")->fetchColumn(),
+], 'backup: com a senha, o kit mostra a chave do env.ini e a abertura vai para o log de operações');
+$makeUser('selftest_semroot', ['Iter_Config::config', 'Iter_Backup::backup']);
+$semRoot = new Browser($base);
+$semRoot->login('selftest_semroot');
+$makeUser('selftest_sembackup', ['Iter_Config::config']);
+$semBackup = new Browser($base);
+$semBackup->login('selftest_sembackup');
+assertSame(['/admin/backup/index', false, true], [
+    $semRoot->request('/admin/backup/kit')['location'],
+    str_contains($semBackup->request('/admin/config/index')['body'], 'system/backup/destination'),
+    str_contains($semRoot->request('/admin/config/index')['body'], 'system/backup/destination'),
+], 'backup: o kit é só do perfil Administrador; o destino só aparece para quem tem a permissão do Backup');
+[, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['system/backup/keep_hourly' => '0', 'system/backup/keep_daily' => '0', 'system/backup/keep_weekly' => '0', 'system/backup/keep_monthly' => '0']]);
+assertSame([true, '7'], [(bool) preg_grep('/guarde ao menos um nível/', $msgs), (string) Config::get('system/backup/keep_daily')], 'backup: todos os níveis de cópias em 0 é recusado e nada é salvo');
+[, $msgs] = $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['system/backup/destination' => 'b2', 'system/backup/bucket' => 'selftest']]);
+assertSame([true, 'local'], [(bool) preg_grep('/ID da chave, Chave secreta/', $msgs), (string) Config::get('system/backup/destination')], 'backup: B2 sem a chave é recusado');
+
 // --- timezone ----------------------------------------------------------------------------------
 $dbNow = strtotime((string) $pdo->query('SELECT NOW()::timestamp')->fetchColumn());
 assertSame(true, abs($dbNow - time()) < 5, 'banco e PHP usam o mesmo fuso (' . date_default_timezone_get() . ')');

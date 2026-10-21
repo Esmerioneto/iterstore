@@ -1,0 +1,5 @@
+[
+    { "group": "Backup", "section": "Sistema", "position": 125, "icon": "🗄️", "description": "Frequência, quantas cópias guardar e onde",
+      "chips": [{ "label": "Backup", "path": "system/backup/active" }],
+      "validator": "Iter\\Backup\\Model\\Backup::validateConfig" }
+]

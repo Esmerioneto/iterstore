@@ -20,7 +20,8 @@
         "iter_promotion": "1",
         "iter_message": "1",
         "iter_log": "1",
-        "iter_report": "1"
+        "iter_report": "1",
+        "iter_backup": "1"
     },
     "customized": {
         "egsn_user": "1"

@@ -1,0 +1,4 @@
+[
+    { "code": "backup_failed", "label": "Backup falhou", "subject": "O backup da loja falhou", "file": "backup-failed", "private": true,
+      "vars": { "error": "restic backup falhou: unable to open repository", "last_ok": "2026-10-20 03:00:12", "link": "http://localhost:8080/admin/backup/index" } }
+]

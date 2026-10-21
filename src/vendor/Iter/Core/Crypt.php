@@ -39,6 +39,12 @@ class Crypt
         return $plain === false ? '' : $plain;
     }
 
+    /** the key as written in env.ini (crypt_key=...), for the backup's recovery kit only */
+    public static function exportKey(): string
+    {
+        return base64_encode(self::key());
+    }
+
     private static function key(): string
     {
         $file = ETC . 'env.ini';
