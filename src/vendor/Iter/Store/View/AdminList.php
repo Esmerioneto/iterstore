@@ -7,6 +7,7 @@ namespace Iter\Store\View;
 use Iter\Store\Model\Store;
 use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Admin\View\GridColumns;
 
 class AdminList implements ViewComponentInterface
 {
@@ -25,6 +26,7 @@ class AdminList implements ViewComponentInterface
             'q' => $q,
             'stores' => $stores,
             'pager' => $pager,
+            'gridColumns' => new GridColumns('store/admin-list', $stores, ['id', 'name', 'website', 'webview', 'theme']),
         ];
     }
 }

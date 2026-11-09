@@ -11,6 +11,7 @@ use Iter\Customer\Model\Customer;
 use Iter\Customer\Model\ResourceModel\Customer as CustomerResource;
 use Iter\Customer\Model\Group;
 use Iter\Store\Model\Website;
+use Iter\Admin\View\GridColumns;
 
 class CustomerList implements ViewComponentInterface
 {
@@ -37,6 +38,7 @@ class CustomerList implements ViewComponentInterface
             'total' => $result['total'],
             'groups' => array_column((new Group())->getResource()->getList(), 'name', 'customer_group_id'),
             'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
+            'gridColumns' => new GridColumns('customer/customer-list', $result['items'], ['id', 'type', 'name', 'email', 'taxvat', 'group', 'website', 'is_active', 'created_at']),
         ];
     }
 }

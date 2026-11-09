@@ -1,0 +1,7 @@
+[
+    { "path": "catalog/tryon/provider", "options": { "huggingface": "Hugging Face, FASHN VTON 1.5 grátis (só desenvolvimento)" } },
+    { "path": "tryon/huggingface/space", "group": "Provador virtual", "block": "Hugging Face (só desenvolvimento)", "resource": "Iter_Tryon::manage", "label": "Space", "hint": "Demonstração pública e grátis, sem contrato: só com fotos de teste, nunca de clientes. Só é usado com \"Provedor\" = Hugging Face.", "type": "text", "default": "fashn-ai/fashn-vton-1.5" },
+    { "path": "tryon/huggingface/token", "group": "Provador virtual", "block": "Hugging Face (só desenvolvimento)", "resource": "Iter_Tryon::manage", "label": "Token (opcional)", "hint": "huggingface.co → Settings → Access Tokens (tipo Read). Sem ele, a cota grátis de GPU é a do IP do servidor; com ele, a da conta.", "type": "password", "default": "", "required": false },
+    { "path": "tryon/huggingface/garment_photo_type", "group": "Provador virtual", "block": "Hugging Face (só desenvolvimento)", "resource": "Iter_Tryon::manage", "label": "Fotos das peças", "type": "select", "default": "flat-lay", "options": { "flat-lay": "Peça sozinha (cabide, mesa, fundo branco)", "model": "Peça vestida por alguém" } },
+    { "path": "tryon/huggingface/steps", "group": "Provador virtual", "block": "Hugging Face (só desenvolvimento)", "resource": "Iter_Tryon::manage", "label": "Passos de geração", "hint": "20 rápido, 30 equilibrado, 50 melhor qualidade.", "unit": "passos", "type": "number", "default": 30, "min": 10, "max": 50 }
+]

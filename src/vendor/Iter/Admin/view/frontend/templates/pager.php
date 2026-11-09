@@ -5,10 +5,11 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
 $path = strtok((string) ($_SERVER['REQUEST_URI'] ?? ''), '?');
 $keep = array_filter(array_diff_key($_GET, ['page' => 1, 'limit' => 1]), static fn ($v) => is_string($v) && $v !== '');
 $links = $keep + ($pager['limit'] === $pager['sizes'][0] ? [] : ['limit' => $pager['limit']]);
-$pageUrl = static fn (int $p) => $e($path . '?' . http_build_query($links + ['page' => $p]));
+$hash = $anchor !== null ? '#' . rawurlencode($anchor) : '';
+$pageUrl = static fn (int $p) => $e($path . '?' . http_build_query($links + ['page' => $p]) . $hash);
 $from = $pager['total'] ? ($pager['page'] - 1) * $pager['limit'] + 1 : 0;
 ?>
-    <form method="get" action="<?= $e($path) ?>" class="admin-pager">
+    <form method="get" action="<?= $e($path . $hash) ?>" class="admin-pager">
 <?php foreach ($keep as $name => $value): ?>
         <input type="hidden" name="<?= $e($name) ?>" value="<?= $e($value) ?>">
 <?php endforeach; ?>

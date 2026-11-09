@@ -1,0 +1,7 @@
+Regerar o Manual Técnico (MANUAL-TECNICO.html e .pdf):
+
+  php -d xdebug.mode=off plan/manual/gerador/api-examples.php   # roda os exemplos numa transação desfeita; grava api-examples.json aqui
+  python3 plan/manual/gerador/build-tecnico.py plan/manual/gerador/api-examples.json
+  cd plan/manual && google-chrome --headless=new --disable-gpu --no-pdf-header-footer --print-to-pdf=MANUAL-TECNICO.pdf "file://$PWD/MANUAL-TECNICO.html"
+
+Rode depois de mudar a API (e de php bin/schema-dump.php). Campo novo no schema sem "Quem pode" em ACCESS faz o build-tecnico.py parar.

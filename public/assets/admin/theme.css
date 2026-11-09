@@ -969,6 +969,12 @@ a {
   font-size: 12px;
 }
 
+/* Configurações → módulos: "Usado por ..." wraps inside a bounded Ações column instead of widening it */
+.config-settings-list td.admin-row-action {
+  width: 24%;
+  white-space: normal;
+}
+
 .customer-list td.customer-inactive {
   color: var(--color-text-muted);
 }
@@ -994,6 +1000,8 @@ a {
 .customer-list thead th,
 .eav-attribute-list thead th,
 .mail-sent-list thead th,
+.marketing-list thead th,
+.tryon-list thead th,
 .message-list thead th,
 .log-operation-list thead th,
 .log-operation-changes thead th,
@@ -1627,6 +1635,18 @@ body.swal2-toast-shown .swal2-container.swal2-top-end:has(> .admin-swal-toast) {
   cursor: pointer;
 }
 
+/* an EAV yes/no field (product, customer): the same switch as Configurações */
+.eav-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  cursor: pointer;
+}
+
+.eav-switch input[type="checkbox"].admin-switch {
+  margin: 0;
+}
+
 .mobile-switch input[type="checkbox"].admin-switch {
   margin: 0;
 }
@@ -1707,6 +1727,21 @@ body.swal2-toast-shown .swal2-container.swal2-top-end:has(> .admin-swal-toast) {
   line-height: 1;
 }
 
+/* Catálogo → Produtos: the main image, first column */
+.product-thumb-cell {
+  width: 56px;
+}
+
+.product-thumb {
+  display: block;
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border: 1px solid var(--color-linen);
+  background: #fff;
+  cursor: zoom-in;
+}
+
 .mobile-thumb {
   display: inline-block;
   width: 40px;
@@ -1750,13 +1785,22 @@ body.swal2-toast-shown .swal2-container.swal2-top-end:has(> .admin-swal-toast) {
   max-width: 760px;
 }
 
+/* the banners chosen to add, before "Salvar" */
+.category-banner-new {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-8);
+}
+
 .category-banners > small {
   display: block;
   color: var(--color-text-muted);
 }
 
 /* E-mails enviados: the warning as a bar; a failed message in bold, pending and canceled in grey */
-.mail-sent-list .mail-warning {
+.mail-sent-list .mail-warning,
+.tryon-list .tryon-warning {
   padding: var(--spacing-8) var(--spacing-16);
   border-left: 3px solid var(--color-danger);
   background: var(--color-linen);
@@ -1811,6 +1855,7 @@ body.swal2-toast-shown .swal2-container.swal2-top-end:has(> .admin-swal-toast) {
 }
 
 .mail-message-actions,
+.marketing-decide-actions,
 .log-operation-actions {
   display: flex;
   align-items: center;
@@ -2691,3 +2736,126 @@ input[type="checkbox"].admin-switch:disabled {
 .admin-dashboard:has(> .sales-dash) .backup-note { margin: 0 0 4px; padding: 6px 12px; }
 .backup-kit-steps { font-size: 13px; line-height: 1.8; padding-left: 20px; }
 @media print { .admin-header, .admin-menu, .admin-breadcrumb, .admin-messages, .backup-kit-actions { display: none !important; } }
+
+/* Marketing → Sugestões / Histórico: the selection column, the bulk buttons under the table, the status colors (as the e-mails') */
+.marketing-list th.marketing-check,
+.marketing-list td.marketing-check {
+  width: 32px;
+  text-align: center;
+}
+
+.marketing-list td small,
+.marketing-view td small {
+  color: var(--color-text-muted);
+}
+
+.marketing-list td.marketing-status-skipped,
+.marketing-view td.marketing-status-skipped {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.marketing-list td.marketing-status-pending,
+.marketing-list td.marketing-status-approved,
+.marketing-list td.marketing-status-discarded,
+.marketing-list td.marketing-status-expired,
+.marketing-view td.marketing-status-discarded,
+.marketing-view td.marketing-status-expired {
+  color: var(--color-text-muted);
+}
+
+/* Provador virtual: error in red, still generating in grey, the codes small */
+.tryon-list td small { color: var(--color-text-muted); }
+.tryon-list td.tryon-status-error { color: var(--color-danger); }
+.tryon-list td.tryon-status-processing { color: var(--color-text-muted); }
+
+/* Ações em massa de uma grid (Catálogo → Produtos): the bar above the table, the checkbox column */
+.admin-mass-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-8); margin-bottom: var(--spacing-12);
+  padding: var(--spacing-8) var(--spacing-12); border-left: 3px solid var(--color-ink); background: var(--color-linen); }
+.admin-mass-actions[hidden] { display: none; }
+.admin-mass-actions strong { font-weight: 500; margin-right: var(--spacing-8); }
+th.admin-check, td.admin-check { width: 32px; text-align: center; }
+
+/* Catálogo → Web: the home's blocks; sections reuse the Mobile screen's rows, cards are rows inside them */
+.web-home .web-block {
+  margin: 0 0 var(--spacing-16);
+  padding: var(--spacing-8) var(--spacing-16) var(--spacing-16);
+  border: 1px solid var(--color-linen);
+  background: #fff;
+}
+
+.web-home .web-wide {
+  width: min(100%, 640px);
+}
+
+.web-home .web-files {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-16);
+}
+
+.web-home .web-file-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.web-home .web-file-field small,
+.web-home .web-section small {
+  color: var(--color-text-muted);
+}
+
+.web-thumb {
+  display: block;
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border: 1px solid var(--color-linen);
+}
+
+.web-card .web-thumb {
+  width: 45px;
+  height: 60px;
+}
+
+/* "sem foto": the store's logo, whole */
+.web-thumb.eav-file-placeholder {
+  object-fit: contain;
+}
+
+.web-home .web-file {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9em;
+}
+
+.web-section-body {
+  margin-top: var(--spacing-8);
+}
+
+.web-section-body > p:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-16);
+}
+
+.web-cards {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.web-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-linen);
+}
+
+.web-home .is-dragging {
+  opacity: 0.4;
+}

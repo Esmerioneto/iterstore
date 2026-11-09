@@ -1,1 +1,0 @@
-<small><?= htmlspecialchars($status) ?></small>

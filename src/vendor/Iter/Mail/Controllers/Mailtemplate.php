@@ -80,8 +80,10 @@ class Mailtemplate
             http_response_code(404);
             exit;
         }
-        // the template's HTML can't run scripts or reach the admin
-        header("Content-Security-Policy: sandbox; default-src 'none'; img-src * data:; style-src 'unsafe-inline'");
+        // the template's HTML can't run scripts or reach the admin; it opens only in the form's own iframe
+        // (Auth's DENY, sent to every admin page, would leave that iframe blank)
+        header('X-Frame-Options: SAMEORIGIN');
+        header("Content-Security-Policy: sandbox; default-src 'none'; img-src * data:; style-src 'unsafe-inline'; frame-ancestors 'self'");
         header('Content-Type: text/html; charset=utf-8');
         echo $template['code'] === Template::LAYOUT ? $mail['html'] : '<p style="font:14px sans-serif"><strong>Assunto:</strong> ' . htmlspecialchars($mail['subject']) . '</p>' . $mail['html'];
     }

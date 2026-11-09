@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Iter\Mail\Model;
 
+use Iter\Core\Config;
 use Iter\Core\Db\Adapter;
 use Iter\Core\Db\Connection;
 
@@ -54,7 +55,10 @@ class Template
         $def = self::all()[$code] ?? throw new MailException('TEMPLATE_UNKNOWN', "Modelo de e-mail desconhecido: {$code}.");
         $custom = self::db()->fetchRow(self::db()->select()->from('mail_template', ['subject', 'body_html', 'body_text'])->where('code = ?', $code));
 
-        return ['code' => $code, 'label' => $def['label'], 'vars' => $def['vars'], 'private' => (bool) $def['private'], 'is_custom' => $custom !== false]
+        // the examples' links start at {base_url}: the store's Endereço do site, as the real e-mails
+        $vars = array_map(static fn ($v) => is_string($v) ? str_replace('{base_url}', Config::baseUrl(), $v) : $v, $def['vars']);
+
+        return ['code' => $code, 'label' => $def['label'], 'vars' => $vars, 'private' => (bool) $def['private'], 'is_custom' => $custom !== false]
             + ($custom ?: self::fileVersion($code));
     }
 

@@ -16,27 +16,27 @@
     <table>
         <thead>
             <tr>
-                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('username', 'Usuário', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('email', 'E-mail', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('role', 'Perfil', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('is_active', 'Ativo', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?><?= $gridColumns->th('id') ?>
+                <?= \Iter\Admin\View\Sort::th('username', 'Usuário', $sort, $dir) ?><?= $gridColumns->th('username') ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?><?= $gridColumns->th('name') ?>
+                <?= \Iter\Admin\View\Sort::th('email', 'E-mail', $sort, $dir) ?><?= $gridColumns->th('email') ?>
+                <?= \Iter\Admin\View\Sort::th('role', 'Perfil', $sort, $dir) ?><?= $gridColumns->th('role') ?>
+                <?= \Iter\Admin\View\Sort::th('is_active', 'Ativo', $sort, $dir) ?><?= $gridColumns->th('is_active') ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php if (empty($users)): ?>
-            <tr><td colspan="7" class="admin-empty">Nenhum usuário cadastrado.</td></tr>
+            <tr><td colspan="<?= 7 + $gridColumns->count() ?>" class="admin-empty">Nenhum usuário cadastrado.</td></tr>
 <?php else: ?>
     <?php foreach ($users as $user): ?>
             <tr>
-                <td><?= htmlspecialchars((string) $user['user_id']) ?></td>
-                <td><?= htmlspecialchars($user['username']) ?></td>
-                <td><?= htmlspecialchars(trim(($user['firstname'] ?? '') . ' ' . ($user['lastname'] ?? ''))) ?></td>
-                <td><?= htmlspecialchars($user['email'] ?? '') ?></td>
-                <td><?= htmlspecialchars($user['role_name'] ?? '—') ?></td>
-                <td><span class="admin-status admin-status-<?= $user['is_active'] ? 'on' : 'off' ?>"><?= $user['is_active'] ? 'Sim' : 'Não' ?></span></td>
+                <td><?= htmlspecialchars((string) $user['user_id']) ?></td><?= $gridColumns->td('id', $user['user_id']) ?>
+                <td><?= htmlspecialchars($user['username']) ?></td><?= $gridColumns->td('username', $user['user_id']) ?>
+                <td><?= htmlspecialchars(trim(($user['firstname'] ?? '') . ' ' . ($user['lastname'] ?? ''))) ?></td><?= $gridColumns->td('name', $user['user_id']) ?>
+                <td><?= htmlspecialchars($user['email'] ?? '') ?></td><?= $gridColumns->td('email', $user['user_id']) ?>
+                <td><?= htmlspecialchars($user['role_name'] ?? '—') ?></td><?= $gridColumns->td('role', $user['user_id']) ?>
+                <td><span class="admin-status admin-status-<?= $user['is_active'] ? 'on' : 'off' ?>"><?= $user['is_active'] ? 'Sim' : 'Não' ?></span></td><?= $gridColumns->td('is_active', $user['user_id']) ?>
                 <td class="admin-row-action">
                     <a href="/admin/user/edit?id=<?= (int) $user['user_id'] ?>">Editar</a>
                     <form method="post" action="/admin/user/delete" data-confirm="Remover este usuário?">

@@ -7,7 +7,6 @@ namespace Iter\Catalog\Model;
 use Iter\Core\Config;
 use Iter\Core\Db\Connection;
 use Iter\Eav\Model\AttributeException;
-use Iter\Eav\Model\ValueService;
 use Iter\Inventory\Model\StockService;
 
 /**
@@ -129,16 +128,13 @@ class MobileService
             ->where('(p.is_active = 1 OR p.product_id IN (SELECT mp.product_id FROM catalog_mobile_product mp WHERE mp.category_id = cp.category_id))')
             ->order('p.product_id DESC'));
         $productIds = array_values(array_unique(array_map('intval', array_column($rows, 'product_id'))));
-        $variants = new VariantService();
-        $values = (new ValueService())->loadMany(Product::ENTITY_TYPE, $productIds, $variants->imageCodes());
-        $images = $variants->imageValues(array_map('intval', array_column(array_filter($rows, static fn ($r) => $r['type'] === 'configurable'), 'product_id')));
+        $images = (new VariantService())->mainImages($rows);
         // ponytail: Catalog doesn't depend on Inventory; without it, no "esgotado"
         $salable = \isModuleEnabled('iter_inventory') ? (new StockService())->getSalable($productIds, $websiteId) : [];
         foreach ($rows as $row) {
             $id = (int) $row['product_id'];
-            $image = current(array_filter(array_map('strval', $images[$id] ?? $values[$id] ?? []), 'strlen')) ?: null;
             $categories[(int) $row['category_id']]['products'][$id] = ['product_id' => $id, 'sku' => $row['sku'], 'name' => $row['name'], 'is_active' => (bool) $row['is_active'],
-                'image' => $image, 'salable' => isset($salable[$id]) ? (float) $salable[$id] : null];
+                'image' => $images[$id], 'salable' => isset($salable[$id]) ? (float) $salable[$id] : null];
         }
         foreach ($categories as &$category) { // a chosen product that left the category is dropped
             $category['chosen'] = array_values(array_filter($category['chosen'], static fn ($id) => isset($category['products'][$id])));

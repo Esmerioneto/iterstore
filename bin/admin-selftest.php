@@ -71,6 +71,12 @@ class Browser
             CURLOPT_HTTPGET => true,
             CURLOPT_HTTPHEADER => $headers,
         ]);
+        $received = [];
+        curl_setopt($this->ch, CURLOPT_HEADERFUNCTION, static function ($ch, string $line) use (&$received): int {
+            str_contains($line, ':') && $received[strtolower(trim(strstr($line, ':', true)))][] = trim(substr(strstr($line, ':'), 1));
+
+            return strlen($line);
+        });
         if ($post !== null) {
             // with a CURLFile inside, send multipart: curl wants flat "a[b][c]" keys
             $flat = [];
@@ -92,6 +98,7 @@ class Browser
             'status' => curl_getinfo($this->ch, CURLINFO_RESPONSE_CODE),
             'location' => (string) preg_replace('#^https?://[^/]+#', '', (string) curl_getinfo($this->ch, CURLINFO_REDIRECT_URL)),
             'body' => $body,
+            'headers' => $received, // lower-case name => every value sent
         ];
     }
 
@@ -191,6 +198,9 @@ $purge = static function () use ($pdo, $savedConfig, $savedMedia, $savedModules,
         (new CustomerService())->delete((int) $customerId);
     }
     $pdo->exec("DELETE FROM sales_quote WHERE customer_id IS NULL AND email LIKE '%@selftest.local'"); // test guest carts (customers' go with them)
+    $pdo->exec("DELETE FROM marketing_suggestion WHERE email LIKE '%@selftest.local'"); // deleting the customer only clears customer_id
+    $pdo->exec("DELETE FROM marketing_unsubscribe WHERE email LIKE '%@selftest.local'");
+    $pdo->exec("DELETE FROM marketing_subscriber WHERE email LIKE '%@selftest.local'"); // its consent rows cascade
     $pdo->exec("DELETE FROM customer_group WHERE code LIKE 'selftest%'");
     foreach ($pdo->query("SELECT product_id FROM catalog_product WHERE sku LIKE 'selftest%' AND parent_id IS NULL")->fetchAll(PDO::FETCH_COLUMN) as $productId) {
         (new ProductService())->delete((int) $productId);
@@ -285,6 +295,8 @@ Config::save([
     'payment/mercadopago_pix/active' => '0',
     'payment/mercadopago_credit/active' => '0',
     'payment/mercadopago_debit/active' => '0',
+    // the backup test checks that turning the Dashboard warnings off hides them, so they start on
+    'system/backup/dashboard_warnings' => '1',
 ]);
 
 $makeUser = static function (string $username, array $resources): int {
@@ -322,6 +334,19 @@ assertSame('/admin/auth/login', $guest->login('selftest_admin', 'errada1234'), '
 $admin = new Browser($base);
 assertSame('/admin/index', $admin->login('selftest_admin'), 'login válido vai para o dashboard');
 assertSame(200, $admin->request('/admin/user/index')['status'], 'admin completo abre Usuários');
+// the language: the options come from etc/interface_locales.json, and only a listed one is saved
+$victimLocale = static fn (string $locale): array => $admin->submit('/admin/user/edit?id=' . $victimId, '/admin/user/save', ['user_id' => (string) $victimId, 'username' => 'selftest_victim',
+    'email' => 'selftest_victim@selftest.local', 'is_active' => '1', 'role_id' => (string) (new AdminUser())->load($victimId)->getData('role_id'), 'interface_locale' => $locale])[1];
+preg_match_all('/<select name="interface_locale">(.*?)<\/select>/s', $admin->request('/admin/user/edit?id=' . $victimId)['body'], $select);
+preg_match_all('/<option value="([^"]*)"/', $select[1][0] ?? '', $options);
+assertSame([array_keys(AdminUser::interfaceLocales()), ['Usuário atualizado com sucesso.'], true, 'pt_BR', ['Usuário atualizado com sucesso.'], 'en_US'], [
+    $options[1],
+    $victimLocale('pt_BR'),
+    in_array('Escolha um idioma da lista.', $victimLocale('xx_XX'), true),
+    (string) (new AdminUser())->load($victimId)->getData('interface_locale'),
+    $victimLocale('en_US'),
+    (string) (new AdminUser())->load($victimId)->getData('interface_locale'),
+], 'Usuários: o idioma do formulário vem do interface_locales.json; um código fora da lista é recusado');
 
 $dash = new Browser($base);
 $dash->login('selftest_dash');
@@ -1023,6 +1048,7 @@ assertSame(['ATTRIBUTE_NOT_FOUND', null], [$r['errors'][0]['extensions']['code']
 $r = $gql($admin, $createGql, ['sku' => 'selftest-gql2']);
 assertSame(["'Preço' é obrigatório.", 'VALUE_REQUIRED'], [$r['errors'][0]['message'] ?? null, $r['errors'][0]['extensions']['code'] ?? null], 'GraphQL: mensagem de negócio chega ao cliente');
 $gqlId = (int) ($gqlProduct['id'] ?? 0);
+assertSame(true, str_contains($admin->request('/admin/product/edit?id=' . $gqlId)['body'], 'type="checkbox" class="admin-switch" name="attributes[selftest_novo]"'), 'campo sim/não do produto é um liga/desliga');
 $r = $gql($admin, 'mutation ($id: ID!) { updateProduct(id: $id, name: "Boné azul", isActive: false) { name is_active attributes { code value } } }', ['id' => $gqlId]);
 assertSame(['Boné azul', false, '19.9', '0'], [$r['data']['updateProduct']['name'] ?? null, $r['data']['updateProduct']['is_active'] ?? null, $attrsOf($r['data']['updateProduct'])['price'] ?? null, $attrsOf($r['data']['updateProduct'])['selftest_novo'] ?? null],
     'GraphQL: update parcial mantém os atributos omitidos (inclusive Sim/Não = não)');
@@ -1130,13 +1156,14 @@ $scratch = sys_get_temp_dir() . '/iter-selftest-' . getmypid();
 $img = imagecreatetruecolor(4, 3);
 [imagewebp($img, "{$scratch}/a.webp"), imageavif($img, "{$scratch}/a.avif"), imagejpeg($img, "{$scratch}/a.jpg"), imagepng($img, "{$scratch}/a.png"), imagegif($img, "{$scratch}/a.gif")];
 file_put_contents("{$scratch}/fake.png", '<?php echo 1;');
-assertSame(['image/webp', 'image/avif', 'image/jpeg', 'image/png'], array_keys(InputTypeRegistry::get('image')['accept']), 'tipo imagem aceita WebP, AVIF, JPG e PNG');
+file_put_contents("{$scratch}/a.jxl", "\xff\x0a\xfa\x7f\x01\x90\x08"); // ponytail: JPEG XL codestream signature only; GD has no JXL encoder and the server only checks the type
+assertSame(['image/webp', 'image/avif', 'image/jpeg', 'image/png', 'image/jxl', 'image/x-jxl'], array_keys(InputTypeRegistry::get('image')['accept']), 'tipo imagem aceita WebP, AVIF, JPG, PNG e JPEG XL');
 $service->create(['entity_type' => 'product', 'code' => 'selftest_foto', 'label' => 'Foto', 'input_type' => 'image']);
 $service->create(['entity_type' => 'product', 'code' => 'selftest_capa', 'label' => 'Capa', 'input_type' => 'image', 'is_required' => 1]);
 $fotoSet = $setService->create(['entity_type' => 'product', 'code' => 'selftest_fotos', 'label' => 'Fotos']);
 $setService->update((int) $fotoSet->getId(), ['label' => 'Fotos', 'items' => [$attrId('price') => ['in' => 1], $attrId('selftest_foto') => ['in' => 1], $attrId('selftest_capa') => ['in' => 1]]]);
 $schemaFoto = array_column($generator->generate('product', 'selftest_fotos')['fields'], null, 'name');
-assertSame(['image/webp', 'image/avif', 'image/jpeg', 'image/png'], $schemaFoto['selftest_foto']['accept'], 'schema do campo imagem traz os formatos aceitos');
+assertSame(['image/webp', 'image/avif', 'image/jpeg', 'image/png', 'image/jxl', 'image/x-jxl'], $schemaFoto['selftest_foto']['accept'], 'schema do campo imagem traz os formatos aceitos');
 $upload = static fn (string $file) => ['path' => "{$scratch}/{$file}", 'name' => $file];
 $productService = new ProductService();
 $fileError = static fn (array $attributes) => $throws(static fn () => $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-img', 'name' => 'I', 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], $attributes + ['price' => '1']));
@@ -1144,12 +1171,15 @@ assertSame(['VALUE_REQUIRED', 'FILE_TYPE_INVALID', 'FILE_TYPE_INVALID'], [$fileE
     'imagem obrigatória, GIF e arquivo que só finge ser PNG são recusados');
 assertSame(false, $productRow('selftest-img'), 'imagem recusada não cria o produto');
 $media = static fn (string $sku, string $code) => ValueService::mediaDir() . ($productService->getValues((int) $productRow($sku)['product_id'])[$code] ?? 'nada');
-foreach (['a.webp' => 'webp', 'a.avif' => 'avif', 'a.jpg' => 'jpg', 'a.png' => 'png'] as $file => $ext) {
+foreach (['a.webp' => 'webp', 'a.avif' => 'avif', 'a.jpg' => 'jpg', 'a.png' => 'png', 'a.jxl' => 'jxl'] as $file => $ext) {
     $productService->create(['attribute_set_id' => $fotoSet->getId(), 'sku' => "selftest-img-{$ext}", 'name' => 'I', 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '1', 'selftest_capa' => $upload($file), 'selftest_foto' => 'qualquer/caminho.png']);
     $stored = $media("selftest-img-{$ext}", 'selftest_capa');
     assertSame([true, $ext, false], [is_file($stored), pathinfo($stored, PATHINFO_EXTENSION), isset($productService->getValues((int) $productRow("selftest-img-{$ext}")['product_id'])['selftest_foto'])],
         "imagem {$ext} gravada com o formato detectado; texto postado não vira caminho");
 }
+$thumbList = $admin->request('/admin/product/index?q=selftest-img-jpg')['body'];
+assertSame(true, str_contains($thumbList, '<td class="product-thumb-cell"><a href="' . ValueService::MEDIA_URL . $productService->getValues((int) $productRow('selftest-img-jpg')['product_id'])['selftest_capa'] . '"'),
+    'lista de produtos mostra a imagem principal na primeira coluna');
 $imgId = (int) $productRow('selftest-img-png')['product_id'];
 $oldCapa = $media('selftest-img-png', 'selftest_capa');
 $imgData = ['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-img-png', 'name' => 'I'];
@@ -1167,7 +1197,7 @@ assertSame(false, is_file($capa), 'remover o produto apaga as imagens');
 
 // through the admin form (real multipart upload)
 $imgForm = $admin->request('/admin/product/create?set=' . $fotoSet->getId())['body'];
-assertSame([true, true], [str_contains($imgForm, 'enctype="multipart/form-data"'), (bool) preg_match('/type="file" name="attributes\[selftest_capa\]" accept="image\/webp,image\/avif,image\/jpeg,image\/png"\s+required/', $imgForm)], 'form de produto tem campo de imagem');
+assertSame([true, true], [str_contains($imgForm, 'enctype="multipart/form-data"'), (bool) preg_match('/type="file" name="attributes\[selftest_capa\]" accept="image\/webp,image\/avif,image\/jpeg,image\/png,image\/jxl,image\/x-jxl"\s+required/', $imgForm)], 'form de produto tem campo de imagem');
 assertSame(true, str_contains($imgForm, 'data-max-bytes="' . \Iter\Core\Config::uploadMaxBytes() . '"'), 'campo de imagem informa o limite de envio (o navegador reduz a imagem maior)');
 assertSame(2, substr_count($imgForm, 'class="eav-file-preview eav-file-placeholder" src="/imagem/logo.png"'), 'campo de imagem vazio mostra o logo em cinza');
 $msgs = $admin->submit('/admin/product/create', '/admin/product/save', ['attribute_set_id' => $fotoSet->getId(), 'sku' => 'selftest-up', 'name' => 'U', 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory],
@@ -1383,7 +1413,7 @@ $saveBanners(['banners' => ['keep' => [$b2, $b1]]]);
 assertSame([$b2, $b1], $bannerIds(), 'banners reordenados');
 assertSame(['Categoria atualizada com sucesso.'], $saveBanners(['banners' => ['keep' => [$b2, $b1], 'remove' => [$b1]]]), 'banner removido pelo "Remover"');
 assertSame([[$b2], false], [$bannerIds(), is_file(ValueService::mediaDir() . $bannerList[0]['file'])], 'só o outro fica; o arquivo removido some');
-assertSame([['Uma categoria tem no máximo 5 banners.'], ["'fake.png' não é um arquivo aceito em 'Banners' (WEBP, AVIF, JPG, PNG)."], [$b2]], [
+assertSame([['Uma categoria tem no máximo 5 banners.'], ["'fake.png' não é um arquivo aceito em 'Banners' (WEBP, AVIF, JPG, PNG, JXL)."], [$b2]], [
     $saveBanners(['banners' => ['keep' => [$b2]], 'banners_add' => array_map($bannerFile, array_fill(0, 5, 'b.png'))]),
     $saveBanners(['banners' => ['keep' => [$b2]], 'banners_add' => [$bannerFile('fake.png')]]),
     $bannerIds(),
@@ -1592,6 +1622,9 @@ $varPage = $admin->request('/admin/product/edit?id=' . $v[0]['product_id'])['bod
 assertSame([true, false, true], [str_contains($varPage, 'Variação de <a href="/admin/product/edit?id=' . $parentId . '"'), str_contains($varPage, 'name="attributes[selftest_vcor]"'), str_contains($varPage, 'name="attributes[price]"')], 'variação mostra o pai e os campos EAV, sem os da grade');
 $list = $admin->request('/admin/product/index?q=selftest-var')['body'];
 assertSame([2, true, true], [substr_count($list, '/admin/product/edit?id='), str_contains($list, '(3 variações)'), str_contains($list, 'R$ 50,00 – R$ 60,00')], 'lista mostra só os pais, com a contagem e a faixa de preço');
+assertSame(true, str_contains($list, '<td class="product-thumb-cell"><img class="product-thumb eav-file-placeholder"'), 'produto sem imagem mostra o logo na lista');
+assertSame([true, 2, 0, 200], [str_contains($list, '<td>Com grade</td>'), substr_count($admin->request('/admin/product/index?q=selftest-var&type=configurable')['body'], '/admin/product/edit?id='),
+    substr_count($admin->request('/admin/product/index?q=selftest-var&type=simple')['body'], '/admin/product/edit?id='), $admin->request('/admin/product/index?sort=type&dir=desc')['status']], 'coluna Tipo na lista de produtos, filtrável e ordenável');
 assertSame(1, substr_count($admin->request('/admin/product/index?q=PRETO-M')['body'], '/admin/product/edit?id=' . $parentId . '"'), 'busca pelo SKU da variação acha o pai');
 $listTotal = (int) $pdo->query('SELECT count(*) FROM catalog_product WHERE parent_id IS NULL')->fetchColumn();
 $lastPage = (int) ceil($listTotal / 8);
@@ -1607,7 +1640,7 @@ assertSame([$listTotal - $lastFrom + 1, true, true], [
     str_contains($pager, '<option value="5" selected>'),
     str_contains($pager, $lastFrom . '-' . $listTotal . ' de ' . $listTotal),
 ], 'paginação: "Mostrar linhas" muda o tamanho; página além do fim mostra a última');
-$skusOf = static fn (string $html) => preg_match_all('/<tr>\s*<td>([^<]*)<\/td>/', $html, $m) ? $m[1] : [];
+$skusOf = static fn (string $html) => preg_match_all('/<tr>\s*(?:<td class="admin-check">.*?<\/td>\s*)?<td>\d+<\/td>\s*<td class="product-thumb-cell">.*?<\/td>\s*<td>([^<]*)<\/td>/', $html, $m) ? $m[1] : [];
 $byName = $admin->request('/admin/product/index?q=selftest-var')['body'];
 $bySkuDesc = $admin->request('/admin/product/index?q=selftest-var&sort=sku&dir=desc')['body'];
 assertSame([
@@ -1621,6 +1654,12 @@ assertSame([
     $skusOf($bySkuDesc),
     str_contains($bySkuDesc, 'SKU ▼'),
 ], 'título da lista ordena pela coluna (clicado de novo, inverte) e fica destacado; filtros e paginação mantêm a ordem');
+$idsOf = static fn (string $html) => preg_match_all('/<tr>\s*(?:<td class="admin-check">.*?<\/td>\s*)?<td>(\d+)<\/td>\s*<td class="product-thumb-cell">/', $html, $m) ? array_map('intval', $m[1]) : [];
+$byIdDesc = $admin->request('/admin/product/index?q=selftest&sort=id&dir=desc&limit=20')['body'];
+$idsDesc = $idsOf($byIdDesc);
+$idsSorted = $idsDesc;
+rsort($idsSorted);
+assertSame([true, true, $idsSorted], [count($idsDesc) > 1, str_contains($byIdDesc, 'ID ▼'), $idsDesc], 'coluna ID antes da Imagem, ordenável (sort=id)');
 $stockAsc = $skusOf($admin->request('/admin/product/index?q=selftest&sort=stock&dir=asc&limit=20')['body']);
 $stockOf = (new StockService())->getSalable(array_map(static fn ($sku) => (new \Iter\Catalog\Model\Product())->getResource()->findIdBySku($sku), $stockAsc));
 $sorted = array_values($stockOf);
@@ -1881,7 +1920,47 @@ assertSame([['Modelo salvo.'], true, true], [$msgs, str_contains($eml($id), 'Sub
 assertSame(['Assunto e corpo HTML são obrigatórios.'], $admin->submit($templateForm, '/admin/mailtemplate/save', ['code' => 'mail_test', 'subject' => '', 'body_html' => 'x'])[1], 'modelo sem assunto é recusado');
 preg_match('/name="form_key" value="([0-9a-f]{64})"/', $admin->request($templateForm)['body'], $m);
 $preview = $admin->request('/admin/mailtemplate/preview', ['form_key' => $m[1], 'code' => 'mail_test', 'subject' => 'Prévia', 'body_html' => '<p>Oi {{ name }}</p>']);
-assertSame(true, str_contains($preview['body'], 'Oi Maria'), 'pré-visualização usa os valores de exemplo');
+assertSame([true, ['SAMEORIGIN'], 1, true], [str_contains($preview['body'], 'Oi Maria'), $preview['headers']['x-frame-options'] ?? null, count($preview['headers']['content-security-policy'] ?? []),
+    str_contains($preview['headers']['content-security-policy'][0] ?? '', "frame-ancestors 'self'")],
+    'pré-visualização usa os valores de exemplo e abre no iframe do próprio formulário (SAMEORIGIN, não o DENY do admin)');
+preg_match('/name="form_key" value="([0-9a-f]{64})"/', $admin->request('/admin/mailtemplate/edit?code=sales_order_canceled')['body'], $m);
+$canceled = $admin->request('/admin/mailtemplate/preview', ['form_key' => $m[1], 'code' => 'sales_order_canceled', 'subject' => 'O pedido {{ number }} foi cancelado',
+    'body_html' => (string) \Iter\Mail\Model\Template::get('sales_order_canceled')['body_html']]);
+assertSame([200, true, true], [$canceled['status'], str_contains($canceled['body'], 'O pedido SP-000001 foi cancelado'), str_contains($canceled['body'], 'R$ 114,80 foi devolvido')],
+    'pré-visualização do "Pedido cancelado" (o caso relatado)');
+assertSame([\Iter\Core\Config::baseUrl() . '/admin/auth/reset?id=1&token=exemplo', \Iter\Core\Config::baseUrl() . '/marketing/unsubscribe?t=exemplo', []],
+    [\Iter\Mail\Model\Template::get('admin_password_reset')['vars']['link'], \Iter\Mail\Model\Template::get('marketing_abandoned_cart')['vars']['unsubscribe_url'] ?? null,
+    array_keys(array_filter(array_map(static fn ($t) => preg_grep('#localhost|loja\.com\.br|\{base_url\}#', array_filter(\Iter\Mail\Model\Template::get($t['code'])['vars'], 'is_string')), \Iter\Mail\Model\Template::all())))],
+    'exemplos dos modelos: os links começam no Endereço do site (Configurações → Geral), em todos os modelos');
+// Configurações → Geral → Endereços da loja web: the e-mailed links follow the calling store only when it is listed
+$sfBefore = \Iter\Core\Config::websiteValue('web/storefront_urls', $defaultWebsite);
+\Iter\Core\Config::save(['web/storefront_urls' => "http://192.0.2.1:8081/\nhttps://loja.example\nnao-e-url"], $defaultWebsite);
+$sfLink = static function (?string $asked, string $setting, string $fallback = '') use ($defaultWebsite): string {
+    $asked === null || $_SERVER['HTTP_X_STORE_URL'] = $asked;
+    $link = \Iter\Core\Config::storefrontLink($setting, 'TK', $defaultWebsite, $fallback);
+    unset($_SERVER['HTTP_X_STORE_URL']);
+
+    return $link;
+};
+assertSame([
+    'https://loja.example/conta/nova-senha?token=TK', 'https://loja.example/conta/nova-senha?token=TK', 'http://192.0.2.1:8081/conta/nova-senha?token=TK',
+    'http://192.0.2.1:8081/conta/nova-senha?token=TK', 'https://outra.example/x?token=TK', 'TK', 'http://192.0.2.1:8081/newsletter/confirmar?token=TK',
+    ['http://192.0.2.1:8081', 'https://loja.example'],
+], [
+    $sfLink('https://loja.example', '/conta/nova-senha?token={token}'),
+    $sfLink('HTTPS://LOJA.EXAMPLE/', '/conta/nova-senha?token={token}'),
+    $sfLink('https://evil.example', '/conta/nova-senha?token={token}'),
+    $sfLink(null, '/conta/nova-senha?token={token}'),
+    $sfLink('https://loja.example', 'https://outra.example/x?token={token}'),
+    $sfLink('https://loja.example', ''),
+    $sfLink(null, '', '/newsletter/confirmar?token={token}'),
+    \Iter\Core\Config::storefrontUrls($defaultWebsite),
+], 'links dos e-mails: "/…" usa o endereço que a loja enviou (X-Store-Url) só se estiver em "Endereços da loja web"; um endereço de fora ou nenhum usa o primeiro da lista; link inteiro fica como está; vazio = só o token (ou o padrão); linha inválida é ignorada');
+assertSame([[], 1], [
+    \Iter\Core\Config::validateStorefrontUrls(static fn () => "https://loja.example\nhttp://[::1]:8081"),
+    count(\Iter\Core\Config::validateStorefrontUrls(static fn () => "https://loja.example/conta")),
+], 'Configurações → Geral: "Endereços da loja web" aceita só http(s)://host[:porta], sem caminho');
+$sfBefore === null ? \Iter\Core\Config::clear(['web/storefront_urls'], $defaultWebsite) : \Iter\Core\Config::save(['web/storefront_urls' => $sfBefore], $defaultWebsite);
 $admin->submit($templateForm, '/admin/mailtemplate/restore', ['code' => 'mail_test']);
 $id = $mail->send('mail_test', 'modelo@selftest.local', ['name' => 'Ana'], now: true);
 assertSame(true, str_contains($eml($id), 'Subject: Teste de envio'), 'restaurar volta ao modelo do arquivo');
@@ -1955,6 +2034,10 @@ $websiteLogo = $logoOf($websiteId);
 assertSame([true, $defaultLogo], [$websiteLogo !== '' && $websiteLogo !== $defaultLogo, Config::get('store/info/logo')], 'website tem logo própria sem mexer na do padrão');
 $admin->submit($scoped, '/admin/config/save', ['website_id' => $websiteId, 'config_default' => ['store/info/logo' => '1']]);
 assertSame(['', false, true], [$logoOf($websiteId), is_file(Config::mediaDir() . $websiteLogo), is_file(Config::mediaDir() . $defaultLogo)], '"Usar o valor padrão" apaga a logo do website e o arquivo dela');
+$admin->submit($scoped, '/admin/config/save', ['website_id' => $websiteId, 'config_default' => ['store/info/logo' => '1'], 'config' => ['store/info/logo' => new CURLFile($png, 'image/png', 'w.png')]]);
+$websiteLogo = $logoOf($websiteId);
+assertSame([true, true], [$websiteLogo !== '' && $websiteLogo !== $defaultLogo, is_file(Config::mediaDir() . $websiteLogo)], 'imagem nova escolhida vale mais que "Usar o valor padrão" marcado');
+$admin->submit($scoped, '/admin/config/save', ['website_id' => $websiteId, 'config_default' => ['store/info/logo' => '1']]);
 $admin->submit('/admin/config/index', '/admin/config/save', ['config' => ['store/info/logo' => new CURLFile($png, 'image/png', 'nova.png')]]);
 $newLogo = $logoOf();
 assertSame([true, false], [is_file(Config::mediaDir() . $newLogo), is_file(Config::mediaDir() . $defaultLogo)], 'trocar a logo apaga o arquivo antigo');
@@ -2071,6 +2154,7 @@ assertSame(['gender' => 'f', 'phone' => '(11) 98765-4321', 'selftest_prof' => 'M
 $anaPage = $admin->request('/admin/customer/edit?id=' . $anaId)['body'];
 $custBlocks = $blocksOf($anaPage);
 assertSame([['account', 'pf', 'pj', 'addresses', 'group:Dados pessoais', 'group:Extra'], true, true], [$custBlocks, str_contains($anaPage, 'data-layout-toggle'), str_contains($anaPage, 'data-save-url="/admin/customerlayout/save"')], 'form de cliente em blocos, com "Organizar tela"');
+assertSame(true, str_contains($admin->request('/admin/customer/create')['body'], 'name="attributes[marketing_optin]"'), 'form de cliente (conjunto padrão) mostra "Aceita receber ofertas por e-mail" (Marketing)');
 $custLayout = ['blocks' => [['id' => 'group:Extra', 'wide' => true], ['id' => 'account', 'wide' => false]], 'fields' => ['group:Dados pessoais' => ['phone', 'gender']], 'columns' => 2];
 assertSame([200, 'Layout salvo.'], $layoutPost($admin, '/admin/customerlayout/save', ['layout' => json_encode($custLayout)]), 'layout do cliente salvo pelo admin');
 $anaPage = $admin->request('/admin/customer/edit?id=' . $anaId)['body'];
@@ -2240,6 +2324,96 @@ assertSame([true, ['customer' => null]], [
 
 [, $msgs] = $admin->submit('/admin/customergroup/index', '/admin/customergroup/delete', ['customer_group_id' => $custGroup]);
 assertSame(['Não é possível remover: há clientes neste grupo.'], $msgs, 'grupo com clientes não é removido');
+// marketing: Sugestões (list, preview, send, discard), Histórico and the permissions of each
+Iter\Core\Config::save(['marketing/general/hour_from' => '0', 'marketing/general/hour_to' => '24', 'marketing/general/days_between' => '0']);
+$anaWebsite = (int) $pdo->query("SELECT website_id FROM customer_entity WHERE customer_id = {$anaId}")->fetchColumn();
+$pdo->exec("INSERT INTO eav_value_boolean (attribute_id, entity_id, value) SELECT a.attribute_id, {$anaId}, 1 FROM eav_attribute a JOIN eav_entity_type t ON t.entity_type_id = a.entity_type_id AND t.code = 'customer' WHERE a.code = 'marketing_optin' ON CONFLICT DO NOTHING");
+$suggest = static function (string $reason) use ($pdo, $anaId, $anaWebsite): int {
+    $stmt = $pdo->prepare("INSERT INTO marketing_suggestion (website_id, customer_id, email, rule, reason_key, vars) VALUES (?, ?, 'ana@selftest.local', 'recurring_news', ?, ?) RETURNING suggestion_id");
+    $stmt->execute([$anaWebsite, $anaId, $reason, json_encode(['name' => 'Ana', 'link' => 'https://loja.selftest.local', 'products' => '<li><a href="https://loja.selftest.local/vaso">Vaso <b>selftest</b></a></li>'])]);
+
+    return (int) $stmt->fetchColumn();
+};
+$keep = $suggest('news:2026-01-01');
+$drop = $suggest('news:2026-01-02');
+$suggestionPage = $admin->request('/admin/marketing/index')['body'];
+assertSame([true, true, true], [str_contains($suggestionPage, 'value="' . $keep . '"'), str_contains($suggestionPage, 'Novidades de 01/01/2026'),
+    (bool) preg_match('#Sugestões<span class="admin-badge" aria-label="\d+ pendente\(s\)">\d+</span>#', $suggestionPage)], 'Marketing → Sugestões lista as pendentes com o motivo e o contador no menu');
+$preview = $admin->request('/admin/marketing/view?id=' . $keep)['body'];
+assertSame([true, true, true], [str_contains($preview, 'Novidades na Selftest Loja'), str_contains($preview, 'Vaso &lt;b&gt;selftest&lt;/b&gt;') || str_contains($preview, 'Vaso &amp;lt;b&amp;gt;'), str_contains($preview, 'marketing/unsubscribe?t=')],
+    'prévia da sugestão: assunto, produtos e o link de descadastro');
+[$back, $msgs] = $admin->submit('/admin/marketing/index', '/admin/marketing/decide', ['action' => 'discard', 'ids' => [$drop]]);
+assertSame(['/admin/marketing/index', ['1 sugestão(ões) descartada(s).'], 'discarded'], [$back, $msgs, $pdo->query("SELECT status FROM marketing_suggestion WHERE suggestion_id = {$drop}")->fetchColumn()], 'descartar uma sugestão');
+[, $msgs] = $admin->submit('/admin/marketing/index', '/admin/marketing/decide', ['action' => 'send', 'ids' => [$keep, $drop]]);
+$sentRow = $pdo->query("SELECT status, mail_id, admin_user_id FROM marketing_suggestion WHERE suggestion_id = {$keep}")->fetch(PDO::FETCH_ASSOC);
+assertSame([['1 e-mail(s) na fila de envio.'], 'sent', true, true, 'discarded'], [$msgs, $sentRow['status'], $sentRow['mail_id'] !== null, $sentRow['admin_user_id'] !== null,
+    $pdo->query("SELECT status FROM marketing_suggestion WHERE suggestion_id = {$drop}")->fetchColumn()], 'enviar: a pendente vai para a fila no horário; a descartada não muda');
+assertSame(['Nenhuma sugestão aguardando aprovação foi escolhida.'], $admin->submit('/admin/marketing/index', '/admin/marketing/decide', ['action' => 'send', 'ids' => [$keep]])[1], 'enviar de novo uma já enviada não faz nada');
+$history = $admin->request('/admin/marketinghistory/index?rule=recurring_news')['body'];
+assertSame([true, true, true], [str_contains($history, 'Enviada'), str_contains($history, 'Descartada'), (bool) preg_match('#<small>Novidades para recorrentes</small>\s*<strong>[1-9]#', $history)], 'Histórico: as duas sugestões e o total enviado da regra');
+$makeUser('selftest_mkt', ['Iter_Marketing::review']);
+$mkt = new Browser($base);
+$mkt->login('selftest_mkt');
+assertSame([200, 403, 403], [$mkt->request('/admin/marketing/index')['status'], $mkt->request('/admin/marketinghistory/index')['status'], $mkt->request('/admin/config/index')['status']], 'perfil só com "aprovar" vê Sugestões, não o Histórico nem as Configurações');
+$noMkt = new Browser($base);
+$makeUser('selftest_nomkt', ['Iter_Admin::dashboard']);
+$noMkt->login('selftest_nomkt');
+assertSame([403, false], [$noMkt->request('/admin/marketing/index')['status'], str_contains($noMkt->request('/admin/index')['body'], '/admin/marketing/index')], 'sem permissão de Marketing: sem a tela e sem o menu');
+// provador virtual: Clientes → Provador virtual (the grid, the numbers on top, the image goes to the log) and its permission
+$tryonProduct = (int) $pdo->query('SELECT product_id FROM catalog_product ORDER BY product_id LIMIT 1')->fetchColumn();
+$tryonRow = static function (string $status, ?string $error, string $expires, ?string $image) use ($pdo, $anaId, $anaWebsite, $tryonProduct): int {
+    $stmt = $pdo->prepare("INSERT INTO tryon_request (customer_id, website_id, product_id, provider, model, status, image_url, image_expires_at, cost, error_code, provider_code, person_hash, garment_hash, hits, created_at, updated_at)
+        VALUES (?, ?, ?, 'selftest', 'selftest-model', ?, ?, ?, ?, ?, ?, repeat('a', 64), repeat('b', 64), 2, NOW() - INTERVAL '5 seconds', NOW()) RETURNING tryon_id");
+    $stmt->execute([$anaId, $anaWebsite, $tryonProduct ?: null, $status, $image, $expires, $status === 'success' ? 0.017 : null, $error, $error ? 'http_402' : null]);
+
+    return (int) $stmt->fetchColumn();
+};
+$tryonOk = $tryonRow('success', null, date('Y-m-d H:i:s', time() + 3600), 'https://loja.selftest.local/media/tryon/selftest.jpg');
+$tryonOld = $tryonRow('success', null, date('Y-m-d H:i:s', time() - 60), 'https://loja.selftest.local/media/tryon/old.jpg');
+$tryonPage = $admin->request('/admin/tryon/index?q=ana@selftest.local')['body'];
+assertSame([true, true, true, false, true, false], [str_contains($tryonPage, 'href="/admin/tryon/index"'), str_contains($tryonPage, '<small>Gasto no mês</small>'),
+    str_contains($tryonPage, 'href="/admin/tryon/image?id=' . $tryonOk . '"'), str_contains($tryonPage, 'href="/admin/tryon/image?id=' . $tryonOld . '"'),
+    str_contains($tryonPage, 'US$ 0,0170'), str_contains($tryonPage, 'tryon-warning')], 'Clientes → Provador virtual: menu, números, custo e "Ver imagem" só enquanto vale');
+$tryonRow('error', 'TRYON_UNAVAILABLE', date('Y-m-d H:i:s'), null);
+$tryonPage = $admin->request('/admin/tryon/index?q=ana@selftest.local&status=error')['body'];
+assertSame([true, true, false], [str_contains($tryonPage, 'class="tryon-warning"'), str_contains($tryonPage, 'TRYON_UNAVAILABLE · http_402'), str_contains($tryonPage, 'id=' . $tryonOk . '"')],
+    'provador: a última prova recusada (chave ou saldo) mostra o aviso; o filtro de situação mostra só os erros');
+$opened = $admin->request('/admin/tryon/image?id=' . $tryonOk);
+assertSame(['/media/tryon/selftest.jpg', 'tryon_image'], [$opened['location'], $pdo->query("SELECT action FROM log_operation WHERE entity_type = 'customer' AND entity_id = {$anaId} ORDER BY log_id DESC LIMIT 1")->fetchColumn()],
+    'provador: "Ver imagem" abre a imagem e fica no log de operações, no cliente');
+$expired = $admin->request('/admin/tryon/image?id=' . $tryonOld)['location'];
+assertSame(['/admin/tryon/index', ['A imagem desta prova não está mais disponível.']], [$expired, Browser::messages($admin->request($expired)['body'])],
+    'provador: imagem vencida não abre');
+assertSame([403, false], [$mkt->request('/admin/tryon/index')['status'], str_contains($mkt->request('/admin/marketing/index')['body'], '/admin/tryon/index')], 'sem a permissão do provador: sem a tela e sem o menu');
+// ações em massa em Catálogo → Produtos (PRODUCT-MASS-PLAN): the provador's, on the parent, logged, by permission
+$massProduct = static fn (string $sku) => (int) $productService->create(['attribute_set_id' => $defaultProductSet, 'sku' => $sku, 'name' => 'Selftest massa', 'is_active' => 1, 'website_ids' => [$defaultWebsite], 'category_ids' => [$baseCategory]], ['price' => '1'])->getId();
+[$massA, $massB, $massC] = [$massProduct('selftest-massa-a'), $massProduct('selftest-massa-b'), $massProduct('selftest-massa-c')];
+$pdo->exec("UPDATE catalog_product SET parent_id = {$massA}, variant_key = 'massa' WHERE product_id = {$massC}"); // C plays a variant of A
+$massTryon = static fn () => array_map(static fn ($id) => (bool) ((new ValueService())->loadMany('product', [$id], ['tryon_enabled'])[$id]['tryon_enabled'] ?? false), [$massA, $massB, $massC]);
+$massList = $admin->request('/admin/product/index?q=selftest-massa')['body'];
+assertSame([true, true, true], [str_contains($massList, 'id="product-mass"'), str_contains($massList, 'form="product-mass" name="ids[]" value="' . $massB . '"'), str_contains($massList, '<option value="tryon_on">Provador virtual: ligar</option>')],
+    'Produtos: caixas de marcar e a barra com as ações do provador');
+$massBack = '/admin/product/index?q=selftest-massa';
+[$back, $msgs] = $admin->submit($massBack, '/admin/product/massaction', ['action' => 'tryon_on', 'ids' => [$massB, $massC], 'back' => $massBack]);
+assertSame([$massBack, ['Provador virtual ligado em 2 produto(s).'], [true, true, false], 2], [$back, $msgs, $massTryon(),
+    (int) $pdo->query("SELECT COUNT(*) FROM log_operation WHERE entity_type = 'product' AND entity_id IN ({$massA}, {$massB}) AND changes::text LIKE '%Provador virtual%'")->fetchColumn()],
+    'ação em massa: liga no produto e, para a variação, no pai; volta à lista filtrada; cada um no log');
+assertSame(['Provador virtual ligado em 0 produto(s); 2 já estava(m) assim.'], $admin->submit($massBack, '/admin/product/massaction', ['action' => 'tryon_on', 'ids' => [$massA, $massB], 'back' => $massBack])[1], 'ação em massa: o que já estava assim não conta');
+$admin->submit($massBack, '/admin/product/massaction', ['action' => 'tryon_bottoms', 'ids' => [$massB], 'back' => '//fora.example/x']);
+$admin->submit($massBack, '/admin/product/massaction', ['action' => 'tryon_off', 'ids' => [$massB]]);
+assertSame(['bottoms', [true, false, false]], [(new ValueService())->loadMany('product', [$massB], ['tryon_category'])[$massB]['tryon_category'] ?? null, $massTryon()], 'ação em massa: tipo de peça e desligar');
+assertSame([['Marque pelo menos um produto.'], ['Marque no máximo 500 produtos por vez.']], [$admin->submit($massBack, '/admin/product/massaction', ['action' => 'tryon_on'])[1],
+    $admin->submit($massBack, '/admin/product/massaction', ['action' => 'tryon_on', 'ids' => range(1, 501)])[1]], 'ação em massa: nenhum ou mais de 500 marcados');
+$admin->submit($massBack, '/admin/product/massaction', ['action' => 'tryon_on', 'ids' => [$massB]], false);
+assertSame([true, false, false], $massTryon(), 'ação em massa sem a chave do formulário é recusada');
+$makeUser('selftest_massprod', ['Iter_Catalog::product']);
+$massUser = new Browser($base);
+$massUser->login('selftest_massprod');
+$massPage = $massUser->request('/admin/product/index')['body'];
+preg_match('/name="form_key" value="([0-9a-f]{64})"/', $massPage, $massKey);
+assertSame([false, 403, [true, false, false]], [str_contains($massPage, 'product-mass'),
+    $massUser->request('/admin/product/massaction', ['form_key' => $massKey[1] ?? '', 'action' => 'tryon_off', 'ids' => [$massA]])['status'], $massTryon()],
+    'perfil sem a permissão do provador: sem a barra e 403 ao enviar');
 [, $msgs] = $admin->submit('/admin/customer/index', '/admin/customer/delete', ['customer_id' => $anaId]);
 assertSame([['Cliente removido com sucesso.'], false, [], [], 0], [$msgs, $custRow('ana@selftest.local'), $values->load('customer', $anaId), $addrRows(), $addrValues([$rows[0]['address_id']])], 'cliente removido com os seus valores e endereços');
 
@@ -2257,8 +2431,8 @@ assertSame(['Módulo Mercadopago desativado. Os dados dele continuam no banco.']
 assertSame(true, str_starts_with($gql($admin, '{ mercadopagoSettings { publicKey } }')['errors'][0]['message'] ?? '', 'Cannot query field "mercadopagoSettings"'), 'Mercadopago desativado: sem a API dele');
 assertSame(['O módulo Core é essencial e não pode ser desativado.'], $toggle('iter_core', 0), 'módulo essencial não é desativado');
 assertSame(['Desative antes os módulos que dependem de Eav: Catalog, Customer.'], $toggle('iter_eav', 0), 'módulo com dependentes ativos não é desativado');
-assertSame(['Desative antes os módulos que dependem de Catalog: Inventory, Sales, Promotion.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com Inventory e Sales ativos');
-assertSame(['Desative antes os módulos que dependem de Sales: Shipping, Payment, Adminsales, Promotion, Report.'], $toggle('iter_sales', 0), 'Sales não é desativado com Shipping, Payment e Adminsales ativos');
+assertSame(['Desative antes os módulos que dependem de Catalog: Inventory, Sales, Promotion, Tryon, Marketing, Wishlist.'], $toggle('iter_catalog', 0), 'Catalog não é desativado com Inventory e Sales ativos');
+assertSame(['Desative antes os módulos que dependem de Sales: Shipping, Payment, Adminsales, Promotion, Report, Marketing.'], $toggle('iter_sales', 0), 'Sales não é desativado com Shipping, Payment e Adminsales ativos');
 assertSame(['Módulo Adminsales desativado. Os dados dele continuam no banco.'], $toggle('iter_adminsales', 0), 'Adminsales desativado pelo admin');
 assertSame(['Módulo Payment desativado. Os dados dele continuam no banco.'], $toggle('iter_payment', 0), 'Payment desativado pelo admin');
 assertSame(true, str_starts_with($gql($admin, '{ cart { paymentMethod { code } } }')['errors'][0]['message'] ?? '', 'Cannot query field "paymentMethod" on type "Cart".'), 'Payment desativado: sem pagamento no carrinho');
@@ -2271,6 +2445,9 @@ assertSame([true, true], [
     str_starts_with($gql($admin, '{ cart { shippingMethod { code } } }')['errors'][0]['message'] ?? '', 'Cannot query field "shippingMethod" on type "Cart".'),
     str_starts_with($gql($admin, '{ shippingTableRates { price } }')['errors'][0]['message'] ?? '', 'Cannot query field "shippingTableRates" on type "Query".'),
 ], 'Shipping desativado: sem frete no carrinho nem faixas na API');
+assertSame(true, str_contains($admin->request('/admin/index')['body'], 'config-group-marketing'), 'menu Marketing aparece com o módulo ligado');
+assertSame(['Módulo Marketing desativado. Os dados dele continuam no banco.'], $toggle('iter_marketing', 0), 'Marketing desativado pelo admin');
+assertSame([false, 404], [str_contains($admin->request('/admin/index')['body'], 'config-group-marketing'), $admin->request('/marketing/unsubscribe?t=x')['status']], 'Marketing desativado: sem menu e sem o link de descadastro');
 assertSame(['Módulo Report desativado. Os dados dele continuam no banco.'], $toggle('iter_report', 0), 'Report desativado pelo admin');
 assertSame(['Módulo Sales desativado. Os dados dele continuam no banco.'], $toggle('iter_sales', 0), 'Sales desativado pelo admin');
 assertSame('Cannot query field "cart" on type "Query".', $gql($admin, '{ cart { total } }')['errors'][0]['message'] ?? null, 'Sales desativado: sem carrinho na API');
@@ -2281,6 +2458,17 @@ assertSame([false, false, 404, 'Cannot query field "stock" on type "Product".'],
     $admin->request('/admin/source/index')['status'],
     $gql($admin, '{ products { items { stock { salable_quantity } } } }')['errors'][0]['message'] ?? null,
 ], 'Inventory desativado: sem painel, menu, rotas e campos na API');
+assertSame(['Desative antes os módulos que dependem de Tryon: Cloudflare, Gemini, Huggingface, Fashnlocal.'], $toggle('iter_tryon', 0), 'Provador virtual não é desativado com os provedores ativos');
+assertSame(['Módulo Cloudflare desativado. Os dados dele continuam no banco.'], $toggle('iter_cloudflare', 0), 'Cloudflare desativado pelo admin');
+assertSame(['Módulo Gemini desativado. Os dados dele continuam no banco.'], $toggle('iter_gemini', 0), 'Gemini desativado pelo admin');
+assertSame(['Módulo Huggingface desativado. Os dados dele continuam no banco.'], $toggle('iter_huggingface', 0), 'Hugging Face desativado pelo admin');
+assertSame(['Módulo Fashnlocal desativado. Os dados dele continuam no banco.'], $toggle('iter_fashnlocal', 0), 'FASHN local desativado pelo admin');
+assertSame(['Módulo Tryon desativado. Os dados dele continuam no banco.'], $toggle('iter_tryon', 0), 'Provador virtual desativado pelo admin');
+assertSame([false, false], [str_contains($admin->request('/admin/product/index')['body'], 'product-mass'), str_contains($admin->request('/admin/index')['body'], '/admin/tryon/index')], 'Provador virtual desativado: sem ações em massa nos produtos e sem o menu');
+assertSame(true, str_starts_with($gql($admin, '{ tryOnSettings { enabled } }')['errors'][0]['message'] ?? '', 'Cannot query field "tryOnSettings"'), 'Provador virtual desativado: sem a API dele');
+assertSame(['Módulo Wishlist desativado. Os dados dele continuam no banco.'], $toggle('iter_wishlist', 0), 'Favoritos desativado pelo admin');
+assertSame([true, false], [str_starts_with($gql($admin, '{ myWishlist { total } }')['errors'][0]['message'] ?? '', 'Cannot query field "myWishlist"'), str_contains($admin->request('/admin/customer/edit?id=' . $anaId)['body'], '<h2>Favoritos')],
+    'Favoritos desativado: sem a API e sem a seção na tela do cliente');
 assertSame(['Módulo Catalog desativado. Os dados dele continuam no banco.'], $toggle('iter_catalog', 0), 'módulo desativado pelo admin');
 assertSame([404, false, 'Cannot query field "products" on type "Query".'], [
     $admin->request('/admin/product/index')['status'],
@@ -2780,9 +2968,24 @@ $rateForm = $admin->request('/admin/shippingrate/index')['body'];
 ]]);
 [, $bad] = $admin->submit('/admin/shippingrate/index', '/admin/shippingrate/save', ['website_id' => $defaultWebsite, 'rates' => [['postcode_from' => '1', 'postcode_to' => '2', 'price' => '1']]]);
 assertSame([true, ['Faixas de frete salvas.'], [['postcode_from' => '01000000', 'postcode_to' => '01999999', 'weight_to' => 2.5, 'price' => 12.5, 'days' => 2]], true, 403], [
-    str_contains($rateForm, 'value="01000-000"'), $msgs, (new \Iter\Shipping\Model\ShippingService())->getTableRates($defaultWebsite),
+    str_contains($rateForm, 'value="01000-000"'), $msgs, array_map(static fn ($r) => array_diff_key($r, ['rate_id' => 0]), (new \Iter\Shipping\Model\ShippingService())->getTableRates($defaultWebsite)),
     str_starts_with($bad[0] ?? '', 'Faixa 1:'), $seller->request('/admin/shippingrate/index')['status'],
 ], 'faixas de frete: a tela mostra e grava a tabela (vírgula decimal, linha em branco ignorada), valida e exige Iter_Shipping::rates');
+$admin->submit('/admin/shippingrate/index', '/admin/shippingrate/save', ['website_id' => $defaultWebsite, 'rates' => [
+    ['postcode_from' => '01000-000', 'postcode_to' => '01999-999', 'price' => '12,50', 'days' => '2'], ['postcode_from' => '20000-000', 'postcode_to' => '28999-999', 'price' => '30', 'days' => '5']]]);
+$rateIds = array_column((new \Iter\Shipping\Model\ShippingService())->getTableRates($defaultWebsite), 'rate_id', 'postcode_from');
+$ordersBefore = $pdo->query('SELECT md5(string_agg(concat_ws(\'|\', order_id, shipping_amount, shipping_method), \',\' ORDER BY order_id)) FROM sales_order')->fetchColumn();
+$rateForm = $admin->request('/admin/shippingrate/index')['body'];
+[, $msgs] = $admin->submit('/admin/shippingrate/index', '/admin/shippingrate/delete', ['website_id' => $defaultWebsite, 'rate_id' => $rateIds['20000000']]);
+[, $missing] = $admin->submit('/admin/shippingrate/index', '/admin/shippingrate/delete', ['website_id' => $defaultWebsite + 1000, 'rate_id' => $rateIds['01000000']]);
+assertSame([true, true, ['Faixa de frete excluída.'], ['01000000'], ['Faixa de frete não encontrada.'], $ordersBefore, 403], [
+    str_contains($rateForm, 'form="shipping-rate-delete-' . $rateIds['20000000'] . '">Excluir</button>'),
+    str_contains($rateForm, 'id="shipping-rate-delete-' . $rateIds['20000000'] . '" data-confirm="Excluir a faixa 20000-000 a 28999-999?'),
+    $msgs, array_column((new \Iter\Shipping\Model\ShippingService())->getTableRates($defaultWebsite), 'postcode_from'), $missing,
+    $pdo->query('SELECT md5(string_agg(concat_ws(\'|\', order_id, shipping_amount, shipping_method), \',\' ORDER BY order_id)) FROM sales_order')->fetchColumn(),
+    $seller->request('/admin/shippingrate/delete', ['form_key' => preg_match('/name="form_key" value="([0-9a-f]{64})"/', $seller->request('/admin/order/index')['body'], $sellerKey) ? $sellerKey[1] : '',
+        'website_id' => $defaultWebsite, 'rate_id' => $rateIds['01000000']])['status'],
+], 'faixas de frete: "Excluir" em cada faixa apaga só ela (com confirmação), não mexe nos pedidos, não apaga faixa de outro website e exige Iter_Shipping::rates');
 
 // --- promotions and coupons (PROMO-PLAN): screens, order, release on cancel, race, TOTAL_CHANGED ----
 // every test promotion is tied to selftest-promo: the store's real carts, on the same website, never see it
@@ -3795,6 +3998,14 @@ assertSame([['sender' => 'ADMIN', 'body' => 'Chega sim!', 'adminName' => 'selfte
 $send('<b>tem azul?</b>', $lojaToken);
 $viewUrl = '/admin/message/view?customer_id=' . $lojaId;
 $menuHtml = $admin->request('/admin/customer/index')['body'];
+$unreadNow = (int) $pdo->query("SELECT COUNT(*) FROM customer_message WHERE sender = 'customer' AND read_at IS NULL")->fetchColumn();
+$poll = $admin->request('/admin/auth/badges', null, null, ['X-Admin-Poll: 1']);
+assertSame([200, $unreadNow, false, 401], [
+    $poll['status'],
+    json_decode($poll['body'], true)['/admin/message/index'] ?? null,
+    array_key_exists('/admin/message/index', (array) json_decode($dash->request('/admin/auth/badges', null, null, ['X-Admin-Poll: 1'])['body'], true)),
+    (new Browser($base))->request('/admin/auth/badges', null, null, ['X-Admin-Poll: 1'])['status'],
+], 'mensagens: os contadores do menu vêm de /admin/auth/badges (o admin.js os atualiza a cada 15 s em qualquer tela); sem "Mensagens com clientes" o de Mensagens não vem; sem login é 401');
 [$sentTo] = $admin->submit($viewUrl, '/admin/message/send', ['customer_id' => $lojaId, 'body' => 'Pela tela do admin']);
 $page = $admin->request($viewUrl)['body'];
 assertSame([true, true, $viewUrl, true, true, true, ['Escreva a mensagem.'], '/admin/message/index', true], [
@@ -3806,8 +4017,8 @@ assertSame([true, true, $viewUrl, true, true, true, ['Escreva a mensagem.'], '/a
     (int) $pdo->query("SELECT COUNT(*) FROM customer_message WHERE customer_id = {$lojaId} AND sender = 'customer' AND read_at IS NULL")->fetchColumn() === 0,
     $admin->submit($viewUrl, '/admin/message/send', ['customer_id' => $lojaId, 'body' => ' '])[1],
     $admin->request('/admin/message/view?customer_id=0')['location'],
-    str_contains($page, 'data-refresh="30"'),
-], 'mensagens na tela: contador vermelho no menu; "Enviar mensagem" no cadastro; a loja responde pela conversa; o texto do cliente sai escapado; abrir marca as do cliente como lidas; vazio é recusado; cliente inexistente volta para a caixa; a conversa se atualiza a cada 30 s');
+    str_contains($page, 'data-refresh="15"'),
+], 'mensagens na tela: contador vermelho no menu; "Enviar mensagem" no cadastro; a loja responde pela conversa; o texto do cliente sai escapado; abrir marca as do cliente como lidas; vazio é recusado; cliente inexistente volta para a caixa; a conversa se atualiza a cada 15 s');
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'message:%'");
 $apiConfig(['customer/messages/per_minute' => '2']);
 $burst = array_map(static fn (int $i) => $send("seguida {$i}", $lojaToken)['errors'][0]['extensions']['code'] ?? 'OK', [1, 2, 3]);
@@ -3815,6 +4026,332 @@ $burst[] = isset($api('mutation { adminSendCustomerMessage(customerId: ' . $loja
 $apiConfig(['customer/messages/per_minute' => '0']);
 $pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'message:%'");
 assertSame(['OK', 'OK', 'TOO_MANY_REQUESTS', 'OK'], $burst, 'mensagens: com o limite em 2 por minuto, a 3ª do cliente é recusada; a loja respondendo não tem limite');
+// --- favourites (WISHLIST-PLAN) -------------------------------------------------------------
+$wlSet = (int) $roupa;
+$wlProduct = static function (string $sku, array $websites, ?int $parent = null) use ($pdo, $wlSet): int {
+    $id = (int) $pdo->query("INSERT INTO catalog_product (attribute_set_id, sku, name, type, parent_id, variant_key) VALUES ({$wlSet}, " . $pdo->quote($sku) . ", 'Fav {$sku}', 'simple', "
+        . ($parent ?? 'NULL') . ', ' . ($parent === null ? 'NULL' : $pdo->quote($sku)) . ') RETURNING product_id')->fetchColumn();
+    foreach ($websites as $w) {
+        $pdo->exec("INSERT INTO catalog_product_website (product_id, website_id) VALUES ({$id}, {$w})");
+    }
+    return $id;
+};
+$wlA = $wlProduct('selftest-wl-a', [$defaultWebsite]);
+$wlB = $wlProduct('selftest-wl-b', [$defaultWebsite]);
+$wlVariant = $wlProduct('selftest-wl-a-v', [$defaultWebsite], $wlA);
+$wlOther = $wlProduct('selftest-wl-sp', [$website2]);
+$wlAdd = static fn (int $id, ?string $tok) => $api('mutation { addToWishlist(productId: "' . $id . '") }', $tok)[1];
+$wlList = static fn (?string $tok, string $args = '') => $api('{ myWishlist' . $args . ' { total items { addedAt product { id name } } } }', $tok)[1];
+$wlAdd($wlA, $lojaToken);
+$pdo->exec("UPDATE customer_wishlist_item SET created_at = NOW() - INTERVAL '1 minute' WHERE product_id = {$wlA}"); // B comes after A
+$wlAdd($wlB, $lojaToken);
+$firstAdded = $pdo->query("SELECT created_at FROM customer_wishlist_item WHERE product_id = {$wlA}")->fetchColumn();
+assertSame([true, 2, [(string) $wlB, (string) $wlA], 2, $firstAdded], [
+    $wlAdd($wlA, $lojaToken)['data']['addToWishlist'] ?? null,
+    $wlList($lojaToken)['data']['myWishlist']['total'] ?? null,
+    array_column(array_column($wlList($lojaToken)['data']['myWishlist']['items'] ?? [], 'product'), 'id'),
+    (int) $pdo->query("SELECT COUNT(*) FROM customer_wishlist_item WHERE customer_id = {$lojaId}")->fetchColumn(),
+    $pdo->query("SELECT created_at FROM customer_wishlist_item WHERE product_id = {$wlA}")->fetchColumn(),
+], 'favoritos: adicionar o mesmo produto de novo não duplica nem muda a data; a lista vem do mais recente');
+assertSame(['PRODUCT_IS_VARIANT', 'PRODUCT_NOT_FOUND', 'PRODUCT_NOT_FOUND', ['total' => 0, 'items' => []], 'UNAUTHENTICATED', 'UNAUTHENTICATED', 'UNAUTHENTICATED'], [
+    $wlAdd($wlVariant, $lojaToken)['errors'][0]['extensions']['code'] ?? null,
+    $wlAdd($wlOther, $lojaToken)['errors'][0]['extensions']['code'] ?? null,
+    $wlAdd(0, $lojaToken)['errors'][0]['extensions']['code'] ?? null,
+    $wlList($spToken)['data']['myWishlist'] ?? null,
+    $wlList(null)['errors'][0]['extensions']['code'] ?? null,
+    $wlList($adminToken)['errors'][0]['extensions']['code'] ?? null,
+    $wlAdd($wlA, null)['errors'][0]['extensions']['code'] ?? null,
+], 'favoritos: variação e produto de outro website são recusados; um cliente não vê os favoritos de outro; sem token ou com token de admin, UNAUTHENTICATED');
+$wishPage = $admin->request('/admin/customer/edit?id=' . $lojaId)['body'];
+$pdo->exec("UPDATE catalog_product SET is_active = 0 WHERE product_id = {$wlB}");
+$hidden = $wlList($lojaToken)['data']['myWishlist'] ?? [];
+$hiddenPage = $admin->request('/admin/customer/edit?id=' . $lojaId)['body'];
+$pdo->exec("UPDATE catalog_product SET is_active = 1 WHERE product_id = {$wlB}");
+assertSame([true, true, 1, [(string) $wlA], 2, true, 2], [
+    str_contains($wishPage, '<h2>Favoritos (2)</h2>'), str_contains($wishPage, 'selftest-wl-b'),
+    $hidden['total'] ?? null, array_column(array_column($hidden['items'] ?? [], 'product'), 'id'),
+    (int) $pdo->query("SELECT COUNT(*) FROM customer_wishlist_item WHERE customer_id = {$lojaId}")->fetchColumn(),
+    str_contains($hiddenPage, 'Oculto para o cliente'),
+    $wlList($lojaToken)['data']['myWishlist']['total'] ?? null,
+], 'favoritos: a tela do cliente mostra a seção Favoritos; produto inativo some da lista sem apagar a linha (o admin vê "Oculto") e volta quando reativado');
+// the limit: 200 visible items
+$pdo->exec("INSERT INTO catalog_product (attribute_set_id, sku, name) SELECT {$wlSet}, 'selftest-wl-n' || g, 'Fav' FROM generate_series(1, 198) g");
+$pdo->exec("INSERT INTO catalog_product_website (product_id, website_id) SELECT product_id, {$defaultWebsite} FROM catalog_product WHERE sku LIKE 'selftest-wl-n%'");
+$pdo->exec("INSERT INTO customer_wishlist_item (customer_id, product_id) SELECT {$lojaId}, product_id FROM catalog_product WHERE sku LIKE 'selftest-wl-n%'");
+$wlC = $wlProduct('selftest-wl-c', [$defaultWebsite]);
+assertSame(['WISHLIST_LIMIT', true, 200, 100, true, true], [
+    $wlAdd($wlC, $lojaToken)['errors'][0]['extensions']['code'] ?? null,
+    $wlAdd($wlA, $lojaToken)['data']['addToWishlist'] ?? null,
+    $wlList($lojaToken, '(pageSize: 100, page: 2)')['data']['myWishlist']['total'] ?? null,
+    count($api('{ myWishlist(pageSize: 500) { items { product { id } } } }', $lojaToken)[1]['data']['myWishlist']['items'] ?? []),
+    $api('mutation { removeFromWishlist(productId: "' . $wlB . '") }', $lojaToken)[1]['data']['removeFromWishlist'] ?? null,
+    $wlAdd($wlC, $lojaToken)['data']['addToWishlist'] ?? null,
+], 'favoritos: o 201º é recusado (WISHLIST_LIMIT), repetir um que já está passa; a página vai até 100; removendo um, cabe outro');
+assertSame([true, 0], [
+    $api('mutation { removeFromWishlist(productId: "' . $wlB . '") }', $lojaToken)[1]['data']['removeFromWishlist'] ?? null,
+    (int) $pdo->query("SELECT COUNT(*) FROM customer_wishlist_item WHERE product_id = {$wlB}")->fetchColumn(),
+], 'favoritos: remover o que não está lá também dá true');
+$pdo->exec("DELETE FROM catalog_product WHERE sku LIKE 'selftest-wl-%'");
+assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM customer_wishlist_item WHERE customer_id = {$lojaId}")->fetchColumn(), 'favoritos: apagar o produto tira ele dos favoritos');
+
+// --- newsletter (NEWSLETTER-PLAN) --------------------------------------------------------------
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'newsletter:%'");
+$apiConfig(['marketing/newsletter/per_minute' => '0']);
+$nlSub = static fn (string $email) => $api('mutation { subscribeNewsletter(email: ' . json_encode($email) . ') }')[1];
+$nlToken = static fn (string $email): string => preg_match('#/newsletter/confirmar\?token=([0-9a-f]{64})#', (string) $pdo->query("SELECT body_html FROM mail_queue WHERE template_code = 'marketing_newsletter_confirm' AND to_email = " . $pdo->quote($email) . ' ORDER BY message_id DESC LIMIT 1')->fetchColumn(), $m) ? $m[1] : '';
+$nlStatus = static fn (string $email) => $pdo->query('SELECT status FROM marketing_subscriber WHERE email = ' . $pdo->quote($email))->fetchColumn();
+$nlNew = $nlSub('news@selftest.local');
+$nlPending = $nlSub('news@selftest.local');
+$nlConfirm = $api('mutation { confirmNewsletter(token: "' . $nlToken('news@selftest.local') . '") }')[1];
+$nlConfirmedStatus = $nlStatus('news@selftest.local');
+$nlConfirmed = $nlSub('news@selftest.local');
+\Iter\Marketing\Model\Unsubscribe::apply('news@selftest.local', $defaultWebsite);
+$nlUnsub = $nlSub('news@selftest.local');
+assertSame([true, true, true, 'confirmed', true, true, 'INVALID_INPUT', 'TOKEN_INVALID'], [
+    $nlNew['data']['subscribeNewsletter'] ?? null, $nlPending['data']['subscribeNewsletter'] ?? null,
+    $nlConfirm['data']['confirmNewsletter'] ?? null, $nlConfirmedStatus,
+    $nlConfirmed['data']['subscribeNewsletter'] ?? null, $nlUnsub['data']['subscribeNewsletter'] ?? null,
+    $nlSub('nao-e-email')['errors'][0]['extensions']['code'] ?? null,
+    $api('mutation { confirmNewsletter(token: "x") }')[1]['errors'][0]['extensions']['code'] ?? null,
+], 'newsletter pela API: true para e-mail novo, pendente, confirmado e descadastrado; só o formato inválido dá INVALID_INPUT; token desconhecido, TOKEN_INVALID');
+$apiConfig(['marketing/newsletter/per_minute' => '2']);
+$nlBurst = array_map(static fn (int $i) => $api('mutation { subscribeNewsletter(email: "burst' . $i . '@selftest.local") }'), [1, 2, 3]);
+$apiConfig(['marketing/newsletter/per_minute' => '0']);
+$pdo->exec("DELETE FROM api_rate_limit WHERE rate_key LIKE 'newsletter:%'");
+assertSame([[200, true], [200, true], [429, 'TOO_MANY_REQUESTS']], array_map(static fn ($r) => [$r[0], $r[1]['data']['subscribeNewsletter'] ?? $r[1]['errors'][0]['extensions']['code'] ?? null], $nlBurst),
+    'newsletter: com o limite em 2 por minuto, a 3ª inscrição do mesmo IP é recusada');
+$nlPage = $admin->request('/admin/marketingsubscriber/index?q=news%40selftest')['body'];
+$nlLogBefore = (int) $pdo->query("SELECT COUNT(*) FROM log_operation WHERE action = 'export' AND entity_type = 'marketing'")->fetchColumn();
+$nlCsv = $admin->request('/admin/marketingsubscriber/export?status=pending');
+$makeUser('selftest_nosubs', ['Iter_Marketing::review']);
+$noSubs = new Browser($base);
+$noSubs->login('selftest_nosubs');
+assertSame([true, true, false, true, true, $nlLogBefore + 1, 403, false, true], [
+    str_contains($nlPage, 'news@selftest.local') && str_contains($nlPage, 'Aguardando confirmação'),
+    str_contains($nlPage, 'href="/admin/marketingsubscriber/export?q=news%40selftest"'),
+    str_contains($nlPage, 'burst1@selftest.local'),
+    str_contains($nlCsv['body'], 'burst1@selftest.local;') && !str_contains($nlCsv['body'], 'news@selftest.local'),
+    str_contains($admin->request('/admin/config/index')['body'], 'name="config[marketing/newsletter/confirm_url]"'),
+    (int) $pdo->query("SELECT COUNT(*) FROM log_operation WHERE action = 'export' AND entity_type = 'marketing'")->fetchColumn(),
+    $noSubs->request('/admin/marketingsubscriber/index')['status'],
+    str_contains($noSubs->request('/admin/marketing/index')['body'], '/admin/marketingsubscriber/index'),
+    str_contains($admin->request('/admin/index')['body'], '/admin/marketingsubscriber/index'),
+], 'Marketing → Inscritos: lista com filtro por e-mail; o CSV respeita o filtro (situação) e entra no log de operações; Configurações → Marketing tem os campos da newsletter; sem a permissão, sem a tela e sem o menu');
+
+// --- web store home (WEB-HOME-PLAN) ------------------------------------------------------------
+$webDir = sys_get_temp_dir() . '/iter-web-' . getmypid();
+@mkdir($webDir);
+$webImg = imagecreatetruecolor(8, 6);
+imagewebp($webImg, "{$webDir}/a.webp");
+imagepng($webImg, "{$webDir}/b.png");
+imagegif($webImg, "{$webDir}/c.gif");
+$mp4 = "\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom" . str_repeat("\x00", 64);
+file_put_contents("{$webDir}/v.mp4", $mp4);
+file_put_contents("{$webDir}/big.mp4", $mp4);
+$bigVideo = fopen("{$webDir}/big.mp4", 'r+');
+ftruncate($bigVideo, Iter\Catalog\Model\WebHomeService::VIDEO_MAX_BYTES + 1);
+fclose($bigVideo);
+$webFile = static fn (string $name) => ['path' => "{$webDir}/{$name}", 'name' => $name];
+$webCat = static function (string $key, ?int $parent, int $active = 1) use ($pdo, $website2): int {
+    return (int) $pdo->query("INSERT INTO catalog_category (parent_id, name, url_key, is_active, website_id) VALUES (" . ($parent ?? 'NULL') . ", 'Web {$key}', 'selftest-web-{$key}', {$active}, {$website2}) RETURNING category_id")->fetchColumn();
+};
+$wA = $webCat('a', null);
+$wA1 = $webCat('a1', $wA);
+$wA2 = $webCat('a2', $wA);
+$wA2x = $webCat('a2x', $wA2); // a grandchild is a subcategory too
+$wB = $webCat('b', null);
+$wB1 = $webCat('b1', $wB);
+$web = new Iter\Catalog\Model\WebHomeService();
+$webSave = static fn (array $data, array $files = []) => $web->save($website2, $data, $files);
+$webErr = static fn (array $data, array $files = []) => $throws(static fn () => $webSave($data, $files));
+$oneSection = static fn (array $cards = []) => ['sections' => [['category_id' => $wA, 'title' => '', 'cards' => $cards]]];
+$cardsOf = static fn (array $ids) => array_map(static fn ($id) => ['category_id' => $id], $ids);
+$sectionFiles = static fn (int $cards) => ['sections' => [['image' => $webFile('a.webp'), 'cards' => array_fill(0, $cards, $webFile('b.png'))]]];
+assertSame(['URL_INVALID', 'URL_INVALID', 'URL_INVALID', 'URL_INVALID', 'URL_INVALID', 'URL_INVALID'], array_map(static fn ($url) => $webErr(['announcement_url' => $url]),
+    ['javascript:alert(1)', '//evil.example', 'data:text/html,oi', '/\\evil.example', 'http://loja.example', 'https://ok.example/a b']),
+    'home web: link javascript:, //outro-site, data:, /\\, http:// e com espaço são recusados');
+assertSame(['TEXT_TOO_LONG', 'VALUE_REQUIRED', 'IMAGE_REQUIRED', 'IMAGE_REQUIRED'], [
+    $webErr(['announcement_text' => str_repeat('a', 121)]),
+    $webErr(['announcement_enabled' => 1]),
+    $webErr(['campaign_enabled' => 1]),
+    $webErr(['campaign_enabled' => 1], ['campaign_video' => $webFile('v.mp4')]),
+], 'home web: aviso acima de 120 caracteres ou ligado sem texto e campanha ligada sem a imagem de desktop (com ou sem vídeo) são recusados');
+assertSame(['FILE_TYPE_INVALID', 'FILE_TYPE_INVALID', 'FILE_TYPE_INVALID', 'FILE_TOO_LARGE'], [
+    $webErr($oneSection(), ['sections' => [['image' => $webFile('c.gif')]]]),
+    $webErr($oneSection(), ['sections' => [['image' => $webFile('v.mp4')]]]),
+    $webErr([], ['campaign_video' => $webFile('a.webp')]),
+    $webErr([], ['campaign_video' => $webFile('big.mp4')]),
+], 'home web: foto GIF ou vídeo no lugar da foto, imagem no lugar do vídeo e vídeo acima de 20 MB são recusados');
+assertSame(['CATEGORY_NOT_FOUND', 'CATEGORY_NOT_CHILD', 'WEB_CARD_LIMIT', 'IMAGE_REQUIRED'], [
+    $webErr(['sections' => [['category_id' => $baseCategory]]], ['sections' => [['image' => $webFile('a.webp')]]]),
+    $webErr($oneSection($cardsOf([$wB1])), $sectionFiles(1)),
+    $webErr($oneSection($cardsOf([$wA1, $wA2, $wA2x, $wA1, $wA2])), $sectionFiles(5)),
+    $webErr($oneSection($cardsOf([$wA1])), ['sections' => [['image' => $webFile('a.webp')]]]),
+], 'home web: categoria de outro website, card que não é subcategoria, o 5º card e card sem foto são recusados');
+assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM catalog_web_section WHERE website_id = {$website2}")->fetchColumn(), 'home web: nada é gravado quando algo é recusado');
+$webSave($oneSection());
+$noPhoto = $api('{ webHome(websiteId: "' . $website2 . '") { sections { image } } }')[1]['data']['webHome']['sections'] ?? [];
+$webSave($oneSection(), ['sections' => [['image' => $webFile('a.webp')]]]);
+$withPhoto = $web->get($website2)['sections'][0];
+$webSave(['sections' => [['id' => $withPhoto['section_id'], 'category_id' => $wA, 'title' => '', 'remove_image' => true]]]);
+assertSame([[['image' => null]], true, '', false], [$noPhoto, $withPhoto['image'] !== '', $web->get($website2)['sections'][0]['image'], is_file(\Iter\Core\Config::mediaDir() . $withPhoto['image'])],
+    'home web: a foto da seção é opcional (a API devolve null); "Remover a foto" tira a foto e apaga o arquivo');
+$webSave([]);
+$webOk = $webSave([
+    'announcement_enabled' => 1, 'announcement_text' => '<script>alert(1)</script> Frete grátis', 'announcement_url' => '/promocoes',
+    'campaign_enabled' => 1, 'campaign_title' => 'Verão', 'campaign_text' => 'Coleção nova', 'campaign_button' => 'Ver', 'campaign_url' => 'https://loja.example/verao',
+    'sections_title' => 'Escolha uma seção',
+    'sections' => [['category_id' => $wB, 'title' => ''], ['category_id' => $wA, 'title' => 'Vasos', 'cards' => $cardsOf([$wA2x, $wA1])]],
+], ['campaign_image_desktop' => $webFile('a.webp'), 'campaign_video' => $webFile('v.mp4'),
+    'sections' => [['image' => $webFile('a.webp')], ['image' => $webFile('b.png'), 'cards' => [$webFile('a.webp'), $webFile('b.png')]]]]);
+$webQuery = '{ webHome(websiteId: "' . $website2 . '") { announcement { text url } campaign { video imageDesktop imageMobile title url } sections { category { id } title image cards { category { id } image } } } }';
+$webHome = $api($webQuery)[1]['data']['webHome'] ?? [];
+assertSame('Escolha uma seção', $api('{ webHome(websiteId: "' . $website2 . '") { sectionsTitle } }')[1]['data']['webHome']['sectionsTitle'] ?? null,
+    'home web: o título das seções vem em sectionsTitle');
+$webBase = $base . '/media/web/'; // the API answers on the address it was called on
+assertSame([['text' => '<script>alert(1)</script> Frete grátis', 'url' => '/promocoes'], 'Verão', null, true, true,
+    [[(string) $wB, 'Web b', 0], [(string) $wA, 'Vasos', 2]], [(string) $wA2x, (string) $wA1], true, ['Topo' => 'banner', 'Aviso' => 'desligado', 'Campanha' => 'desligada', 'Título das seções' => 'nenhum', 'Seções' => '0', 'Cards' => '0', 'Produtos por seção' => '']], [
+    $webHome['announcement'] ?? null, $webHome['campaign']['title'] ?? null, array_key_exists('imageMobile', $webHome['campaign'] ?? []) ? $webHome['campaign']['imageMobile'] : 'x',
+    str_starts_with((string) ($webHome['campaign']['video'] ?? ''), $webBase) && str_ends_with($webHome['campaign']['video'], '.mp4'),
+    str_starts_with((string) ($webHome['campaign']['imageDesktop'] ?? ''), $webBase) && str_ends_with($webHome['campaign']['imageDesktop'], '.webp'),
+    array_map(static fn ($s) => [$s['category']['id'], $s['title'], count($s['cards'])], $webHome['sections'] ?? []),
+    array_column(array_column($webHome['sections'][1]['cards'] ?? [], 'category'), 'id'),
+    !array_filter(array_merge(array_column($webHome['sections'] ?? [], 'image'), array_column($webHome['sections'][1]['cards'] ?? [], 'image')), static fn ($u) => !str_starts_with((string) $u, $webBase) || !is_file(\Iter\Core\Config::mediaDir() . substr($u, strlen($base . '/media/')))),
+    $webOk['before'],
+], 'home web: webHome traz o aviso com o texto como foi escrito (sem interpretar), a campanha com o vídeo, as seções e os cards na ordem gravada (a subcategoria neta vale), título vazio = nome da categoria, URLs absolutas e arquivos em public/media/web');
+$pdo->exec("UPDATE catalog_category SET is_active = 0 WHERE category_id IN ({$wA1}, {$wB})");
+$webInactive = $api($webQuery)[1]['data']['webHome']['sections'] ?? [];
+$pdo->exec("UPDATE catalog_category SET is_active = 0 WHERE category_id = {$wA2}");
+$webParentOff = $api($webQuery)[1]['data']['webHome']['sections'][0]['cards'] ?? null;
+$pdo->exec("UPDATE catalog_category SET is_active = 1 WHERE category_id IN ({$wA1}, {$wB}, {$wA2})");
+assertSame([[[(string) $wA, [(string) $wA2x]]], []], [
+    array_map(static fn ($s) => [$s['category']['id'], array_column(array_column($s['cards'], 'category'), 'id')], $webInactive), $webParentOff,
+], 'home web: seção e card de categoria inativa (ou com a categoria pai inativa) somem da resposta');
+
+// the screen: Catálogo → Web
+$webPage = $admin->request('/admin/web/index?website_id=' . $website2)['body'];
+$webSections = array_map('intval', $pdo->query("SELECT section_id FROM catalog_web_section WHERE website_id = {$website2} ORDER BY position")->fetchAll(PDO::FETCH_COLUMN));
+$webCards = array_map('intval', $pdo->query("SELECT card_id FROM catalog_web_card WHERE section_id = {$webSections[1]} ORDER BY position")->fetchAll(PDO::FETCH_COLUMN));
+$oldCover = (string) $pdo->query("SELECT campaign_image_desktop FROM catalog_web_home WHERE website_id = {$website2}")->fetchColumn();
+$oldSectionB = (string) $pdo->query("SELECT image FROM catalog_web_section WHERE section_id = {$webSections[0]}")->fetchColumn();
+assertSame([true, true, true, true, true], [
+    str_contains($webPage, '&lt;script&gt;alert(1)&lt;/script&gt; Frete grátis') && !str_contains($webPage, '<script>alert(1)'),
+    str_contains($webPage, 'name="sections[s1][cards][c0][category_id]"') && str_contains($webPage, 'enctype="multipart/form-data"'),
+    str_contains($webPage, '<template data-web-section-template>'),
+    str_contains($webPage, 'value="Vasos"'),
+    str_contains($admin->request('/admin/index')['body'], '/admin/web/index'),
+], 'Catálogo → Web: a tela mostra o que foi gravado (texto escapado), as seções com os cards, o modelo de seção nova e o item no menu');
+$webLogBefore = (int) $pdo->query("SELECT COUNT(*) FROM log_operation WHERE entity_type = 'web_home' AND entity_id = {$website2}")->fetchColumn();
+[, $msgs] = $admin->submit('/admin/web/index?website_id=' . $website2, '/admin/web/save', [
+    'website_id' => $website2, 'announcement_enabled' => '0', 'announcement_text' => 'Outro aviso', 'campaign_enabled' => '1', 'campaign_title' => 'Inverno',
+    'sections' => [
+        's1' => ['id' => $webSections[1], 'category_id' => $wA, 'title' => 'Vasos', 'cards' => ['c1' => ['id' => $webCards[1], 'category_id' => $wA1], 'c0' => ['id' => $webCards[0], 'category_id' => $wA2x], 'nX' => ['category_id' => $wA2]]],
+        'nY' => ['category_id' => $wB, 'title' => 'B de novo'],
+    ],
+    'campaign_image_desktop' => new CURLFile("{$webDir}/b.png", 'image/png', 'capa.png'),
+    'card_image' => ['s1' => ['nX' => new CURLFile("{$webDir}/a.webp", 'image/webp', 'card.webp')]],
+    'section_image' => ['nY' => new CURLFile("{$webDir}/b.png", 'image/png', 'secao.png')],
+]);
+$webAfter = $api($webQuery)[1]['data']['webHome'] ?? [];
+assertSame([['Home da loja web salva.'], null, 'Inverno', [[(string) $wA, 3], [(string) $wB, 0]], [(string) $wA1, (string) $wA2x, (string) $wA2], false, false, true, $webLogBefore + 1], [
+    $msgs, array_key_exists('announcement', $webAfter) ? $webAfter['announcement'] : 'x', $webAfter['campaign']['title'] ?? null,
+    array_map(static fn ($s) => [$s['category']['id'], count($s['cards'])], $webAfter['sections'] ?? []),
+    array_column(array_column($webAfter['sections'][0]['cards'] ?? [], 'category'), 'id'),
+    is_file(\Iter\Core\Config::mediaDir() . $oldCover), is_file(\Iter\Core\Config::mediaDir() . $oldSectionB),
+    $webAfter['campaign']['video'] !== null,
+    (int) $pdo->query("SELECT COUNT(*) FROM log_operation WHERE entity_type = 'web_home' AND entity_id = {$website2}")->fetchColumn(),
+], 'Catálogo → Web: salvar pela tela reordena, mantém as fotos sem reenviar, acrescenta card e seção, aviso desligado vem null; a capa trocada e a seção que saiu têm o arquivo apagado; vai para o log de operações');
+[, $msgs] = $admin->submit('/admin/web/index?website_id=' . $website2, '/admin/web/save', ['website_id' => $website2, 'announcement_url' => 'javascript:alert(1)']);
+assertSame([true, 2], [str_contains($msgs[0] ?? '', 'Link do aviso'), count($api($webQuery)[1]['data']['webHome']['sections'] ?? [])], 'Catálogo → Web: erro na tela mostra a mensagem e não muda nada');
+$makeUser('selftest_noweb', ['Iter_Catalog::mobile']);
+$noWeb = new Browser($base);
+$noWeb->login('selftest_noweb');
+preg_match('/name="form_key" value="([0-9a-f]{64})"/', $noWeb->request('/admin/mobile/index')['body'], $noWebKey);
+assertSame([403, 403, false], [$noWeb->request('/admin/web/index')['status'], $noWeb->request('/admin/web/save', ['website_id' => $website2, 'form_key' => $noWebKey[1] ?? ''])['status'],
+    str_contains($noWeb->request('/admin/mobile/index')['body'], '/admin/web/index')], 'Catálogo → Web: perfil sem a permissão "Home da loja web" não abre nem salva a tela e não vê o menu');
+// deleting a category takes its sections and cards (rows by CASCADE, files by the service)
+$webFiles = $web->categoryFiles($wB);
+(new Iter\Catalog\Model\CategoryService())->delete($wB1);
+(new Iter\Catalog\Model\CategoryService())->delete($wB);
+assertSame([1, false, 1], [count($webFiles), is_file(\Iter\Core\Config::mediaDir() . $webFiles[0]), count($api($webQuery)[1]['data']['webHome']['sections'] ?? [])],
+    'home web: apagar a categoria tira a seção dela e apaga a foto');
+$webLeft = array_merge(array_filter(array_intersect_key($web->get($website2)['home'], Iter\Catalog\Model\WebHomeService::CAMPAIGN_FILES)), $web->categoryFiles($wA));
+$webSave(['campaign_remove' => array_fill_keys(array_keys(Iter\Catalog\Model\WebHomeService::CAMPAIGN_FILES), true)]);
+assertSame([6, [], ['announcement' => null, 'campaign' => null, 'sections' => []]], [count($webLeft), array_values(array_filter($webLeft, static fn ($f) => is_file(\Iter\Core\Config::mediaDir() . $f))), $api($webQuery)[1]['data']['webHome'] ?? null],
+    'home web: salvar vazio apaga as fotos e o vídeo que saíram; a consulta volta vazia');
+
+// WEB-HOME-2-PLAN: a section's banners and products (chosen by hand, then the newest), the top as a carousel
+$wP = array_map(static fn ($k) => $wlProduct("selftest-web-p{$k}", [$website2]), [0, 1, 2, 3]);
+$wPv = $wlProduct('selftest-web-p0-v', [$website2], $wP[0]);
+$wPx = $wlProduct('selftest-web-px', [$website2]); // not in the category
+foreach ([...$wP, $wPv] as $id) {
+    $pdo->exec("INSERT INTO catalog_category_product (category_id, product_id) VALUES ({$wA}, {$id})");
+}
+$pdo->exec("UPDATE catalog_product SET is_active = 0 WHERE product_id = {$wP[3]}");
+$pdo->exec("INSERT INTO catalog_category_banner (category_id, file, position) VALUES ({$wA}, 'category-banner/00/selftest-web-1.webp', 0), ({$wA}, 'category-banner/00/selftest-web-2.webp', 1)");
+$webSection2 = static fn (array $extra = []) => [['category_id' => $wA, 'title' => ''] + $extra];
+$webImg1 = ['sections' => [['image' => $webFile('a.webp')]]];
+$slide = static fn (array $extra = []) => $extra + ['title' => 'Slide', 'url' => '/promocoes'];
+assertSame(['WEB_PER_CATEGORY_INVALID', 'WEB_PER_CATEGORY_INVALID', 'WEB_PRODUCT_INVALID', 'WEB_PRODUCT_INVALID', 'WEB_PRODUCT_INVALID', 'WEB_TOP_INVALID', 'WEB_AUTOPLAY_INVALID',
+    'VALUE_REQUIRED', 'WEB_SLIDE_LIMIT', 'IMAGE_REQUIRED', 'URL_INVALID'], [
+    $webErr(['sections' => $webSection2(['per_category' => 51])], $webImg1),
+    $webErr(['sections' => $webSection2(['per_category' => -1])], $webImg1),
+    $webErr(['sections' => $webSection2(['product_ids' => [$wPx]])], $webImg1),
+    $webErr(['sections' => $webSection2(['product_ids' => [$wPv]])], $webImg1),
+    $webErr(['sections' => $webSection2(['product_ids' => [$wP[1], $wP[1]]])], $webImg1),
+    $webErr(['top_mode' => 'video']),
+    $webErr(['carousel_autoplay' => 61]),
+    $webErr(['top_mode' => 'carousel']),
+    $webErr(['slides' => array_fill(0, 6, $slide())], ['slides' => array_fill(0, 6, ['image_desktop' => $webFile('a.webp')])]),
+    $webErr(['slides' => [$slide()]]),
+    $webErr(['slides' => [$slide(['url' => 'javascript:alert(1)'])]], ['slides' => [['image_desktop' => $webFile('a.webp')]]]),
+], 'home web: exibir fora de 0 a 50, produto fora da categoria, variação ou repetido, topo desconhecido, passar sozinho acima de 60 s, carrossel sem slide, o 6º slide, slide sem imagem de desktop e link javascript: são recusados');
+$webSave([
+    'top_mode' => 'carousel', 'carousel_arrows' => 0, 'carousel_dots' => 1, 'carousel_autoplay' => 7, 'campaign_enabled' => 1,
+    'slides' => [$slide(['title' => 'Um']), $slide(['title' => '', 'url' => ''])],
+    'sections' => $webSection2(['show_banner' => 1, 'per_category' => 3, 'product_ids' => [$wP[1], $wP[3]]]),
+], ['campaign_image_desktop' => $webFile('a.webp'), 'slides' => [['image_desktop' => $webFile('a.webp'), 'image_mobile' => $webFile('b.png')], ['image_desktop' => $webFile('b.png')]]] + $webImg1);
+$web2Query = '{ webHome(websiteId: "' . $website2 . '") { campaign { title } slides { imageDesktop imageMobile title url } carousel { arrows dots autoplay } sections { banners products { id } } } }';
+$web2 = $api($web2Query)[1]['data']['webHome'] ?? [];
+$web2Stored = $web->get($website2);
+$slideFiles = array_merge(...array_map(static fn ($s) => array_values(array_filter([$s['image_desktop'], $s['image_mobile']])), $web2Stored['slides']));
+assertSame([null, [['Um', '/promocoes', true], [null, null, false]], ['arrows' => false, 'dots' => true, 'autoplay' => 7], true,
+    [(string) $wP[1], (string) $wP[2], (string) $wP[0]], [$wP[1], $wP[3]], 3], [
+    array_key_exists('campaign', $web2) ? $web2['campaign'] : 'x',
+    array_map(static fn ($s) => [$s['title'], $s['url'], $s['imageMobile'] !== null && str_starts_with($s['imageMobile'], $webBase)], $web2['slides'] ?? []),
+    $web2['carousel'] ?? null,
+    array_map(static fn ($u) => preg_replace('#^.*/#', '', $u), $web2['sections'][0]['banners'] ?? []) === ['selftest-web-1.webp', 'selftest-web-2.webp']
+        && str_starts_with($web2['sections'][0]['banners'][0], $base . '/media/eav/category-banner/'),
+    array_column($web2['sections'][0]['products'] ?? [], 'id'),
+    $web2Stored['sections'][0]['product_ids'],
+    count(array_filter($slideFiles, static fn ($f) => is_file(\Iter\Core\Config::mediaDir() . $f))),
+], 'home web: com o topo em carrossel a campanha vem null e os slides na ordem (título e link vazios = null, imagem do iPhone opcional); os controles; os banners da categoria com "Mostrar banner"; os produtos: os escolhidos ativos primeiro, depois os mais novos, até a quantidade (o inativo escolhido fica guardado mas fora)');
+$webPage2 = $admin->request('/admin/web/index?website_id=' . $website2)['body'];
+assertSame([true, true, true, true], [
+    str_contains($webPage2, 'name="slides[l0][title]" value="Um"') && str_contains($webPage2, 'name="slides[l1][remove_mobile]"') === false && str_contains($webPage2, 'name="slides[l0][remove_mobile]"'),
+    str_contains($webPage2, '<template data-web-slide-template>') && str_contains($webPage2, 'value="carousel" checked'),
+    str_contains($webPage2, 'data-chosen="[' . $wP[1] . ',' . $wP[3] . ']"') && str_contains($webPage2, 'name="sections[s0][per_category]" value="3"'),
+    (bool) preg_match('/<script type="application\/json" data-web-data>[^<]*selftest-web-p2/', $webPage2),
+], 'Catálogo → Web: a tela mostra os slides (com "Remover a do iPhone" só onde há), o topo escolhido, os escolhidos e a quantidade da seção e os produtos da categoria para escolher');
+$webSave([
+    'top_mode' => 'banner', 'campaign_enabled' => 1,
+    'slides' => [['id' => $web2Stored['slides'][0]['slide_id'], 'title' => 'Um', 'remove_mobile' => 1]],
+    'sections' => [['id' => $web2Stored['sections'][0]['section_id'], 'category_id' => $wA, 'show_banner' => 0, 'per_category' => 0]],
+]);
+$web3 = $api($web2Query)[1]['data']['webHome'] ?? [];
+assertSame([true, [], [], [], [true, false, false], null], [
+    ($web3['campaign'] ?? null) !== null, $web3['slides'] ?? null, $web3['sections'][0]['banners'] ?? null, $web3['sections'][0]['products'] ?? null,
+    array_map(static fn ($f) => is_file(\Iter\Core\Config::mediaDir() . $f), $slideFiles), $web->get($website2)['slides'][0]['image_mobile'],
+], 'home web: de volta ao banner a campanha volta e os slides ficam guardados fora da resposta; "Mostrar banner" desligado e 0 produtos dão listas vazias; a imagem do iPhone removida e o slide que saiu têm os arquivos apagados');
+$webSave(['campaign_remove' => array_fill_keys(array_keys(Iter\Catalog\Model\WebHomeService::CAMPAIGN_FILES), true)]);
+$pdo->exec("DELETE FROM catalog_category_banner WHERE file LIKE 'category-banner/00/selftest-web-%'");
+$pdo->exec("DELETE FROM catalog_product WHERE sku LIKE 'selftest-web-p%' AND parent_id IS NOT NULL");
+$pdo->exec("DELETE FROM catalog_product WHERE sku LIKE 'selftest-web-p%'");
+$pdo->exec("DELETE FROM catalog_category WHERE url_key LIKE 'selftest-web-%' AND parent_id IS NOT NULL");
+$pdo->exec("DELETE FROM catalog_category WHERE url_key LIKE 'selftest-web-%'");
+array_map('unlink', glob("{$webDir}/*"));
+@rmdir($webDir);
+
 $send('vou cancelar a conta', $spToken);
 (new CustomerService())->delete($spId);
 assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM customer_message WHERE customer_id = {$spId}")->fetchColumn(), 'mensagens: apagar o cliente apaga a conversa dele');

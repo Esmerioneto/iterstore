@@ -1,0 +1,9 @@
+{
+  "name": "iter_tryon",
+  "version": "1.0.0",
+  "description": "Provador virtual: a foto do cliente vestindo um produto",
+  "enabled": true,
+  "index": "0",
+  "author": "Esmerio",
+  "depends": ["iter_customer", "iter_catalog"]
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "group": "Provador virtual",
+    "section": "Clientes e comunicação",
+    "position": 75,
+    "icon": "👗",
+    "description": "A foto do cliente vestindo um produto, pelo app",
+    "chips": [{ "label": "Provador", "path": "catalog/tryon/active" }]
+  }
+]

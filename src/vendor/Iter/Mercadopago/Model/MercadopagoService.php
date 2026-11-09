@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Iter\Mercadopago\Model;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\GuzzleException;
 use Iter\Core\Config;
 use Iter\Core\Crypt;
 use Iter\Core\Db\Connection;
@@ -12,7 +14,7 @@ use Iter\Sales\Model\OrderService;
 use Iter\Sales\Model\SalesException;
 
 /**
- * Mercado Pago's Checkout Transparente via Orders (MERCADOPAGO-PLAN), Orders API (/v1/orders) over curl:
+ * Mercado Pago's Checkout Transparente via Orders (MERCADOPAGO-PLAN), Orders API (/v1/orders) over Guzzle:
  * applications created as "Checkout Transparente via Orders" get 401 from /v1/payments.
  * placeOrder creates the order (pending_payment) as with any method; pay() then charges it: Pix gives
  * the QR code, a card is charged with the token the app made with the SDK (the card number never
@@ -519,18 +521,17 @@ class MercadopagoService
         if ($this->http !== null) {
             return ($this->http)($method, $path, $body, $deviceId);
         }
-        $ch = curl_init(self::API . $path);
-        $headers = ['Authorization: Bearer ' . $token, 'Content-Type: application/json'];
-        $idempotencyKey === null || $headers[] = 'X-Idempotency-Key: ' . $idempotencyKey;
-        preg_match('/^[\w\-:.]{1,128}$/', $deviceId) && $headers[] = 'X-meli-session-id: ' . $deviceId;
-        curl_setopt_array($ch, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 30, CURLOPT_HTTPHEADER => $headers]
-            + ($body === null ? [] : [CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE)]));
-        $response = curl_exec($ch);
-        if ($response === false) {
-            Log::error("Mercado Pago: {$method} {$path} falhou: " . curl_error($ch));
+        $headers = ['Authorization' => 'Bearer ' . $token, 'Content-Type' => 'application/json'];
+        $idempotencyKey === null || $headers['X-Idempotency-Key'] = $idempotencyKey;
+        preg_match('/^[\w\-:.]{1,128}$/', $deviceId) && $headers['X-meli-session-id'] = $deviceId;
+        try {
+            $response = (new Client())->request($method, self::API . $path, ['headers' => $headers, 'timeout' => 30, 'http_errors' => false]
+                + ($body === null ? [] : ['body' => json_encode($body, JSON_UNESCAPED_UNICODE)]));
+        } catch (GuzzleException $e) {
+            Log::error("Mercado Pago: {$method} {$path} falhou: " . $e->getMessage());
             throw new SalesException('PAYMENT_UNAVAILABLE', 'Não foi possível falar com o Mercado Pago. Tente de novo em instantes.');
         }
 
-        return [(int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE), json_decode((string) $response, true) ?: []];
+        return [$response->getStatusCode(), json_decode((string) $response->getBody(), true) ?: []];
     }
 }

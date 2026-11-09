@@ -1,0 +1,1 @@
+{"name":"iter_wishlist","version":"1.0.0","description":"Favoritos do cliente (♡), pela API e na tela do cliente","enabled":true,"index":"0","author":"Esmerio","depends":["iter_customer","iter_catalog"]}

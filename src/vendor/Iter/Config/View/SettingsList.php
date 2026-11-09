@@ -8,6 +8,7 @@ use Iter\Admin\Auth;
 use Iter\Admin\View\Sort;
 use Iter\Config\ModuleManager;
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Admin\View\GridColumns;
 
 class SettingsList implements ViewComponentInterface
 {
@@ -20,6 +21,6 @@ class SettingsList implements ViewComponentInterface
     {
         [$modules, $pager, $sort, $dir, $q] = Sort::slice(ModuleManager::all(), ['group' => 'group', 'vendor' => 'vendor', 'name' => 'name', 'enabled' => 'enabled'], 'group', 'asc', ['group', 'vendor', 'name']);
 
-        return ['modules' => $modules, 'pager' => $pager, 'sort' => $sort, 'dir' => $dir, 'q' => $q, 'can_toggle' => Auth::isAllowed('Iter_Config::modules')];
+        return ['modules' => $modules, 'pager' => $pager, 'sort' => $sort, 'dir' => $dir, 'q' => $q, 'can_toggle' => Auth::isAllowed('Iter_Config::modules'), 'gridColumns' => new GridColumns('config/settings-list', $modules, ['group', 'vendor', 'name', 'enabled'])];
     }
 }

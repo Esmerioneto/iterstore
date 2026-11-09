@@ -7,6 +7,7 @@ namespace Iter\Store\View;
 use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Store\Model\Website;
+use Iter\Admin\View\GridColumns;
 
 class WebsiteList implements ViewComponentInterface
 {
@@ -25,6 +26,7 @@ class WebsiteList implements ViewComponentInterface
             'q' => $q,
             'websites' => $websites,
             'pager' => $pager,
+            'gridColumns' => new GridColumns('store/website-list', $websites, ['id', 'code', 'name', 'sort_order', 'is_default']),
         ];
     }
 }

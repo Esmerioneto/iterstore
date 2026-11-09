@@ -1,0 +1,3 @@
+[
+    { "route": "admin", "vendor": "Iter", "module_name": "Tryon", "controller_name": "tryon", "controller_action": "index,image", "method": "GET" }
+]

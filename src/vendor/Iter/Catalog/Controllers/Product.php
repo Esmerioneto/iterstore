@@ -6,10 +6,12 @@ namespace Iter\Catalog\Controllers;
 
 use Iter\Admin\Auth;
 use Iter\Admin\Breadcrumb;
+use Iter\Admin\View\GridMassActions;
 use Iter\Catalog\Model\Product as ProductModel;
 use Iter\Catalog\Model\ProductService;
 use Iter\Catalog\Model\VariantService;
 use Iter\Core\Db\Connection;
+use Iter\Core\ErrorPage;
 use Iter\Core\Messages;
 use Iter\Core\View\Layout;
 use Iter\Eav\Model\AttributeException;
@@ -18,6 +20,9 @@ use Iter\Eav\Model\ValueService;
 class Product
 {
     public const ADMIN_RESOURCE = 'Iter_Catalog::product';
+
+    /** the most products one mass action changes */
+    public const MASS_LIMIT = 500;
 
     public function Index(): void
     {
@@ -146,6 +151,30 @@ class Product
         }
 
         header('Location: /admin/product/index');
+        exit;
+    }
+
+    /** Catálogo → Produtos, the checked products: an action of etc/grid_mass_actions.json the role allows (PRODUCT-MASS-PLAN) */
+    public function Massaction(): void
+    {
+        $back = (string) ($_POST['back'] ?? '');
+        $back = str_starts_with($back, '/admin/product/index') ? $back : '/admin/product/index';
+        $action = GridMassActions::forGrid('catalog/product-list')[(string) ($_POST['action'] ?? '')] ?? null;
+        if ($action === null) {
+            ErrorPage::render(403, 'Acesso negado', 'Seu perfil não tem permissão para esta ação.', ['Produtos' => '/admin/product/index']);
+            return;
+        }
+        $ids = array_values(array_unique(array_filter(array_map('intval', (array) ($_POST['ids'] ?? [])))));
+        if (!$ids) {
+            Messages::addError('Marque pelo menos um produto.');
+        } elseif (count($ids) > self::MASS_LIMIT) {
+            Messages::addError('Marque no máximo ' . self::MASS_LIMIT . ' produtos por vez.');
+        } else {
+            $result = (new $action['class']())->apply($ids, $action['value']);
+            Messages::addSuccess($result['message'] . ' em ' . $result['changed'] . ' produto(s)' . ($result['same'] ? '; ' . $result['same'] . ' já estava(m) assim.' : '.'));
+        }
+
+        header('Location: ' . $back);
         exit;
     }
 }

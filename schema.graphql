@@ -66,6 +66,12 @@ type Query {
     websiteId: ID
   ): [MobileSection!]!
 
+  "A home da loja web (Catálogo → Web): barra de aviso, topo (campanha ou carrossel) e seções com banners, cards e produtos. Seção ou card de categoria inativa fica de fora. Website desconhecido dá as listas vazias."
+  webHome(
+    "Omitido = website padrão."
+    websiteId: ID
+  ): WebHome!
+
   "O \"mostrar mais\" de uma seção de mobileHome: os produtos depois dos primeiros, na mesma ordem. null quando a categoria não está no app."
   mobileCategoryProducts(
     categoryId: ID!
@@ -262,6 +268,20 @@ type Query {
     pageSize: Int = 100
   ): ReportResult!
 
+  "Antes de mostrar o provador. Funciona sem login (enabled: false)."
+  tryOnSettings: TryOnSettings!
+
+  "Uma prova do cliente do token; consulte a cada 2 s enquanto PROCESSING. Erro: TRYON_NOT_FOUND."
+  tryOn(id: ID!): TryOn!
+
+  "Os favoritos do cliente do token, o mais recente primeiro. Produto inativo ou fora do website fica de fora (volta se voltar)."
+  myWishlist(
+    page: Int = 1
+
+    "Máximo 100."
+    pageSize: Int = 20
+  ): WishlistPage!
+
   "O usuário do token (ou da sessão do painel); null sem login."
   currentAdmin: AdminUser
 }
@@ -341,6 +361,9 @@ type Product {
 
   "Com websiteId, o que aquela loja pode vender: as origens do website menos as reservas dos pedidos dele. A vitrine deve informar o seu."
   stock(websiteId: ID): ProductStock!
+
+  "O app mostra \"Experimentar\": o cliente do token pode usar o provador (no cadastro dele), o produto tem \"Provador virtual\" ligado e o provador está disponível. Sem login, false. Não peça nas listas."
+  tryOnAvailable: Boolean!
 }
 
 enum ProductType {
@@ -508,6 +531,101 @@ type MobileSection {
 
   "URLs dos banners, no topo da seção: um é imagem, dois ou mais são carrossel; tocar abre a categoria. Vazia sem \"Mostrar banner\" ligado na tela Mobile, sem banner ou com a ordem do app desligada."
   banners: [String!]!
+}
+
+type WebHome {
+  "A barra de aviso; null quando desligada."
+  announcement: WebAnnouncement
+
+  "A campanha (o topo em banner); null quando desligada ou com o topo em carrossel. Textos puros: escape ao mostrar."
+  campaign: WebCampaign
+
+  "O título acima do grid das 3 primeiras seções (ex.: \"Escolha uma seção\"); null = sem título. Texto puro: escape ao mostrar."
+  sectionsTitle: String
+
+  "O carrossel do topo, na ordem; vazio com o topo em banner."
+  slides: [WebSlide!]!
+
+  carousel: WebCarouselControls!
+  sections: [WebSection!]!
+}
+
+type WebAnnouncement {
+  "Texto puro: escape ao mostrar."
+  text: String!
+
+  "\"/…\" desta loja ou https://."
+  url: String
+}
+
+type WebCampaign {
+  "URL absoluta do vídeo (MP4 ou WEBM), no endereço em que a API foi chamada; imageDesktop é a capa."
+  video: String
+
+  imageDesktop: String!
+
+  "Para telas estreitas; null = use imageDesktop."
+  imageMobile: String
+
+  title: String
+  text: String
+  button: String
+
+  "\"/…\" desta loja ou https://."
+  url: String
+}
+
+type WebSlide {
+  "URL absoluta (1600×900), no endereço em que a API foi chamada."
+  imageDesktop: String!
+
+  "Para telas estreitas (1080×1350); null = use imageDesktop."
+  imageMobile: String
+
+  "Texto puro: escape ao mostrar."
+  title: String
+
+  "\"/…\" desta loja ou https://."
+  url: String
+}
+
+"Valem para o carrossel do topo e para os banners das seções."
+type WebCarouselControls {
+  "Mostrar as setas anterior/próximo."
+  arrows: Boolean!
+
+  "Mostrar os indicadores (bolinhas)."
+  dots: Boolean!
+
+  "Segundos até passar sozinho; 0 = não passa."
+  autoplay: Int!
+}
+
+"Na ordem da tela; as 3 primeiras são o grid de seções (título em sectionsTitle)."
+type WebSection {
+  category: Category!
+
+  "O da tela; vazio lá = o nome da categoria."
+  title: String!
+
+  "URL absoluta da foto da seção (1200×900), no endereço em que a API foi chamada; null = sem foto (use a do primeiro produto)."
+  image: String
+
+  "Até 4 subcategorias, na ordem; vêm antes dos produtos."
+  cards: [WebCard!]!
+
+  "URLs absolutas dos banners da categoria, no topo da seção: um é imagem, dois ou mais são carrossel. Vazia sem \"Mostrar banner\" ou sem banner."
+  banners: [String!]!
+
+  "Os escolhidos à mão, depois os mais novos da categoria, até a quantidade da tela (0 = nenhum). Só produtos ativos do website, ligados direto à categoria."
+  products: [Product!]!
+}
+
+type WebCard {
+  category: Category!
+
+  "URL absoluta da foto do card (vertical, 900×1200), no endereço em que a API foi chamada."
+  image: String!
 }
 
 type MobileProducts {
@@ -1161,6 +1279,67 @@ type ReportTile {
   tone: String
 }
 
+type TryOnSettings {
+  "false sem login, para cliente sem \"Pode usar o provador virtual\" no cadastro, com o provador desligado ou o teto do mês atingido."
+  enabled: Boolean!
+
+  remainingToday: Int!
+
+  "O app reduz a foto abaixo disso."
+  maxUploadKb: Int!
+
+  tips: [String!]!
+
+  "O consentimento, antes da primeira foto; texto novo pede o aceite de novo."
+  termsText: String!
+}
+
+type TryOn {
+  id: ID!
+
+  "PROCESSING: consulte de novo em 2 s. EXPIRED: a imagem deixou de valer."
+  status: TryOnStatus!
+
+  "0 a 100, quando o provedor informa."
+  progress: Int
+
+  "A foto com a peça, em SUCCESS."
+  imageUrl: String
+
+  "Até quando imageUrl vale."
+  expiresAt: String
+
+  "Em ERROR: TRYON_FAILED, TRYON_BUSY, TRYON_REFUSED, TRYON_TIMEOUT, TRYON_UNAVAILABLE."
+  errorCode: String
+
+  "Em ERROR, para mostrar ao cliente."
+  errorMessage: String
+
+  product: Product
+
+  "true = o resultado de uma prova igual (mesma foto, mesmo produto) ainda válida: veio na hora e não contou no limite."
+  cached: Boolean!
+
+  createdAt: String!
+}
+
+enum TryOnStatus {
+  PROCESSING
+  SUCCESS
+  ERROR
+  EXPIRED
+}
+
+type WishlistPage {
+  items: [WishlistItem!]!
+  total: Int!
+}
+
+type WishlistItem {
+  product: Product!
+  addedAt: String!
+}
+
 type AdminUser {
   id: ID!
   username: String!
@@ -1274,7 +1453,7 @@ type Mutation {
     "[] remove todos."
     keep: [ID!]!
 
-    "Arquivos novos (WebP, AVIF, JPG ou PNG)."
+    "Arquivos novos (WebP, AVIF, JPG, PNG ou JPEG XL)."
     add: [Upload!]
   ): [CategoryBanner!]!
 
@@ -1664,6 +1843,35 @@ type Mutation {
 
   "A loja escreve para o cliente, mesmo sem conversa anterior. Erros: MESSAGE_EMPTY, MESSAGE_TOO_LONG, CUSTOMER_NOT_FOUND."
   adminSendCustomerMessage(customerId: ID!, body: String!): CustomerMessage!
+
+  "A foto do cliente vestindo o produto, pelo multipart request spec com o token do cliente. Devolve PROCESSING (consulte tryOn) ou, com a mesma foto e o mesmo produto ainda válidos, o resultado na hora (cached). Erros: TRYON_DISABLED, TRYON_NOT_ALLOWED, TRYON_UNAVAILABLE, TRYON_DAILY_LIMIT, TRYON_IN_PROGRESS, TRYON_BUSY, TRYON_FAILED, TRYON_REFUSED, TOO_MANY_REQUESTS, FILE_TOO_LARGE, FILE_UPLOAD_FAILED, INVALID_IMAGE, PRODUCT_NOT_FOUND, PRODUCT_NOT_TRYON."
+  startTryOn(
+    "A foto do cliente: JPG, PNG ou WebP."
+    person: Upload!
+
+    "O produto (ou a variação, para a cor escolhida) com \"Provador virtual\" ligado."
+    productId: ID!
+
+    "O campo de imagem do produto; omitido = a primeira imagem."
+    imageCode: String
+  ): TryOn!
+
+  "Favorita um produto (o pai, num produto com grade). Repetir não duplica. Erros: PRODUCT_NOT_FOUND (também inativo ou de outro website), PRODUCT_IS_VARIANT, WISHLIST_LIMIT (200 produtos)."
+  addToWishlist(productId: ID!): Boolean!
+
+  "Tira o produto dos favoritos. Produto que não estava lá também dá true."
+  removeFromWishlist(productId: ID!): Boolean!
+
+  "Inscreve o e-mail na newsletter da loja e manda o e-mail de confirmação (só recebe depois de confirmar). Sempre true, mesmo para um e-mail já inscrito, para não revelar quem está cadastrado. Erros: INVALID_INPUT (e-mail inválido ou website desconhecido), TOO_MANY_REQUESTS (Configurações → Marketing → Newsletter → inscrições por minuto, por IP)."
+  subscribeNewsletter(
+    email: String!
+
+    "Omitido = website padrão."
+    websiteId: ID
+  ): Boolean!
+
+  "A página do link do e-mail de confirmação chama com o token do link. Vale uma vez. Erro: TOKEN_INVALID (desconhecido, já usado ou vencido)."
+  confirmNewsletter(token: String!): Boolean!
 
   "Login do admin pela API. Erra junto com o painel: tentativas contam para o bloqueio."
   generateAdminToken(username: String!, password: String!): AdminToken!

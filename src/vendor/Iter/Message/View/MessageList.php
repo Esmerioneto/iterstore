@@ -10,6 +10,7 @@ use Iter\Core\View\ViewComponentInterface;
 use Iter\Customer\Model\Customer;
 use Iter\Message\Model\MessageService;
 use Iter\Store\Model\Website;
+use Iter\Admin\View\GridColumns;
 
 /** Caixa de entrada: one customer per row; "Nova conversa" finds any customer (?find=) */
 final class MessageList implements ViewComponentInterface
@@ -41,6 +42,7 @@ final class MessageList implements ViewComponentInterface
             'find' => $find,
             // ponytail: the first 10 matches; a pager here when stores search by something vaguer than name/e-mail/CPF
             'found' => $find === '' ? [] : (new Customer())->getResource()->search(['q' => $find], 1, 10)['items'],
+            'gridColumns' => new GridColumns('message/list', $result['items'], ['customer', 'website', 'last_message', 'date', 'unread']),
         ];
     }
 }

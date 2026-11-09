@@ -26,15 +26,17 @@ final class Sort
 
     /**
      * The column title. $query: what the links carry (default: the request's filled parameters
-     * except page, sort and dir); $path: the list's URL (default: the request's).
+     * except page, sort and dir); $path: the list's URL (default: the request's); $anchor: id of the
+     * list's element, where the link lands instead of the page's top (as in Pager::render).
      */
-    public static function th(string $key, string $label, string $sort, string $dir, ?array $query = null, ?string $path = null): string
+    public static function th(string $key, string $label, string $sort, string $dir, ?array $query = null, ?string $path = null, ?string $anchor = null): string
     {
         $path ??= (string) strtok((string) ($_SERVER['REQUEST_URI'] ?? ''), '?');
         $query ??= array_filter($_GET, static fn ($v) => is_string($v) && $v !== '');
         $active = $key === $sort;
         $next = $active && $dir === 'asc' ? 'desc' : 'asc';
-        $href = $path . '?' . http_build_query(array_diff_key($query, ['sort' => 1, 'dir' => 1, 'page' => 1]) + ['sort' => $key, 'dir' => $next]);
+        $href = $path . '?' . http_build_query(array_diff_key($query, ['sort' => 1, 'dir' => 1, 'page' => 1]) + ['sort' => $key, 'dir' => $next])
+            . ($anchor !== null ? '#' . rawurlencode($anchor) : '');
 
         return '<th class="admin-sortable' . ($active ? ' is-sorted' : '') . '"' . ($active ? ' aria-sort="' . ($dir === 'asc' ? 'ascending' : 'descending') . '"' : '') . '>'
             . '<a href="' . htmlspecialchars($href) . '">' . htmlspecialchars($label) . ($active ? ($dir === 'asc' ? ' ▲' : ' ▼') : '') . '</a></th>';

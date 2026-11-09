@@ -11,6 +11,7 @@ use Iter\Eav\InputTypeRegistry;
 use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeService;
 use Iter\Eav\Model\ResourceModel\Attribute as AttributeResource;
+use Iter\Admin\View\GridColumns;
 
 class AttributeList implements ViewComponentInterface
 {
@@ -39,6 +40,7 @@ class AttributeList implements ViewComponentInterface
             'entity_types' => $resource->getEntityTypes(),
             'input_types' => InputTypeRegistry::all(),
             'can_manage' => AttributeService::canManage(),
+            'gridColumns' => new GridColumns('eav/attribute-list', $result['items'], ['code', 'name', 'entity', 'type', 'storage', 'is_system', 'position']),
         ];
     }
 }

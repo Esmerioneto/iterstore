@@ -11,31 +11,31 @@
     <table>
         <thead>
             <tr>
-                <th>Nome</th>
+                <th>Nome</th><?= $gridColumns->th('name') ?>
 <?php if (count($websites) > 1): ?>
-                <th>Website</th>
+                <th>Website</th><?= $gridColumns->th('website') ?>
 <?php endif; ?>
-                <th>Chave de URL</th>
-                <th>Posição</th>
-                <th>Status</th>
-                <th>Produtos</th>
+                <th>Chave de URL</th><?= $gridColumns->th('url_key') ?>
+                <th>Posição</th><?= $gridColumns->th('position') ?>
+                <th>Status</th><?= $gridColumns->th('status') ?>
+                <th>Produtos</th><?= $gridColumns->th('products') ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php if (empty($categories)): ?>
-            <tr><td colspan="<?= count($websites) > 1 ? 7 : 6 ?>" class="admin-empty">Nenhuma categoria cadastrada.</td></tr>
+            <tr><td colspan="<?= (count($websites) > 1 ? 7 : 6) + $gridColumns->count() ?>" class="admin-empty">Nenhuma categoria cadastrada.</td></tr>
 <?php else: ?>
     <?php foreach ($categories as $category): ?>
             <tr>
-                <td style="padding-left: <?= (int) $category['level'] * 1.5 ?>em"><?= $category['level'] ? '└ ' : '' ?><?= htmlspecialchars((string) $category['name']) ?></td>
+                <td style="padding-left: <?= (int) $category['level'] * 1.5 ?>em"><?= $category['level'] ? '└ ' : '' ?><?= htmlspecialchars((string) $category['name']) ?></td><?= $gridColumns->td('name', $category['category_id']) ?>
 <?php if (count($websites) > 1): ?>
-                <td><?= htmlspecialchars((string) ($websites[$category['website_id']] ?? '')) ?></td>
+                <td><?= htmlspecialchars((string) ($websites[$category['website_id']] ?? '')) ?></td><?= $gridColumns->td('website', $category['category_id']) ?>
 <?php endif; ?>
-                <td><?= htmlspecialchars((string) $category['url_key']) ?></td>
-                <td><?= (int) $category['position'] ?></td>
-                <td><span class="admin-status admin-status-<?= $category['is_active'] ? 'on' : 'off' ?>"><?= $category['is_active'] ? 'Ativa' : 'Inativa' ?></span></td>
-                <td><a href="/admin/product/index?category_id=<?= (int) $category['category_id'] ?>"><?= (int) $category['products'] ?></a></td>
+                <td><?= htmlspecialchars((string) $category['url_key']) ?></td><?= $gridColumns->td('url_key', $category['category_id']) ?>
+                <td><?= (int) $category['position'] ?></td><?= $gridColumns->td('position', $category['category_id']) ?>
+                <td><span class="admin-status admin-status-<?= $category['is_active'] ? 'on' : 'off' ?>"><?= $category['is_active'] ? 'Ativa' : 'Inativa' ?></span></td><?= $gridColumns->td('status', $category['category_id']) ?>
+                <td><a href="/admin/product/index?category_id=<?= (int) $category['category_id'] ?>"><?= (int) $category['products'] ?></a></td><?= $gridColumns->td('products', $category['category_id']) ?>
                 <td class="admin-row-action">
                     <a href="/admin/category/edit?id=<?= (int) $category['category_id'] ?>">Editar</a>
                     <a href="/admin/category/create?parent=<?= (int) $category['category_id'] ?>">+ Subcategoria</a>

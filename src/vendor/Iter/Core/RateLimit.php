@@ -73,8 +73,14 @@ class RateLimit
             return true;
         }
 
-        return in_array((string) ($_SERVER['REMOTE_ADDR'] ?? ''), self::proxies(), true)
+        return self::fromTrustedProxy()
             && strtolower(trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0])) === 'https';
+    }
+
+    /** the request came straight from a proxy in Configurações → Proxies confiáveis (its X-Forwarded-* headers count) */
+    public static function fromTrustedProxy(): bool
+    {
+        return in_array((string) ($_SERVER['REMOTE_ADDR'] ?? ''), self::proxies(), true);
     }
 
     /** @return string[] Configurações → Proxies confiáveis */

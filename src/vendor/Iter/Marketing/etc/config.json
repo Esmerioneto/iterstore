@@ -1,0 +1,1 @@
+{"name":"iter_marketing","version":"1.0.0","description":"Marketing por e-mail (carrinho abandonado, clientes sem comprar, recorrentes)","enabled":true,"index":"0","author":"Esmerio","depends":["iter_customer","iter_sales","iter_mail","iter_catalog"]}

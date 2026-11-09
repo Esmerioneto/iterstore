@@ -119,7 +119,7 @@ class Auth
                 continue;
             }
 
-            $link = Config::get('web/base_url') . '/admin/auth/reset?' . http_build_query(['id' => $userId, 'token' => $token]);
+            $link = Config::baseUrl() . '/admin/auth/reset?' . http_build_query(['id' => $userId, 'token' => $token]);
             try {
                 (new MailService())->send('admin_password_reset', (string) $user->getData('email'), [
                     'name' => $user->getData('firstname') ?: $user->getData('username'),
@@ -213,6 +213,29 @@ class Auth
         AdminAuth::logout();
         header('Location: /admin/auth/login');
         exit;
+    }
+
+    /**
+     * The menu's red counters (e.g. unread messages), menu URL => count, for admin.js to refresh them on any
+     * screen without reloading. Public route (no resource of its own): it answers only a logged-in user, and
+     * only the items that user's menu shows. Sent with X-Admin-Poll, so it doesn't keep the session alive.
+     */
+    public function Badges(): void
+    {
+        header('Content-Type: application/json');
+        header('Cache-Control: no-store');
+        if (AdminAuth::user() === null) {
+            http_response_code(401);
+            echo json_encode(['error' => 'UNAUTHENTICATED']);
+            return;
+        }
+        $badges = [];
+        foreach ((new \Iter\Admin\View\Menu())->getData()['items'] as $item) {
+            foreach ($item['children'] ?: [$item] as $link) {
+                $link['badge'] > 0 && $badges[$link['url']] = $link['badge'];
+            }
+        }
+        echo json_encode((object) $badges);
     }
 
     /**

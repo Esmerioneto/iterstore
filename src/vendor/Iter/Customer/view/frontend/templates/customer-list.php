@@ -32,33 +32,33 @@ $select('is_active', 'Ativos e inativos', ['1' => 'Só ativos', '0' => 'Só inat
     <table>
         <thead>
             <tr>
-                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('type', 'Tipo', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('email', 'E-mail', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('taxvat', 'CPF/CNPJ', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('group', 'Grupo', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('website', 'Website', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('is_active', 'Status', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('created_at', 'Cadastro', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?><?= $gridColumns->th('id') ?>
+                <?= \Iter\Admin\View\Sort::th('type', 'Tipo', $sort, $dir) ?><?= $gridColumns->th('type') ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?><?= $gridColumns->th('name') ?>
+                <?= \Iter\Admin\View\Sort::th('email', 'E-mail', $sort, $dir) ?><?= $gridColumns->th('email') ?>
+                <?= \Iter\Admin\View\Sort::th('taxvat', 'CPF/CNPJ', $sort, $dir) ?><?= $gridColumns->th('taxvat') ?>
+                <?= \Iter\Admin\View\Sort::th('group', 'Grupo', $sort, $dir) ?><?= $gridColumns->th('group') ?>
+                <?= \Iter\Admin\View\Sort::th('website', 'Website', $sort, $dir) ?><?= $gridColumns->th('website') ?>
+                <?= \Iter\Admin\View\Sort::th('is_active', 'Status', $sort, $dir) ?><?= $gridColumns->th('is_active') ?>
+                <?= \Iter\Admin\View\Sort::th('created_at', 'Cadastro', $sort, $dir) ?><?= $gridColumns->th('created_at') ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php if (empty($customers)): ?>
-            <tr><td colspan="10" class="admin-empty">Nenhum cliente encontrado.</td></tr>
+            <tr><td colspan="<?= 10 + $gridColumns->count() ?>" class="admin-empty">Nenhum cliente encontrado.</td></tr>
 <?php else: ?>
     <?php foreach ($customers as $customer): ?>
             <tr>
-                <td><?= (int) $customer['customer_id'] ?></td>
-                <td><?= strtoupper($e($customer['customer_type'])) ?></td>
-                <td><?= $e($customer['customer_type'] === 'pj' ? $customer['company_name'] : $customer['firstname'] . ' ' . $customer['lastname']) ?></td>
-                <td><?= $e($customer['email']) ?></td>
-                <td><?= $e(CustomerService::formatTaxvat($customer['taxvat'])) ?></td>
-                <td><?= $e($customer['group_name']) ?></td>
-                <td><?= $e($customer['website_name']) ?></td>
-                <td<?= $customer['is_active'] ? '' : ' class="customer-inactive"' ?>><span class="admin-status admin-status-<?= $customer['is_active'] ? 'on' : 'off' ?>"><?= $customer['is_active'] ? 'Ativo' : 'Inativo' ?></span></td>
-                <td><?= $e(date('d/m/Y', strtotime((string) $customer['created_at']))) ?></td>
+                <td><?= (int) $customer['customer_id'] ?></td><?= $gridColumns->td('id', $customer['customer_id']) ?>
+                <td><?= strtoupper($e($customer['customer_type'])) ?></td><?= $gridColumns->td('type', $customer['customer_id']) ?>
+                <td><?= $e($customer['customer_type'] === 'pj' ? $customer['company_name'] : $customer['firstname'] . ' ' . $customer['lastname']) ?></td><?= $gridColumns->td('name', $customer['customer_id']) ?>
+                <td><?= $e($customer['email']) ?></td><?= $gridColumns->td('email', $customer['customer_id']) ?>
+                <td><?= $e(CustomerService::formatTaxvat($customer['taxvat'])) ?></td><?= $gridColumns->td('taxvat', $customer['customer_id']) ?>
+                <td><?= $e($customer['group_name']) ?></td><?= $gridColumns->td('group', $customer['customer_id']) ?>
+                <td><?= $e($customer['website_name']) ?></td><?= $gridColumns->td('website', $customer['customer_id']) ?>
+                <td<?= $customer['is_active'] ? '' : ' class="customer-inactive"' ?>><span class="admin-status admin-status-<?= $customer['is_active'] ? 'on' : 'off' ?>"><?= $customer['is_active'] ? 'Ativo' : 'Inativo' ?></span></td><?= $gridColumns->td('is_active', $customer['customer_id']) ?>
+                <td><?= $e(date('d/m/Y', strtotime((string) $customer['created_at']))) ?></td><?= $gridColumns->td('created_at', $customer['customer_id']) ?>
                 <td class="admin-row-action">
                     <a href="/admin/customer/edit?id=<?= (int) $customer['customer_id'] ?>">Editar</a>
                     <form method="post" action="/admin/customer/delete" data-confirm="Remover este cliente?">

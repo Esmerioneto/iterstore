@@ -12,20 +12,20 @@
     <table>
         <thead>
             <tr>
-                <?= \Iter\Admin\View\Sort::th('label', 'Modelo', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('subject', 'Assunto', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('is_custom', 'Situação', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('label', 'Modelo', $sort, $dir) ?><?= $gridColumns->th('label') ?>
+                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?><?= $gridColumns->th('code') ?>
+                <?= \Iter\Admin\View\Sort::th('subject', 'Assunto', $sort, $dir) ?><?= $gridColumns->th('subject') ?>
+                <?= \Iter\Admin\View\Sort::th('is_custom', 'Situação', $sort, $dir) ?><?= $gridColumns->th('is_custom') ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php foreach ($templates as $template): ?>
             <tr>
-                <td><?= $e($template['label']) ?></td>
-                <td><code><?= $e($template['code']) ?></code></td>
-                <td><?= $e($template['subject']) ?></td>
-                <td><span class="admin-status admin-status-<?= $template['is_custom'] ? 'on' : 'off' ?>"><?= $template['is_custom'] ? 'Personalizado' : 'Padrão do módulo' ?></span></td>
+                <td><?= $e($template['label']) ?></td><?= $gridColumns->td('label', $template['code']) ?>
+                <td><code><?= $e($template['code']) ?></code></td><?= $gridColumns->td('code', $template['code']) ?>
+                <td><?= $e($template['subject']) ?></td><?= $gridColumns->td('subject', $template['code']) ?>
+                <td><span class="admin-status admin-status-<?= $template['is_custom'] ? 'on' : 'off' ?>"><?= $template['is_custom'] ? 'Personalizado' : 'Padrão do módulo' ?></span></td><?= $gridColumns->td('is_custom', $template['code']) ?>
                 <td class="admin-row-action"><a href="/admin/mailtemplate/edit?code=<?= $e(rawurlencode($template['code'])) ?>">Editar</a></td>
             </tr>
 <?php endforeach; ?>

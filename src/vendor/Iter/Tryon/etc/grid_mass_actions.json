@@ -1,0 +1,7 @@
+[
+    { "grid": "catalog/product-list", "code": "tryon_on", "label": "Provador virtual: ligar", "resource": "Iter_Tryon::manage", "class": "Iter\\Tryon\\Grid\\TryonMassAction", "value": "on" },
+    { "grid": "catalog/product-list", "code": "tryon_off", "label": "Provador virtual: desligar", "resource": "Iter_Tryon::manage", "class": "Iter\\Tryon\\Grid\\TryonMassAction", "value": "off" },
+    { "grid": "catalog/product-list", "code": "tryon_tops", "label": "Tipo de peça no provador: parte de cima", "resource": "Iter_Tryon::manage", "class": "Iter\\Tryon\\Grid\\TryonMassAction", "value": "tops" },
+    { "grid": "catalog/product-list", "code": "tryon_bottoms", "label": "Tipo de peça no provador: parte de baixo", "resource": "Iter_Tryon::manage", "class": "Iter\\Tryon\\Grid\\TryonMassAction", "value": "bottoms" },
+    { "grid": "catalog/product-list", "code": "tryon_one_pieces", "label": "Tipo de peça no provador: peça inteira", "resource": "Iter_Tryon::manage", "class": "Iter\\Tryon\\Grid\\TryonMassAction", "value": "one-pieces" }
+]

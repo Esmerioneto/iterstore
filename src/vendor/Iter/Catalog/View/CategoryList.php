@@ -8,6 +8,7 @@ use Iter\Catalog\Model\Category;
 use Iter\Admin\View\Pager;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Store\Model\Website;
+use Iter\Admin\View\GridColumns;
 
 class CategoryList implements ViewComponentInterface
 {
@@ -22,11 +23,13 @@ class CategoryList implements ViewComponentInterface
         $q = trim((string) ($_GET['q'] ?? ''));
         [$categories, $pager] = Pager::slice(\Iter\Admin\View\Sort::search((new Category())->getResource()->getTree(), ['name', 'url_key'], $q));
 
+        $websites = array_column((new Website())->getList(), 'name', 'website_id');
         return [
             'q' => $q,
             'categories' => $categories,
             'pager' => $pager,
-            'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
+            'websites' => $websites,
+            'gridColumns' => new GridColumns('catalog/category-list', $categories, array_values(array_filter(['name', count($websites) > 1 ? 'website' : null, 'url_key', 'position', 'status', 'products']))),
         ];
     }
 }

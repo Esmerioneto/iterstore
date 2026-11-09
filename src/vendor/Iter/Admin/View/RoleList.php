@@ -25,6 +25,7 @@ class RoleList implements ViewComponentInterface
             'q' => $q,
             'roles' => $roles,
             'pager' => $pager,
+            'gridColumns' => new GridColumns('admin/role-list', $roles, ['id', 'name']),
         ];
     }
 }

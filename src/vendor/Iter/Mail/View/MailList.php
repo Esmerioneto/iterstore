@@ -8,6 +8,7 @@ use Iter\Admin\View\Pager;
 use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Mail\Model\MailService;
+use Iter\Admin\View\GridColumns;
 
 class MailList implements ViewComponentInterface
 {
@@ -34,6 +35,7 @@ class MailList implements ViewComponentInterface
             'pager' => $pager,
             'total' => $result['total'],
             'stalled' => $service->stalledCount(),
+            'gridColumns' => new GridColumns('mail/list', $result['items'], ['date', 'to', 'subject', 'template', 'status', 'attempts']),
         ];
     }
 }

@@ -8,6 +8,7 @@ use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Store\Model\Website;
 use Iter\Inventory\Model\Source;
+use Iter\Admin\View\GridColumns;
 
 class SourceList implements ViewComponentInterface
 {
@@ -23,6 +24,7 @@ class SourceList implements ViewComponentInterface
         $sources = in_array($enabled, ['0', '1'], true) ? array_filter($sources, static fn ($s) => (string) (int) $s['is_enabled'] === $enabled) : $sources;
         [$sources, $pager, $sort, $dir, $q] = Sort::slice($sources, ['priority' => 'priority', 'website' => 'website_id', 'code' => 'code', 'name' => 'name', 'city' => 'city', 'is_enabled' => 'is_enabled', 'products' => 'products'], 'priority', 'asc', ['code', 'name', 'city', 'region']);
 
+        $websites = array_column((new Website())->getList(), 'name', 'website_id');
         return [
         'sort' => $sort,
             'dir' => $dir,
@@ -30,7 +32,8 @@ class SourceList implements ViewComponentInterface
             'is_enabled' => in_array($enabled, ['0', '1'], true) ? $enabled : '',
             'sources' => $sources,
             'pager' => $pager,
-            'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
+            'websites' => $websites,
+            'gridColumns' => new GridColumns('inventory/source-list', $sources, array_values(array_filter([count($websites) > 1 ? 'website' : null, 'code', 'name', 'city', 'is_enabled', 'priority', 'products']))),
         ];
     }
 }

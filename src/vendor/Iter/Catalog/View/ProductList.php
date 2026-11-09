@@ -8,14 +8,18 @@ use Iter\Admin\View\Pager;
 use Iter\Admin\View\Sort;
 use Iter\Catalog\Model\Category;
 use Iter\Catalog\Model\Product;
+use Iter\Catalog\Model\VariantService;
 use Iter\Core\Db\Expr;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Store\Model\Website;
+use Iter\Admin\View\GridColumns;
 
 class ProductList implements ViewComponentInterface
 {
     /** "Mostrar linhas" choices; the first one is the default */
     public const PAGE_SIZES = [8, 5, 10, 20];
+    /** catalog_product.type => what the list shows */
+    public const TYPES = ['simple' => 'Simples', 'configurable' => 'Com grade'];
 
     public function getTemplate(): string
     {
@@ -26,7 +30,7 @@ class ProductList implements ViewComponentInterface
     public function getData(array $layoutData = []): array
     {
         $filters = [];
-        foreach (['website_id', 'attribute_set_id', 'category_id', 'is_active', 'q'] as $key) {
+        foreach (['website_id', 'attribute_set_id', 'category_id', 'type', 'is_active', 'q'] as $key) {
             $filters[$key] = trim((string) ($_GET[$key] ?? ''));
         }
         $sortable = self::sortable($layoutData['columns'] ?? []);
@@ -39,6 +43,7 @@ class ProductList implements ViewComponentInterface
 
         return [
             'products' => $result['items'],
+            'images' => (new VariantService())->mainImages($result['items']),
             'filters' => $filters,
             'page' => $page,
             'limit' => $limit,
@@ -55,6 +60,7 @@ class ProductList implements ViewComponentInterface
                 static fn (array $ids) => array_column(array_filter($tree, static fn ($c) => in_array((int) $c['category_id'], $ids, true)), 'name'),
                 $productCategories
             ),
+            'gridColumns' => new GridColumns('catalog/product-list', $result['items'], ['id', 'sku', 'name', 'type', 'set', 'categories', 'price', 'is_active', 'attributes']),
         ];
     }
 
@@ -67,8 +73,10 @@ class ProductList implements ViewComponentInterface
     private static function sortable(array $columns): array
     {
         $sortable = [
+            'id' => 'product_id',
             'sku' => 'sku',
             'name' => 'name',
+            'type' => 'type',
             'set' => new Expr('s.label'),
             'categories' => new Expr('(SELECT string_agg(c.name, \', \' ORDER BY c.name) FROM catalog_category_product cp
                 JOIN catalog_category c ON c.category_id = cp.category_id WHERE cp.product_id = main_table.product_id)'),

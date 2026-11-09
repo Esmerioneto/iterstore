@@ -22,6 +22,6 @@ class ApiKeyList implements ViewComponentInterface
         unset($_SESSION[ApikeyController::NEW_KEY]);
         [$keys, $pager] = Pager::slice(ApiKey::all());
 
-        return ['keys' => $keys, 'pager' => $pager, 'new' => $new, 'required' => (bool) Config::get('system/api/require_key')];
+        return ['keys' => $keys, 'pager' => $pager, 'new' => $new, 'required' => (bool) Config::get('system/api/require_key'), 'gridColumns' => new GridColumns('admin/apikey-list', $keys, ['name', 'key', 'status', 'created', 'last_used'])];
     }
 }

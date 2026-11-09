@@ -41,7 +41,8 @@ class MailService
 
     /**
      * @param string|string[] $to
-     * @param array $options cc, bcc, reply_to (string|string[]), attachments (file paths, copied), website_id, from ([email, name])
+     * @param array $options cc, bcc, reply_to (string|string[]), attachments (file paths, copied), website_id, from ([email, name]),
+     *                       headers (name => value, e.g. List-Unsubscribe)
      * @return int the queued message's id; 0 when the per-recipient hourly limit was reached (logged)
      */
     public function send(string $template, string|array $to, array $vars = [], array $options = [], bool $now = false): int
@@ -83,6 +84,7 @@ class MailService
             'body_text' => $mail['text'],
             'attachments' => json_encode(array_map([$this, 'keepAttachment'], $options['attachments'] ?? [])),
             'is_private' => $definition['private'] ? 1 : 0,
+            'headers' => json_encode(self::headers($options['headers'] ?? []), JSON_FORCE_OBJECT),
         ])['message_id'];
 
         if ($now && Config::get('mail/transport') !== 'disabled') {
@@ -132,7 +134,7 @@ class MailService
     {
         $db = $this->db();
         $copy = $db->fetchRow($db->select()
-            ->from('mail_queue', ['template_code', 'website_id', 'to_email', 'recipients', 'from_email', 'from_name', 'subject', 'body_html', 'body_text', 'attachments', 'is_private'])
+            ->from('mail_queue', ['template_code', 'website_id', 'to_email', 'recipients', 'from_email', 'from_name', 'subject', 'body_html', 'body_text', 'attachments', 'is_private', 'headers'])
             ->where('message_id = ?', $id)->where('is_private = 0')->where('status <> 0'));
 
         return $copy ? (int) $db->insert('mail_queue', $copy)['message_id'] : throw new MailException('RESEND_BLOCKED', 'Este e-mail não pode ser reenviado.');
@@ -205,6 +207,9 @@ class MailService
             }
             foreach (json_decode($row['attachments'], true) as $file) {
                 $email->attachFromPath($file['path'], $file['name']);
+            }
+            foreach (json_decode((string) ($row['headers'] ?? '{}'), true) as $name => $value) {
+                $email->getHeaders()->addTextHeader($name, $value);
             }
 
             if (Config::get('mail/transport') === 'log') {
@@ -310,6 +315,24 @@ class MailService
 
             return mb_strtolower($email);
         }, array_values((array) $emails));
+    }
+
+    /**
+     * Extra headers: a name of letters, digits and "-", a value of one line, never one Symfony sets itself
+     *
+     * @param array<string, string> $headers
+     * @return array<string, string>
+     */
+    private static function headers(array $headers): array
+    {
+        foreach ($headers as $name => $value) {
+            if (!preg_match('/^[A-Za-z][A-Za-z0-9-]*$/', (string) $name) || preg_match('/[\r\n]/', (string) $value)
+                || in_array(strtolower((string) $name), ['from', 'to', 'cc', 'bcc', 'reply-to', 'subject', 'date', 'message-id', 'content-type', 'mime-version'], true)) {
+                throw new MailException('HEADER_INVALID', "Cabeçalho inválido: {$name}");
+            }
+        }
+
+        return array_map('strval', $headers);
     }
 
     /** Copies an attachment into var/mail/attachments, so it's still there when the worker sends it */

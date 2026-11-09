@@ -64,7 +64,8 @@ class Config
                 continue;
             }
             $labels[$path] = $field['label'];
-            if ($websiteId && !empty($useDefault[$path])) {
+            // a new image chosen wins over a "Usar o valor padrão" left ticked
+            if ($websiteId && !empty($useDefault[$path]) && !($type === 'image' && self::uploadedFile($path) !== null)) {
                 $defaults[] = $path;
                 continue;
             }

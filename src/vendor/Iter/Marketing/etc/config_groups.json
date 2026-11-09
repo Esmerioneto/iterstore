@@ -1,0 +1,4 @@
+[
+    { "group": "Marketing", "section": "Clientes e comunicação", "position": 72, "icon": "📣", "description": "E-mails para carrinho abandonado, clientes sem comprar e recorrentes",
+      "validator": "Iter\\Marketing\\Model\\MarketingService::validateConfig" }
+]

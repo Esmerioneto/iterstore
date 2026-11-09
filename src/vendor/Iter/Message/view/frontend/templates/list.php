@@ -45,25 +45,25 @@ $name = static fn (array $c) => trim($c['firstname'] . ' ' . $c['lastname']);
     <table>
         <thead>
             <tr>
-                <?= \Iter\Admin\View\Sort::th('customer', 'Cliente', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('website', 'Website', $sort, $dir) ?>
-                <th>Última mensagem</th>
-                <?= \Iter\Admin\View\Sort::th('date', 'Data', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('unread', 'Não lidas', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('customer', 'Cliente', $sort, $dir) ?><?= $gridColumns->th('customer') ?>
+                <?= \Iter\Admin\View\Sort::th('website', 'Website', $sort, $dir) ?><?= $gridColumns->th('website') ?>
+                <th>Última mensagem</th><?= $gridColumns->th('last_message') ?>
+                <?= \Iter\Admin\View\Sort::th('date', 'Data', $sort, $dir) ?><?= $gridColumns->th('date') ?>
+                <?= \Iter\Admin\View\Sort::th('unread', 'Não lidas', $sort, $dir) ?><?= $gridColumns->th('unread') ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php if (!$conversations): ?>
-            <tr><td colspan="6" class="admin-empty">Nenhuma conversa encontrada.</td></tr>
+            <tr><td colspan="<?= 6 + $gridColumns->count() ?>" class="admin-empty">Nenhuma conversa encontrada.</td></tr>
 <?php endif; ?>
 <?php foreach ($conversations as $c): ?>
             <tr<?= $c['unread'] ? ' class="message-unread"' : '' ?>>
-                <td><?= $e($name($c)) ?><br><small><?= $e($c['email']) ?></small></td>
-                <td><?= $e($c['website_name']) ?></td>
-                <td class="message-last" title="<?= $e($c['last_body']) ?>"><?= $c['last_sender'] === 'admin' ? '<small>Loja:</small> ' : '' ?><?= $e($c['last_body']) ?></td>
-                <td><?= $e(date('d/m/Y H:i', strtotime((string) $c['last_at']))) ?></td>
-                <td><?php if ($c['unread']): ?><span class="admin-badge"><?= (int) $c['unread'] ?></span><?php endif; ?></td>
+                <td><?= $e($name($c)) ?><br><small><?= $e($c['email']) ?></small></td><?= $gridColumns->td('customer', $c['customer_id']) ?>
+                <td><?= $e($c['website_name']) ?></td><?= $gridColumns->td('website', $c['customer_id']) ?>
+                <td class="message-last" title="<?= $e($c['last_body']) ?>"><?= $c['last_sender'] === 'admin' ? '<small>Loja:</small> ' : '' ?><?= $e($c['last_body']) ?></td><?= $gridColumns->td('last_message', $c['customer_id']) ?>
+                <td><?= $e(date('d/m/Y H:i', strtotime((string) $c['last_at']))) ?></td><?= $gridColumns->td('date', $c['customer_id']) ?>
+                <td><?php if ($c['unread']): ?><span class="admin-badge"><?= (int) $c['unread'] ?></span><?php endif; ?></td><?= $gridColumns->td('unread', $c['customer_id']) ?>
                 <td class="admin-row-action"><a href="/admin/message/view?customer_id=<?= (int) $c['customer_id'] ?>">Abrir</a></td>
             </tr>
 <?php endforeach; ?>

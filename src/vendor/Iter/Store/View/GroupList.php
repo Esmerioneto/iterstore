@@ -7,6 +7,7 @@ namespace Iter\Store\View;
 use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Store\Model\Group;
+use Iter\Admin\View\GridColumns;
 
 class GroupList implements ViewComponentInterface
 {
@@ -30,6 +31,7 @@ class GroupList implements ViewComponentInterface
             'website_id' => ctype_digit($websiteId) ? $websiteId : '',
             'websites' => array_column((new \Iter\Store\Model\Website())->getList(), 'name', 'website_id'),
             'pager' => $pager,
+            'gridColumns' => new GridColumns('store/group-list', $groups, ['id', 'website', 'code', 'name']),
         ];
     }
 }

@@ -24,19 +24,19 @@
     </form>
     <table>
         <thead>
-            <tr><th>Nome</th><th>Chave</th><th>Situação</th><th>Criada</th><th>Último uso</th><th></th></tr>
+            <tr><th>Nome</th><?= $gridColumns->th('name') ?><th>Chave</th><?= $gridColumns->th('key') ?><th>Situação</th><?= $gridColumns->th('status') ?><th>Criada</th><?= $gridColumns->th('created') ?><th>Último uso</th><?= $gridColumns->th('last_used') ?><th></th></tr>
         </thead>
         <tbody>
 <?php if (!$keys): ?>
-            <tr><td colspan="6" class="admin-empty">Nenhuma chave criada.</td></tr>
+            <tr><td colspan="<?= 6 + $gridColumns->count() ?>" class="admin-empty">Nenhuma chave criada.</td></tr>
 <?php endif; ?>
 <?php foreach ($keys as $k): ?>
             <tr>
-                <td><?= $e($k['name']) ?></td>
-                <td><code><?= $e($k['key_hint']) ?></code></td>
-                <td><span class="admin-status admin-status-<?= $k['is_active'] ? 'on' : 'off' ?>"><?= $k['is_active'] ? 'Ativa' : 'Revogada em ' . date('d/m/Y H:i', strtotime($k['revoked_at'])) ?></span></td>
-                <td><?= date('d/m/Y H:i', strtotime($k['created_at'])) ?><?= $k['created_by_name'] ? '<br><small>' . $e($k['created_by_name']) . '</small>' : '' ?></td>
-                <td><?= $k['last_used_at'] ? date('d/m/Y H:i', strtotime($k['last_used_at'])) : 'Nunca' ?></td>
+                <td><?= $e($k['name']) ?></td><?= $gridColumns->td('name', $k['key_id']) ?>
+                <td><code><?= $e($k['key_hint']) ?></code></td><?= $gridColumns->td('key', $k['key_id']) ?>
+                <td><span class="admin-status admin-status-<?= $k['is_active'] ? 'on' : 'off' ?>"><?= $k['is_active'] ? 'Ativa' : 'Revogada em ' . date('d/m/Y H:i', strtotime($k['revoked_at'])) ?></span></td><?= $gridColumns->td('status', $k['key_id']) ?>
+                <td><?= date('d/m/Y H:i', strtotime($k['created_at'])) ?><?= $k['created_by_name'] ? '<br><small>' . $e($k['created_by_name']) . '</small>' : '' ?></td><?= $gridColumns->td('created', $k['key_id']) ?>
+                <td><?= $k['last_used_at'] ? date('d/m/Y H:i', strtotime($k['last_used_at'])) : 'Nunca' ?></td><?= $gridColumns->td('last_used', $k['key_id']) ?>
                 <td class="admin-row-action">
 <?php if ($k['is_active']): ?>
                     <form method="post" action="/admin/apikey/revoke" data-confirm="Revogar a chave &quot;<?= $e($k['name']) ?>&quot;? O aplicativo que a usa para de funcionar na hora." data-confirm-button="Revogar">

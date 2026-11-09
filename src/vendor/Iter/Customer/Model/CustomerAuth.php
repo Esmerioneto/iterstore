@@ -50,7 +50,7 @@ class CustomerAuth
             $link = (string) Config::get('customer/account/confirm_url', $websiteId);
             (new MailService())->send('customer_confirm_email', (string) $customer->getData('email'), [
                 'name' => $customer->getData('firstname'),
-                'link' => str_contains($link, '{token}') ? str_replace('{token}', $token, $link) : $token,
+                'link' => Config::storefrontLink($link, $token, $websiteId),
             ], ['website_id' => $websiteId]);
         }
 
@@ -182,7 +182,7 @@ class CustomerAuth
         try {
             (new MailService())->send('customer_password_reset', (string) $customer->getData('email'), [
                 'name' => $customer->getData('firstname'),
-                'link' => str_contains($link, '{token}') ? str_replace('{token}', $token, $link) : $token,
+                'link' => Config::storefrontLink($link, $token, $websiteId),
                 'hours' => (int) Config::get('customer/security/reset_link_hours'),
             ], ['website_id' => $websiteId]);
         } catch (MailException $e) {

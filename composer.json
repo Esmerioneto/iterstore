@@ -22,12 +22,18 @@
     "scripts": {
         "test": [
             "php bin/view-selftest.php",
+            "php bin/base-url-selftest.php",
             "php bin/db-selftest.php",
             "php bin/admin-selftest.php",
             "php bin/promotion-selftest.php",
             "php bin/report-selftest.php",
             "php bin/backup-selftest.php",
-            "php bin/shipping-provider-selftest.php"
+            "php bin/shipping-provider-selftest.php",
+            "php bin/tryon-selftest.php",
+            "php bin/cloudflare-selftest.php",
+            "php bin/gemini-selftest.php",
+            "php bin/huggingface-selftest.php",
+            "php bin/fashnlocal-selftest.php"
         ]
     }
 }

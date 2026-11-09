@@ -1,0 +1,2880 @@
+{
+    "adminToken": {
+        "query": "mutation {\n  generateAdminToken(username: \"integracao\", password: \"SenhaForte123\") {\n    token\n    expires_at\n    user { username role }\n  }\n}",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "generateAdminToken": {
+                    "token": "0532c3e0d8ac12425fdf049a1be38ef1c240fc9f5b759433f2575a009dff9773",
+                    "expires_at": "2026-10-20 22:08:27",
+                    "user": {
+                        "username": "integracao",
+                        "role": "Administradores"
+                    }
+                }
+            }
+        }
+    },
+    "adminWrong": {
+        "query": "mutation { generateAdminToken(username: \"integracao\", password: \"errada\") { token } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "errors": [
+                {
+                    "message": "Usuário ou senha inválidos, ou conta bloqueada temporariamente.",
+                    "locations": [
+                        {
+                            "line": 1,
+                            "column": 12
+                        }
+                    ],
+                    "path": [
+                        "generateAdminToken"
+                    ],
+                    "extensions": {
+                        "code": "INVALID_CREDENTIALS"
+                    }
+                }
+            ]
+        }
+    },
+    "currentAdmin": {
+        "query": "{ currentAdmin { id username firstname role } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "currentAdmin": {
+                    "id": "4503",
+                    "username": "integracao",
+                    "firstname": "Integração",
+                    "role": "Administradores"
+                }
+            }
+        }
+    },
+    "websites": {
+        "query": "{ websites { id name isDefault } storeInfo { name email phone address { city region } } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "websites": [
+                    {
+                        "id": "15",
+                        "name": "Loja RJ",
+                        "isDefault": true
+                    },
+                    {
+                        "id": "216",
+                        "name": "Loja SP",
+                        "isDefault": false
+                    }
+                ],
+                "storeInfo": {
+                    "name": null,
+                    "email": null,
+                    "phone": null,
+                    "address": {
+                        "city": null,
+                        "region": null
+                    }
+                }
+            }
+        }
+    },
+    "categories": {
+        "query": "{ categories { id name url_key level children { id name url_key } } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "categories": [
+                    {
+                        "id": "13",
+                        "name": "Cosmético",
+                        "url_key": "cosmetico",
+                        "level": 0,
+                        "children": []
+                    },
+                    {
+                        "id": "224",
+                        "name": "Vestuário",
+                        "url_key": "vestuario",
+                        "level": 0,
+                        "children": [
+                            {
+                                "id": "538",
+                                "name": "Bermuda",
+                                "url_key": "bermuda"
+                            },
+                            {
+                                "id": "518",
+                                "name": "Calça",
+                                "url_key": "calca"
+                            },
+                            {
+                                "id": "519",
+                                "name": "Camisa",
+                                "url_key": "camisa"
+                            },
+                            {
+                                "id": "539",
+                                "name": "Camiseta",
+                                "url_key": "camiseta"
+                            },
+                            {
+                                "id": "520",
+                                "name": "Conjunto",
+                                "url_key": "conjunto"
+                            },
+                            {
+                                "id": "537",
+                                "name": "Jaqueta",
+                                "url_key": "jaqueta"
+                            },
+                            {
+                                "id": "536",
+                                "name": "Saia",
+                                "url_key": "saia"
+                            },
+                            {
+                                "id": "535",
+                                "name": "Vestido",
+                                "url_key": "vestido"
+                            },
+                            {
+                                "id": "225",
+                                "name": "Blusa",
+                                "url_key": "blusa"
+                            }
+                        ]
+                    },
+                    {
+                        "id": "352",
+                        "name": "Vestuário",
+                        "url_key": "vestuario",
+                        "level": 0,
+                        "children": []
+                    },
+                    {
+                        "id": "14",
+                        "name": "Farmácia",
+                        "url_key": "farmacia",
+                        "level": 0,
+                        "children": [
+                            {
+                                "id": "22",
+                                "name": "Vitaminas",
+                                "url_key": "vitaminas"
+                            }
+                        ]
+                    },
+                    {
+                        "id": "15",
+                        "name": "Beleza",
+                        "url_key": "beleza",
+                        "level": 0,
+                        "children": []
+                    },
+                    {
+                        "id": "16",
+                        "name": "Higiene Pessoal",
+                        "url_key": "higiene-pessoal",
+                        "level": 0,
+                        "children": []
+                    },
+                    {
+                        "id": "17",
+                        "name": "Medicamentos",
+                        "url_key": "medicamentos",
+                        "level": 0,
+                        "children": []
+                    },
+                    {
+                        "id": "18",
+                        "name": "Perfumaria",
+                        "url_key": "perfumaria",
+                        "level": 0,
+                        "children": []
+                    }
+                ]
+            }
+        }
+    },
+    "products": {
+        "query": "query Produtos($busca: String, $pagina: Int) {\n  products(search: $busca, isActive: true, page: $pagina, pageSize: 3) {\n    total\n    items {\n      id sku name type url_key\n      priceRange { min max }\n      stock { salable_quantity is_in_stock }\n    }\n    aggregations { price { min max } }\n  }\n}",
+        "variables": {
+            "busca": "blusa",
+            "pagina": 1
+        },
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "products": {
+                    "total": 6,
+                    "items": [
+                        {
+                            "id": "1918",
+                            "sku": "MODA-BLUSA-CROPPED",
+                            "name": "Blusa Cropped Canelada",
+                            "type": "SIMPLE",
+                            "url_key": "blusa-cropped-canelada",
+                            "priceRange": {
+                                "min": 69.9,
+                                "max": 69.9
+                            },
+                            "stock": {
+                                "salable_quantity": 29,
+                                "is_in_stock": true
+                            }
+                        },
+                        {
+                            "id": "2029",
+                            "sku": "MODA-BLUSA-OMBRO",
+                            "name": "Blusa Ombro a Ombro",
+                            "type": "CONFIGURABLE",
+                            "url_key": "blusa-ombro-a-ombro",
+                            "priceRange": {
+                                "min": 89.9,
+                                "max": 89.9
+                            },
+                            "stock": {
+                                "salable_quantity": 48,
+                                "is_in_stock": true
+                            }
+                        },
+                        {
+                            "id": "1109",
+                            "sku": "003",
+                            "name": "Blusa branca lisa",
+                            "type": "SIMPLE",
+                            "url_key": "blusa-branca-lisa",
+                            "priceRange": {
+                                "min": 35.6,
+                                "max": 35.6
+                            },
+                            "stock": {
+                                "salable_quantity": 24,
+                                "is_in_stock": true
+                            }
+                        }
+                    ],
+                    "aggregations": {
+                        "price": {
+                            "min": 35.6,
+                            "max": 199.9
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "productBySku": {
+        "query": "query Produto($sku: String!) {\n  product(sku: $sku) {\n    sku name type\n    priceRange { min max }\n    variantAttributes { code label }\n    variants { sku name stock { salable_quantity } attributes { code option_label } }\n  }\n}",
+        "variables": {
+            "sku": "MODA-CALCA-JEANS"
+        },
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "product": {
+                    "sku": "MODA-CALCA-JEANS",
+                    "name": "Calça Jeans Skinny",
+                    "type": "CONFIGURABLE",
+                    "priceRange": {
+                        "min": 159.9,
+                        "max": 169.9
+                    },
+                    "variantAttributes": [
+                        {
+                            "code": "color",
+                            "label": "Cor"
+                        },
+                        {
+                            "code": "tamanho",
+                            "label": "Tamanho"
+                        }
+                    ],
+                    "variants": [
+                        {
+                            "sku": "MODA-CALCA-JEANS-AZUL-P",
+                            "name": "Calça Jeans Skinny - Azul / P",
+                            "stock": {
+                                "salable_quantity": 0
+                            },
+                            "attributes": [
+                                {
+                                    "code": "color",
+                                    "option_label": "Azul"
+                                },
+                                {
+                                    "code": "tamanho",
+                                    "option_label": "P"
+                                },
+                                {
+                                    "code": "description",
+                                    "option_label": null
+                                },
+                                {
+                                    "code": "price",
+                                    "option_label": null
+                                }
+                            ]
+                        },
+                        {
+                            "sku": "MODA-CALCA-JEANS-AZUL-M",
+                            "name": "Calça Jeans Skinny - Azul / M",
+                            "stock": {
+                                "salable_quantity": 7
+                            },
+                            "attributes": [
+                                {
+                                    "code": "color",
+                                    "option_label": "Azul"
+                                },
+                                {
+                                    "code": "tamanho",
+                                    "option_label": "M"
+                                },
+                                {
+                                    "code": "description",
+                                    "option_label": null
+                                },
+                                {
+                                    "code": "price",
+                                    "option_label": null
+                                }
+                            ]
+                        },
+                        {
+                            "sku": "MODA-CALCA-JEANS-AZUL-G",
+                            "name": "Calça Jeans Skinny - Azul / G",
+                            "stock": {
+                                "salable_quantity": 1
+                            },
+                            "attributes": [
+                                {
+                                    "code": "color",
+                                    "option_label": "Azul"
+                                },
+                                {
+                                    "code": "tamanho",
+                                    "option_label": "G"
+                                },
+                                {
+                                    "code": "description",
+                                    "option_label": null
+                                },
+                                {
+                                    "code": "price",
+                                    "option_label": null
+                                }
+                            ]
+                        },
+                        {
+                            "sku": "MODA-CALCA-JEANS-AZUL-GG",
+                            "name": "Calça Jeans Skinny - Azul / GG",
+                            "stock": {
+                                "salable_quantity": 8
+                            },
+                            "attributes": [
+                                {
+                                    "code": "color",
+                                    "option_label": "Azul"
+                                },
+                                {
+                                    "code": "tamanho",
+                                    "option_label": "GG"
+                                },
+                                {
+                                    "code": "description",
+                                    "option_label": null
+                                },
+                                {
+                                    "code": "price",
+                                    "option_label": null
+                                }
+                            ]
+                        },
+                        {
+                            "sku": "MODA-CALCA-JEANS-PRETO-P",
+                            "name": "Calça Jeans Skinny - Preto / P",
+                            "stock": {
+                                "salable_quantity": 2
+                            },
+                            "attributes": [
+                                {
+                                    "code": "color",
+                                    "option_label": "Preto"
+                                },
+                                {
+                                    "code": "tamanho",
+                                    "option_label": "P"
+                                },
+                                {
+                                    "code": "description",
+                                    "option_label": null
+                                },
+                                {
+                                    "code": "price",
+                                    "option_label": null
+                                }
+                            ]
+                        },
+                        {
+                            "sku": "MODA-CALCA-JEANS-PRETO-M",
+                            "name": "Calça Jeans Skinny - Preto / M",
+                            "stock": {
+                                "salable_quantity": 9
+                            },
+                            "attributes": [
+                                {
+                                    "code": "color",
+                                    "option_label": "Preto"
+                                },
+                                {
+                                    "code": "tamanho",
+                                    "option_label": "M"
+                                },
+                                {
+                                    "code": "description",
+                                    "option_label": null
+                                },
+                                {
+                                    "code": "price",
+                                    "option_label": null
+                                }
+                            ]
+                        },
+                        {
+                            "sku": "MODA-CALCA-JEANS-PRETO-G",
+                            "name": "Calça Jeans Skinny - Preto / G",
+                            "stock": {
+                                "salable_quantity": 3
+                            },
+                            "attributes": [
+                                {
+                                    "code": "color",
+                                    "option_label": "Preto"
+                                },
+                                {
+                                    "code": "tamanho",
+                                    "option_label": "G"
+                                },
+                                {
+                                    "code": "description",
+                                    "option_label": null
+                                },
+                                {
+                                    "code": "price",
+                                    "option_label": null
+                                }
+                            ]
+                        },
+                        {
+                            "sku": "MODA-CALCA-JEANS-PRETO-GG",
+                            "name": "Calça Jeans Skinny - Preto / GG",
+                            "stock": {
+                                "salable_quantity": 10
+                            },
+                            "attributes": [
+                                {
+                                    "code": "color",
+                                    "option_label": "Preto"
+                                },
+                                {
+                                    "code": "tamanho",
+                                    "option_label": "GG"
+                                },
+                                {
+                                    "code": "description",
+                                    "option_label": null
+                                },
+                                {
+                                    "code": "price",
+                                    "option_label": null
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "route": {
+        "query": "{ route(url: \"/calca-jeans-skinny\") { type product { sku name } category { name } } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "route": {
+                    "type": "PRODUCT",
+                    "product": {
+                        "sku": "MODA-CALCA-JEANS",
+                        "name": "Calça Jeans Skinny"
+                    },
+                    "category": null
+                }
+            }
+        }
+    },
+    "createCart": {
+        "query": "mutation { createCart }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "createCart": "31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183"
+            }
+        }
+    },
+    "addToCart": {
+        "query": "mutation Adicionar($cartId: String!, $sku: String!) {\n  addToCart(cartId: $cartId, sku: $sku, quantity: 2) { items { id sku name quantity price rowTotal error } subtotal discountAmount shippingAmount total hasErrors }\n}",
+        "variables": {
+            "cartId": "31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183",
+            "sku": "001"
+        },
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "addToCart": {
+                    "items": [
+                        {
+                            "id": "4991",
+                            "sku": "001",
+                            "name": "Produto teste",
+                            "quantity": 2,
+                            "price": 8.5,
+                            "rowTotal": 17,
+                            "error": null
+                        }
+                    ],
+                    "subtotal": 17,
+                    "discountAmount": 0,
+                    "shippingAmount": 0,
+                    "total": 17,
+                    "hasErrors": false
+                }
+            }
+        }
+    },
+    "addConfigurable": {
+        "query": "mutation { addToCart(cartId: \"31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183\", sku: \"MODA-CALCA-JEANS\", quantity: 1) { total } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "errors": [
+                {
+                    "message": "'Calça Jeans Skinny' tem grade: escolha a variação (cor, tamanho...).",
+                    "locations": [
+                        {
+                            "line": 1,
+                            "column": 12
+                        }
+                    ],
+                    "path": [
+                        "addToCart"
+                    ],
+                    "extensions": {
+                        "code": "PRODUCT_IS_CONFIGURABLE"
+                    }
+                }
+            ]
+        }
+    },
+    "guestInfo": {
+        "query": "mutation Visitante($cartId: String!) {\n  setCartGuestInfo(cartId: $cartId, email: \"maria@exemplo.com.br\", firstname: \"Maria\", lastname: \"Souza\", taxvat: \"529.982.247-25\") { email firstname taxvat }\n}",
+        "variables": {
+            "cartId": "31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183"
+        },
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "setCartGuestInfo": {
+                    "email": "maria@exemplo.com.br",
+                    "firstname": "Maria",
+                    "taxvat": "52998224725"
+                }
+            }
+        }
+    },
+    "shippingQuotes": {
+        "query": "{ shippingQuotes(cartId: \"31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183\", destinationCep: \"20040-020\") { code label amount days } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "shippingQuotes": [
+                    {
+                        "code": "pickup",
+                        "label": "Retirar na loja (Avenida Ayrton Senna, 2600, Rio de Janeiro)",
+                        "amount": 0,
+                        "days": 1
+                    }
+                ]
+            }
+        }
+    },
+    "shippingAddress": {
+        "query": "mutation Endereco($cartId: String!, $endereco: CartAddressInput!) {\n  setCartShippingAddress(cartId: $cartId, address: $endereco) {\n    shippingAddress { postcode city region }\n    availableShippingMethods { code label amount days }\n  }\n}",
+        "variables": {
+            "cartId": "31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183",
+            "endereco": {
+                "recipient": "Maria Souza",
+                "postcode": "20040-020",
+                "street": "Avenida Rio Branco",
+                "number": "1",
+                "district": "Centro",
+                "city": "Rio de Janeiro",
+                "region": "RJ",
+                "telephone": "(21) 99999-0000"
+            }
+        },
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "setCartShippingAddress": {
+                    "shippingAddress": {
+                        "postcode": "20040020",
+                        "city": "Rio de Janeiro",
+                        "region": "RJ"
+                    },
+                    "availableShippingMethods": [
+                        {
+                            "code": "pickup",
+                            "label": "Retirar na loja (Avenida Ayrton Senna, 2600, Rio de Janeiro)",
+                            "amount": 0,
+                            "days": 1
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "shippingMethod": {
+        "query": "mutation { setCartShippingMethod(cartId: \"31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183\", code: \"pickup\") { shippingMethod { code label amount } total availablePaymentMethods { code label } } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "setCartShippingMethod": {
+                    "shippingMethod": {
+                        "code": "pickup",
+                        "label": "Retirar na loja (Avenida Ayrton Senna, 2600, Rio de Janeiro)",
+                        "amount": 0
+                    },
+                    "total": 17,
+                    "availablePaymentMethods": [
+                        {
+                            "code": "mercadopago_pix",
+                            "label": "Pix"
+                        },
+                        {
+                            "code": "mercadopago_credit",
+                            "label": "Cartão de crédito"
+                        },
+                        {
+                            "code": "mercadopago_debit",
+                            "label": "Cartão de débito"
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "paymentMethod": {
+        "query": "mutation { setCartPaymentMethod(cartId: \"31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183\", code: \"mercadopago_pix\") { paymentMethod { code label } total } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "setCartPaymentMethod": {
+                    "paymentMethod": {
+                        "code": "mercadopago_pix",
+                        "label": "Pix"
+                    },
+                    "total": 17
+                }
+            }
+        }
+    },
+    "totalChanged": {
+        "query": "mutation { placeOrder(cartId: \"31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183\", expectedTotal: 1.00) { number } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "errors": [
+                {
+                    "message": "O total do carrinho mudou. Revise os valores atualizados e confirme novamente.",
+                    "locations": [
+                        {
+                            "line": 1,
+                            "column": 12
+                        }
+                    ],
+                    "path": [
+                        "placeOrder"
+                    ],
+                    "extensions": {
+                        "code": "TOTAL_CHANGED"
+                    }
+                }
+            ]
+        }
+    },
+    "placeOrder": {
+        "query": "mutation Fechar($cartId: String!, $total: Float!) {\n  placeOrder(cartId: $cartId, expectedTotal: $total) {\n    id number status statusLabel total salesChannel\n    paymentMethod paymentInstructions\n    items { sku name quantity price rowTotal }\n  }\n}",
+        "variables": {
+            "cartId": "31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183",
+            "total": 17
+        },
+        "token": false,
+        "headers": {
+            "X-Sales-Channel": "Site"
+        },
+        "response": {
+            "data": {
+                "placeOrder": {
+                    "id": "4838",
+                    "number": "RJ000060",
+                    "status": "pending_payment",
+                    "statusLabel": "Aguardando pagamento",
+                    "total": 17,
+                    "salesChannel": "Site",
+                    "paymentMethod": "mercadopago_pix",
+                    "paymentInstructions": null,
+                    "items": [
+                        {
+                            "sku": "001",
+                            "name": "Produto teste",
+                            "quantity": 2,
+                            "price": 8.5,
+                            "rowTotal": 17
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "guestOrder": {
+        "query": "{ guestOrder(number: \"RJ000060\", email: \"maria@exemplo.com.br\") { number statusLabel total } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "guestOrder": {
+                    "number": "RJ000060",
+                    "statusLabel": "Aguardando pagamento",
+                    "total": 17
+                }
+            }
+        }
+    },
+    "register": {
+        "query": "mutation Cadastro($senha: String!) {\n  registerCustomer(email: \"joao@exemplo.com.br\", firstname: \"João\", lastname: \"Lima\", type: PF, taxvat: \"111.444.777-35\", password: $senha) {\n    token expires_at confirmationRequired\n    customer { id email firstname }\n  }\n}",
+        "variables": {
+            "senha": "SenhaDoJoao123"
+        },
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "registerCustomer": {
+                    "token": "51e3fbb2df4dc6edd42852295af6c59859bd9df652edb87cca48d7e8b882e66f",
+                    "expires_at": "2026-11-19 18:08:28",
+                    "confirmationRequired": false,
+                    "customer": {
+                        "id": "2668",
+                        "email": "joao@exemplo.com.br",
+                        "firstname": "João"
+                    }
+                }
+            }
+        }
+    },
+    "customerToken": {
+        "query": "mutation {\n  generateCustomerToken(email: \"joao@exemplo.com.br\", password: \"SenhaDoJoao123\") { token expires_at customer { id firstname } }\n}",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "generateCustomerToken": {
+                    "token": "9bc77bc43ee2dae04898197b44d0ea22ffaffcec28d94725051b6d2392fb83f9",
+                    "expires_at": "2026-11-19 18:08:28",
+                    "customer": {
+                        "id": "2668",
+                        "firstname": "João"
+                    }
+                }
+            }
+        }
+    },
+    "me": {
+        "query": "{ me { id email firstname lastname type taxvat addresses { id city is_default_shipping } } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "me": {
+                    "id": "2668",
+                    "email": "joao@exemplo.com.br",
+                    "firstname": "João",
+                    "lastname": "Lima",
+                    "type": "PF",
+                    "taxvat": "11144477735",
+                    "addresses": []
+                }
+            }
+        }
+    },
+    "createAddress": {
+        "query": "mutation {\n  createMyAddress(address: { recipient: \"João Lima\", postcode: \"01310-100\", street: \"Avenida Paulista\", number: \"1000\", district: \"Bela Vista\", city: \"São Paulo\", region: \"SP\", isDefaultShipping: true, isDefaultBilling: true }) {\n    id city region is_default_shipping\n  }\n}",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "createMyAddress": [
+                    {
+                        "id": "2420",
+                        "city": "São Paulo",
+                        "region": "SP",
+                        "is_default_shipping": true
+                    }
+                ]
+            }
+        }
+    },
+    "customerCart": {
+        "query": "{ cart { isGuest email items { sku quantity } total } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "cart": {
+                    "isGuest": false,
+                    "email": "joao@exemplo.com.br",
+                    "items": [],
+                    "total": 0
+                }
+            }
+        }
+    },
+    "createCart2": {
+        "query": "mutation { createCart }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "createCart": "f2cb98dced50ce2741a960854799bba2ba2a0e14e842d2839dca79a22cbe6eeb"
+            }
+        }
+    },
+    "addGuest2": {
+        "query": "mutation { addToCart(cartId: \"f2cb98dced50ce2741a960854799bba2ba2a0e14e842d2839dca79a22cbe6eeb\", sku: \"001\", quantity: 1) { total } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "addToCart": {
+                    "total": 8.5
+                }
+            }
+        }
+    },
+    "mergeCarts": {
+        "query": "mutation { mergeCarts(cartId: \"f2cb98dced50ce2741a960854799bba2ba2a0e14e842d2839dca79a22cbe6eeb\") { isGuest items { sku quantity } total } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "mergeCarts": {
+                    "isGuest": false,
+                    "items": [
+                        {
+                            "sku": "001",
+                            "quantity": 1
+                        }
+                    ],
+                    "total": 8.5
+                }
+            }
+        }
+    },
+    "myOrders": {
+        "query": "{ myOrders { total items { number statusLabel total } } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "myOrders": {
+                    "total": 0,
+                    "items": []
+                }
+            }
+        }
+    },
+    "noToken": {
+        "query": "{ me { id } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "me": null
+            }
+        }
+    },
+    "orders": {
+        "query": "{\n  orders(status: pending_payment, page: 1, pageSize: 2) {\n    total amount\n    items { number createdAt statusLabel total salesChannel paymentLabel }\n  }\n}",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "orders": {
+                    "total": 2,
+                    "amount": 30.5,
+                    "items": [
+                        {
+                            "number": "RJ000060",
+                            "createdAt": "2026-10-20 18:08:27.402208",
+                            "statusLabel": "Aguardando pagamento",
+                            "total": 17,
+                            "salesChannel": "Site",
+                            "paymentLabel": "Pix"
+                        },
+                        {
+                            "number": "RJ000057",
+                            "createdAt": "2026-10-20 12:12:44.420628",
+                            "statusLabel": "Aguardando pagamento",
+                            "total": 13.5,
+                            "salesChannel": "App mobile",
+                            "paymentLabel": "Pix"
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "ordersForbidden": {
+        "query": "{ orders { total } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "errors": [
+                {
+                    "message": "Acesso negado.",
+                    "locations": [
+                        {
+                            "line": 1,
+                            "column": 3
+                        }
+                    ],
+                    "path": [
+                        "orders"
+                    ],
+                    "extensions": {
+                        "code": "UNAUTHENTICATED"
+                    }
+                }
+            ]
+        }
+    },
+    "confirmPayment": {
+        "query": "mutation { confirmOrderPayment(id: \"4838\", comment: \"Pix conferido no extrato\") { number status statusLabel history { status comment createdAt } } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "confirmOrderPayment": {
+                    "number": "RJ000060",
+                    "status": "processing",
+                    "statusLabel": "Pagamento confirmado",
+                    "history": [
+                        {
+                            "status": "processing",
+                            "comment": "Pix conferido no extrato",
+                            "createdAt": "2026-10-20 18:08:27.402208"
+                        },
+                        {
+                            "status": "pending_payment",
+                            "comment": null,
+                            "createdAt": "2026-10-20 18:08:27.402208"
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "shipOrder": {
+        "query": "mutation { shipOrder(id: \"4838\", carrier: \"Correios\", trackingCode: \"AA123456789BR\") { number statusLabel shipment { carrier trackingCode } } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "shipOrder": {
+                    "number": "RJ000060",
+                    "statusLabel": "Enviado",
+                    "shipment": {
+                        "carrier": "Correios",
+                        "trackingCode": "AA123456789BR"
+                    }
+                }
+            }
+        }
+    },
+    "salesSummary": {
+        "query": "{ salesSummary(from: \"2026-10-01\", to: \"2026-10-20\") { status statusLabel count amount } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "salesSummary": [
+                    {
+                        "status": "pending_payment",
+                        "statusLabel": "Aguardando pagamento",
+                        "count": 1,
+                        "amount": 13.5
+                    },
+                    {
+                        "status": "processing",
+                        "statusLabel": "Pagamento confirmado",
+                        "count": 30,
+                        "amount": 879.55
+                    },
+                    {
+                        "status": "shipped",
+                        "statusLabel": "Enviado",
+                        "count": 1,
+                        "amount": 17
+                    },
+                    {
+                        "status": "complete",
+                        "statusLabel": "Concluído",
+                        "count": 3,
+                        "amount": 193.95
+                    },
+                    {
+                        "status": "canceled",
+                        "statusLabel": "Cancelado",
+                        "count": 25,
+                        "amount": 943.16
+                    }
+                ]
+            }
+        }
+    },
+    "createProduct": {
+        "query": "mutation Novo($attrs: [ProductAttributeInput!]) {\n  createProduct(sku: \"CANECA-001\", name: \"Caneca de cerâmica\", attributeSetId: \"1\", websiteIds: [\"15\"], categoryIds: [\"22\"], attributes: $attrs) {\n    id sku name url_key is_active\n    attributes { code value }\n  }\n}",
+        "variables": {
+            "attrs": [
+                {
+                    "code": "price",
+                    "value": "49.90"
+                },
+                {
+                    "code": "cost",
+                    "value": "18.50"
+                },
+                {
+                    "code": "weight",
+                    "value": "0.4"
+                }
+            ]
+        },
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "createProduct": {
+                    "id": "14668",
+                    "sku": "CANECA-001",
+                    "name": "Caneca de cerâmica",
+                    "url_key": "caneca-de-ceramica",
+                    "is_active": true,
+                    "attributes": [
+                        {
+                            "code": "price",
+                            "value": "49.9"
+                        },
+                        {
+                            "code": "cost",
+                            "value": "18.5"
+                        },
+                        {
+                            "code": "weight",
+                            "value": "0.4"
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "setStock": {
+        "query": "mutation { setProductStock(sku: \"CANECA-001\", sources: [{ code: \"default\", quantity: 25 }]) { salable_quantity is_in_stock sources { code quantity } } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "setProductStock": {
+                    "salable_quantity": 25,
+                    "is_in_stock": true,
+                    "sources": [
+                        {
+                            "code": "default",
+                            "quantity": 25
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "updateProduct": {
+        "query": "mutation { updateProduct(id: \"14668\", attributes: [{ code: \"price\", value: \"44.90\" }]) { sku attributes { code value } } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "updateProduct": {
+                    "sku": "CANECA-001",
+                    "attributes": [
+                        {
+                            "code": "price",
+                            "value": "44.9"
+                        },
+                        {
+                            "code": "cost",
+                            "value": "18.5"
+                        },
+                        {
+                            "code": "weight",
+                            "value": "0.4"
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "reports": {
+        "query": "{ reports { code groupLabel title filters { key type default options { value label } } } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "reports": [
+                    {
+                        "code": "v8",
+                        "groupLabel": "Vendas",
+                        "title": "Promoções e cupons",
+                        "filters": [
+                            {
+                                "key": "promotion_id",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todas as promoções"
+                                    },
+                                    {
+                                        "value": "31",
+                                        "label": "JARDIM10"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "kind",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Automáticas e cupons"
+                                    },
+                                    {
+                                        "value": "auto",
+                                        "label": "Só automáticas"
+                                    },
+                                    {
+                                        "value": "coupon",
+                                        "label": "Só cupons"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "q",
+                                "type": "search",
+                                "default": null,
+                                "options": null
+                            }
+                        ]
+                    },
+                    {
+                        "code": "v1",
+                        "groupLabel": "Vendas",
+                        "title": "Vendas por período",
+                        "filters": [
+                            {
+                                "key": "group_by",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "day",
+                                        "label": "Dia"
+                                    },
+                                    {
+                                        "value": "week",
+                                        "label": "Semana"
+                                    },
+                                    {
+                                        "value": "month",
+                                        "label": "Mês"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "basis",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "created",
+                                        "label": "Data do pedido"
+                                    },
+                                    {
+                                        "value": "paid",
+                                        "label": "Data do pagamento"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "v2",
+                        "groupLabel": "Vendas",
+                        "title": "Vendas por produto",
+                        "filters": [
+                            {
+                                "key": "category_id",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todas as categorias"
+                                    },
+                                    {
+                                        "value": "13",
+                                        "label": "Cosmético"
+                                    },
+                                    {
+                                        "value": "224",
+                                        "label": "Vestuário"
+                                    },
+                                    {
+                                        "value": "538",
+                                        "label": "— Bermuda"
+                                    },
+                                    {
+                                        "value": "518",
+                                        "label": "— Calça"
+                                    },
+                                    {
+                                        "value": "519",
+                                        "label": "— Camisa"
+                                    },
+                                    {
+                                        "value": "539",
+                                        "label": "— Camiseta"
+                                    },
+                                    {
+                                        "value": "520",
+                                        "label": "— Conjunto"
+                                    },
+                                    {
+                                        "value": "537",
+                                        "label": "— Jaqueta"
+                                    },
+                                    {
+                                        "value": "536",
+                                        "label": "— Saia"
+                                    },
+                                    {
+                                        "value": "535",
+                                        "label": "— Vestido"
+                                    },
+                                    {
+                                        "value": "225",
+                                        "label": "— Blusa"
+                                    },
+                                    {
+                                        "value": "352",
+                                        "label": "Vestuário"
+                                    },
+                                    {
+                                        "value": "14",
+                                        "label": "Farmácia"
+                                    },
+                                    {
+                                        "value": "22",
+                                        "label": "— Vitaminas"
+                                    },
+                                    {
+                                        "value": "15",
+                                        "label": "Beleza"
+                                    },
+                                    {
+                                        "value": "16",
+                                        "label": "Higiene Pessoal"
+                                    },
+                                    {
+                                        "value": "17",
+                                        "label": "Medicamentos"
+                                    },
+                                    {
+                                        "value": "18",
+                                        "label": "Perfumaria"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "q",
+                                "type": "search",
+                                "default": null,
+                                "options": null
+                            },
+                            {
+                                "key": "parent",
+                                "type": "checkbox",
+                                "default": "1",
+                                "options": null
+                            }
+                        ]
+                    },
+                    {
+                        "code": "v3",
+                        "groupLabel": "Vendas",
+                        "title": "Vendas por categoria",
+                        "filters": []
+                    },
+                    {
+                        "code": "v4",
+                        "groupLabel": "Vendas",
+                        "title": "Vendas por forma de pagamento",
+                        "filters": []
+                    },
+                    {
+                        "code": "v5",
+                        "groupLabel": "Vendas",
+                        "title": "Vendas por canal e atendente",
+                        "filters": [
+                            {
+                                "key": "by",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "user",
+                                        "label": "Por canal e atendente"
+                                    },
+                                    {
+                                        "value": "channel",
+                                        "label": "Só por canal"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "admin_user_id",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todos os atendentes"
+                                    },
+                                    {
+                                        "value": "3",
+                                        "label": "Esmerio Neto"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "v6",
+                        "groupLabel": "Vendas",
+                        "title": "Vendas por região",
+                        "filters": [
+                            {
+                                "key": "by",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "region",
+                                        "label": "Por UF"
+                                    },
+                                    {
+                                        "value": "city",
+                                        "label": "Por cidade"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "region",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todas as UFs"
+                                    },
+                                    {
+                                        "value": "AC",
+                                        "label": "AC"
+                                    },
+                                    {
+                                        "value": "AL",
+                                        "label": "AL"
+                                    },
+                                    {
+                                        "value": "AP",
+                                        "label": "AP"
+                                    },
+                                    {
+                                        "value": "AM",
+                                        "label": "AM"
+                                    },
+                                    {
+                                        "value": "BA",
+                                        "label": "BA"
+                                    },
+                                    {
+                                        "value": "CE",
+                                        "label": "CE"
+                                    },
+                                    {
+                                        "value": "DF",
+                                        "label": "DF"
+                                    },
+                                    {
+                                        "value": "ES",
+                                        "label": "ES"
+                                    },
+                                    {
+                                        "value": "GO",
+                                        "label": "GO"
+                                    },
+                                    {
+                                        "value": "MA",
+                                        "label": "MA"
+                                    },
+                                    {
+                                        "value": "MT",
+                                        "label": "MT"
+                                    },
+                                    {
+                                        "value": "MS",
+                                        "label": "MS"
+                                    },
+                                    {
+                                        "value": "MG",
+                                        "label": "MG"
+                                    },
+                                    {
+                                        "value": "PA",
+                                        "label": "PA"
+                                    },
+                                    {
+                                        "value": "PB",
+                                        "label": "PB"
+                                    },
+                                    {
+                                        "value": "PR",
+                                        "label": "PR"
+                                    },
+                                    {
+                                        "value": "PE",
+                                        "label": "PE"
+                                    },
+                                    {
+                                        "value": "PI",
+                                        "label": "PI"
+                                    },
+                                    {
+                                        "value": "RJ",
+                                        "label": "RJ"
+                                    },
+                                    {
+                                        "value": "RN",
+                                        "label": "RN"
+                                    },
+                                    {
+                                        "value": "RS",
+                                        "label": "RS"
+                                    },
+                                    {
+                                        "value": "RO",
+                                        "label": "RO"
+                                    },
+                                    {
+                                        "value": "RR",
+                                        "label": "RR"
+                                    },
+                                    {
+                                        "value": "SC",
+                                        "label": "SC"
+                                    },
+                                    {
+                                        "value": "SP",
+                                        "label": "SP"
+                                    },
+                                    {
+                                        "value": "SE",
+                                        "label": "SE"
+                                    },
+                                    {
+                                        "value": "TO",
+                                        "label": "TO"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "v9",
+                        "groupLabel": "Vendas",
+                        "title": "Frete",
+                        "filters": []
+                    },
+                    {
+                        "code": "v7",
+                        "groupLabel": "Vendas",
+                        "title": "Cancelamentos",
+                        "filters": [
+                            {
+                                "key": "reason",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todos os motivos"
+                                    },
+                                    {
+                                        "value": "customer",
+                                        "label": "Desistência do cliente"
+                                    },
+                                    {
+                                        "value": "unpaid",
+                                        "label": "Pagamento não recebido"
+                                    },
+                                    {
+                                        "value": "out_of_stock",
+                                        "label": "Produto sem estoque"
+                                    },
+                                    {
+                                        "value": "fraud",
+                                        "label": "Suspeita de fraude"
+                                    },
+                                    {
+                                        "value": "order_error",
+                                        "label": "Erro no pedido"
+                                    },
+                                    {
+                                        "value": "other",
+                                        "label": "Outro"
+                                    },
+                                    {
+                                        "value": "none",
+                                        "label": "Não informado"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "o1",
+                        "groupLabel": "Operação",
+                        "title": "Pedidos parados",
+                        "filters": [
+                            {
+                                "key": "pending_hours",
+                                "type": "number",
+                                "default": "24",
+                                "options": null
+                            },
+                            {
+                                "key": "ship_days",
+                                "type": "number",
+                                "default": "2",
+                                "options": null
+                            }
+                        ]
+                    },
+                    {
+                        "code": "o2",
+                        "groupLabel": "Operação",
+                        "title": "Tempo de atendimento",
+                        "filters": [
+                            {
+                                "key": "group_by",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "week",
+                                        "label": "Semana"
+                                    },
+                                    {
+                                        "value": "month",
+                                        "label": "Mês"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "o3",
+                        "groupLabel": "Operação",
+                        "title": "Envios",
+                        "filters": [
+                            {
+                                "key": "view",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "summary",
+                                        "label": "Por transportadora e origem"
+                                    },
+                                    {
+                                        "value": "list",
+                                        "label": "Lista dos envios"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "tracking",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Com e sem rastreio"
+                                    },
+                                    {
+                                        "value": "missing",
+                                        "label": "Só sem rastreio"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "e1",
+                        "groupLabel": "Estoque e catálogo",
+                        "title": "Posição de estoque",
+                        "filters": [
+                            {
+                                "key": "category_id",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todas as categorias"
+                                    },
+                                    {
+                                        "value": "13",
+                                        "label": "Cosmético"
+                                    },
+                                    {
+                                        "value": "224",
+                                        "label": "Vestuário"
+                                    },
+                                    {
+                                        "value": "538",
+                                        "label": "— Bermuda"
+                                    },
+                                    {
+                                        "value": "518",
+                                        "label": "— Calça"
+                                    },
+                                    {
+                                        "value": "519",
+                                        "label": "— Camisa"
+                                    },
+                                    {
+                                        "value": "539",
+                                        "label": "— Camiseta"
+                                    },
+                                    {
+                                        "value": "520",
+                                        "label": "— Conjunto"
+                                    },
+                                    {
+                                        "value": "537",
+                                        "label": "— Jaqueta"
+                                    },
+                                    {
+                                        "value": "536",
+                                        "label": "— Saia"
+                                    },
+                                    {
+                                        "value": "535",
+                                        "label": "— Vestido"
+                                    },
+                                    {
+                                        "value": "225",
+                                        "label": "— Blusa"
+                                    },
+                                    {
+                                        "value": "352",
+                                        "label": "Vestuário"
+                                    },
+                                    {
+                                        "value": "14",
+                                        "label": "Farmácia"
+                                    },
+                                    {
+                                        "value": "22",
+                                        "label": "— Vitaminas"
+                                    },
+                                    {
+                                        "value": "15",
+                                        "label": "Beleza"
+                                    },
+                                    {
+                                        "value": "16",
+                                        "label": "Higiene Pessoal"
+                                    },
+                                    {
+                                        "value": "17",
+                                        "label": "Medicamentos"
+                                    },
+                                    {
+                                        "value": "18",
+                                        "label": "Perfumaria"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "q",
+                                "type": "search",
+                                "default": null,
+                                "options": null
+                            },
+                            {
+                                "key": "only",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "stock",
+                                        "label": "Só com estoque físico"
+                                    },
+                                    {
+                                        "value": "all",
+                                        "label": "Todos os produtos"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "e2",
+                        "groupLabel": "Estoque e catálogo",
+                        "title": "Estoque baixo e esgotado",
+                        "filters": [
+                            {
+                                "key": "max",
+                                "type": "number",
+                                "default": "3",
+                                "options": null
+                            },
+                            {
+                                "key": "category_id",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todas as categorias"
+                                    },
+                                    {
+                                        "value": "13",
+                                        "label": "Cosmético"
+                                    },
+                                    {
+                                        "value": "224",
+                                        "label": "Vestuário"
+                                    },
+                                    {
+                                        "value": "538",
+                                        "label": "— Bermuda"
+                                    },
+                                    {
+                                        "value": "518",
+                                        "label": "— Calça"
+                                    },
+                                    {
+                                        "value": "519",
+                                        "label": "— Camisa"
+                                    },
+                                    {
+                                        "value": "539",
+                                        "label": "— Camiseta"
+                                    },
+                                    {
+                                        "value": "520",
+                                        "label": "— Conjunto"
+                                    },
+                                    {
+                                        "value": "537",
+                                        "label": "— Jaqueta"
+                                    },
+                                    {
+                                        "value": "536",
+                                        "label": "— Saia"
+                                    },
+                                    {
+                                        "value": "535",
+                                        "label": "— Vestido"
+                                    },
+                                    {
+                                        "value": "225",
+                                        "label": "— Blusa"
+                                    },
+                                    {
+                                        "value": "352",
+                                        "label": "Vestuário"
+                                    },
+                                    {
+                                        "value": "14",
+                                        "label": "Farmácia"
+                                    },
+                                    {
+                                        "value": "22",
+                                        "label": "— Vitaminas"
+                                    },
+                                    {
+                                        "value": "15",
+                                        "label": "Beleza"
+                                    },
+                                    {
+                                        "value": "16",
+                                        "label": "Higiene Pessoal"
+                                    },
+                                    {
+                                        "value": "17",
+                                        "label": "Medicamentos"
+                                    },
+                                    {
+                                        "value": "18",
+                                        "label": "Perfumaria"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "q",
+                                "type": "search",
+                                "default": null,
+                                "options": null
+                            },
+                            {
+                                "key": "show",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Esgotados e baixos"
+                                    },
+                                    {
+                                        "value": "selling",
+                                        "label": "Só os que venderam em 30 dias"
+                                    },
+                                    {
+                                        "value": "out",
+                                        "label": "Só esgotados"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "e3",
+                        "groupLabel": "Estoque e catálogo",
+                        "title": "Produtos sem venda",
+                        "filters": [
+                            {
+                                "key": "category_id",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todas as categorias"
+                                    },
+                                    {
+                                        "value": "13",
+                                        "label": "Cosmético"
+                                    },
+                                    {
+                                        "value": "224",
+                                        "label": "Vestuário"
+                                    },
+                                    {
+                                        "value": "538",
+                                        "label": "— Bermuda"
+                                    },
+                                    {
+                                        "value": "518",
+                                        "label": "— Calça"
+                                    },
+                                    {
+                                        "value": "519",
+                                        "label": "— Camisa"
+                                    },
+                                    {
+                                        "value": "539",
+                                        "label": "— Camiseta"
+                                    },
+                                    {
+                                        "value": "520",
+                                        "label": "— Conjunto"
+                                    },
+                                    {
+                                        "value": "537",
+                                        "label": "— Jaqueta"
+                                    },
+                                    {
+                                        "value": "536",
+                                        "label": "— Saia"
+                                    },
+                                    {
+                                        "value": "535",
+                                        "label": "— Vestido"
+                                    },
+                                    {
+                                        "value": "225",
+                                        "label": "— Blusa"
+                                    },
+                                    {
+                                        "value": "352",
+                                        "label": "Vestuário"
+                                    },
+                                    {
+                                        "value": "14",
+                                        "label": "Farmácia"
+                                    },
+                                    {
+                                        "value": "22",
+                                        "label": "— Vitaminas"
+                                    },
+                                    {
+                                        "value": "15",
+                                        "label": "Beleza"
+                                    },
+                                    {
+                                        "value": "16",
+                                        "label": "Higiene Pessoal"
+                                    },
+                                    {
+                                        "value": "17",
+                                        "label": "Medicamentos"
+                                    },
+                                    {
+                                        "value": "18",
+                                        "label": "Perfumaria"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "q",
+                                "type": "search",
+                                "default": null,
+                                "options": null
+                            }
+                        ]
+                    },
+                    {
+                        "code": "e4",
+                        "groupLabel": "Estoque e catálogo",
+                        "title": "Movimentação de estoque",
+                        "filters": [
+                            {
+                                "key": "q",
+                                "type": "search",
+                                "default": null,
+                                "options": null
+                            },
+                            {
+                                "key": "kind",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todos os movimentos"
+                                    },
+                                    {
+                                        "value": "order",
+                                        "label": "Reserva (pedido)"
+                                    },
+                                    {
+                                        "value": "canceled",
+                                        "label": "Devolução (cancelamento)"
+                                    },
+                                    {
+                                        "value": "shipped",
+                                        "label": "Baixa (envio)"
+                                    },
+                                    {
+                                        "value": "adjust",
+                                        "label": "Ajuste manual"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "e5",
+                        "groupLabel": "Estoque e catálogo",
+                        "title": "Curva ABC",
+                        "filters": [
+                            {
+                                "key": "category_id",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todas as categorias"
+                                    },
+                                    {
+                                        "value": "13",
+                                        "label": "Cosmético"
+                                    },
+                                    {
+                                        "value": "224",
+                                        "label": "Vestuário"
+                                    },
+                                    {
+                                        "value": "538",
+                                        "label": "— Bermuda"
+                                    },
+                                    {
+                                        "value": "518",
+                                        "label": "— Calça"
+                                    },
+                                    {
+                                        "value": "519",
+                                        "label": "— Camisa"
+                                    },
+                                    {
+                                        "value": "539",
+                                        "label": "— Camiseta"
+                                    },
+                                    {
+                                        "value": "520",
+                                        "label": "— Conjunto"
+                                    },
+                                    {
+                                        "value": "537",
+                                        "label": "— Jaqueta"
+                                    },
+                                    {
+                                        "value": "536",
+                                        "label": "— Saia"
+                                    },
+                                    {
+                                        "value": "535",
+                                        "label": "— Vestido"
+                                    },
+                                    {
+                                        "value": "225",
+                                        "label": "— Blusa"
+                                    },
+                                    {
+                                        "value": "352",
+                                        "label": "Vestuário"
+                                    },
+                                    {
+                                        "value": "14",
+                                        "label": "Farmácia"
+                                    },
+                                    {
+                                        "value": "22",
+                                        "label": "— Vitaminas"
+                                    },
+                                    {
+                                        "value": "15",
+                                        "label": "Beleza"
+                                    },
+                                    {
+                                        "value": "16",
+                                        "label": "Higiene Pessoal"
+                                    },
+                                    {
+                                        "value": "17",
+                                        "label": "Medicamentos"
+                                    },
+                                    {
+                                        "value": "18",
+                                        "label": "Perfumaria"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "q",
+                                "type": "search",
+                                "default": null,
+                                "options": null
+                            },
+                            {
+                                "key": "parent",
+                                "type": "checkbox",
+                                "default": "1",
+                                "options": null
+                            },
+                            {
+                                "key": "class",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todas as classes"
+                                    },
+                                    {
+                                        "value": "A",
+                                        "label": "Classe A"
+                                    },
+                                    {
+                                        "value": "B",
+                                        "label": "Classe B"
+                                    },
+                                    {
+                                        "value": "C",
+                                        "label": "Classe C"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "c1",
+                        "groupLabel": "Estoque e catálogo",
+                        "title": "Qualidade do cadastro",
+                        "filters": [
+                            {
+                                "key": "problem",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todos os problemas"
+                                    },
+                                    {
+                                        "value": "no_image",
+                                        "label": "Sem imagem"
+                                    },
+                                    {
+                                        "value": "no_description",
+                                        "label": "Sem descrição"
+                                    },
+                                    {
+                                        "value": "no_weight",
+                                        "label": "Sem peso"
+                                    },
+                                    {
+                                        "value": "no_price",
+                                        "label": "Sem preço"
+                                    },
+                                    {
+                                        "value": "no_cost",
+                                        "label": "Sem custo"
+                                    },
+                                    {
+                                        "value": "inactive_stock",
+                                        "label": "Inativo com estoque"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "q",
+                                "type": "search",
+                                "default": null,
+                                "options": null
+                            }
+                        ]
+                    },
+                    {
+                        "code": "k1",
+                        "groupLabel": "Clientes",
+                        "title": "Novos clientes",
+                        "filters": [
+                            {
+                                "key": "group_by",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "day",
+                                        "label": "Dia"
+                                    },
+                                    {
+                                        "value": "week",
+                                        "label": "Semana"
+                                    },
+                                    {
+                                        "value": "month",
+                                        "label": "Mês"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "group_id",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todos os grupos"
+                                    },
+                                    {
+                                        "value": "2",
+                                        "label": "Atacado"
+                                    },
+                                    {
+                                        "value": "1",
+                                        "label": "Geral"
+                                    },
+                                    {
+                                        "value": "3",
+                                        "label": "VIP"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "k2",
+                        "groupLabel": "Clientes",
+                        "title": "Melhores clientes",
+                        "filters": [
+                            {
+                                "key": "who",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Cadastrados e visitantes"
+                                    },
+                                    {
+                                        "value": "registered",
+                                        "label": "Só cadastrados"
+                                    },
+                                    {
+                                        "value": "guest",
+                                        "label": "Só visitantes"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "q",
+                                "type": "search",
+                                "default": null,
+                                "options": null
+                            }
+                        ]
+                    },
+                    {
+                        "code": "k3",
+                        "groupLabel": "Clientes",
+                        "title": "Clientes sem comprar",
+                        "filters": [
+                            {
+                                "key": "days",
+                                "type": "number",
+                                "default": "90",
+                                "options": null
+                            },
+                            {
+                                "key": "who",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Já compraram"
+                                    },
+                                    {
+                                        "value": "all",
+                                        "label": "Também quem nunca comprou"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "q",
+                                "type": "search",
+                                "default": null,
+                                "options": null
+                            }
+                        ]
+                    },
+                    {
+                        "code": "k4",
+                        "groupLabel": "Clientes",
+                        "title": "Carrinhos abandonados",
+                        "filters": [
+                            {
+                                "key": "hours",
+                                "type": "number",
+                                "default": "24",
+                                "options": null
+                            },
+                            {
+                                "key": "who",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Cadastrados e visitantes"
+                                    },
+                                    {
+                                        "value": "registered",
+                                        "label": "Só cadastrados"
+                                    },
+                                    {
+                                        "value": "guest",
+                                        "label": "Só visitantes"
+                                    },
+                                    {
+                                        "value": "email",
+                                        "label": "Com e-mail (cadastrados e visitantes que informaram)"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "k5",
+                        "groupLabel": "Clientes",
+                        "title": "Compras de visitantes",
+                        "filters": [
+                            {
+                                "key": "who",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Ainda sem cadastro"
+                                    },
+                                    {
+                                        "value": "all",
+                                        "label": "Todos"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "q",
+                                "type": "search",
+                                "default": null,
+                                "options": null
+                            }
+                        ]
+                    },
+                    {
+                        "code": "f2",
+                        "groupLabel": "Financeiro",
+                        "title": "Conciliação Mercado Pago",
+                        "filters": [
+                            {
+                                "key": "view",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "summary",
+                                        "label": "Por situação, motivo e bandeira"
+                                    },
+                                    {
+                                        "value": "attention",
+                                        "label": "A estornar (aprovado em pedido cancelado)"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "code": "f1",
+                        "groupLabel": "Financeiro",
+                        "title": "Recebimentos",
+                        "filters": []
+                    },
+                    {
+                        "code": "f3",
+                        "groupLabel": "Financeiro",
+                        "title": "Margem",
+                        "filters": [
+                            {
+                                "key": "by",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "product",
+                                        "label": "Por produto"
+                                    },
+                                    {
+                                        "value": "category",
+                                        "label": "Por categoria"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "category_id",
+                                "type": "select",
+                                "default": null,
+                                "options": [
+                                    {
+                                        "value": "",
+                                        "label": "Todas as categorias"
+                                    },
+                                    {
+                                        "value": "13",
+                                        "label": "Cosmético"
+                                    },
+                                    {
+                                        "value": "224",
+                                        "label": "Vestuário"
+                                    },
+                                    {
+                                        "value": "538",
+                                        "label": "— Bermuda"
+                                    },
+                                    {
+                                        "value": "518",
+                                        "label": "— Calça"
+                                    },
+                                    {
+                                        "value": "519",
+                                        "label": "— Camisa"
+                                    },
+                                    {
+                                        "value": "539",
+                                        "label": "— Camiseta"
+                                    },
+                                    {
+                                        "value": "520",
+                                        "label": "— Conjunto"
+                                    },
+                                    {
+                                        "value": "537",
+                                        "label": "— Jaqueta"
+                                    },
+                                    {
+                                        "value": "536",
+                                        "label": "— Saia"
+                                    },
+                                    {
+                                        "value": "535",
+                                        "label": "— Vestido"
+                                    },
+                                    {
+                                        "value": "225",
+                                        "label": "— Blusa"
+                                    },
+                                    {
+                                        "value": "352",
+                                        "label": "Vestuário"
+                                    },
+                                    {
+                                        "value": "14",
+                                        "label": "Farmácia"
+                                    },
+                                    {
+                                        "value": "22",
+                                        "label": "— Vitaminas"
+                                    },
+                                    {
+                                        "value": "15",
+                                        "label": "Beleza"
+                                    },
+                                    {
+                                        "value": "16",
+                                        "label": "Higiene Pessoal"
+                                    },
+                                    {
+                                        "value": "17",
+                                        "label": "Medicamentos"
+                                    },
+                                    {
+                                        "value": "18",
+                                        "label": "Perfumaria"
+                                    }
+                                ]
+                            },
+                            {
+                                "key": "q",
+                                "type": "search",
+                                "default": null,
+                                "options": null
+                            },
+                            {
+                                "key": "parent",
+                                "type": "checkbox",
+                                "default": "1",
+                                "options": null
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    },
+    "report": {
+        "query": "query {\n  report(code: \"v1\", filters: [{ key: \"preset\", value: \"month\" }, { key: \"group_by\", value: \"day\" }], pageSize: 5) {\n    columns { key label type }\n    rows\n    total\n    totals\n    tiles { label value note }\n  }\n}",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "report": {
+                    "columns": [
+                        {
+                            "key": "period",
+                            "label": "Dia",
+                            "type": "text"
+                        },
+                        {
+                            "key": "orders",
+                            "label": "Pedidos",
+                            "type": "int"
+                        },
+                        {
+                            "key": "items",
+                            "label": "Itens",
+                            "type": "qty"
+                        },
+                        {
+                            "key": "subtotal",
+                            "label": "Subtotal",
+                            "type": "money"
+                        },
+                        {
+                            "key": "discount",
+                            "label": "Descontos",
+                            "type": "money"
+                        },
+                        {
+                            "key": "shipping",
+                            "label": "Frete",
+                            "type": "money"
+                        },
+                        {
+                            "key": "total",
+                            "label": "Total",
+                            "type": "money"
+                        },
+                        {
+                            "key": "margin",
+                            "label": "Margem",
+                            "type": "money"
+                        },
+                        {
+                            "key": "margin_pct",
+                            "label": "Margem %",
+                            "type": "pct"
+                        },
+                        {
+                            "key": "ticket",
+                            "label": "Ticket médio",
+                            "type": "money"
+                        },
+                        {
+                            "key": "pending",
+                            "label": "Aguardando",
+                            "type": "int"
+                        },
+                        {
+                            "key": "canceled",
+                            "label": "Cancelados",
+                            "type": "int"
+                        }
+                    ],
+                    "rows": [
+                        [
+                            "01/10/2026",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            null,
+                            null,
+                            null,
+                            "0",
+                            "0"
+                        ],
+                        [
+                            "02/10/2026",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            null,
+                            null,
+                            null,
+                            "0",
+                            "0"
+                        ],
+                        [
+                            "03/10/2026",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            null,
+                            null,
+                            null,
+                            "0",
+                            "0"
+                        ],
+                        [
+                            "04/10/2026",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            "0",
+                            null,
+                            null,
+                            null,
+                            "0",
+                            "0"
+                        ],
+                        [
+                            "05/10/2026",
+                            "1",
+                            "1.0000",
+                            "49.90",
+                            "0.00",
+                            "0.00",
+                            "49.90",
+                            null,
+                            null,
+                            "49.9000000000000000",
+                            "0",
+                            "0"
+                        ]
+                    ],
+                    "total": 20,
+                    "totals": [
+                        null,
+                        "34",
+                        "73.0000",
+                        "877.52",
+                        "9.35",
+                        "222.33",
+                        "1090.50",
+                        null,
+                        null,
+                        "32.073529411765",
+                        "1",
+                        "25"
+                    ],
+                    "tiles": [
+                        {
+                            "label": "Faturamento",
+                            "value": "R$ 1.090,50",
+                            "note": "sem vendas nos 20 dias antes"
+                        },
+                        {
+                            "label": "Pedidos pagos",
+                            "value": "34",
+                            "note": "73 itens"
+                        },
+                        {
+                            "label": "Ticket médio",
+                            "value": "R$ 32,07",
+                            "note": "com frete"
+                        },
+                        {
+                            "label": "Margem bruta",
+                            "value": "—",
+                            "note": "sem itens com custo"
+                        },
+                        {
+                            "label": "Aguardando",
+                            "value": "1",
+                            "note": "fora do total"
+                        },
+                        {
+                            "label": "Cancelados",
+                            "value": "25",
+                            "note": "fora do total"
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "attributes": {
+        "query": "{ attributes(entityType: \"product\") { code label inputType isRequired isFilterable } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "attributes": [
+                    {
+                        "code": "color",
+                        "label": "Cor",
+                        "inputType": "select",
+                        "isRequired": false,
+                        "isFilterable": false
+                    },
+                    {
+                        "code": "imagem",
+                        "label": "Imagem",
+                        "inputType": "image",
+                        "isRequired": false,
+                        "isFilterable": false
+                    },
+                    {
+                        "code": "imagem3",
+                        "label": "imagem3",
+                        "inputType": "image",
+                        "isRequired": false,
+                        "isFilterable": false
+                    },
+                    {
+                        "code": "tamanho",
+                        "label": "Tamanho",
+                        "inputType": "select",
+                        "isRequired": true,
+                        "isFilterable": true
+                    },
+                    {
+                        "code": "imagem2",
+                        "label": "imagem2",
+                        "inputType": "image",
+                        "isRequired": false,
+                        "isFilterable": false
+                    },
+                    {
+                        "code": "price",
+                        "label": "Preço",
+                        "inputType": "number",
+                        "isRequired": true,
+                        "isFilterable": false
+                    },
+                    {
+                        "code": "cost",
+                        "label": "Custo",
+                        "inputType": "number",
+                        "isRequired": false,
+                        "isFilterable": false
+                    },
+                    {
+                        "code": "price_promo",
+                        "label": "Preço promocional",
+                        "inputType": "number",
+                        "isRequired": false,
+                        "isFilterable": false
+                    },
+                    {
+                        "code": "price_promo_from",
+                        "label": "Promoção de",
+                        "inputType": "date",
+                        "isRequired": false,
+                        "isFilterable": false
+                    },
+                    {
+                        "code": "price_promo_to",
+                        "label": "Promoção até",
+                        "inputType": "date",
+                        "isRequired": false,
+                        "isFilterable": false
+                    },
+                    {
+                        "code": "weight",
+                        "label": "Peso (kg)",
+                        "inputType": "number",
+                        "isRequired": false,
+                        "isFilterable": false
+                    },
+                    {
+                        "code": "description",
+                        "label": "Descrição",
+                        "inputType": "textarea",
+                        "isRequired": false,
+                        "isFilterable": false
+                    }
+                ]
+            }
+        }
+    },
+    "revokeAdmin": {
+        "query": "mutation { revokeAdminToken }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "revokeAdminToken": true
+            }
+        }
+    }
+}

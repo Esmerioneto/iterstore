@@ -17,14 +17,14 @@
         <thead>
             <tr>
 <?php if (count($websites) > 1): ?>
-                <?= \Iter\Admin\View\Sort::th('website', 'Website', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('website', 'Website', $sort, $dir) ?><?= $gridColumns->th('website') ?>
 <?php endif; ?>
-                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('city', 'Cidade', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('is_enabled', 'Situação', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('priority', 'Prioridade', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('products', 'Produtos com estoque', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?><?= $gridColumns->th('code') ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?><?= $gridColumns->th('name') ?>
+                <?= \Iter\Admin\View\Sort::th('city', 'Cidade', $sort, $dir) ?><?= $gridColumns->th('city') ?>
+                <?= \Iter\Admin\View\Sort::th('is_enabled', 'Situação', $sort, $dir) ?><?= $gridColumns->th('is_enabled') ?>
+                <?= \Iter\Admin\View\Sort::th('priority', 'Prioridade', $sort, $dir) ?><?= $gridColumns->th('priority') ?>
+                <?= \Iter\Admin\View\Sort::th('products', 'Produtos com estoque', $sort, $dir) ?><?= $gridColumns->th('products') ?>
                 <th></th>
             </tr>
         </thead>
@@ -32,14 +32,14 @@
 <?php foreach ($sources as $source): ?>
             <tr>
 <?php if (count($websites) > 1): ?>
-                <td><?= htmlspecialchars((string) ($websites[$source['website_id']] ?? '')) ?></td>
+                <td><?= htmlspecialchars((string) ($websites[$source['website_id']] ?? '')) ?></td><?= $gridColumns->td('website', $source['source_id']) ?>
 <?php endif; ?>
-                <td><?= htmlspecialchars((string) $source['code']) ?></td>
-                <td><?= htmlspecialchars((string) $source['name']) ?></td>
-                <td><?= htmlspecialchars(implode(' / ', array_filter([(string) $source['city'], (string) $source['region']]))) ?></td>
-                <td><span class="admin-status admin-status-<?= $source['is_enabled'] ? 'on' : 'off' ?>"><?= $source['is_enabled'] ? 'Ativa' : 'Inativa' ?></span></td>
-                <td><?= (int) $source['priority'] ?></td>
-                <td><?= (int) $source['products'] ?></td>
+                <td><?= htmlspecialchars((string) $source['code']) ?></td><?= $gridColumns->td('code', $source['source_id']) ?>
+                <td><?= htmlspecialchars((string) $source['name']) ?></td><?= $gridColumns->td('name', $source['source_id']) ?>
+                <td><?= htmlspecialchars(implode(' / ', array_filter([(string) $source['city'], (string) $source['region']]))) ?></td><?= $gridColumns->td('city', $source['source_id']) ?>
+                <td><span class="admin-status admin-status-<?= $source['is_enabled'] ? 'on' : 'off' ?>"><?= $source['is_enabled'] ? 'Ativa' : 'Inativa' ?></span></td><?= $gridColumns->td('is_enabled', $source['source_id']) ?>
+                <td><?= (int) $source['priority'] ?></td><?= $gridColumns->td('priority', $source['source_id']) ?>
+                <td><?= (int) $source['products'] ?></td><?= $gridColumns->td('products', $source['source_id']) ?>
                 <td class="admin-row-action">
                     <a href="/admin/source/edit?id=<?= (int) $source['source_id'] ?>">Editar</a>
     <?php if ($source['code'] !== \Iter\Inventory\Model\Source::DEFAULT_CODE): ?>

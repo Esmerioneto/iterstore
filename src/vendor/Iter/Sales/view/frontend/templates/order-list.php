@@ -66,31 +66,31 @@ $sortHeader = static fn (string $key, string $label): string => \Iter\Admin\View
     <table>
         <thead>
             <tr>
-                <?= $sortHeader('number', 'Número') ?>
-                <?= $sortHeader('created_at', 'Data') ?>
-                <?= $sortHeader('customer', 'Cliente') ?>
-                <th>Loja</th>
-                <th>Canal</th>
-                <?= $sortHeader('payment', 'Pagamento') ?>
-                <?= $sortHeader('total', 'Total') ?>
-                <?= $sortHeader('status', 'Situação') ?>
+                <?= $sortHeader('number', 'Número') ?><?= $gridColumns->th('number') ?>
+                <?= $sortHeader('created_at', 'Data') ?><?= $gridColumns->th('created_at') ?>
+                <?= $sortHeader('customer', 'Cliente') ?><?= $gridColumns->th('customer') ?>
+                <th>Loja</th><?= $gridColumns->th('website') ?>
+                <th>Canal</th><?= $gridColumns->th('channel') ?>
+                <?= $sortHeader('payment', 'Pagamento') ?><?= $gridColumns->th('payment') ?>
+                <?= $sortHeader('total', 'Total') ?><?= $gridColumns->th('total') ?>
+                <?= $sortHeader('status', 'Situação') ?><?= $gridColumns->th('status') ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php if (!$orders): ?>
-            <tr><td colspan="9" class="admin-empty">Nenhum pedido encontrado.</td></tr>
+            <tr><td colspan="<?= 9 + $gridColumns->count() ?>" class="admin-empty">Nenhum pedido encontrado.</td></tr>
 <?php endif; ?>
 <?php foreach ($orders as $order): ?>
             <tr>
-                <td><?= $e($order['increment_id']) ?></td>
-                <td><?= $e(substr((string) $order['created_at'], 0, 16)) ?></td>
-                <td><?= $e($order['firstname'] . ' ' . $order['lastname']) ?><br><small><?= $e($order['email']) ?><?= $order['customer_id'] === null ? ' (visitante)' : '' ?></small></td>
-                <td><?= $e($websites[$order['website_id']] ?? '—') ?></td>
-                <td><?= $e($order['sales_channel']) ?></td>
-                <td><?= $e($order['payment_label'] ?? '—') ?></td>
-                <td><?= $money($order['grand_total']) ?></td>
-                <td><span class="admin-status admin-status-<?= $e($order['status']) ?>"><?= $e(OrderService::STATUS_LABELS[$order['status']] ?? $order['status']) ?></span><?= $order['status'] === 'canceled' ? '<br><small>' . $e(OrderService::CANCEL_REASONS[$order['cancel_reason'] ?? ''] ?? 'Não informado') . '</small>' : '' ?></td>
+                <td><?= $e($order['increment_id']) ?></td><?= $gridColumns->td('number', $order['order_id']) ?>
+                <td><?= $e(substr((string) $order['created_at'], 0, 16)) ?></td><?= $gridColumns->td('created_at', $order['order_id']) ?>
+                <td><?= $e($order['firstname'] . ' ' . $order['lastname']) ?><br><small><?= $e($order['email']) ?><?= $order['customer_id'] === null ? ' (visitante)' : '' ?></small></td><?= $gridColumns->td('customer', $order['order_id']) ?>
+                <td><?= $e($websites[$order['website_id']] ?? '—') ?></td><?= $gridColumns->td('website', $order['order_id']) ?>
+                <td><?= $e($order['sales_channel']) ?></td><?= $gridColumns->td('channel', $order['order_id']) ?>
+                <td><?= $e($order['payment_label'] ?? '—') ?></td><?= $gridColumns->td('payment', $order['order_id']) ?>
+                <td><?= $money($order['grand_total']) ?></td><?= $gridColumns->td('total', $order['order_id']) ?>
+                <td><span class="admin-status admin-status-<?= $e($order['status']) ?>"><?= $e(OrderService::STATUS_LABELS[$order['status']] ?? $order['status']) ?></span><?= $order['status'] === 'canceled' ? '<br><small>' . $e(OrderService::CANCEL_REASONS[$order['cancel_reason'] ?? ''] ?? 'Não informado') . '</small>' : '' ?></td><?= $gridColumns->td('status', $order['order_id']) ?>
                 <td class="admin-row-action"><a href="/admin/order/view?id=<?= (int) $order['order_id'] ?>">Ver</a></td>
             </tr>
 <?php endforeach; ?>

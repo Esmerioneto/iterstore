@@ -76,6 +76,7 @@
                 <label>Acrescentar banners<br>
                     <input type="file" name="banners_add[]" multiple accept="<?= htmlspecialchars(implode(',', $banner_accept)) ?>" data-image-input data-max-bytes="<?= (int) $banner_max_bytes ?>">
                 </label>
+                <span class="category-banner-new" data-image-previews></span>
                 <small>Entram no fim da lista. No máximo <?= (int) $banner_limit ?> no total: marque "Remover" para abrir espaço.</small>
             </p>
         </fieldset>

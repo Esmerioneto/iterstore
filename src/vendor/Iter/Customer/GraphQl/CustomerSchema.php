@@ -9,6 +9,7 @@ use GraphQL\Type\Definition\EnumType;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type;
+use Iter\Admin\Auth;
 use Iter\Core\Config;
 use Iter\Core\GraphQl\Schema;
 use Iter\Core\RateLimit;
@@ -229,6 +230,12 @@ class CustomerSchema
         // as the product's: a code outside the set is a client error, not ignored
         $attributes = static function (array $args, int $setId): array {
             $values = array_column(array_map(static fn ($a) => ['code' => $a['code'], 'value' => $a['values'] ?? $a['value'] ?? ''], $args['attributes'] ?? []), 'value', 'code');
+            // fields only the store sets (a module's etc/customer_staff_attributes.json, e.g. Tryon's tryon_enabled):
+            // the customer's own sign-up and "Minha conta" can't send them
+            $staffOnly = Auth::user() === null ? array_intersect(array_keys($values), \getModuleJson('etc' . DIRECTORY_SEPARATOR . 'customer_staff_attributes.json')) : [];
+            if ($staffOnly) {
+                throw new AttributeException('ATTRIBUTE_READ_ONLY', 'Só a loja pode mudar: ' . implode(', ', $staffOnly) . '.');
+            }
             $set = CustomerService::sets()[$setId] ?? null;
             if ($values && $set) { // invalid set: CustomerService reports it
                 $unknown = array_diff(array_keys($values), array_column((new FormSchemaGenerator())->generate(Customer::ENTITY_TYPE, $set['code'])['fields'], 'name'));

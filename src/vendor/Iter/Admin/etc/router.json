@@ -43,7 +43,7 @@
         "vendor": "Iter",
         "module_name": "Admin",
         "controller_name": "auth",
-        "controller_action": "login,logout,password,forgot,reset",
+        "controller_action": "login,logout,password,forgot,reset,badges",
         "method": "GET"
     },
     {

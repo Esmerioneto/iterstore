@@ -17,25 +17,25 @@
     <table>
         <thead>
             <tr>
-                <?= \Iter\Admin\View\Sort::th('entity', 'Entidade', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('attributes', 'Atributos', $sort, $dir) ?>
-                <th>Padrão</th>
+                <?= \Iter\Admin\View\Sort::th('entity', 'Entidade', $sort, $dir) ?><?= $gridColumns->th('entity') ?>
+                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?><?= $gridColumns->th('code') ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?><?= $gridColumns->th('name') ?>
+                <?= \Iter\Admin\View\Sort::th('attributes', 'Atributos', $sort, $dir) ?><?= $gridColumns->th('attributes') ?>
+                <th>Padrão</th><?= $gridColumns->th('is_default') ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php if (empty($sets)): ?>
-            <tr><td colspan="6" class="admin-empty">Nenhum conjunto cadastrado.</td></tr>
+            <tr><td colspan="<?= 6 + $gridColumns->count() ?>" class="admin-empty">Nenhum conjunto cadastrado.</td></tr>
 <?php else: ?>
     <?php foreach ($sets as $set): ?>
             <tr>
-                <td><?= htmlspecialchars((string) $set['entity_type_label']) ?></td>
-                <td><?= htmlspecialchars((string) $set['code']) ?></td>
-                <td><?= htmlspecialchars((string) $set['label']) ?></td>
-                <td><?= (int) $set['attribute_count'] ?></td>
-                <td><?= $set['is_default'] ? 'Sim' : '' ?></td>
+                <td><?= htmlspecialchars((string) $set['entity_type_label']) ?></td><?= $gridColumns->td('entity', $set['attribute_set_id']) ?>
+                <td><?= htmlspecialchars((string) $set['code']) ?></td><?= $gridColumns->td('code', $set['attribute_set_id']) ?>
+                <td><?= htmlspecialchars((string) $set['label']) ?></td><?= $gridColumns->td('name', $set['attribute_set_id']) ?>
+                <td><?= (int) $set['attribute_count'] ?></td><?= $gridColumns->td('attributes', $set['attribute_set_id']) ?>
+                <td><?= $set['is_default'] ? 'Sim' : '' ?></td><?= $gridColumns->td('is_default', $set['attribute_set_id']) ?>
                 <td class="admin-row-action">
                     <a href="/admin/attributeset/edit?id=<?= (int) $set['attribute_set_id'] ?>">Editar</a>
                     <a href="/admin/attributeset/preview?id=<?= (int) $set['attribute_set_id'] ?>">Pré-visualizar</a>

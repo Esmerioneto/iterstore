@@ -15,5 +15,5 @@
     { "code": "email", "label": "E-mail", "storage_type": "varchar" },
     { "code": "cpf_cnpj", "label": "CPF/CNPJ", "storage_type": "varchar", "mask": "cpf_cnpj" },
     { "code": "image", "label": "Imagem", "storage_type": "varchar",
-      "accept": { "image/webp": "webp", "image/avif": "avif", "image/jpeg": "jpg", "image/png": "png" } }
+      "accept": { "image/webp": "webp", "image/avif": "avif", "image/jpeg": "jpg", "image/png": "png", "image/jxl": "jxl", "image/x-jxl": "jxl" } }
 ]

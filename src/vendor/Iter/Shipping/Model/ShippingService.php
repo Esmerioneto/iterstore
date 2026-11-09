@@ -67,6 +67,7 @@ class ShippingService
         $db = Connection::get()->adapter();
 
         return array_map(static fn ($r) => [
+            'rate_id' => (int) $r['rate_id'],
             'postcode_from' => $r['postcode_from'],
             'postcode_to' => $r['postcode_to'],
             'weight_to' => $r['weight_to'] === null ? null : (float) $r['weight_to'],
@@ -110,6 +111,15 @@ class ShippingService
                 $db->insertMultiple('shipping_table_rate', $clean);
             }
         });
+    }
+
+    /**
+     * Removes one row of the website's table. Orders keep their own shipping (amount, method, days), never the
+     * row, so the orders already placed don't change. @return bool false when the row isn't there (or is another website's)
+     */
+    public function deleteTableRate(int $websiteId, int $rateId): bool
+    {
+        return Connection::get()->adapter()->delete('shipping_table_rate', ['rate_id = ?' => $rateId, 'website_id = ?' => $websiteId]) > 0;
     }
 
     /** the fitting rows of the postcode's range; with weights, the smallest "weight up to" that holds the cart; then the cheapest */

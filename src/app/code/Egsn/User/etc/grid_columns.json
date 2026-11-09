@@ -1,0 +1,9 @@
+[
+    {
+        "grid": "admin/user-list",
+        "code": "language",
+        "label": "Idioma",
+        "after": "role",
+        "class": "Egsn\\User\\Grid\\UserLanguage"
+    }
+]

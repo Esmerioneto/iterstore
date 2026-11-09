@@ -144,6 +144,45 @@ document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('select[data-options-box]').forEach(syncOptionsBox);
 });
 
+// A checkbox with data-check-all="name" checks or unchecks every checkbox of that name in its form
+// (form.elements, so the boxes outside it that point to it with the form attribute count too).
+// A form with data-mass="name" (a grid's mass actions) shows only with something checked, with the count.
+function massBoxes(form, name) {
+  return Array.prototype.filter.call(form.elements, function (el) {
+    return el.type === 'checkbox' && el.name === name;
+  });
+}
+
+function updateMass(form) {
+  var checked = massBoxes(form, form.dataset.mass).filter(function (box) { return box.checked; }).length;
+  form.hidden = checked === 0;
+  var count = form.querySelector('[data-mass-count]');
+  if (count) {
+    count.textContent = checked + ' produto(s) marcado(s)';
+  }
+  form.dataset.confirm = 'Aplicar a ação a ' + checked + ' produto(s)?';
+}
+
+document.addEventListener('change', function (event) {
+  var form = event.target.form;
+  if (!form) {
+    return;
+  }
+  var name = event.target.dataset && event.target.dataset.checkAll;
+  if (name) {
+    massBoxes(form, name).forEach(function (box) {
+      box.checked = event.target.checked;
+    });
+  }
+  if (form.dataset.mass) {
+    updateMass(form);
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('form[data-mass]').forEach(updateMass); // boxes the browser kept checked on "back"
+});
+
 // Entity form blocks packed: each block spans as many 4px rows as its height plus the 16px gap
 // (.is-packed), so a short block doesn't leave a hole under it until the tallest of its row ends.
 // Re-measured whenever a block changes size (fields shown/hidden, addresses added, arranging bars).
@@ -405,9 +444,8 @@ document.addEventListener('change', function (event) {
 // Configurações in a website scope: typing in a field (or choosing a file) stops it from using the default value
 document.addEventListener('input', function (event) {
   var name = event.target.name || '';
-  var useDefault = name.indexOf('config[') === 0 && event.target.closest('p')
-    ? event.target.closest('p').querySelector('input[name^="config_default["]')
-    : null;
+  var item = name.indexOf('config[') === 0 && event.target.closest('[data-config-item], p');
+  var useDefault = item ? item.querySelector('input[name^="config_default["]') : null;
   if (useDefault) {
     useDefault.checked = false;
   }
@@ -487,18 +525,43 @@ document.addEventListener('change', function (event) {
   if (!event.target.matches('input[data-image-input]')) {
     return;
   }
-  var preview = event.target.closest('p').querySelector('[data-image-preview]');
+  // a "multiple" field (e.g. the category's banners): one thumb per chosen file in its [data-image-previews]
+  var previews = event.target.multiple && (event.target.closest('p') || event.target.parentNode).querySelector('[data-image-previews]');
+  if (previews) {
+    previews.textContent = '';
+    Array.prototype.forEach.call(event.target.files, function (chosen) {
+      var img = document.createElement('img');
+      img.className = 'category-banner-thumb';
+      img.alt = img.title = chosen.name + ' (salve para gravar)';
+      img.src = URL.createObjectURL(chosen);
+      previews.appendChild(img);
+    });
+    return;
+  }
+  // Catálogo → Web: the thumb right before the input (or its <label>), e.g. a slide's desktop and iPhone images
+  var before = (event.target.closest('label') || event.target).previousElementSibling;
+  var preview = before && (before.matches('[data-image-preview]') ? before : before.querySelector('[data-image-preview]'));
+  preview = preview || (event.target.closest('p') || event.target.parentNode).querySelector('[data-image-preview]');
   var file = event.target.files[0];
   if (!preview) {
     return;
   }
+  if (!('saved' in preview.dataset)) {
+    preview.dataset.saved = preview.getAttribute('src') || ''; // the stored image, if any
+  }
+  var saved = preview.dataset.saved;
   var placeholder = preview.getAttribute('data-placeholder');
-  preview.hidden = !file && !placeholder;
+  var link = preview.closest('a[data-image-popup]');
+  preview.hidden = !file && !placeholder && !saved;
   preview.classList.toggle('eav-file-placeholder', !file && !!placeholder);
   if (file) {
     preview.src = URL.createObjectURL(file);
-  } else if (placeholder) {
-    preview.src = placeholder;
+  } else if (placeholder || saved) {
+    preview.src = placeholder || saved;
+  }
+  if (link) {
+    link.dataset.savedHref = link.dataset.savedHref || link.href;
+    link.href = file ? preview.src : link.dataset.savedHref;
   }
 });
 
@@ -757,14 +820,14 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // [data-refresh="N"] with an id: every N seconds the page is fetched again and the block is swapped for
-// the new one (Mensagens → conversa). X-Admin-Poll: the refresh doesn't keep the session alive;
-// logged out (401) or failing, the block stays as it is
+// the new one (Mensagens → conversa). X-Admin-Poll: the refresh doesn't keep the session alive; logged out (401) or failing, all stays as it is
 document.querySelectorAll('[data-refresh][id]').forEach(function (block) {
   setInterval(function () {
     fetch(location.href, { headers: { 'X-Admin-Poll': '1' } })
       .then(function (response) { return response.ok ? response.text() : null; })
       .then(function (html) {
         var fresh = html && new DOMParser().parseFromString(html, 'text/html').getElementById(block.id);
+        refreshMenuBadges(); // after the fetch above read this conversation's messages
         var atBottom = block.scrollHeight - block.scrollTop - block.clientHeight < 40;
         if (fresh && fresh.innerHTML !== block.innerHTML) {
           block.innerHTML = fresh.innerHTML;
@@ -774,6 +837,44 @@ document.querySelectorAll('[data-refresh][id]').forEach(function (block) {
       .catch(function () {});
   }, Number(block.dataset.refresh) * 1000);
 });
+
+// The menu's red counters (e.g. unread messages) refresh by themselves every 15 s on every screen, from
+// /admin/auth/badges (menu URL => count). A group shows the sum of its links, as the server renders it.
+// Only the badges change, so an open group stays open; logged out (401) or failing, they stay as they are.
+function refreshMenuBadges() {
+  var menu = document.getElementById('admin-menu');
+  if (!menu) {
+    return;
+  }
+  fetch('/admin/auth/badges', { headers: { 'X-Admin-Poll': '1' } })
+    .then(function (response) { return response.ok ? response.json() : null; })
+    .then(function (counts) {
+      if (!counts) {
+        return;
+      }
+      var set = function (host, n) {
+        var badge = host.querySelector(':scope > .admin-badge');
+        if (n > 0) {
+          badge = badge || host.appendChild(document.createElement('span'));
+          badge.className = 'admin-badge';
+          badge.setAttribute('aria-label', n + ' pendente(s)');
+          badge.textContent = n > 99 ? '99+' : String(n);
+        } else if (badge) {
+          badge.remove();
+        }
+      };
+      menu.querySelectorAll('a[href]').forEach(function (link) {
+        set(link, Number(counts[link.getAttribute('href')]) || 0);
+      });
+      menu.querySelectorAll('details').forEach(function (group) {
+        var sum = 0;
+        group.querySelectorAll('a[href]').forEach(function (link) { sum += Number(counts[link.getAttribute('href')]) || 0; });
+        set(group.querySelector('summary'), sum);
+      });
+    })
+    .catch(function () {});
+}
+document.getElementById('admin-menu') && setInterval(refreshMenuBadges, 15000);
 
 // the conversation opens on its newest message
 document.querySelectorAll('.message-bubbles').forEach(function (list) { list.scrollTop = list.scrollHeight; });
@@ -965,4 +1066,207 @@ document.addEventListener('DOMContentLoaded', function () {
       }
     });
   });
+});
+
+// Catálogo → Web ([data-web-home]): sections and their cards are sortable lists (above). "+ Seção" and
+// "+ Card" copy the <template>s with new keys (the server keeps the posted order); ✕ takes the item out.
+// A card only offers the subcategories of its section's category, and a section takes up to data-card-limit.
+document.addEventListener('DOMContentLoaded', function () {
+  var form = document.querySelector('[data-web-home]');
+  if (!form) {
+    return;
+  }
+  var limit = Number(form.dataset.cardLimit) || 4;
+  var serial = 0;
+  var key = function (prefix) { serial += 1; return prefix + Date.now().toString(36) + serial; };
+  var fromTemplate = function (selector, replace) {
+    var html = form.querySelector(selector).innerHTML;
+    Object.keys(replace).forEach(function (from) { html = html.split(from).join(replace[from]); });
+    var holder = document.createElement('ol');
+    holder.innerHTML = html.trim();
+    return holder.firstElementChild;
+  };
+  // the card's select: only the categories below the section's one; a choice that no longer fits is cleared
+  var filterCards = function (section) {
+    var parent = section.querySelector('[data-web-section-category]').value;
+    section.querySelectorAll('[data-web-card-category]').forEach(function (select) {
+      Array.prototype.forEach.call(select.options, function (option) {
+        var fits = option.value === '' || (parent !== '' && option.dataset.parents.split(' ').indexOf(parent) !== -1);
+        option.hidden = !fits;
+        option.disabled = !fits;
+        if (!fits && option.selected) {
+          select.value = '';
+        }
+      });
+    });
+  };
+  var cardButton = function (section) {
+    section.querySelector('[data-web-add-card]').disabled = section.querySelectorAll('[data-web-cards] > [data-web-card]').length >= limit;
+  };
+
+  form.addEventListener('click', function (event) {
+    var section;
+    if (event.target.closest('[data-web-add-section]')) {
+      section = fromTemplate('[data-web-section-template]', { __S__: key('n') });
+      form.querySelector('[data-web-sections]').appendChild(section);
+      section.querySelector('[data-web-section-category]').focus();
+    } else if (event.target.closest('[data-web-add-card]')) {
+      section = event.target.closest('[data-web-section]');
+      if (section.querySelectorAll('[data-web-cards] > [data-web-card]').length >= limit) {
+        return;
+      }
+      var card = fromTemplate('[data-web-card-template]', { __S__: section.dataset.key, __C__: key('n') });
+      section.querySelector('[data-web-cards]').appendChild(card);
+      filterCards(section);
+      cardButton(section);
+      card.querySelector('select').focus();
+    } else if (event.target.closest('[data-web-remove]')) {
+      var item = event.target.closest('[data-sort-item]');
+      section = item.matches('[data-web-card]') ? item.closest('[data-web-section]') : null;
+      item.remove();
+      section && cardButton(section);
+    }
+  });
+  form.addEventListener('change', function (event) {
+    if (event.target.matches('[data-web-section-category]')) {
+      filterCards(event.target.closest('[data-web-section]'));
+    }
+  });
+  form.querySelectorAll('[data-web-section]').forEach(filterCards);
+});
+
+// Catálogo → Web, WEB-HOME-2-PLAN: the top as banner or carousel ([data-web-top] radios show one block), the
+// slides (+ Slide from the <template>, up to data-slide-limit), and each section's products chosen by hand as in
+// Catálogo → Mobile: the list is built from [data-web-data] (the products of every category), so a section whose
+// category changes starts over with that category's products. Names and SKUs go in as text, never as HTML.
+document.addEventListener('DOMContentLoaded', function () {
+  var form = document.querySelector('[data-web-home]');
+  var dataNode = form && form.querySelector('[data-web-data]');
+  if (!form) {
+    return;
+  }
+  var data = dataNode ? JSON.parse(dataNode.textContent) : { products: {}, banners: {} };
+  var slides = form.querySelector('[data-web-slides]');
+  var slideLimit = Number(slides && slides.dataset.slideLimit) || 5;
+  var serial = 0;
+
+  var showTop = function () {
+    var mode = (form.querySelector('[data-web-top]:checked') || {}).value;
+    form.querySelectorAll('[data-web-top-block]').forEach(function (block) { block.hidden = block.dataset.webTopBlock !== mode; });
+  };
+  var slideButton = function () {
+    form.querySelector('[data-web-add-slide]').disabled = slides.querySelectorAll('[data-web-slide]').length >= slideLimit;
+  };
+
+  var productsOf = function (section) {
+    return data.products[section.querySelector('[data-web-section-category]').value] || [];
+  };
+  var el = function (tag, attrs, text) {
+    var node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (name) { node.setAttribute(name, attrs[name]); });
+    if (text !== undefined) {
+      node.textContent = text;
+    }
+    return node;
+  };
+  var item = function (section, p) {
+    var li = el('li', { 'class': 'mobile-product', 'data-sort-item': '', 'data-product-id': p[0], 'data-active': p[3] ? '1' : '0' });
+    li.append(el('span', { 'class': 'mobile-handle', 'data-drag-handle': '', title: 'Arrastar' }, '⠿'),
+      el('button', { type: 'button', 'data-move': '-1', 'aria-label': 'Mover para cima' }, '↑'),
+      el('button', { type: 'button', 'data-move': '1', 'aria-label': 'Mover para baixo' }, '↓'),
+      el('input', { type: 'hidden', name: 'sections[' + section.dataset.key + '][product_ids][]', value: p[0] }),
+      p[4] ? el('img', { 'class': 'eav-file-preview mobile-thumb', src: p[4], alt: '' }) : el('img', { 'class': 'eav-file-preview mobile-thumb eav-file-placeholder', src: '/imagem/logo.png', alt: 'Sem imagem' }),
+      el('code', {}, p[1]), ' ', el('span', { 'class': 'mobile-product-name' }, p[2]));
+    if (!p[3]) {
+      li.append(' ', el('small', {}, 'inativo, não aparece na loja'));
+    }
+    li.append(el('button', { type: 'button', 'data-web-remove-product': '', 'aria-label': 'Tirar dos escolhidos' }, '✕'));
+    return li;
+  };
+  // the chosen list, the "Adicionar" options (the category's products not chosen), the counts and the banner note
+  var refresh = function (section) {
+    var box = section.querySelector('[data-web-products-box]');
+    var list = box.querySelector('[data-web-chosen]');
+    var limit = Number(section.querySelector('[data-web-limit]').value) || 0;
+    var products = productsOf(section);
+    var chosen = Array.prototype.map.call(list.children, function (li) { return li.dataset.productId; });
+    var select = box.querySelector('[data-web-add-select]');
+    select.replaceChildren(el('option', { value: '' }, products.length ? 'Escolha um produto desta categoria…' : 'A categoria não tem produtos neste website'));
+    products.forEach(function (p) {
+      if (chosen.indexOf(String(p[0])) === -1) {
+        select.append(el('option', { value: p[0] }, p[1] + ' — ' + p[2] + (p[3] ? '' : ' (inativo)')));
+      }
+    });
+    var shown = list.querySelectorAll('[data-active="1"]').length;
+    var active = products.filter(function (p) { return p[3]; }).length;
+    var newest = Math.max(0, Math.min(limit - Math.min(shown, limit), active - shown));
+    box.querySelector('[data-web-count]').textContent = 'Escolhidos à mão (' + chosen.length + ' de ' + limit + ')';
+    box.querySelector('[data-web-note]').textContent = newest ? '+ ' + newest + ' mais novos da categoria completam os ' + limit : '';
+    box.querySelector('[data-web-summary]').textContent = '· exibe ' + Math.min(limit, active) + ' de ' + active + ' · ' + chosen.length + ' escolhidos';
+    select.disabled = chosen.length >= limit;
+    box.querySelector('[data-web-add-product]').disabled = chosen.length >= limit;
+    var banners = data.banners[section.querySelector('[data-web-section-category]').value] || 0;
+    section.querySelector('[data-web-banner-note]').textContent = banners ? '(' + banners + (banners > 1 ? ' banners, em carrossel)' : ' banner)') : '(a categoria não tem banner: envie em Catálogo → Categorias)';
+  };
+  var start = function (section, ids) {
+    var list = section.querySelector('[data-web-chosen]');
+    var byId = {};
+    productsOf(section).forEach(function (p) { byId[p[0]] = p; });
+    list.replaceChildren();
+    ids.forEach(function (id) { byId[id] && list.append(item(section, byId[id])); });
+    refresh(section);
+  };
+
+  form.querySelectorAll('[data-web-section]').forEach(function (section) {
+    start(section, JSON.parse(section.querySelector('[data-web-products-box]').dataset.chosen || '[]'));
+  });
+  showTop();
+  slides && slideButton();
+
+  form.addEventListener('change', function (event) {
+    if (event.target.matches('[data-web-top]')) {
+      showTop();
+    } else if (event.target.matches('[data-web-section-category]')) {
+      start(event.target.closest('[data-web-section]'), []);
+    }
+  });
+  form.addEventListener('input', function (event) {
+    if (event.target.matches('[data-web-limit]')) {
+      refresh(event.target.closest('[data-web-section]'));
+    }
+  });
+  form.addEventListener('sort', function (event) {
+    var section = event.target.closest('[data-web-section]');
+    section && refresh(section);
+  });
+  form.addEventListener('click', function (event) {
+    var button = event.target.closest('button[type="button"]');
+    var section = button && button.closest('[data-web-section]');
+    if (!button) {
+      return;
+    }
+    if ('webAddSection' in button.dataset) { // the section was added by the listener above, which runs first
+      var added = form.querySelector('[data-web-sections]').lastElementChild;
+      added && start(added, []);
+    } else if ('webAddSlide' in button.dataset) {
+      if (slides.querySelectorAll('[data-web-slide]').length < slideLimit) {
+        serial += 1;
+        var holder = document.createElement('ol');
+        holder.innerHTML = form.querySelector('[data-web-slide-template]').innerHTML.split('__L__').join('n' + Date.now().toString(36) + serial).trim();
+        slides.appendChild(holder.firstElementChild);
+      }
+      slideButton();
+    } else if ('webAddProduct' in button.dataset) {
+      var select = section.querySelector('[data-web-add-select]');
+      var p = productsOf(section).filter(function (x) { return String(x[0]) === select.value; })[0];
+      p && section.querySelector('[data-web-chosen]').append(item(section, p));
+      refresh(section);
+    } else if ('webRemoveProduct' in button.dataset) {
+      button.closest('[data-sort-item]').remove();
+      refresh(section);
+    } else if ('webRemove' in button.dataset && slides) {
+      slideButton(); // the listener above already took the slide out
+    }
+  });
+
 });

@@ -12,7 +12,7 @@
         "vendor": "Iter",
         "module_name": "Catalog",
         "controller_name": "product",
-        "controller_action": "save,delete",
+        "controller_action": "save,delete,massaction",
         "method": "POST"
     },
     {
@@ -44,6 +44,22 @@
         "vendor": "Iter",
         "module_name": "Catalog",
         "controller_name": "mobile",
+        "controller_action": "save",
+        "method": "POST"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Catalog",
+        "controller_name": "web",
+        "controller_action": "index",
+        "method": "GET"
+    },
+    {
+        "route": "admin",
+        "vendor": "Iter",
+        "module_name": "Catalog",
+        "controller_name": "web",
         "controller_action": "save",
         "method": "POST"
     },

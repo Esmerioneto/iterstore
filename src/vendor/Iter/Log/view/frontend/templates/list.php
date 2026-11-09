@@ -41,29 +41,29 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
     <table>
         <thead>
             <tr>
-                <?= \Iter\Admin\View\Sort::th('date', 'Data', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('user', 'Usuário', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('source', 'Origem', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('action', 'Ação', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('area', 'Área', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('record', 'Registro', $sort, $dir) ?>
-                <th>Resumo</th>
+                <?= \Iter\Admin\View\Sort::th('date', 'Data', $sort, $dir) ?><?= $gridColumns->th('date') ?>
+                <?= \Iter\Admin\View\Sort::th('user', 'Usuário', $sort, $dir) ?><?= $gridColumns->th('user') ?>
+                <?= \Iter\Admin\View\Sort::th('source', 'Origem', $sort, $dir) ?><?= $gridColumns->th('source') ?>
+                <?= \Iter\Admin\View\Sort::th('action', 'Ação', $sort, $dir) ?><?= $gridColumns->th('action') ?>
+                <?= \Iter\Admin\View\Sort::th('area', 'Área', $sort, $dir) ?><?= $gridColumns->th('area') ?>
+                <?= \Iter\Admin\View\Sort::th('record', 'Registro', $sort, $dir) ?><?= $gridColumns->th('record') ?>
+                <th>Resumo</th><?= $gridColumns->th('summary') ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php if (!$lines): ?>
-            <tr><td colspan="8" class="admin-empty">Nenhuma operação encontrada.</td></tr>
+            <tr><td colspan="<?= 8 + $gridColumns->count() ?>" class="admin-empty">Nenhuma operação encontrada.</td></tr>
 <?php endif; ?>
 <?php foreach ($lines as $line): ?>
             <tr>
-                <td><?= $e(substr((string) $line['created_at'], 0, 16)) ?></td>
-                <td><?= $e($line['admin_name']) ?></td>
-                <td><?= $line['source'] === 'api' ? 'API' : 'Tela' ?></td>
-                <td class="log-action-<?= $e($line['action']) ?>"><?= $e(OperationLog::ACTIONS[$line['action']] ?? $line['action']) ?></td>
-                <td><?= $e(OperationLog::AREAS[$line['entity_type'] ?? ''] ?? '') ?></td>
-                <td><?= $e($line['entity_label']) ?></td>
-                <td><?= $e(OperationLog::summary($line)) ?></td>
+                <td><?= $e(substr((string) $line['created_at'], 0, 16)) ?></td><?= $gridColumns->td('date', $line['log_id']) ?>
+                <td><?= $e($line['admin_name']) ?></td><?= $gridColumns->td('user', $line['log_id']) ?>
+                <td><?= $line['source'] === 'api' ? 'API' : 'Tela' ?></td><?= $gridColumns->td('source', $line['log_id']) ?>
+                <td class="log-action-<?= $e($line['action']) ?>"><?= $e(OperationLog::ACTIONS[$line['action']] ?? $line['action']) ?></td><?= $gridColumns->td('action', $line['log_id']) ?>
+                <td><?= $e(OperationLog::AREAS[$line['entity_type'] ?? ''] ?? '') ?></td><?= $gridColumns->td('area', $line['log_id']) ?>
+                <td><?= $e($line['entity_label']) ?></td><?= $gridColumns->td('record', $line['log_id']) ?>
+                <td><?= $e(OperationLog::summary($line)) ?></td><?= $gridColumns->td('summary', $line['log_id']) ?>
                 <td class="admin-row-action"><a href="/admin/log/view?id=<?= (int) $line['log_id'] ?>">Ver</a></td>
             </tr>
 <?php endforeach; ?>

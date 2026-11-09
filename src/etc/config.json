@@ -21,7 +21,14 @@
         "iter_message": "1",
         "iter_log": "1",
         "iter_report": "1",
-        "iter_backup": "1"
+        "iter_backup": "1",
+        "iter_tryon": "1",
+        "iter_cloudflare": "1",
+        "iter_gemini": "1",
+        "iter_huggingface": "1",
+        "iter_fashnlocal": "1",
+        "iter_marketing": "1",
+        "iter_wishlist": "1"
     },
     "customized": {
         "egsn_user": "1"

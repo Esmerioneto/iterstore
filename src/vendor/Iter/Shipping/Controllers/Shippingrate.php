@@ -47,4 +47,14 @@ class Shippingrate
         header('Location: /admin/shippingrate/index?website_id=' . $websiteId);
         exit;
     }
+
+    public function Delete(): void
+    {
+        $websiteId = (int) ($_POST['website_id'] ?? 0);
+        (new ShippingService())->deleteTableRate($websiteId, (int) ($_POST['rate_id'] ?? 0))
+            ? Messages::addSuccess('Faixa de frete excluída.')
+            : Messages::addError('Faixa de frete não encontrada.');
+        header('Location: /admin/shippingrate/index?website_id=' . $websiteId);
+        exit;
+    }
 }

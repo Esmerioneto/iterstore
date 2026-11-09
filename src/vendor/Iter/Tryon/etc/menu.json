@@ -1,0 +1,9 @@
+[
+  {
+    "label": "Provador virtual",
+    "resource": "Iter_Tryon::manage",
+    "url": "/admin/tryon/index",
+    "parent": "clientes",
+    "sort_order": 7
+  }
+]

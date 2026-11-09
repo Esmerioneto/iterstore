@@ -39,6 +39,12 @@ class Crypt
         return $plain === false ? '' : $plain;
     }
 
+    /** HMAC-SHA256 (hex) of $data with the env.ini key, for links that must not be forged (e.g. "Não quero mais receber") */
+    public static function mac(string $data): string
+    {
+        return hash_hmac('sha256', $data, self::key());
+    }
+
     /** the key as written in env.ini (crypt_key=...), for the backup's recovery kit only */
     public static function exportKey(): string
     {

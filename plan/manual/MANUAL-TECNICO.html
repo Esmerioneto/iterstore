@@ -1,0 +1,1767 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Manual Técnico e da API — Iter Store</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm; }
+  :root { --ink:#1f1f1f; --muted:#6b6b6b; --line:#e2ded4; --paper:#f7f5ef; --accent:#1d5fa8; --green:#17a589; }
+  * { box-sizing: border-box; }
+  body { font-family: "Inter", "Segoe UI", Arial, sans-serif; color: var(--ink); font-size: 11pt; line-height: 1.55; margin: 0; background: #fff; }
+  main { max-width: 900px; margin: 0 auto; padding: 0 24px 40px; }
+  h1, h2, h3 { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 500; }
+  h2 { font-size: 24pt; border-bottom: 2px solid var(--ink); padding-bottom: 6px; margin: 0 0 14px; break-before: page; }
+  h3 { font-size: 15pt; margin: 22px 0 6px; }
+  h4 { font-size: 10.5pt; letter-spacing: .06em; text-transform: uppercase; margin: 16px 0 4px; }
+  p { margin: 6px 0; }
+  ul, ol { margin: 6px 0 6px 0; padding-left: 22px; }
+  li { margin: 2px 0; }
+  figure { margin: 14px 0 18px; break-inside: avoid; }
+  .report-group { break-inside: avoid; }
+  figure img { width: 100%; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+  figcaption { font-size: 9pt; color: var(--muted); text-align: center; margin-top: 6px; }
+  .path { display: inline-block; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; font-size: 9.5pt; }
+  .tip, .warn { border-radius: 8px; padding: 10px 14px; margin: 12px 0; break-inside: avoid; }
+  .tip { background: #eef6f3; border-left: 4px solid var(--green); }
+  .warn { background: #fdf3e6; border-left: 4px solid #e08a1e; }
+  .tip b:first-child, .warn b:first-child { display: block; margin-bottom: 2px; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 10pt; break-inside: avoid; }
+  th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: var(--paper); }
+  .steps { counter-reset: s; list-style: none; padding-left: 0; }
+  .steps li { counter-increment: s; position: relative; padding-left: 34px; margin: 6px 0; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 9pt; display: flex; align-items: center; justify-content: center; }
+
+  /* Capa */
+  .cover { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center; padding: 60px 0 30px; break-after: page; }
+  .cover .iter { width: 220px; margin-top: 40px; }
+  .cover h1 { font-size: 40pt; margin: 30px 0 4px; }
+  .cover .sub { font-size: 14pt; color: var(--muted); }
+  .cover .ver { margin-top: 18px; font-size: 10pt; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  .signature { display: flex; align-items: center; gap: 18px; border-top: 1px solid var(--line); padding-top: 22px; text-align: left; }
+  .signature img { width: 84px; }
+  .signature p { margin: 2px 0; }
+  .signature .small { font-size: 9pt; color: var(--muted); }
+
+  /* Sumário */
+  .toc { break-after: page; }
+  .toc h2 { break-before: auto; }
+  .toc ol { columns: 2; column-gap: 32px; font-size: 10.5pt; }
+  .toc ol ol { columns: 1; font-size: 9.5pt; color: var(--muted); padding-left: 16px; }
+  .toc a { color: inherit; text-decoration: none; }
+
+  .final { break-before: page; text-align: center; padding-top: 120px; }
+  .final img { width: 140px; }
+  @media screen { body { background: #ece9e1; } main { background: #fff; padding: 30px 48px 60px; box-shadow: 0 0 30px rgba(0,0,0,.08); } }
+
+  code { font-family: "JetBrains Mono", "DejaVu Sans Mono", Consolas, monospace; font-size: 9pt; background: var(--paper); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  pre { font-family: "JetBrains Mono", "DejaVu Sans Mono", Consolas, monospace; font-size: 8.4pt; line-height: 1.45; background: #f6f5f1; border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; margin: 4px 0 8px; white-space: pre-wrap; word-break: break-word; }
+  pre.gql { border-left: 3px solid var(--accent); }
+  pre.json { border-left: 3px solid var(--green); }
+  pre.sh { border-left: 3px solid var(--ink); }
+  .ex { margin: 14px 0 20px; }
+  .ex h4 { margin-top: 18px; }
+  .lbl { font-size: 8pt; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+  .hdr { font-family: "DejaVu Sans Mono", Consolas, monospace; font-size: 8.4pt; color: var(--accent); margin: 2px 0; }
+  table.ref { font-size: 8.8pt; break-inside: auto; }
+  table.ref td:first-child { white-space: nowrap; }
+  table.ref td:nth-child(2) { width: 25%; }
+  table { break-inside: auto; }
+  tr { break-inside: avoid; }
+</style>
+</head>
+<body>
+<main>
+
+<section class="cover">
+  <div>
+    <img class="iter" src="img/iter-logo.png" alt="Logo Iter Store">
+    <h1>Manual Técnico</h1>
+    <div class="sub">Iter Store — Instalação, operação e API GraphQL</div>
+    <div class="ver">Versão 1.0 · Outubro de 2026</div>
+  </div>
+  <div class="signature">
+    <img src="img/egsn-logo.png" alt="Logo EGSN">
+    <div>
+      <p class="small">Sistema projetado e desenvolvido por</p>
+      <p><strong>Esmerio Neto</strong> — EGSN</p>
+      <p class="small">esmerioneto@gmail.com · © 2026 EGSN. Todos os direitos reservados.</p>
+    </div>
+  </div>
+</section>
+
+<section class="toc">
+  <h2>Sumário</h2>
+  <ol>
+    <li><a href="#visao">Visão geral</a><ol><li>Arquitetura</li><li>Módulos</li></ol></li>
+    <li><a href="#instalacao">Instalação e ambiente</a><ol><li>Requisitos</li><li>Passo a passo</li><li>Arquivos de configuração</li><li>Produção</li></ol></li>
+    <li><a href="#operacao">Operação</a><ol><li>Tarefas agendadas (cron)</li><li>Webhook do Mercado Pago</li><li>Logs</li><li>Testes</li><li>Backup</li></ol></li>
+    <li><a href="#api">A API GraphQL</a><ol><li>Endpoint e formato</li><li>Autenticação</li><li>Cabeçalhos e CORS</li><li>Erros</li><li>Limites</li><li>Envio de arquivos</li></ol></li>
+    <li><a href="#catalogo">Exemplos: loja e catálogo</a></li>
+    <li><a href="#checkout">Exemplos: compra do visitante</a></li>
+    <li><a href="#cliente">Exemplos: conta do cliente</a></li>
+    <li><a href="#admin">Exemplos: integração do admin</a><ol><li>Login</li><li>Pedidos</li><li>Produtos e estoque</li><li>Relatórios</li></ol></li>
+    <li><a href="#erros">Códigos de erro</a></li>
+    <li><a href="#referencia">Referência das consultas e mutações</a></li>
+  </ol>
+  <div class="tip"><b>Exemplos reais</b>Todas as requisições deste manual foram executadas contra a API desta instalação em 20/10/2026, e as respostas são as que ela devolveu (dentro de uma transação desfeita depois: nada ficou gravado). Listas longas foram cortadas ("… mais N") e os tokens, abreviados.</div>
+</section>
+
+<section id="visao">
+  <h2>1. Visão geral</h2>
+  <h3>1.1 Arquitetura</h3>
+  <p>O Iter Store é uma aplicação PHP sem framework externo, com PostgreSQL. Tem duas portas de entrada:</p>
+  <ul>
+    <li><strong>Painel administrativo</strong> (<code>/admin</code>): telas renderizadas no servidor, sessão por cookie, proteção CSRF (<code>form_key</code>) e permissões por perfil (ACL).</li>
+    <li><strong>API GraphQL</strong> (<code>/core/graphql/index</code>): um único endpoint para o app, o site e integrações (ERP, atendimento, contabilidade). O contrato completo fica em <code>schema.graphql</code>, na raiz do projeto.</li>
+  </ul>
+  <p>Os dados flexíveis (atributos de produto, categoria, cliente e endereço) usam o modelo <strong>EAV</strong>: os campos são criados no painel (Catálogo → Atributos) e aparecem na API em <code>attributes</code>, sem mudar o código. As views <code>customer_flat</code> e <code>customer_address_flat</code> entregam o cliente "achatado" para consultas.</p>
+  <p>O código fica em módulos (<code>src/vendor/Iter/&lt;Módulo&gt;</code>), cada um com <code>etc/config.json</code> (nome e dependências), <code>etc/acl.json</code> (permissões), <code>etc/menu.json</code>, <code>etc/router.json</code>, <code>Setup/</code> (migrações), <code>GraphQl/</code> (a parte da API) e <code>view/</code>. Módulos próprios do cliente ficam em <code>src/app/code/</code>. Desligar um módulo em Lojas → Configurações → Módulos tira as telas e a API dele, sem apagar os dados.</p>
+
+  <h3>1.2 Módulos</h3>
+  <table><tr><th>Módulo</th><th>Depende de</th><th>O que faz</th></tr>
+  <tr><td><strong>Core</strong></td><td>—</td><td>Banco (Adapter, Select), configuração, criptografia dos segredos, log, sessão, limite por IP, migrações e o endpoint GraphQL.</td></tr><tr><td><strong>Router</strong></td><td>—</td><td>Rotas: <code>/admin/&lt;controller&gt;/&lt;ação&gt;</code> e as rotas dos módulos (<code>etc/router.json</code>).</td></tr><tr><td><strong>Admin</strong></td><td>—</td><td>Login do painel, perfis e permissões (ACL), menu, token da API do admin.</td></tr><tr><td><strong>Config</strong></td><td>—</td><td>Configurações por escopo (padrão / website) e a tela de módulos.</td></tr><tr><td><strong>Mail</strong></td><td>—</td><td>Fila de e-mails, modelos editáveis e e-mails enviados.</td></tr><tr><td><strong>Store</strong></td><td>—</td><td>Websites, grupos e lojas.</td></tr><tr><td><strong>Eav</strong></td><td>—</td><td>Atributos, conjuntos e valores (produto, categoria, cliente, endereço).</td></tr><tr><td><strong>Catalog</strong></td><td>Eav</td><td>Produtos (simples e com grade), categorias, imagens, custo, ordem do app e importação de custos.</td></tr><tr><td><strong>Inventory</strong></td><td>Catalog</td><td>Origens de estoque, quantidade por origem, reservas e o vendável.</td></tr><tr><td><strong>Customer</strong></td><td>Eav, Store</td><td>Clientes PF/PJ, endereços, login do cliente na loja e token da API.</td></tr><tr><td><strong>Sales</strong></td><td>Catalog, Inventory, Customer, Store</td><td>Carrinho, pedido, situações, envio, cancelamento e painel de vendas.</td></tr><tr><td><strong>Adminsales</strong></td><td>Sales</td><td>Vendas → Novo pedido (pedido feito pelo atendimento) e a API correspondente.</td></tr><tr><td><strong>Payment</strong></td><td>Sales</td><td>Formas de pagamento manuais (Pix com chave, pagamento na entrega).</td></tr><tr><td><strong>Mercadopago</strong></td><td>Payment</td><td>Pix, crédito e débito pelo Mercado Pago, webhook, sincronização e estorno.</td></tr><tr><td><strong>Shipping</strong></td><td>Sales</td><td>Frete por faixas, retirada na loja e o registro de provedores.</td></tr><tr><td><strong>Melhorenvio</strong></td><td>Shipping</td><td>Cotação pelo Melhor Envio (OAuth).</td></tr><tr><td><strong>Correios</strong></td><td>Shipping</td><td>Cotação pela API dos Correios (contrato). <em>Desligado nesta instalação.</em></td></tr><tr><td><strong>Promotion</strong></td><td>Sales, Catalog, Store</td><td>Promoções automáticas e cupons.</td></tr><tr><td><strong>Message</strong></td><td>Customer, Store</td><td>Mensagens entre a loja e o cliente.</td></tr><tr><td><strong>Log</strong></td><td>Admin, Config</td><td>Log de operações (auditoria) com antes e depois.</td></tr><tr><td><strong>Report</strong></td><td>Admin, Config, Sales</td><td>Os 26 relatórios, exportação, envio por e-mail e a API de relatórios.</td></tr>
+  </table>
+  <p>Core, Router, Admin, Config e Mail são obrigatórios. Os outros são ligados em <code>src/etc/config.json</code> (pela tela de módulos); o painel recusa desligar um módulo do qual outro ligado depende.</p>
+</section>
+
+<section id="instalacao">
+  <h2>2. Instalação e ambiente</h2>
+  <h3>2.1 Requisitos</h3>
+  <ul>
+    <li>PHP 8.1 ou superior com <code>pdo_pgsql</code>, <code>mbstring</code>, <code>curl</code>, <code>gd</code>, <code>zip</code> e <code>openssl</code>.</li>
+    <li>Composer. Bibliotecas: webonyx/graphql-php (API), symfony/mailer (e-mail), guzzlehttp/guzzle (Mercado Pago, Melhor Envio, Correios), openspout/openspout (Excel) e dompdf/dompdf (PDF dos relatórios).</li>
+    <li>PostgreSQL 15 (há um <code>docker-compose.yml</code> pronto para desenvolvimento, ouvindo só em 127.0.0.1:5432; em produção, PostgreSQL instalado no servidor ou gerenciado).</li>
+    <li>Para o backup: <code>restic</code> e o <code>pg_dump</code>/<code>psql</code> da mesma versão do PostgreSQL ou mais nova (<code>postgresql-client-15</code>).</li>
+  </ul>
+  <h3>2.2 Passo a passo</h3>
+  <pre class="sh">composer install
+docker compose up -d                                  # PostgreSQL
+cp src/etc/database.ini.sample src/etc/database.ini   # credenciais do banco
+cp src/etc/mail.ini.sample src/etc/mail.ini           # SMTP
+php bin/migrate.php up                                # cria e atualiza as tabelas
+php bin/create-admin.php admin 'SenhaForte123' admin@loja.com.br
+php -S localhost:8080 -t public                       # só para desenvolvimento</pre>
+  <p>O painel abre em <code>http://localhost:8080/admin</code> e a API em <code>http://localhost:8080/core/graphql/index</code>. Depois de ligar um módulo pela primeira vez, rode <code>php bin/migrate.php up</code> de novo. <code>php bin/migrate.php down</code> desfaz a última migração.</p>
+  <h3>2.3 Arquivos de configuração</h3>
+  <table><tr><th>Arquivo</th><th>Conteúdo</th></tr>
+    <tr><td><code>src/etc/database.ini</code></td><td>Host, porta, banco, usuário e senha do PostgreSQL. Fora do Git.</td></tr>
+    <tr><td><code>src/etc/mail.ini</code></td><td>Transporte de e-mail (SMTP ou <code>log</code>, que grava os e-mails em <code>var/mail</code>). Fora do Git.</td></tr>
+    <tr><td><code>src/etc/env.ini</code></td><td>A chave que criptografa os segredos gravados no banco (Access Token do Mercado Pago, senha dos Correios…). Criado no primeiro uso. Entra no backup e no kit de recuperação: sem ele, esses segredos (e a senha do backup) não podem ser lidos.</td></tr>
+    <tr><td><code>src/etc/config.json</code></td><td>Os módulos ligados. Alterado pela tela de módulos.</td></tr>
+    <tr><td><code>schema.graphql</code></td><td>O contrato da API. Regere com <code>php bin/schema-dump.php</code> depois de mudar a API (o teste do admin falha se ele estiver desatualizado).</td></tr>
+  </table>
+  <p>As demais configurações (prazos, limites, credenciais de pagamento e frete, CORS, limites da API) ficam no banco (<code>core_config_data</code>) e são editadas em Lojas → Configurações, por padrão ou por website.</p>
+  <h3>2.4 Produção</h3>
+  <ul>
+    <li>Raiz web apontando para <code>public/</code>; tudo o mais fica fora do alcance do navegador. Todas as requisições vão para <code>public/index.php</code> (no Nginx: <code>try_files $uri /index.php?$query_string;</code>).</li>
+    <li>HTTPS obrigatório: o token da API vai no cabeçalho de cada requisição. Com o certificado instalado, ligue Configurações → Geral → <em>Usar só HTTPS</em>: páginas em http são redirecionadas, a API em http é recusada (403), o navegador recebe HSTS e o cookie do painel passa a ser <code>Secure</code>.</li>
+    <li>Atrás de um balanceador, proxy ou CDN, informe os IPs dele em Configurações → Geral → <em>Proxies confiáveis</em>. Sem isso, todos os clientes parecem vir do IP do proxy e o limite por IP bloqueia todo mundo junto; com isso, o IP do cliente e o HTTPS vêm de <code>X-Forwarded-For</code> e <code>X-Forwarded-Proto</code> (só quando enviados pelo proxy).</li>
+    <li>Crie uma chave em Sistema → Chaves da API para cada app e site, configure-os para enviá-la e ligue <em>Exigir chave do aplicativo</em>.</li>
+    <li><code>display_errors</code> desligado no PHP; os erros vão para <code>var/log</code>.</li>
+    <li><code>var/</code> (logs, cache, sessões, e-mails) e <code>public/media/</code> (imagens enviadas) graváveis pelo usuário do PHP; <code>public/media/</code> entra no backup junto com o banco e o <code>src/etc</code> (3.5).</li>
+    <li>Backup: o cron do <code>bin/backup.php</code> ativo, um destino externo em Configurações → Backup e o kit de recuperação guardado fora do servidor (3.5).</li>
+    <li>Em CORS, informe só os sites que podem chamar a API pelo navegador.</li>
+    <li><code>src/etc/database.ini</code> e <code>mail.ini</code> com permissão 600 (só o usuário do PHP lê), como o <code>env.ini</code>.</li>
+    <li>O painel já envia <code>X-Frame-Options: DENY</code>, CSP <code>frame-ancestors 'none'</code>, <code>nosniff</code> e <code>Referrer-Policy: same-origin</code>. A sessão do painel termina depois de 8 h sem uso e 12 h desde o login (Configurações → Segurança do admin), e quando a senha muda. Sair é um POST com <code>form_key</code> (<code>/admin/auth/logoutpost</code>).</li>
+  </ul>
+</section>
+
+<section id="operacao">
+  <h2>3. Operação</h2>
+  <h3>3.1 Tarefas agendadas (cron)</h3>
+  <table><tr><th>Quando</th><th>Script</th><th>Para quê</th></tr>
+  <tr><td><code>* * * * *</code></td><td><code>bin/mail-worker.php</code></td><td>Envia a fila de e-mails. Sem ele, nenhum e-mail sai.</td></tr><tr><td><code>* * * * *</code></td><td><code>bin/mercadopago-sync-loop.sh</code></td><td>Roda o mercadopago-sync.php a cada 5 segundos dentro do minuto (com flock), para o Pix ser confirmado rápido. Alternativa mais leve: mercadopago-sync.php a cada 10 minutos.</td></tr><tr><td><code>15 * * * *</code></td><td><code>bin/order-clean.php</code></td><td>Cancela os pedidos não pagos depois do prazo de cada forma de pagamento.</td></tr><tr><td><code>10 0 * * *</code></td><td><code>bin/log-clean.php</code></td><td>Apaga os arquivos de log e o log de operações mais antigos que o prazo configurado.</td></tr><tr><td><code>20 0 * * *</code></td><td><code>bin/quote-clean.php</code></td><td>Apaga carrinhos de visitante e pedidos em montagem do admin parados.</td></tr><tr><td><code>30 7 * * *</code></td><td><code>bin/report-mail.php</code></td><td>Envio automático dos relatórios (segunda-feira ou dia 1º, se ligado).</td></tr><tr><td><code>* * * * *</code></td><td><code>bin/backup.php</code></td><td>Backup com restic no intervalo de Configurações → Backup (ou ao &quot;Fazer backup agora&quot;); limpeza diária das cópias velhas e teste de restauração mensal. Ver 3.5.</td></tr>
+  </table>
+  <pre class="sh">* * * * *   php /srv/iterstore/bin/mail-worker.php
+* * * * *   /srv/iterstore/bin/mercadopago-sync-loop.sh
+15 * * * *  php /srv/iterstore/bin/order-clean.php
+10 0 * * *  php /srv/iterstore/bin/log-clean.php
+20 0 * * *  php /srv/iterstore/bin/quote-clean.php
+30 7 * * *  php /srv/iterstore/bin/report-mail.php
+* * * * *   php /srv/iterstore/bin/backup.php >> /srv/iterstore/var/log/backup.log 2>&1</pre>
+  <p>Outros scripts: <code>bin/create-admin.php</code> (primeiro admin, ou recuperar o acesso), <code>bin/schema-dump.php</code> (regera o <code>schema.graphql</code>), <code>bin/migrate.php</code> e <code>bin/db-bench.php</code> (tempo das listagens EAV).</p>
+  <h3>3.2 Webhook do Mercado Pago</h3>
+  <p>A única rota fora do GraphQL e do painel: <code>POST https://sua-loja/mercadopago/webhook</code>. Cadastre-a no painel do Mercado Pago (Suas integrações → Webhooks, tópico <em>Order</em>) e copie a "assinatura secreta" para Configurações → Pagamento. Com a assinatura salva, avisos com <code>x-signature</code> inválida recebem 401, e também os assinados há mais de 10 minutos (o <code>ts</code> da assinatura, em segundos ou milissegundos): um aviso capturado e reenviado depois é recusado. O corpo do aviso só diz qual cobrança mudou: o sistema relê a cobrança na API do Mercado Pago, e o cron <code>mercadopago-sync</code> cobre os avisos perdidos.</p>
+  <h3>3.3 Logs</h3>
+  <ul>
+    <li><code>var/log/iter-AAAA-MM-DD.log</code>: erros e avisos do sistema, um arquivo por dia (inclui a causa real de um <code>INTERNAL_ERROR</code> da API). Consulta também em Sistema → Log do sistema.</li>
+    <li>Log de operações (tabela <code>log_operation</code>): quem fez o quê no painel ou pela API, com antes e depois, logins e exportações de relatórios de clientes e financeiros.</li>
+    <li>E-mails: tabela <code>mail_queue</code>, consultada em Sistema → E-mails enviados.</li>
+  </ul>
+  <h3>3.4 Testes</h3>
+  <pre class="sh">composer test</pre>
+  <p>Roda <code>view-selftest</code>, <code>db-selftest</code>, <code>admin-selftest</code> (sobe um <code>php -S</code> e testa o painel e a API de ponta a ponta), <code>promotion-selftest</code>, <code>report-selftest</code>, <code>backup-selftest</code> (um backup de verdade num repositório descartável, com restauração e zip) e <code>shipping-provider-selftest</code> (provedores de frete sem rede). Usam o banco real: criam registros <code>selftest_*</code> ou trabalham numa transação desfeita, e limpam tudo ao terminar. Mantêm ligados só os módulos que estavam ligados antes.</p>
+  <h3>3.5 Backup</h3>
+  <p>Módulo <code>Iter_Backup</code>, com <a href="https://restic.net">restic</a>. Cada cópia leva o banco em SQL puro (<code>pg_dump --no-owner --no-privileges</code>, em <code>var/backup/dump/banco.sql</code>, apagado depois), o <code>commit.txt</code> do código, <code>public/media</code> e <code>src/etc</code>. O restic compacta (zstd, nível máximo), cifra e só guarda o que mudou: com o banco de 17 MB e 4,5 MB de imagens, a primeira cópia ocupa 2,6 MB e cada nova cerca de 0,1 MB.</p>
+  <ul>
+    <li><strong>Configurações → Backup</strong> (<code>system/backup/*</code>, permissão <code>Iter_Backup::backup</code>): ligado, intervalo (1 h a 1 semana, com horário e dia), retenção (<code>--keep-hourly/daily/weekly/monthly</code>, padrão 24/7/4/12; todos em 0 é recusado), e-mail de falha, avisos no Dashboard (<code>system/backup/dashboard_warnings</code>; desligado, o Dashboard não mostra nada do backup) e destino: pasta local (padrão <code>var/backup/repo</code>, nunca em <code>public/</code>), Backblaze B2 (<code>b2:&lt;bucket&gt;:iterstore</code>) ou S3 compatível (<code>s3:https://&lt;endpoint&gt;/&lt;bucket&gt;/iterstore</code>). A chave secreta é gravada cifrada.</li>
+    <li><strong>Senha do repositório:</strong> gerada no primeiro uso (64 hex), gravada cifrada em <code>system/backup/repo_password</code>. Credenciais vão ao restic pelo ambiente (<code>RESTIC_PASSWORD</code>, <code>B2_ACCOUNT_*</code>, <code>AWS_*</code>), a senha do banco por <code>PGPASSWORD</code>; nada vai na linha de comando.</li>
+    <li><strong>Cron:</strong> a cada minuto, com <code>flock</code>. Copia quando vence o intervalo ou existe <code>var/backup/run-now</code> (botão "Fazer backup agora"). Depois de uma falha, espera 15 minutos. Limpeza (<code>forget --prune</code>) uma vez por dia; teste de restauração uma vez a cada 30 dias.</li>
+    <li><strong>Situação:</strong> <code>var/backup/status.json</code> (última cópia, cópias, espaço, erro, teste), lido por Sistema → Backup e pelo Dashboard. O painel nunca chama o restic.</li>
+    <li><strong>Teste de restauração:</strong> o <code>banco.sql</code> da última cópia é restaurado num banco <code>&lt;banco&gt;_verify</code> (o usuário do banco precisa de <code>CREATEDB</code>), conferido (todas as tabelas, e pedidos, clientes e produtos ao menos os contados antes do dump) e apagado.</li>
+    <li><strong>Kit de recuperação</strong> (Sistema → Backup → Abrir o kit): só o perfil Administrador, pede a senha de novo, fica no log de operações (<code>backup_kit</code>). Mostra a senha do restic e a <code>crypt_key</code> do <code>env.ini</code>. Guardar no gerenciador de senhas da empresa e impresso, nunca por e-mail.</li>
+  </ul>
+  <pre class="sh">php bin/backup.php                    # o que o cron roda
+php bin/backup.php now antes-migracao # uma cópia agora, com marcação
+php bin/backup.php verify             # teste de restauração agora
+php bin/backup.php zip [cópia]        # .zip de uma cópia (latest) em var/backup/, permissão 600</pre>
+  <h4>Restaurar num servidor novo</h4>
+  <pre class="sh">export RESTIC_REPOSITORY='b2:bucket:iterstore'   # ou s3:https://..., ou a pasta
+export RESTIC_PASSWORD='...'                     # do kit de recuperação
+export B2_ACCOUNT_ID='...' B2_ACCOUNT_KEY='...'  # ou AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
+restic snapshots                                 # escolha a cópia (latest = a última)
+restic restore latest --target /tmp/r
+createdb loja
+grep -v '^SET transaction_timeout' /tmp/r/&lt;raiz&gt;/var/backup/dump/banco.sql | psql -v ON_ERROR_STOP=1 -d loja
+git checkout $(cat /tmp/r/&lt;raiz&gt;/var/backup/dump/commit.txt)
+cp -a /tmp/r/&lt;raiz&gt;/public/media public/ &amp;&amp; cp -a /tmp/r/&lt;raiz&gt;/src/etc/. src/etc/
+composer install &amp;&amp; php bin/migrate.php up</pre>
+  <p><code>&lt;raiz&gt;</code> é o caminho do sistema no servidor antigo (o restic guarda caminhos absolutos). Confira o <code>crypt_key</code> do <code>src/etc/env.ini</code> restaurado com o do kit e ajuste <code>database.ini</code> para o banco novo. A linha <code>SET transaction_timeout</code> só existe em dumps de pg_dump 17+ e é desconhecida antes do PostgreSQL 17.</p>
+</section>
+
+<section id="api">
+  <h2>4. A API GraphQL</h2>
+  <h3>4.1 Endpoint e formato</h3>
+  <p>Toda chamada é um <code>POST</code> para <code>/core/graphql/index</code> com um JSON <code>{"query": "...", "variables": {...}}</code>. A resposta é sempre HTTP 200 com <code>data</code> e/ou <code>errors</code>, exceto token ou chave inválidos (401), excesso de requisições (429) e chamada sem HTTPS com "Usar só HTTPS" ligado (403).</p>
+  <pre class="sh">curl -s https://sua-loja/core/graphql/index \
+  -H 'Content-Type: application/json' \
+  -H 'X-Api-Key: itk_…'   # quando a chave é exigida \
+  -d '{"query":"{ websites { id name isDefault } }"}'</pre>
+  <pre class="json">[{&quot;id&quot;: &quot;15&quot;, &quot;name&quot;: &quot;Loja RJ&quot;, &quot;isDefault&quot;: true}, {&quot;id&quot;: &quot;216&quot;, &quot;name&quot;: &quot;Loja SP&quot;, &quot;isDefault&quot;: false}]</pre>
+  <h4>Com variáveis (JavaScript)</h4>
+  <pre class="gql">const API = 'https://sua-loja/core/graphql/index';
+
+async function gql(query, variables = {}, token = null) {
+  const res = await fetch(API, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Api-Key': process.env.API_KEY,   // Sistema → Chaves da API
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  const json = await res.json();
+  if (json.errors?.length) {
+    const err = new Error(json.errors[0].message);
+    err.code = json.errors[0].extensions?.code;   // decida pelo código, não pela mensagem
+    throw err;
+  }
+  return json.data;
+}
+
+const { product } = await gql(
+  'query P($sku: String!) { product(sku: $sku) { name priceRange { min max } } }',
+  { sku: 'MODA-CALCA-JEANS' },
+);</pre>
+  <h4>Em PHP (Guzzle, já instalado no projeto)</h4>
+  <pre class="gql">$http = new GuzzleHttp\Client(['base_uri' => 'https://sua-loja/']);
+$res = $http->post('core/graphql/index', [
+    'headers' => ['Authorization' => 'Bearer ' . $token], // com o token de admin, a chave não é pedida
+    'json' => [
+        'query' => 'query ($s: OrderStatus) { orders(status: $s, pageSize: 50) { total items { number total } } }',
+        'variables' => ['s' => 'processing'],
+    ],
+]);
+$body = json_decode((string) $res->getBody(), true);
+if (isset($body['errors'])) {
+    throw new RuntimeException($body['errors'][0]['extensions']['code'] . ': ' . $body['errors'][0]['message']);
+}</pre>
+  <p>Para explorar a API, use <span class="path">Sistema → API (GraphiQL)</span> no painel: autocompletar, documentação de cada campo e execução com a sessão do admin logado.</p>
+
+  <h3>4.2 Autenticação</h3>
+  <table><tr><th>Quem</th><th>Como entra</th><th>Validade</th></tr>
+    <tr><td><strong>Visitante</strong></td><td>Sem token. O carrinho é identificado pelo <code>cartId</code> devolvido por <code>createCart</code>.</td><td>O carrinho some depois dos dias de Configurações → Vendas.</td></tr>
+    <tr><td><strong>Cliente da loja</strong></td><td><code>generateCustomerToken</code> (ou <code>registerCustomer</code>) devolve um token. Envie <code>Authorization: Bearer &lt;token&gt;</code>. <code>refreshCustomerToken</code> renova; <code>revokeCustomerToken</code> sai.</td><td>Configurações → Clientes (padrão 720 h).</td></tr>
+    <tr><td><strong>Aplicativo ou site</strong></td><td>Uma chave criada em <span class="path">Sistema → Chaves da API</span>, enviada no cabeçalho <code>X-Api-Key</code> de toda chamada. Exigida quando "Exigir chave do aplicativo" está ligado em Configurações → API; aí, sem ela, a resposta é HTTP 401 <code>API_KEY_INVALID</code>.</td><td>Até ser revogada no painel.</td></tr>
+    <tr><td><strong>Admin / integração</strong></td><td><code>generateAdminToken</code> com o usuário e a senha de um usuário do painel. O token tem as mesmas permissões do perfil dele. <code>revokeAdminToken</code> sai.</td><td>Configurações → Segurança do admin (padrão 4 h). Trocar a senha invalida os tokens anteriores.</td></tr>
+  </table>
+  <div class="tip"><b>Usuário próprio para cada integração</b>Crie um usuário do painel para cada sistema integrado (ex.: "integracao-erp"), com um perfil que só tenha as permissões necessárias. Tudo o que ele fizer fica no log de operações com o nome dele.</div>
+  <p>Com a chave exigida, o visitante e o cliente precisam dela (o login do admin também: <code>generateAdminToken</code> vai com a chave). Já com o token de admin em mãos, ou logado no painel (GraphiQL), a chave não é pedida. Uma chave por aplicativo: se uma vazar, revogue só ela e publique o app com a nova.</p>
+  <p>Um token de cliente nunca passa pelos campos do admin (a resposta é <code>UNAUTHENTICATED</code>). Um token inválido ou vencido é recusado com HTTP 401 e o código <code>TOKEN_INVALID</code>, mesmo em campos públicos: descarte-o e faça login de novo.</p>
+
+  <h3>4.3 Cabeçalhos e CORS</h3>
+  <table><tr><th>Cabeçalho</th><th>Uso</th></tr>
+    <tr><td><code>Content-Type: application/json</code></td><td>Obrigatório (exceto no envio de arquivos). Com a sessão do painel (GraphiQL), outro tipo dá 415 <code>UNSUPPORTED_MEDIA_TYPE</code>.</td></tr>
+    <tr><td><code>Authorization: Bearer &lt;token&gt;</code></td><td>Cliente ou admin.</td></tr>
+    <tr><td><code>X-Api-Key</code></td><td>A chave do aplicativo ou site (Sistema → Chaves da API).</td></tr>
+    <tr><td><code>X-Sales-Channel</code></td><td>No <code>placeOrder</code>: o canal de venda gravado no pedido ("Site", "App mobile", "Instagram"…). Sem ele, "App mobile". Aparece nos relatórios de canal.</td></tr>
+  </table>
+  <p>Para chamar a API pelo navegador a partir de outro domínio, cadastre o site em Configurações → Geral → "Sites que podem usar a API pelo navegador (CORS)" (um por linha, ou <code>*</code>). Apps nativos e servidores não precisam de CORS. O CORS só controla navegadores: contra programas em servidores, valem a chave do aplicativo e os limites por IP. O login pela API nunca usa cookie: só o token.</p>
+
+  <h3>4.4 Erros</h3>
+  <p>Todo erro traz <code>extensions.code</code>. A mensagem é em português e pode ser mostrada ao usuário, mas a lógica do cliente deve decidir pelo código. Exemplo, um produto com grade colocado no carrinho:</p>
+  <pre class="json">{
+  &quot;errors&quot;: [
+    {
+      &quot;message&quot;: &quot;&#x27;Calça Jeans Skinny&#x27; tem grade: escolha a variação (cor, tamanho...).&quot;,
+      &quot;path&quot;: [
+        &quot;addToCart&quot;
+      ],
+      &quot;extensions&quot;: {
+        &quot;code&quot;: &quot;PRODUCT_IS_CONFIGURABLE&quot;
+      }
+    }
+  ]
+}</pre>
+  <p>Erros de sintaxe e de campo inexistente (testados no servidor):</p>
+  <pre class="json">{"errors":[{"message":"Syntax Error: Expected Name, found &lt;EOF&gt;","extensions":{"code":"GRAPHQL_PARSE_FAILED"}}]}
+{"errors":[{"message":"Cannot query field \"slug\" on type \"Website\".","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}]}</pre>
+  <p>Token inválido (HTTP 401):</p>
+  <pre class="json">{"errors":[{"message":"Token inválido ou expirado. Faça login de novo.","extensions":{"code":"TOKEN_INVALID"}}]}</pre>
+  <p>A lista dos códigos está no capítulo 9.</p>
+
+  <h3>4.5 Limites</h3>
+  <table><tr><th>Limite</th><th>Padrão</th><th>Onde muda</th></tr>
+    <tr><td>Profundidade da consulta</td><td>15 níveis</td><td>Configurações → API</td></tr>
+    <tr><td>Complexidade da consulta</td><td>1.500 pontos sem login de admin; o admin, sem limite. Cada campo conta 1; uma lista paginada (<code>products</code>, <code>orders</code>, <code>myOrders</code>, <code>customers</code>…) conta os campos de dentro × o <code>pageSize</code> (até 100); o <code>report</code>, × <code>pageSize</code> ÷ 10. A consulta mais cara do app (<code>myOrders</code> com 20 por página) fica perto de 660</td><td>Configurações → API</td></tr>
+    <tr><td>Tamanho da chamada (corpo JSON)</td><td>64 KB sem login de admin, 8 MB com; acima, HTTP 413 <code>PAYLOAD_TOO_LARGE</code>. O envio de arquivos segue o limite do PHP</td><td>Configurações → API</td></tr>
+    <tr><td>Introspecção (<code>__schema</code>) sem login de admin</td><td>desligada (o admin logado sempre tem, para o GraphiQL)</td><td>Configurações → API</td></tr>
+    <tr><td>Requisições à API por IP (o admin não entra)</td><td>240 por minuto; acima, HTTP 429 <code>TOO_MANY_REQUESTS</code></td><td>Configurações → API</td></tr>
+    <tr><td>Cotações de frete (<code>shippingQuotes</code>) por IP</td><td>20 por minuto</td><td>Configurações → API</td></tr>
+    <tr><td>Carrinhos criados / pedidos fechados / consultas de pedido de visitante, por IP</td><td>30 / 10 / 10 por minuto</td><td>Configurações → Vendas</td></tr>
+    <tr><td>Login do admin (API e painel) e "Esqueci a senha"</td><td>10 por minuto por IP</td><td>Configurações → Segurança do admin</td></tr>
+    <tr><td>Login e cadastro de cliente</td><td>10 por minuto por IP</td><td>Configurações → Clientes</td></tr>
+    <tr><td>Mensagens do cliente (<code>sendCustomerMessage</code>)</td><td>10 por minuto por cliente; as respostas da loja não têm limite</td><td>Configurações → Clientes</td></tr>
+    <tr><td><code>pageSize</code> das listas</td><td>padrão 20; relatórios até 1.000</td><td>—</td></tr>
+  </table>
+  <p>Os limites por IP contam um endereço IPv6 pelo bloco <code>/64</code> (quem tem um bloco inteiro não escapa trocando de endereço); o IPv4 conta pelo endereço.</p>
+  <p>Uma consulta acima dos limites é recusada antes de rodar:</p>
+  <pre class="json">{"errors":[{"message":"Max query depth should be 15 but got 20.","extensions":{"code":"QUERY_LIMIT_EXCEEDED"}}]}</pre>
+
+  <h3>4.6 Envio de arquivos</h3>
+  <p><code>uploadProductImage</code> e <code>setCategoryBanners</code> recebem arquivos pelo <em>GraphQL multipart request spec</em> (<code>multipart/form-data</code> com <code>operations</code>, <code>map</code> e o arquivo). Exige o token do admin no cabeçalho: com só o cookie, o envio é recusado (proteção contra CSRF).</p>
+  <pre class="sh">curl https://sua-loja/core/graphql/index \
+  -H "Authorization: Bearer $TOKEN" \
+  -F operations='{"query":"mutation ($f: Upload!) { uploadProductImage(productId: \"1918\", code: \"imagem\", file: $f) { sku } }","variables":{"f":null}}' \
+  -F map='{"0":["variables.f"]}' \
+  -F 0=@foto.jpg</pre>
+</section>
+
+<section id="catalogo">
+  <h2>5. Exemplos: loja e catálogo</h2>
+  <p>Campos públicos, sem token: é o que o app e o site usam para montar as telas. O produto inativo e os atributos ocultos não aparecem. <code>websiteId</code> omitido = o website padrão.</p>
+  
+  <div class="ex">
+    <h4>Websites e dados da loja</h4>
+    <p>Os dados da loja (nome, telefone, endereço) vêm de Configurações → Loja; aqui eles ainda não foram preenchidos.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">{ websites { id name isDefault } storeInfo { name email phone address { city region } } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;websites&quot;: [
+      {
+        &quot;id&quot;: &quot;15&quot;,
+        &quot;name&quot;: &quot;Loja RJ&quot;,
+        &quot;isDefault&quot;: true
+      },
+      {
+        &quot;id&quot;: &quot;216&quot;,
+        &quot;name&quot;: &quot;Loja SP&quot;,
+        &quot;isDefault&quot;: false
+      }
+    ],
+    &quot;storeInfo&quot;: {
+      &quot;name&quot;: null,
+      &quot;email&quot;: null,
+      &quot;phone&quot;: null,
+      &quot;address&quot;: {
+        &quot;city&quot;: null,
+        &quot;region&quot;: null
+      }
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Árvore de categorias</h4>
+    <p>Só as ativas do website, com as filhas em <code>children</code>.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">{ categories { id name url_key level children { id name url_key } } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;categories&quot;: [
+      {
+        &quot;id&quot;: &quot;13&quot;,
+        &quot;name&quot;: &quot;Cosmético&quot;,
+        &quot;url_key&quot;: &quot;cosmetico&quot;,
+        &quot;level&quot;: 0,
+        &quot;children&quot;: []
+      },
+      {
+        &quot;id&quot;: &quot;224&quot;,
+        &quot;name&quot;: &quot;Vestuário&quot;,
+        &quot;url_key&quot;: &quot;vestuario&quot;,
+        &quot;level&quot;: 0,
+        &quot;children&quot;: [
+          {
+            &quot;id&quot;: &quot;538&quot;,
+            &quot;name&quot;: &quot;Bermuda&quot;,
+            &quot;url_key&quot;: &quot;bermuda&quot;
+          },
+          {
+            &quot;id&quot;: &quot;518&quot;,
+            &quot;name&quot;: &quot;Calça&quot;,
+            &quot;url_key&quot;: &quot;calca&quot;
+          },
+          &quot;… mais 7&quot;
+        ]
+      },
+      &quot;… mais 6&quot;
+    ]
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Busca de produtos com paginação</h4>
+    <p>Busca por nome ou SKU. <code>aggregations</code> traz a faixa de preço e os valores dos atributos filtráveis do resultado, para montar os filtros da tela. Filtros por atributo: <code>filters: [{code: "color", values: ["azul"]}]</code>; por preço: <code>priceFrom</code> e <code>priceTo</code>.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">query Produtos($busca: String, $pagina: Int) {
+  products(search: $busca, isActive: true, page: $pagina, pageSize: 3) {
+    total
+    items {
+      id sku name type url_key
+      priceRange { min max }
+      stock { salable_quantity is_in_stock }
+    }
+    aggregations { price { min max } }
+  }
+}</pre><div class="lbl">Variáveis</div><pre class="json">{
+  &quot;busca&quot;: &quot;blusa&quot;,
+  &quot;pagina&quot;: 1
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;products&quot;: {
+      &quot;total&quot;: 6,
+      &quot;items&quot;: [
+        {
+          &quot;id&quot;: &quot;1918&quot;,
+          &quot;sku&quot;: &quot;MODA-BLUSA-CROPPED&quot;,
+          &quot;name&quot;: &quot;Blusa Cropped Canelada&quot;,
+          &quot;type&quot;: &quot;SIMPLE&quot;,
+          &quot;url_key&quot;: &quot;blusa-cropped-canelada&quot;,
+          &quot;priceRange&quot;: {
+            &quot;min&quot;: 69.9,
+            &quot;max&quot;: 69.9
+          },
+          &quot;stock&quot;: {
+            &quot;salable_quantity&quot;: 29,
+            &quot;is_in_stock&quot;: true
+          }
+        },
+        {
+          &quot;id&quot;: &quot;2029&quot;,
+          &quot;sku&quot;: &quot;MODA-BLUSA-OMBRO&quot;,
+          &quot;name&quot;: &quot;Blusa Ombro a Ombro&quot;,
+          &quot;type&quot;: &quot;CONFIGURABLE&quot;,
+          &quot;url_key&quot;: &quot;blusa-ombro-a-ombro&quot;,
+          &quot;priceRange&quot;: {
+            &quot;min&quot;: 89.9,
+            &quot;max&quot;: 89.9
+          },
+          &quot;stock&quot;: {
+            &quot;salable_quantity&quot;: 48,
+            &quot;is_in_stock&quot;: true
+          }
+        },
+        &quot;… mais 1&quot;
+      ],
+      &quot;aggregations&quot;: {
+        &quot;price&quot;: {
+          &quot;min&quot;: 35.6,
+          &quot;max&quot;: 199.9
+        }
+      }
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Produto com grade (variações)</h4>
+    <p>Um produto <code>CONFIGURABLE</code> traz os atributos da grade e cada variação com o seu SKU, estoque e opções. É o SKU da variação que vai para o carrinho.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">query Produto($sku: String!) {
+  product(sku: $sku) {
+    sku name type
+    priceRange { min max }
+    variantAttributes { code label }
+    variants { sku name stock { salable_quantity } attributes { code option_label } }
+  }
+}</pre><div class="lbl">Variáveis</div><pre class="json">{
+  &quot;sku&quot;: &quot;MODA-CALCA-JEANS&quot;
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;product&quot;: {
+      &quot;sku&quot;: &quot;MODA-CALCA-JEANS&quot;,
+      &quot;name&quot;: &quot;Calça Jeans Skinny&quot;,
+      &quot;type&quot;: &quot;CONFIGURABLE&quot;,
+      &quot;priceRange&quot;: {
+        &quot;min&quot;: 159.9,
+        &quot;max&quot;: 169.9
+      },
+      &quot;variantAttributes&quot;: [
+        {
+          &quot;code&quot;: &quot;color&quot;,
+          &quot;label&quot;: &quot;Cor&quot;
+        },
+        {
+          &quot;code&quot;: &quot;tamanho&quot;,
+          &quot;label&quot;: &quot;Tamanho&quot;
+        }
+      ],
+      &quot;variants&quot;: [
+        {
+          &quot;sku&quot;: &quot;MODA-CALCA-JEANS-AZUL-P&quot;,
+          &quot;name&quot;: &quot;Calça Jeans Skinny - Azul / P&quot;,
+          &quot;stock&quot;: {
+            &quot;salable_quantity&quot;: 0
+          },
+          &quot;attributes&quot;: [
+            {
+              &quot;code&quot;: &quot;color&quot;,
+              &quot;option_label&quot;: &quot;Azul&quot;
+            },
+            {
+              &quot;code&quot;: &quot;tamanho&quot;,
+              &quot;option_label&quot;: &quot;P&quot;
+            },
+            &quot;… mais 2&quot;
+          ]
+        },
+        {
+          &quot;sku&quot;: &quot;MODA-CALCA-JEANS-AZUL-M&quot;,
+          &quot;name&quot;: &quot;Calça Jeans Skinny - Azul / M&quot;,
+          &quot;stock&quot;: {
+            &quot;salable_quantity&quot;: 7
+          },
+          &quot;attributes&quot;: [
+            {
+              &quot;code&quot;: &quot;color&quot;,
+              &quot;option_label&quot;: &quot;Azul&quot;
+            },
+            {
+              &quot;code&quot;: &quot;tamanho&quot;,
+              &quot;option_label&quot;: &quot;M&quot;
+            },
+            &quot;… mais 2&quot;
+          ]
+        },
+        &quot;… mais 6&quot;
+      ]
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Resolver um endereço da loja</h4>
+    <p>Para o site: o que abre em <code>/calca-jeans-skinny</code> (produto ou categoria).</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">{ route(url: &quot;/calca-jeans-skinny&quot;) { type product { sku name } category { name } } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;route&quot;: {
+      &quot;type&quot;: &quot;PRODUCT&quot;,
+      &quot;product&quot;: {
+        &quot;sku&quot;: &quot;MODA-CALCA-JEANS&quot;,
+        &quot;name&quot;: &quot;Calça Jeans Skinny&quot;
+      },
+      &quot;category&quot;: null
+    }
+  }
+}</pre>
+    
+  </div>
+</section>
+
+<section id="checkout">
+  <h2>6. Exemplos: compra do visitante</h2>
+  <p>A sequência completa, do carrinho ao pedido. O cliente logado faz o mesmo sem <code>cartId</code> (usa o carrinho dele) e sem <code>setCartGuestInfo</code>.</p>
+  <ol class="steps">
+    <li><code>createCart</code> → guarde o <code>cartId</code> (no app, no armazenamento local).</li>
+    <li><code>addToCart</code> / <code>updateCartItem</code> / <code>removeCartItem</code>.</li>
+    <li><code>setCartGuestInfo</code> (e-mail, nome, CPF/CNPJ).</li>
+    <li><code>setCartShippingAddress</code> → <code>availableShippingMethods</code> → <code>setCartShippingMethod</code>.</li>
+    <li><code>availablePaymentMethods</code> → <code>setCartPaymentMethod</code>. Cupom: <code>applyCartCoupon</code>.</li>
+    <li><code>placeOrder</code> com o <code>expectedTotal</code> que o cliente viu.</li>
+    <li>Mercado Pago: <code>payOrder</code> (Pix: QR Code; cartão: token do SDK).</li>
+  </ol>
+  
+  <div class="ex">
+    <h4>1. Criar o carrinho</h4>
+    
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation { createCart }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;createCart&quot;: &quot;31312e08…1183&quot;
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>2. Adicionar um produto</h4>
+    <p><code>quantity</code> soma ao que já estiver no carrinho. Cada item traz <code>error</code> quando algo mudou (sem estoque, sem preço): <code>hasErrors</code> impede o pedido.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation Adicionar($cartId: String!, $sku: String!) {
+  addToCart(cartId: $cartId, sku: $sku, quantity: 2) { items { id sku name quantity price rowTotal error } subtotal discountAmount shippingAmount total hasErrors }
+}</pre><div class="lbl">Variáveis</div><pre class="json">{
+  &quot;cartId&quot;: &quot;31312e08…1183&quot;,
+  &quot;sku&quot;: &quot;001&quot;
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;addToCart&quot;: {
+      &quot;items&quot;: [
+        {
+          &quot;id&quot;: &quot;4991&quot;,
+          &quot;sku&quot;: &quot;001&quot;,
+          &quot;name&quot;: &quot;Produto teste&quot;,
+          &quot;quantity&quot;: 2,
+          &quot;price&quot;: 8.5,
+          &quot;rowTotal&quot;: 17,
+          &quot;error&quot;: null
+        }
+      ],
+      &quot;subtotal&quot;: 17,
+      &quot;discountAmount&quot;: 0,
+      &quot;shippingAmount&quot;: 0,
+      &quot;total&quot;: 17,
+      &quot;hasErrors&quot;: false
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Erro: produto com grade</h4>
+    <p>Enviar o SKU do produto pai é recusado; envie o da variação.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation { addToCart(cartId: &quot;31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183&quot;, sku: &quot;MODA-CALCA-JEANS&quot;, quantity: 1) { total } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;errors&quot;: [
+    {
+      &quot;message&quot;: &quot;&#x27;Calça Jeans Skinny&#x27; tem grade: escolha a variação (cor, tamanho...).&quot;,
+      &quot;path&quot;: [
+        &quot;addToCart&quot;
+      ],
+      &quot;extensions&quot;: {
+        &quot;code&quot;: &quot;PRODUCT_IS_CONFIGURABLE&quot;
+      }
+    }
+  ]
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>3. Dados do visitante</h4>
+    <p>O CPF/CNPJ é validado e guardado só com os dígitos.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation Visitante($cartId: String!) {
+  setCartGuestInfo(cartId: $cartId, email: &quot;maria@exemplo.com.br&quot;, firstname: &quot;Maria&quot;, lastname: &quot;Souza&quot;, taxvat: &quot;529.982.247-25&quot;) { email firstname taxvat }
+}</pre><div class="lbl">Variáveis</div><pre class="json">{
+  &quot;cartId&quot;: &quot;31312e08…1183&quot;
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;setCartGuestInfo&quot;: {
+      &quot;email&quot;: &quot;maria@exemplo.com.br&quot;,
+      &quot;firstname&quot;: &quot;Maria&quot;,
+      &quot;taxvat&quot;: &quot;52998224725&quot;
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Cotação de frete antes do endereço</h4>
+    <p>Para o "calcule o frete" da tela do produto ou do carrinho, só com o CEP.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">{ shippingQuotes(cartId: &quot;31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183&quot;, destinationCep: &quot;20040-020&quot;) { code label amount days } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;shippingQuotes&quot;: [
+      {
+        &quot;code&quot;: &quot;pickup&quot;,
+        &quot;label&quot;: &quot;Retirar na loja (Avenida Ayrton Senna, 2600, Rio de Janeiro)&quot;,
+        &quot;amount&quot;: 0,
+        &quot;days&quot;: 1
+      }
+    ]
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>4. Endereço de entrega e formas de entrega</h4>
+    <p>O CEP pode ir com ou sem máscara. As formas de entrega dependem do endereço e do carrinho (faixas de frete, Melhor Envio, retirada na loja).</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation Endereco($cartId: String!, $endereco: CartAddressInput!) {
+  setCartShippingAddress(cartId: $cartId, address: $endereco) {
+    shippingAddress { postcode city region }
+    availableShippingMethods { code label amount days }
+  }
+}</pre><div class="lbl">Variáveis</div><pre class="json">{
+  &quot;cartId&quot;: &quot;31312e08…1183&quot;,
+  &quot;endereco&quot;: {
+    &quot;recipient&quot;: &quot;Maria Souza&quot;,
+    &quot;postcode&quot;: &quot;20040-020&quot;,
+    &quot;street&quot;: &quot;Avenida Rio Branco&quot;,
+    &quot;number&quot;: &quot;1&quot;,
+    &quot;district&quot;: &quot;Centro&quot;,
+    &quot;city&quot;: &quot;Rio de Janeiro&quot;,
+    &quot;region&quot;: &quot;RJ&quot;,
+    &quot;telephone&quot;: &quot;(21) 99999-0000&quot;
+  }
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;setCartShippingAddress&quot;: {
+      &quot;shippingAddress&quot;: {
+        &quot;postcode&quot;: &quot;20040020&quot;,
+        &quot;city&quot;: &quot;Rio de Janeiro&quot;,
+        &quot;region&quot;: &quot;RJ&quot;
+      },
+      &quot;availableShippingMethods&quot;: [
+        {
+          &quot;code&quot;: &quot;pickup&quot;,
+          &quot;label&quot;: &quot;Retirar na loja (Avenida Ayrton Senna, 2600, Rio de Janeiro)&quot;,
+          &quot;amount&quot;: 0,
+          &quot;days&quot;: 1
+        }
+      ]
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Escolher a entrega</h4>
+    <p>Depois da entrega, <code>availablePaymentMethods</code> lista as formas de pagamento válidas para este carrinho (nesta loja, as do Mercado Pago).</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation { setCartShippingMethod(cartId: &quot;31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183&quot;, code: &quot;pickup&quot;) { shippingMethod { code label amount } total availablePaymentMethods { code label } } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;setCartShippingMethod&quot;: {
+      &quot;shippingMethod&quot;: {
+        &quot;code&quot;: &quot;pickup&quot;,
+        &quot;label&quot;: &quot;Retirar na loja (Avenida Ayrton Senna, 2600, Rio de Janeiro)&quot;,
+        &quot;amount&quot;: 0
+      },
+      &quot;total&quot;: 17,
+      &quot;availablePaymentMethods&quot;: [
+        {
+          &quot;code&quot;: &quot;mercadopago_pix&quot;,
+          &quot;label&quot;: &quot;Pix&quot;
+        },
+        {
+          &quot;code&quot;: &quot;mercadopago_credit&quot;,
+          &quot;label&quot;: &quot;Cartão de crédito&quot;
+        },
+        {
+          &quot;code&quot;: &quot;mercadopago_debit&quot;,
+          &quot;label&quot;: &quot;Cartão de débito&quot;
+        }
+      ]
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>5. Escolher o pagamento</h4>
+    
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation { setCartPaymentMethod(cartId: &quot;31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183&quot;, code: &quot;mercadopago_pix&quot;) { paymentMethod { code label } total } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;setCartPaymentMethod&quot;: {
+      &quot;paymentMethod&quot;: {
+        &quot;code&quot;: &quot;mercadopago_pix&quot;,
+        &quot;label&quot;: &quot;Pix&quot;
+      },
+      &quot;total&quot;: 17
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Erro: o total mudou</h4>
+    <p><code>expectedTotal</code> protege o cliente de pagar um valor diferente do que viu (preço, promoção ou frete mudaram no meio). Mostre o carrinho de novo e peça a confirmação.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation { placeOrder(cartId: &quot;31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183&quot;, expectedTotal: 1.00) { number } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;errors&quot;: [
+    {
+      &quot;message&quot;: &quot;O total do carrinho mudou. Revise os valores atualizados e confirme novamente.&quot;,
+      &quot;path&quot;: [
+        &quot;placeOrder&quot;
+      ],
+      &quot;extensions&quot;: {
+        &quot;code&quot;: &quot;TOTAL_CHANGED&quot;
+      }
+    }
+  ]
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>6. Fechar o pedido</h4>
+    <p>Reserva o estoque, envia o e-mail "pedido recebido" e devolve o pedido. Chamar de novo com o mesmo carrinho devolve o mesmo pedido (seguro contra clique duplo ou falha de rede). O canal veio do cabeçalho <code>X-Sales-Channel</code>.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">X-Sales-Channel: Site</div><pre class="gql">mutation Fechar($cartId: String!, $total: Float!) {
+  placeOrder(cartId: $cartId, expectedTotal: $total) {
+    id number status statusLabel total salesChannel
+    paymentMethod paymentInstructions
+    items { sku name quantity price rowTotal }
+  }
+}</pre><div class="lbl">Variáveis</div><pre class="json">{
+  &quot;cartId&quot;: &quot;31312e08…1183&quot;,
+  &quot;total&quot;: 17
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;placeOrder&quot;: {
+      &quot;id&quot;: &quot;4838&quot;,
+      &quot;number&quot;: &quot;RJ000060&quot;,
+      &quot;status&quot;: &quot;pending_payment&quot;,
+      &quot;statusLabel&quot;: &quot;Aguardando pagamento&quot;,
+      &quot;total&quot;: 17,
+      &quot;salesChannel&quot;: &quot;Site&quot;,
+      &quot;paymentMethod&quot;: &quot;mercadopago_pix&quot;,
+      &quot;paymentInstructions&quot;: null,
+      &quot;items&quot;: [
+        {
+          &quot;sku&quot;: &quot;001&quot;,
+          &quot;name&quot;: &quot;Produto teste&quot;,
+          &quot;quantity&quot;: 2,
+          &quot;price&quot;: 8.5,
+          &quot;rowTotal&quot;: 17
+        }
+      ]
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Acompanhar o pedido do visitante</h4>
+    <p>Com o número e o e-mail do pedido (a tela "acompanhe seu pedido").</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">{ guestOrder(number: &quot;RJ000060&quot;, email: &quot;maria@exemplo.com.br&quot;) { number statusLabel total } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;guestOrder&quot;: {
+      &quot;number&quot;: &quot;RJ000060&quot;,
+      &quot;statusLabel&quot;: &quot;Aguardando pagamento&quot;,
+      &quot;total&quot;: 17
+    }
+  }
+}</pre>
+    
+  </div>
+  <h4>7. Pagar pelo Mercado Pago</h4>
+  <p><code>payOrder</code> cobra um pedido "Aguardando pagamento". No Pix, devolve o copia e cola (<code>pixQrCode</code>), a imagem (<code>pixQrCodeBase64</code>) e a validade; chamar de novo devolve o mesmo QR enquanto ele valer. No cartão, o app gera o token com o SDK MercadoPago.js V2 (a <code>publicKey</code> vem de <code>mercadopagoSettings</code>) e envia em <code>card</code>; recusado, pode tentar de novo com outro cartão. Este exemplo não foi executado aqui porque cria uma cobrança real no Mercado Pago.</p>
+  <ul>
+    <li><code>card.paymentMethodId</code> é o que o SDK devolveu em <code>getInstallments</code>. No débito, um cartão de débito vem como <code>debvisa</code>, <code>debmaster</code>, <code>debelo</code>… e é cobrado como <code>debit_card</code> em 1x; um pré-pago vem com a bandeira simples (<code>elo</code>, <code>visa</code>…) e é cobrado como <code>prepaid_card</code>, sem parcelas.</li>
+    <li><code>deviceId</code>: o identificador do aparelho que o <code>security.js</code> do Mercado Pago gera (<code>MP_DEVICE_SESSION_ID</code>). Vai no cabeçalho <code>X-meli-session-id</code> e melhora a aprovação. Opcional.</li>
+    <li>Cada cobrança leva, além do valor: os itens (SKU, nome, opções, quantidade, preço e a "Categoria dos produtos" das Configurações), o frete como um item "Frete" (a soma dos itens precisa bater com o total; com desconto, o pedido vai como um item só), nome, CPF/CNPJ, e-mail, telefone e endereço do pagador, o "Nome na fatura do cartão" e, para cliente logado, a data do cadastro, se é a primeira compra e a data da última.</li>
+    <li>No app Jardim Vera, o SDK roda numa WebView invisível (<code>react-native-webview</code>): bandeira, parcelas, token e <code>deviceId</code> vêm do próprio MercadoPago.js. O número do cartão nunca passa pelo servidor da loja.</li>
+  </ul>
+  <pre class="gql">mutation {
+  payOrder(number: "RJ000056", email: "maria@exemplo.com.br") {
+    status statusLabel amount
+    pixQrCode pixQrCodeBase64 expiresAt
+    order { status statusLabel }
+  }
+}
+
+# cartão
+mutation ($card: MercadopagoCardInput!, $deviceId: String) {
+  payOrder(number: "RJ000056", email: "maria@exemplo.com.br", card: $card, deviceId: $deviceId) {
+    status statusDetail cardBrand cardNumber installments
+    challengeUrl challengeCreq
+    order { status }
+  }
+}
+# variables: { "card": { "token": "&lt;token do SDK&gt;", "paymentMethodId": "visa", "installments": 3 }, "deviceId": "&lt;MP_DEVICE_SESSION_ID&gt;" }</pre>
+  <p>A confirmação chega pelo webhook (e pelo cron de sincronização): o pedido passa para "Pagamento confirmado" (<code>processing</code>). O app consulta o pedido (<code>guestOrder</code> ou <code>myOrder</code>) para mostrar a situação.</p>
+</section>
+
+<section id="cliente">
+  <h2>7. Exemplos: conta do cliente</h2>
+  
+  <div class="ex">
+    <h4>Cadastro</h4>
+    <p>Devolve o token já logado. Com "Exigir confirmação do e-mail" ligado, <code>token</code> vem nulo e <code>confirmationRequired: true</code>: o cliente confirma pelo link do e-mail (<code>confirmCustomerEmail</code>). Para pessoa jurídica: <code>type: PJ</code>, CNPJ, <code>companyName</code> e inscrição estadual.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation Cadastro($senha: String!) {
+  registerCustomer(email: &quot;joao@exemplo.com.br&quot;, firstname: &quot;João&quot;, lastname: &quot;Lima&quot;, type: PF, taxvat: &quot;111.444.777-35&quot;, password: $senha) {
+    token expires_at confirmationRequired
+    customer { id email firstname }
+  }
+}</pre><div class="lbl">Variáveis</div><pre class="json">{
+  &quot;senha&quot;: &quot;SenhaDoJoao123&quot;
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;registerCustomer&quot;: {
+      &quot;token&quot;: &quot;51e3fbb2…e66f&quot;,
+      &quot;expires_at&quot;: &quot;2026-11-19 18:08:28&quot;,
+      &quot;confirmationRequired&quot;: false,
+      &quot;customer&quot;: {
+        &quot;id&quot;: &quot;2668&quot;,
+        &quot;email&quot;: &quot;joao@exemplo.com.br&quot;,
+        &quot;firstname&quot;: &quot;João&quot;
+      }
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Login</h4>
+    
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation {
+  generateCustomerToken(email: &quot;joao@exemplo.com.br&quot;, password: &quot;SenhaDoJoao123&quot;) { token expires_at customer { id firstname } }
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;generateCustomerToken&quot;: {
+      &quot;token&quot;: &quot;9bc77bc4…83f9&quot;,
+      &quot;expires_at&quot;: &quot;2026-11-19 18:08:28&quot;,
+      &quot;customer&quot;: {
+        &quot;id&quot;: &quot;2668&quot;,
+        &quot;firstname&quot;: &quot;João&quot;
+      }
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Dados do cliente logado</h4>
+    
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ me { id email firstname lastname type taxvat addresses { id city is_default_shipping } } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;me&quot;: {
+      &quot;id&quot;: &quot;2668&quot;,
+      &quot;email&quot;: &quot;joao@exemplo.com.br&quot;,
+      &quot;firstname&quot;: &quot;João&quot;,
+      &quot;lastname&quot;: &quot;Lima&quot;,
+      &quot;type&quot;: &quot;PF&quot;,
+      &quot;taxvat&quot;: &quot;11144477735&quot;,
+      &quot;addresses&quot;: []
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Sem token</h4>
+    <p><code>me</code> sem login devolve <code>null</code> (não é erro): o app sabe que precisa pedir o login.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">{ me { id } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;me&quot;: null
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Cadastrar endereço</h4>
+    <p>Devolve a lista de endereços. O endereço padrão de entrega pode ser usado no carrinho com <code>setCartShippingAddress(customerAddressId: ...)</code>.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation {
+  createMyAddress(address: { recipient: &quot;João Lima&quot;, postcode: &quot;01310-100&quot;, street: &quot;Avenida Paulista&quot;, number: &quot;1000&quot;, district: &quot;Bela Vista&quot;, city: &quot;São Paulo&quot;, region: &quot;SP&quot;, isDefaultShipping: true, isDefaultBilling: true }) {
+    id city region is_default_shipping
+  }
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;createMyAddress&quot;: [
+      {
+        &quot;id&quot;: &quot;2420&quot;,
+        &quot;city&quot;: &quot;São Paulo&quot;,
+        &quot;region&quot;: &quot;SP&quot;,
+        &quot;is_default_shipping&quot;: true
+      }
+    ]
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Carrinho do cliente</h4>
+    <p>Sem <code>cartId</code>: o cliente tem um carrinho por website, que acompanha o login em qualquer aparelho.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ cart { isGuest email items { sku quantity } total } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;cart&quot;: {
+      &quot;isGuest&quot;: false,
+      &quot;email&quot;: &quot;joao@exemplo.com.br&quot;,
+      &quot;items&quot;: [],
+      &quot;total&quot;: 0
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Juntar o carrinho de visitante ao fazer login</h4>
+    <p>O visitante montou um carrinho e depois entrou: <code>mergeCarts</code> com o <code>cartId</code> antigo leva os itens para o carrinho do cliente.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { mergeCarts(cartId: &quot;f2cb98dced50ce2741a960854799bba2ba2a0e14e842d2839dca79a22cbe6eeb&quot;) { isGuest items { sku quantity } total } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;mergeCarts&quot;: {
+      &quot;isGuest&quot;: false,
+      &quot;items&quot;: [
+        {
+          &quot;sku&quot;: &quot;001&quot;,
+          &quot;quantity&quot;: 1
+        }
+      ],
+      &quot;total&quot;: 8.5
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Meus pedidos</h4>
+    <p>Paginado. <code>myOrder(number:)</code> traz um pedido com itens, endereço, rastreio e o histórico visível ao cliente.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ myOrders { total items { number statusLabel total } } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;myOrders&quot;: {
+      &quot;total&quot;: 0,
+      &quot;items&quot;: []
+    }
+  }
+}</pre>
+    
+  </div>
+</section>
+
+<section id="admin">
+  <h2>8. Exemplos: integração do admin</h2>
+  <p>Para ERP, aplicativo de atendimento, contabilidade e automações. Tudo com o token do admin; cada ação grava no histórico do pedido e no log de operações o usuário do token.</p>
+  <h3>8.1 Login</h3>
+  
+  <div class="ex">
+    <h4>Gerar o token</h4>
+    
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation {
+  generateAdminToken(username: &quot;integracao&quot;, password: &quot;SenhaForte123&quot;) {
+    token
+    expires_at
+    user { username role }
+  }
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;generateAdminToken&quot;: {
+      &quot;token&quot;: &quot;0532c3e0…9773&quot;,
+      &quot;expires_at&quot;: &quot;2026-10-20 22:08:27&quot;,
+      &quot;user&quot;: {
+        &quot;username&quot;: &quot;integracao&quot;,
+        &quot;role&quot;: &quot;Administradores&quot;
+      }
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Senha errada</h4>
+    <p>A mesma mensagem para usuário inexistente, senha errada ou conta bloqueada (não revela quais usuários existem). Depois do limite por IP, o código vira <code>TOO_MANY_REQUESTS</code> (HTTP 429).</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation { generateAdminToken(username: &quot;integracao&quot;, password: &quot;errada&quot;) { token } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;errors&quot;: [
+    {
+      &quot;message&quot;: &quot;Usuário ou senha inválidos, ou conta bloqueada temporariamente.&quot;,
+      &quot;path&quot;: [
+        &quot;generateAdminToken&quot;
+      ],
+      &quot;extensions&quot;: {
+        &quot;code&quot;: &quot;INVALID_CREDENTIALS&quot;
+      }
+    }
+  ]
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Quem é o token</h4>
+    
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ currentAdmin { id username firstname role } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;currentAdmin&quot;: {
+      &quot;id&quot;: &quot;4503&quot;,
+      &quot;username&quot;: &quot;integracao&quot;,
+      &quot;firstname&quot;: &quot;Integração&quot;,
+      &quot;role&quot;: &quot;Administradores&quot;
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Token de cliente num campo do admin</h4>
+    <p>O token de cliente nunca vale como admin.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ orders { total } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;errors&quot;: [
+    {
+      &quot;message&quot;: &quot;Acesso negado.&quot;,
+      &quot;path&quot;: [
+        &quot;orders&quot;
+      ],
+      &quot;extensions&quot;: {
+        &quot;code&quot;: &quot;UNAUTHENTICATED&quot;
+      }
+    }
+  ]
+}</pre>
+    
+  </div>
+  <h3>8.2 Pedidos</h3>
+  
+  <div class="ex">
+    <h4>Listar pedidos</h4>
+    <p>Filtros: <code>status</code>, <code>websiteId</code>, <code>customerId</code>, <code>salesChannel</code>, <code>paymentMethod</code>, <code>cancelReason</code>, <code>search</code> (número, nome, e-mail, CPF), <code>from</code>/<code>to</code> (AAAA-MM-DD), ordenação e página. <code>amount</code> é a soma do resultado.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{
+  orders(status: pending_payment, page: 1, pageSize: 2) {
+    total amount
+    items { number createdAt statusLabel total salesChannel paymentLabel }
+  }
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;orders&quot;: {
+      &quot;total&quot;: 2,
+      &quot;amount&quot;: 30.5,
+      &quot;items&quot;: [
+        {
+          &quot;number&quot;: &quot;RJ000060&quot;,
+          &quot;createdAt&quot;: &quot;2026-10-20 18:08:27&quot;,
+          &quot;statusLabel&quot;: &quot;Aguardando pagamento&quot;,
+          &quot;total&quot;: 17,
+          &quot;salesChannel&quot;: &quot;Site&quot;,
+          &quot;paymentLabel&quot;: &quot;Pix&quot;
+        },
+        {
+          &quot;number&quot;: &quot;RJ000057&quot;,
+          &quot;createdAt&quot;: &quot;2026-10-20 12:12:44&quot;,
+          &quot;statusLabel&quot;: &quot;Aguardando pagamento&quot;,
+          &quot;total&quot;: 13.5,
+          &quot;salesChannel&quot;: &quot;App mobile&quot;,
+          &quot;paymentLabel&quot;: &quot;Pix&quot;
+        }
+      ]
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Confirmar o pagamento</h4>
+    <p>Aguardando pagamento → Pagamento confirmado. Avisa o cliente por e-mail. Exige "Pedidos: confirmar pagamento".</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { confirmOrderPayment(id: &quot;4838&quot;, comment: &quot;Pix conferido no extrato&quot;) { number status statusLabel history { status comment createdAt } } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;confirmOrderPayment&quot;: {
+      &quot;number&quot;: &quot;RJ000060&quot;,
+      &quot;status&quot;: &quot;processing&quot;,
+      &quot;statusLabel&quot;: &quot;Pagamento confirmado&quot;,
+      &quot;history&quot;: [
+        {
+          &quot;status&quot;: &quot;processing&quot;,
+          &quot;comment&quot;: &quot;Pix conferido no extrato&quot;,
+          &quot;createdAt&quot;: &quot;2026-10-20 18:08:27&quot;
+        },
+        {
+          &quot;status&quot;: &quot;pending_payment&quot;,
+          &quot;comment&quot;: null,
+          &quot;createdAt&quot;: &quot;2026-10-20 18:08:27&quot;
+        }
+      ]
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Registrar o envio</h4>
+    <p>Pagamento confirmado → Enviado: baixa o estoque da origem (a sugerida, se <code>sourceCode</code> for omitido) e manda o rastreio ao cliente. Depois, <code>completeOrder</code> marca como Concluído.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { shipOrder(id: &quot;4838&quot;, carrier: &quot;Correios&quot;, trackingCode: &quot;AA123456789BR&quot;) { number statusLabel shipment { carrier trackingCode } } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;shipOrder&quot;: {
+      &quot;number&quot;: &quot;RJ000060&quot;,
+      &quot;statusLabel&quot;: &quot;Enviado&quot;,
+      &quot;shipment&quot;: {
+        &quot;carrier&quot;: &quot;Correios&quot;,
+        &quot;trackingCode&quot;: &quot;AA123456789BR&quot;
+      }
+    }
+  }
+}</pre>
+    
+  </div>
+  <h4>Cancelar</h4>
+  <pre class="gql">mutation {
+  cancelOrder(id: "3947", reason: OUT_OF_STOCK, comment: "Sem a cor azul", notify: true, refund: true) {
+    number status cancelReason history { status comment }
+  }
+}</pre>
+  <p>Motivos: <code>CUSTOMER</code>, <code>UNPAID</code>, <code>OUT_OF_STOCK</code>, <code>FRAUD</code>, <code>ORDER_ERROR</code>, <code>OTHER</code> (este exige <code>comment</code>). Pedido pago pelo Mercado Pago é estornado lá com <code>refund: true</code>; pago de outra forma exige <code>refundNote</code> (como o dinheiro foi devolvido). A reserva de estoque volta.</p>
+  
+  <div class="ex">
+    <h4>Resumo de vendas por situação</h4>
+    <p>Quantos pedidos e quanto em cada situação, no período.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ salesSummary(from: &quot;2026-10-01&quot;, to: &quot;2026-10-20&quot;) { status statusLabel count amount } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;salesSummary&quot;: [
+      {
+        &quot;status&quot;: &quot;pending_payment&quot;,
+        &quot;statusLabel&quot;: &quot;Aguardando pagamento&quot;,
+        &quot;count&quot;: 1,
+        &quot;amount&quot;: 13.5
+      },
+      {
+        &quot;status&quot;: &quot;processing&quot;,
+        &quot;statusLabel&quot;: &quot;Pagamento confirmado&quot;,
+        &quot;count&quot;: 30,
+        &quot;amount&quot;: 879.55
+      },
+      {
+        &quot;status&quot;: &quot;shipped&quot;,
+        &quot;statusLabel&quot;: &quot;Enviado&quot;,
+        &quot;count&quot;: 1,
+        &quot;amount&quot;: 17
+      },
+      {
+        &quot;status&quot;: &quot;complete&quot;,
+        &quot;statusLabel&quot;: &quot;Concluído&quot;,
+        &quot;count&quot;: 3,
+        &quot;amount&quot;: 193.95
+      },
+      {
+        &quot;status&quot;: &quot;canceled&quot;,
+        &quot;statusLabel&quot;: &quot;Cancelado&quot;,
+        &quot;count&quot;: 25,
+        &quot;amount&quot;: 943.16
+      }
+    ]
+  }
+}</pre>
+    
+  </div>
+  <h3>8.3 Produtos e estoque</h3>
+  
+  <div class="ex">
+    <h4>Os atributos do produto</h4>
+    <p>Os códigos que podem ir em <code>attributes</code> ao criar ou alterar um produto. O admin vê também os ocultos.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ attributes(entityType: &quot;product&quot;) { code label inputType isRequired isFilterable } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;attributes&quot;: [
+      {
+        &quot;code&quot;: &quot;color&quot;,
+        &quot;label&quot;: &quot;Cor&quot;,
+        &quot;inputType&quot;: &quot;select&quot;,
+        &quot;isRequired&quot;: false,
+        &quot;isFilterable&quot;: false
+      },
+      {
+        &quot;code&quot;: &quot;imagem&quot;,
+        &quot;label&quot;: &quot;Imagem&quot;,
+        &quot;inputType&quot;: &quot;image&quot;,
+        &quot;isRequired&quot;: false,
+        &quot;isFilterable&quot;: false
+      },
+      {
+        &quot;code&quot;: &quot;imagem3&quot;,
+        &quot;label&quot;: &quot;imagem3&quot;,
+        &quot;inputType&quot;: &quot;image&quot;,
+        &quot;isRequired&quot;: false,
+        &quot;isFilterable&quot;: false
+      },
+      {
+        &quot;code&quot;: &quot;tamanho&quot;,
+        &quot;label&quot;: &quot;Tamanho&quot;,
+        &quot;inputType&quot;: &quot;select&quot;,
+        &quot;isRequired&quot;: true,
+        &quot;isFilterable&quot;: true
+      },
+      &quot;… mais 8&quot;
+    ]
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Criar um produto</h4>
+    <p>Preço, custo, peso e os outros campos vão em <code>attributes</code>, como texto (decimal com ponto). Precisa de ao menos uma categoria de cada website. O custo exige a permissão "Ver e editar o custo" e nunca aparece na API pública. Produto com grade: <code>type: CONFIGURABLE</code> com <code>variantAttributes</code>, e depois <code>saveVariants</code>.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation Novo($attrs: [ProductAttributeInput!]) {
+  createProduct(sku: &quot;CANECA-001&quot;, name: &quot;Caneca de cerâmica&quot;, attributeSetId: &quot;1&quot;, websiteIds: [&quot;15&quot;], categoryIds: [&quot;22&quot;], attributes: $attrs) {
+    id sku name url_key is_active
+    attributes { code value }
+  }
+}</pre><div class="lbl">Variáveis</div><pre class="json">{
+  &quot;attrs&quot;: [
+    {
+      &quot;code&quot;: &quot;price&quot;,
+      &quot;value&quot;: &quot;49.90&quot;
+    },
+    {
+      &quot;code&quot;: &quot;cost&quot;,
+      &quot;value&quot;: &quot;18.50&quot;
+    },
+    {
+      &quot;code&quot;: &quot;weight&quot;,
+      &quot;value&quot;: &quot;0.4&quot;
+    }
+  ]
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;createProduct&quot;: {
+      &quot;id&quot;: &quot;14668&quot;,
+      &quot;sku&quot;: &quot;CANECA-001&quot;,
+      &quot;name&quot;: &quot;Caneca de cerâmica&quot;,
+      &quot;url_key&quot;: &quot;caneca-de-ceramica&quot;,
+      &quot;is_active&quot;: true,
+      &quot;attributes&quot;: [
+        {
+          &quot;code&quot;: &quot;price&quot;,
+          &quot;value&quot;: &quot;49.9&quot;
+        },
+        {
+          &quot;code&quot;: &quot;cost&quot;,
+          &quot;value&quot;: &quot;18.5&quot;
+        },
+        {
+          &quot;code&quot;: &quot;weight&quot;,
+          &quot;value&quot;: &quot;0.4&quot;
+        }
+      ]
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Definir o estoque</h4>
+    <p>A quantidade física por origem (código da origem em Catálogo → Estoque). O vendável desconta as reservas dos pedidos ainda não enviados.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { setProductStock(sku: &quot;CANECA-001&quot;, sources: [{ code: &quot;default&quot;, quantity: 25 }]) { salable_quantity is_in_stock sources { code quantity } } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;setProductStock&quot;: {
+      &quot;salable_quantity&quot;: 25,
+      &quot;is_in_stock&quot;: true,
+      &quot;sources&quot;: [
+        {
+          &quot;code&quot;: &quot;default&quot;,
+          &quot;quantity&quot;: 25
+        }
+      ]
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Alterar o preço</h4>
+    <p>Só os campos enviados mudam. A alteração entra no log de operações com antes e depois. Para muitos custos de uma vez, há também a importação por planilha no painel.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { updateProduct(id: &quot;14668&quot;, attributes: [{ code: &quot;price&quot;, value: &quot;44.90&quot; }]) { sku attributes { code value } } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;updateProduct&quot;: {
+      &quot;sku&quot;: &quot;CANECA-001&quot;,
+      &quot;attributes&quot;: [
+        {
+          &quot;code&quot;: &quot;price&quot;,
+          &quot;value&quot;: &quot;44.9&quot;
+        },
+        {
+          &quot;code&quot;: &quot;cost&quot;,
+          &quot;value&quot;: &quot;18.5&quot;
+        },
+        {
+          &quot;code&quot;: &quot;weight&quot;,
+          &quot;value&quot;: &quot;0.4&quot;
+        }
+      ]
+    }
+  }
+}</pre>
+    
+  </div>
+  <h3>8.4 Relatórios</h3>
+  
+  <div class="ex">
+    <h4>Os relatórios disponíveis</h4>
+    <p>Só os que o perfil do token pode abrir, com os filtros de cada um.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ reports { code groupLabel title filters { key type default options { value label } } } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;reports&quot;: [
+      {
+        &quot;code&quot;: &quot;v8&quot;,
+        &quot;groupLabel&quot;: &quot;Vendas&quot;,
+        &quot;title&quot;: &quot;Promoções e cupons&quot;,
+        &quot;filters&quot;: [
+          {
+            &quot;key&quot;: &quot;promotion_id&quot;,
+            &quot;type&quot;: &quot;select&quot;,
+            &quot;default&quot;: null,
+            &quot;options&quot;: [
+              {
+                &quot;value&quot;: &quot;&quot;,
+                &quot;label&quot;: &quot;Todas as promoções&quot;
+              },
+              {
+                &quot;value&quot;: &quot;31&quot;,
+                &quot;label&quot;: &quot;JARDIM10&quot;
+              }
+            ]
+          },
+          {
+            &quot;key&quot;: &quot;kind&quot;,
+            &quot;type&quot;: &quot;select&quot;,
+            &quot;default&quot;: null,
+            &quot;options&quot;: [
+              {
+                &quot;value&quot;: &quot;&quot;,
+                &quot;label&quot;: &quot;Automáticas e cupons&quot;
+              },
+              {
+                &quot;value&quot;: &quot;auto&quot;,
+                &quot;label&quot;: &quot;Só automáticas&quot;
+              },
+              {
+                &quot;value&quot;: &quot;coupon&quot;,
+                &quot;label&quot;: &quot;Só cupons&quot;
+              }
+            ]
+          },
+          {
+            &quot;key&quot;: &quot;q&quot;,
+            &quot;type&quot;: &quot;search&quot;,
+            &quot;default&quot;: null,
+            &quot;options&quot;: null
+          }
+        ]
+      },
+      {
+        &quot;code&quot;: &quot;v1&quot;,
+        &quot;groupLabel&quot;: &quot;Vendas&quot;,
+        &quot;title&quot;: &quot;Vendas por período&quot;,
+        &quot;filters&quot;: [
+          {
+            &quot;key&quot;: &quot;group_by&quot;,
+            &quot;type&quot;: &quot;select&quot;,
+            &quot;default&quot;: null,
+            &quot;options&quot;: [
+              {
+                &quot;value&quot;: &quot;day&quot;,
+                &quot;label&quot;: &quot;Dia&quot;
+              },
+              {
+                &quot;value&quot;: &quot;week&quot;,
+                &quot;label&quot;: &quot;Semana&quot;
+              },
+              {
+                &quot;value&quot;: &quot;month&quot;,
+                &quot;label&quot;: &quot;Mês&quot;
+              }
+            ]
+          },
+          {
+            &quot;key&quot;: &quot;basis&quot;,
+            &quot;type&quot;: &quot;select&quot;,
+            &quot;default&quot;: null,
+            &quot;options&quot;: [
+              {
+                &quot;value&quot;: &quot;created&quot;,
+                &quot;label&quot;: &quot;Data do pedido&quot;
+              },
+              {
+                &quot;value&quot;: &quot;paid&quot;,
+                &quot;label&quot;: &quot;Data do pagamento&quot;
+              }
+            ]
+          }
+        ]
+      },
+      {
+        &quot;code&quot;: &quot;v2&quot;,
+        &quot;groupLabel&quot;: &quot;Vendas&quot;,
+        &quot;title&quot;: &quot;Vendas por produto&quot;,
+        &quot;filters&quot;: [
+          {
+            &quot;key&quot;: &quot;category_id&quot;,
+            &quot;type&quot;: &quot;select&quot;,
+            &quot;default&quot;: null,
+            &quot;options&quot;: [
+              {
+                &quot;value&quot;: &quot;&quot;,
+                &quot;label&quot;: &quot;Todas as categorias&quot;
+              },
+              {
+                &quot;value&quot;: &quot;13&quot;,
+                &quot;label&quot;: &quot;Cosmético&quot;
+              },
+              {
+                &quot;value&quot;: &quot;224&quot;,
+                &quot;label&quot;: &quot;Vestuário&quot;
+              },
+              &quot;… mais 16&quot;
+            ]
+          },
+          {
+            &quot;key&quot;: &quot;q&quot;,
+            &quot;type&quot;: &quot;search&quot;,
+            &quot;default&quot;: null,
+            &quot;options&quot;: null
+          },
+          {
+            &quot;key&quot;: &quot;parent&quot;,
+            &quot;type&quot;: &quot;checkbox&quot;,
+            &quot;default&quot;: &quot;1&quot;,
+            &quot;options&quot;: null
+          }
+        ]
+      },
+      &quot;… mais 23&quot;
+    ]
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Um relatório</h4>
+    <p>Os mesmos números da tela. <code>rows</code> traz uma lista por linha, na ordem de <code>columns</code>, com os valores sem formatação (o <code>type</code> diz como mostrar: <code>money</code>, <code>pct</code> como fração, <code>date</code>…). <code>tiles</code> são os indicadores já formatados. Consultar relatórios de clientes ou financeiros grava no log de operações.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">query {
+  report(code: &quot;v1&quot;, filters: [{ key: &quot;preset&quot;, value: &quot;month&quot; }, { key: &quot;group_by&quot;, value: &quot;day&quot; }], pageSize: 5) {
+    columns { key label type }
+    rows
+    total
+    totals
+    tiles { label value note }
+  }
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;report&quot;: {
+      &quot;columns&quot;: [
+        {
+          &quot;key&quot;: &quot;period&quot;,
+          &quot;label&quot;: &quot;Dia&quot;,
+          &quot;type&quot;: &quot;text&quot;
+        },
+        {
+          &quot;key&quot;: &quot;orders&quot;,
+          &quot;label&quot;: &quot;Pedidos&quot;,
+          &quot;type&quot;: &quot;int&quot;
+        },
+        {
+          &quot;key&quot;: &quot;items&quot;,
+          &quot;label&quot;: &quot;Itens&quot;,
+          &quot;type&quot;: &quot;qty&quot;
+        },
+        &quot;… mais 9&quot;
+      ],
+      &quot;rows&quot;: [
+        [
+          &quot;01/10/2026&quot;,
+          &quot;0&quot;,
+          &quot;0&quot;,
+          &quot;… mais 9&quot;
+        ],
+        [
+          &quot;02/10/2026&quot;,
+          &quot;0&quot;,
+          &quot;0&quot;,
+          &quot;… mais 9&quot;
+        ],
+        [
+          &quot;03/10/2026&quot;,
+          &quot;0&quot;,
+          &quot;0&quot;,
+          &quot;… mais 9&quot;
+        ],
+        &quot;… mais 2&quot;
+      ],
+      &quot;total&quot;: 20,
+      &quot;totals&quot;: [
+        null,
+        &quot;34&quot;,
+        &quot;73.0000&quot;,
+        &quot;… mais 9&quot;
+      ],
+      &quot;tiles&quot;: [
+        {
+          &quot;label&quot;: &quot;Faturamento&quot;,
+          &quot;value&quot;: &quot;R$ 1.090,50&quot;,
+          &quot;note&quot;: &quot;sem vendas nos 20 dias antes&quot;
+        },
+        {
+          &quot;label&quot;: &quot;Pedidos pagos&quot;,
+          &quot;value&quot;: &quot;34&quot;,
+          &quot;note&quot;: &quot;73 itens&quot;
+        },
+        {
+          &quot;label&quot;: &quot;Ticket médio&quot;,
+          &quot;value&quot;: &quot;R$ 32,07&quot;,
+          &quot;note&quot;: &quot;com frete&quot;
+        },
+        &quot;… mais 3&quot;
+      ]
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Sair</h4>
+    <p>O token para de valer na hora.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { revokeAdminToken }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;revokeAdminToken&quot;: true
+  }
+}</pre>
+    
+  </div>
+</section>
+
+<section id="erros">
+  <h2>9. Códigos de erro</h2>
+  <p>Os mais comuns, por assunto. A descrição de cada campo no <code>schema.graphql</code> lista os códigos específicos dele.</p>
+  <h4>Comuns</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>UNAUTHENTICATED</code></td><td>Sem login (ou com o token de outro tipo: um token de cliente num campo do admin).</td></tr><tr><td><code>FORBIDDEN</code></td><td>Logado, mas o perfil não tem a permissão.</td></tr><tr><td><code>TOKEN_INVALID</code></td><td>HTTP 401: o token enviado não existe, expirou ou foi revogado. Faça login de novo.</td></tr><tr><td><code>API_KEY_INVALID</code></td><td>HTTP 401: a chave do aplicativo é exigida e não veio, não existe ou foi revogada (cabeçalho X-Api-Key).</td></tr><tr><td><code>TOO_MANY_REQUESTS</code></td><td>Requisições, tentativas de login ou cotações de frete demais do mesmo IP no minuto (HTTP 429 no limite geral), ou mensagens demais do mesmo cliente.</td></tr><tr><td><code>PAYLOAD_TOO_LARGE</code></td><td>HTTP 413: o corpo da chamada passou do tamanho máximo (64 KB sem login de admin).</td></tr><tr><td><code>UNSUPPORTED_MEDIA_TYPE</code></td><td>HTTP 415: chamada feita com a sessão do painel (cookie) sem Content-Type: application/json. Protege o admin de um formulário de outro site.</td></tr><tr><td><code>GRAPHQL_PARSE_FAILED</code></td><td>A consulta tem erro de sintaxe.</td></tr><tr><td><code>GRAPHQL_VALIDATION_FAILED</code></td><td>Campo ou argumento que não existe, variável de tipo errado, ou introspecção desligada. Sem login de admin, a mensagem não traz as sugestões de nomes (&quot;Did you mean...&quot;).</td></tr><tr><td><code>QUERY_LIMIT_EXCEEDED</code></td><td>A consulta passou da profundidade ou da complexidade máxima.</td></tr><tr><td><code>NOT_FOUND</code></td><td>O registro não existe ou não é visível para quem pediu.</td></tr><tr><td><code>INTERNAL_ERROR</code></td><td>Falha inesperada no servidor; a causa vai para o log do sistema.</td></tr><tr><td><code>BAD_REQUEST</code></td><td>Pedido inválido, sem código mais específico.</td></tr></table><h4>Login e cadastro</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>INVALID_CREDENTIALS</code></td><td>Usuário ou senha errados, ou conta bloqueada temporariamente.</td></tr><tr><td><code>PASSWORD_EXPIRED</code></td><td>A senha do admin venceu: troque pelo painel.</td></tr><tr><td><code>EMAIL_NOT_CONFIRMED</code></td><td>O cliente ainda não confirmou o e-mail.</td></tr><tr><td><code>EMAIL_DUPLICATE</code></td><td>E-mail já cadastrado no website.</td></tr><tr><td><code>TAXVAT_INVALID</code></td><td>CPF/CNPJ inválido.</td></tr><tr><td><code>TAXVAT_DUPLICATE</code></td><td>CPF/CNPJ já cadastrado no website.</td></tr><tr><td><code>PASSWORD_INVALID</code></td><td>Senha curta demais ou senha atual errada.</td></tr></table><h4>Catálogo e estoque</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>PRODUCT_NOT_FOUND</code></td><td>SKU ou id que não existe.</td></tr><tr><td><code>SKU_DUPLICATE</code></td><td>SKU já usado.</td></tr><tr><td><code>CATEGORY_REQUIRED</code></td><td>O produto precisa de uma categoria do website.</td></tr><tr><td><code>URL_KEY_DUPLICATE</code></td><td>Chave de URL já usada.</td></tr><tr><td><code>ATTRIBUTE_NOT_FOUND</code></td><td>Atributo fora do conjunto do produto.</td></tr><tr><td><code>VALUE_INVALID</code></td><td>Valor inválido para o atributo.</td></tr><tr><td><code>VALUE_REQUIRED</code></td><td>Atributo obrigatório vazio.</td></tr><tr><td><code>SOURCE_NOT_FOUND</code></td><td>Origem de estoque que não existe.</td></tr></table><h4>Carrinho e pedido</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>CART_NOT_FOUND</code></td><td>cartId que não existe (ou de outro cliente).</td></tr><tr><td><code>PRODUCT_IS_CONFIGURABLE</code></td><td>Produto com grade: envie o SKU da variação.</td></tr><tr><td><code>INSUFFICIENT_STOCK</code></td><td>Quantidade acima do vendável.</td></tr><tr><td><code>QUANTITY_INVALID</code></td><td>Quantidade zero, negativa ou fracionada onde não pode.</td></tr><tr><td><code>SHIPPING_CEP_INVALID</code></td><td>CEP inválido.</td></tr><tr><td><code>SHIPPING_METHOD_UNAVAILABLE</code></td><td>Forma de entrega que não vale para o endereço/carrinho.</td></tr><tr><td><code>PAYMENT_METHOD_UNAVAILABLE</code></td><td>Forma de pagamento desligada ou fora do limite de valor.</td></tr><tr><td><code>COUPON_NOT_FOUND</code></td><td>Cupom que não existe.</td></tr><tr><td><code>COUPON_EXPIRED</code></td><td>Cupom fora da validade.</td></tr><tr><td><code>COUPON_USED_UP</code></td><td>Cupom sem usos restantes.</td></tr><tr><td><code>COUPON_LOGIN_REQUIRED</code></td><td>Cupom só para cliente logado.</td></tr><tr><td><code>TOTAL_CHANGED</code></td><td>O total mudou entre a revisão e o placeOrder (expectedTotal): mostre o novo total e peça a confirmação.</td></tr><tr><td><code>ORDER_NOT_FOUND</code></td><td>Pedido que não existe (ou e-mail que não confere no guestOrder).</td></tr><tr><td><code>ORDER_STATUS_INVALID</code></td><td>A ação não vale para a situação atual do pedido.</td></tr><tr><td><code>REASON_REQUIRED</code></td><td>Cancelamento com motivo OTHER sem comentário.</td></tr><tr><td><code>REFUND_NOTE_REQUIRED</code></td><td>Cancelar pedido pago sem estorno nem nota de devolução.</td></tr><tr><td><code>PAYMENT_FAILED</code></td><td>O Mercado Pago recusou a cobrança (veja statusDetail).</td></tr><tr><td><code>PAYMENT_APPROVED</code></td><td>A cobrança acabou de ser paga; o pedido foi confirmado.</td></tr></table>
+</section>
+
+<section id="referencia">
+  <h2>10. Referência das consultas e mutações</h2>
+  <p>Todas as entradas da API desta versão (35 consultas e 58 mutações), com quem pode chamar e o início da descrição do <code>schema.graphql</code>, que tem os argumentos e os tipos completos. "admin: X" = token do admin com a permissão X no perfil (o perfil Administradores tem todas). "público" = sem login, mas com a chave do aplicativo quando ela é exigida.</p>
+  <h3>10.1 Consultas (query)</h3>
+  <table class="ref"><tr><th>Campo</th><th>Quem pode</th><th>Descrição (do schema)</th></tr><tr><td><code>store</code></td><td>público</td><td>Uma loja (store view) pelo id.</td></tr><tr><td><code>stores</code></td><td>público</td><td>Todas as lojas (store views).</td></tr><tr><td><code>websites</code></td><td>público</td><td>As lojas, na ordem do admin (o cadastro do app oferece a escolha).</td></tr><tr><td><code>storeInfo</code></td><td>público</td><td>Dados da loja.</td></tr><tr><td><code>product</code></td><td>público</td><td>Por id ou por SKU (sem diferenciar maiúsculas); informe um dos dois.</td></tr><tr><td><code>categories</code></td><td>público</td><td>As categorias principais; as outras vêm em children.</td></tr><tr><td><code>category</code></td><td>público</td><td>Por id ou por url_key; informe um dos dois.</td></tr><tr><td><code>route</code></td><td>público</td><td>O que abre num endereço da loja.</td></tr><tr><td><code>products</code></td><td>público</td><td>Lista de produtos com busca, filtros por atributo, categoria e preço, página e as agregações para os filtros.</td></tr><tr><td><code>mobileHome</code></td><td>público</td><td>A tela inicial do app.</td></tr><tr><td><code>mobileCategoryProducts</code></td><td>público</td><td>O &quot;mostrar mais&quot; de uma seção de mobileHome.</td></tr><tr><td><code>mobileOrder</code></td><td>admin: Iter_Catalog::mobile</td><td>Catálogo → Mobile (admin).</td></tr><tr><td><code>inventorySources</code></td><td>admin: Iter_Inventory::source</td><td>As origens de estoque.</td></tr><tr><td><code>inventorySource</code></td><td>admin: Iter_Inventory::source</td><td>Uma origem de estoque pelo código.</td></tr><tr><td><code>customer</code></td><td>admin: Iter_Customer::customer</td><td>Por id ou por e-mail; informe um dos dois.</td></tr><tr><td><code>me</code></td><td>cliente (token)</td><td>O cliente do token; null sem login de cliente.</td></tr><tr><td><code>customers</code></td><td>admin: Iter_Customer::customer</td><td>Lista de clientes com busca, tipo (PF/PJ), grupo, website, situação e página.</td></tr><tr><td><code>attributes</code></td><td>público (os ocultos só para o admin)</td><td>Os atributos de uma entidade (product, customer, customer_address, category), na ordem de posição.</td></tr><tr><td><code>cart</code></td><td>público (cartId) ou cliente</td><td>O carrinho: do visitante pelo cartId, do cliente logado sem cartId; itens, totais, entrega, pagamento e formas disponíveis.</td></tr><tr><td><code>orders</code></td><td>admin: Iter_Sales::order</td><td>Lista de pedidos com filtros, ordenação, página e a soma (amount).</td></tr><tr><td><code>order</code></td><td>admin: Iter_Sales::order</td><td>Pelo id ou pelo número (SP-000001).</td></tr><tr><td><code>myOrders</code></td><td>cliente (token)</td><td>Os pedidos do cliente do token, o mais novo primeiro.</td></tr><tr><td><code>myOrder</code></td><td>cliente (token)</td><td>Um pedido do cliente do token pelo número; null se não for dele.</td></tr><tr><td><code>guestOrder</code></td><td>público (número + e-mail)</td><td>Consulta sem login.</td></tr><tr><td><code>salesSummary</code></td><td>admin: Iter_Sales::order</td><td>Quantos pedidos e quanto em cada situação, no período (todas as situações vêm, mesmo com 0).</td></tr><tr><td><code>shippingTableRates</code></td><td>admin: Iter_Shipping::rates</td><td>As faixas de frete do website.</td></tr><tr><td><code>shippingQuotes</code></td><td>público</td><td>Todas as opções de frete disponíveis para o carrinho e CEP informados, usando o mesmo serviço central do checkout.</td></tr><tr><td><code>mercadopagoSettings</code></td><td>público</td><td>A Public Key e o máximo de parcelas, para o SDK do Mercado Pago no app.</td></tr><tr><td><code>customerMessages</code></td><td>cliente (token)</td><td>A conversa do cliente do token com a loja, a mais antiga primeiro.</td></tr><tr><td><code>customerUnreadMessages</code></td><td>cliente (token)</td><td>Mensagens da loja que o cliente do token ainda não leu.</td></tr><tr><td><code>adminMessageInbox</code></td><td>admin: Iter_Message::manage</td><td>Um cliente por linha, a conversa mais recente primeiro; 20 por página.</td></tr><tr><td><code>adminCustomerMessages</code></td><td>admin: Iter_Message::manage</td><td>A conversa de um cliente, a mais antiga primeiro.</td></tr><tr><td><code>reports</code></td><td>admin: Iter_Report::*</td><td>Os relatórios que o admin do token pode abrir, com os filtros de cada um.</td></tr><tr><td><code>report</code></td><td>admin: a permissão do relatório</td><td>Um relatório, como na tela.</td></tr><tr><td><code>currentAdmin</code></td><td>admin (qualquer)</td><td>O usuário do token (ou da sessão do painel); null sem login.</td></tr></table>
+  <h3>10.2 Mutações (mutation)</h3>
+  <table class="ref"><tr><th>Campo</th><th>Quem pode</th><th>Descrição (do schema)</th></tr><tr><td><code>createStore</code></td><td>admin: Iter_Store::store</td><td>Cria uma loja (store view).</td></tr><tr><td><code>updateStore</code></td><td>admin: Iter_Store::store</td><td>Altera uma loja.</td></tr><tr><td><code>deleteStore</code></td><td>admin: Iter_Store::store</td><td>Exclui uma loja.</td></tr><tr><td><code>saveMobileOrder</code></td><td>admin: Iter_Catalog::mobile</td><td>Catálogo → Mobile (admin), como o &quot;Salvar&quot; da tela.</td></tr><tr><td><code>createProduct</code></td><td>admin: Iter_Catalog::product</td><td>Cria um produto simples ou com grade, com os atributos, websites e categorias.</td></tr><tr><td><code>updateProduct</code></td><td>admin: Iter_Catalog::product</td><td>Só muda o que for enviado; atributos omitidos mantêm o valor.</td></tr><tr><td><code>saveVariants</code></td><td>admin: Iter_Catalog::product</td><td>A lista enviada é a lista final.</td></tr><tr><td><code>deleteProduct</code></td><td>admin: Iter_Catalog::product</td><td>Exclui o produto (e as variações).</td></tr><tr><td><code>uploadProductImage</code></td><td>admin: Iter_Catalog::product</td><td>Envia a imagem de um atributo de imagem do conjunto do produto (troca a atual), pelo multipart request spec com token.</td></tr><tr><td><code>createCategory</code></td><td>admin: Iter_Catalog::category</td><td>Sem parentId, uma categoria principal do website.</td></tr><tr><td><code>updateCategory</code></td><td>admin: Iter_Catalog::category</td><td>Só muda o que for enviado.</td></tr><tr><td><code>moveCategory</code></td><td>admin: Iter_Catalog::category</td><td>Muda a categoria mãe (sem parentId = principal) e a posição.</td></tr><tr><td><code>setCategoryBanners</code></td><td>admin: Iter_Catalog::category</td><td>Os banners da categoria (como o bloco &quot;Banners&quot; do formulário).</td></tr><tr><td><code>deleteCategory</code></td><td>admin: Iter_Catalog::category</td><td>Recusada com subcategorias (CATEGORY_HAS_CHILDREN) ou produtos (CATEGORY_HAS_PRODUCTS).</td></tr><tr><td><code>setProductStock</code></td><td>admin: Iter_Inventory::stock</td><td>Só muda as origens enviadas; as outras mantêm o que têm.</td></tr><tr><td><code>registerCustomer</code></td><td>público</td><td>Cadastro pela loja.</td></tr><tr><td><code>confirmCustomerEmail</code></td><td>público</td><td>O token do link do e-mail de confirmação.</td></tr><tr><td><code>generateCustomerToken</code></td><td>público</td><td>Login do cliente pela loja.</td></tr><tr><td><code>refreshCustomerToken</code></td><td>cliente (token)</td><td>Troca o token enviado por um novo, com a validade renovada (app mobile).</td></tr><tr><td><code>revokeCustomerToken</code></td><td>cliente (token)</td><td>Logout.</td></tr><tr><td><code>requestCustomerPasswordReset</code></td><td>público</td><td>Senha esquecida.</td></tr><tr><td><code>resetCustomerPassword</code></td><td>público</td><td>O token do link do e-mail + a nova senha.</td></tr><tr><td><code>updateMe</code></td><td>cliente (token)</td><td>O cliente do token muda os próprios dados; só muda o que for enviado.</td></tr><tr><td><code>changeMyPassword</code></td><td>cliente (token)</td><td>Troca a senha do cliente do token.</td></tr><tr><td><code>createMyAddress</code></td><td>cliente (token)</td><td>Novo endereço do cliente do token.</td></tr><tr><td><code>updateMyAddress</code></td><td>cliente (token)</td><td>Troca o endereço inteiro (o id vem em address.id).</td></tr><tr><td><code>setMyDefaultAddress</code></td><td>cliente (token)</td><td>Torna o endereço o padrão de entrega e/ou de cobrança.</td></tr><tr><td><code>deleteMyAddress</code></td><td>cliente (token)</td><td>Remove o endereço.</td></tr><tr><td><code>createCustomer</code></td><td>admin: Iter_Customer::customer</td><td>Cria um cliente pelo admin, com endereços.</td></tr><tr><td><code>updateCustomer</code></td><td>admin: Iter_Customer::customer</td><td>Só muda o que for enviado; atributos omitidos mantêm o valor.</td></tr><tr><td><code>deleteCustomer</code></td><td>admin: Iter_Customer::customer</td><td>Apaga também os endereços e os atributos.</td></tr><tr><td><code>createCart</code></td><td>público</td><td>Novo carrinho de visitante; devolve o cartId (guarde-o.</td></tr><tr><td><code>addToCart</code></td><td>público ou cliente</td><td>Soma à quantidade que já estiver no carrinho.</td></tr><tr><td><code>updateCartItem</code></td><td>público ou cliente</td><td>A nova quantidade do item; 0 remove.</td></tr><tr><td><code>removeCartItem</code></td><td>público ou cliente</td><td>Tira um item do carrinho.</td></tr><tr><td><code>mergeCarts</code></td><td>cliente (token)</td><td>Depois do login.</td></tr><tr><td><code>setCartGuestInfo</code></td><td>público</td><td>Dados do visitante para o pedido.</td></tr><tr><td><code>setCartShippingAddress</code></td><td>público ou cliente</td><td>O endereço digitado (address) ou um salvo do cliente (customerAddressId).</td></tr><tr><td><code>setCartShippingMethod</code></td><td>público ou cliente</td><td>Um code de availableShippingMethods.</td></tr><tr><td><code>setCartPaymentMethod</code></td><td>público ou cliente</td><td>Um code de availablePaymentMethods.</td></tr><tr><td><code>applyCartCoupon</code></td><td>público ou cliente</td><td>Aplica um cupom no carrinho e devolve os valores recalculados.</td></tr><tr><td><code>removeCartCoupon</code></td><td>público ou cliente</td><td>Remove o cupom do carrinho e recalcula promoções automáticas.</td></tr><tr><td><code>placeOrder</code></td><td>público ou cliente</td><td>Fecha o pedido.</td></tr><tr><td><code>setCartBillingAddress</code></td><td>público ou cliente</td><td>Como o de entrega; sem address nem customerAddressId, a cobrança é no endereço de entrega.</td></tr><tr><td><code>changeMyOrderPaymentMethod</code></td><td>cliente (token)</td><td>O cliente do token troca a forma de pagamento de um pedido dele que aguarda pagamento (ex..</td></tr><tr><td><code>confirmOrderPayment</code></td><td>admin: Iter_Sales::order_payment</td><td>Aguardando pagamento → Pagamento confirmado.</td></tr><tr><td><code>shipOrder</code></td><td>admin: Iter_Sales::order_ship</td><td>Pagamento confirmado → Enviado.</td></tr><tr><td><code>completeOrder</code></td><td>admin: Iter_Sales::order_ship</td><td>Enviado → Concluído (o cliente recebeu).</td></tr><tr><td><code>cancelOrder</code></td><td>admin: Iter_Sales::order_cancel</td><td>Antes do envio.</td></tr><tr><td><code>addOrderComment</code></td><td>admin: Iter_Sales::order</td><td>Comentário no histórico, em qualquer situação.</td></tr><tr><td><code>createAdminCart</code></td><td>admin: Iter_Adminsales::create</td><td>Um pedido em montagem pelo admin; devolve o cartId, usado nas mutations do carrinho e no placeAdminOrder.</td></tr><tr><td><code>placeAdminOrder</code></td><td>admin: Iter_Adminsales::create</td><td>Fecha o pedido em montagem.</td></tr><tr><td><code>saveShippingTableRates</code></td><td>admin: Iter_Shipping::rates</td><td>A lista enviada é a tabela inteira do website (faixa ausente é removida).</td></tr><tr><td><code>payOrder</code></td><td>cliente, ou visitante com número + e-mail</td><td>Cobra pelo Mercado Pago um pedido &quot;Aguardando pagamento&quot;.</td></tr><tr><td><code>sendCustomerMessage</code></td><td>cliente (token)</td><td>O cliente do token escreve para a loja (1 a 2000 caracteres).</td></tr><tr><td><code>adminSendCustomerMessage</code></td><td>admin: Iter_Message::manage</td><td>A loja escreve para o cliente, mesmo sem conversa anterior.</td></tr><tr><td><code>generateAdminToken</code></td><td>público</td><td>Login do admin pela API.</td></tr><tr><td><code>revokeAdminToken</code></td><td>admin (qualquer)</td><td>Logout.</td></tr></table>
+</section>
+
+<section class="final">
+  <img src="img/egsn-logo.png" alt="Logo EGSN">
+  <h3>Iter Store</h3>
+  <p>Projetado e desenvolvido por <strong>Esmerio Neto</strong></p>
+  <p>EGSN · esmerioneto@gmail.com</p>
+  <p style="color:#6b6b6b;font-size:9pt;margin-top:24px">© 2026 EGSN. Todos os direitos reservados.</p>
+</section>
+
+</main>
+</body>
+</html>

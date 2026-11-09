@@ -1,0 +1,9 @@
+{
+  "name": "iter_cloudflare",
+  "version": "1.0.0",
+  "description": "Provador virtual pelo Cloudflare Workers AI (FLUX.2)",
+  "enabled": true,
+  "index": "0",
+  "author": "Esmerio",
+  "depends": ["iter_tryon"]
+}

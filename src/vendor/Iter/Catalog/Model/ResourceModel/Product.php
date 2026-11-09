@@ -71,6 +71,9 @@ class Product extends AbstractDb
         if (($filters['attribute_set_id'] ?? '') !== '') {
             $collection->addFieldToFilter('attribute_set_id', (int) $filters['attribute_set_id']);
         }
+        if (in_array($filters['type'] ?? '', ['simple', 'configurable'], true)) {
+            $collection->addFieldToFilter('type', $filters['type']);
+        }
         if (in_array($filters['is_active'] ?? '', ['0', '1'], true)) {
             $collection->addFieldToFilter('is_active', (int) $filters['is_active']);
         }

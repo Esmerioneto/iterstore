@@ -26,7 +26,7 @@ class OAuthService
             return $configured;
         }
 
-        $base = rtrim((string) Config::get('web/base_url'), '/');
+        $base = Config::baseUrl();
         if ($base === '') {
             throw new RuntimeException('Configure a URL base do IterStore ou informe a URL de callback do Melhor Envio nas Configurações.');
         }

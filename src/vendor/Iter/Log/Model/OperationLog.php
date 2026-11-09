@@ -27,8 +27,10 @@ class OperationLog
         'login' => 'Entrou', 'logout' => 'Saiu', 'login_failed' => 'Login recusado', 'login_locked' => 'Bloqueado',
         'log_off' => 'Desligou o log', 'log_on' => 'Religou o log', 'export' => 'Exportou',
         'backup_run' => 'Pediu um backup', 'backup_kit' => 'Abriu o kit de recuperação', 'backup_kit_saved' => 'Guardou o kit de recuperação',
+        'marketing_send' => 'Enviou e-mails de marketing', 'marketing_discard' => 'Descartou sugestões de marketing',
+        'tryon_image' => 'Abriu a imagem do provador virtual',
     ];
-    public const AREAS = ['product' => 'Produto', 'customer' => 'Cliente', 'config' => 'Configurações', 'report' => 'Relatório', 'api_key' => 'Chave da API', 'backup' => 'Backup'];
+    public const AREAS = ['product' => 'Produto', 'customer' => 'Cliente', 'config' => 'Configurações', 'report' => 'Relatório', 'api_key' => 'Chave da API', 'backup' => 'Backup', 'marketing' => 'Marketing', 'web_home' => 'Home web'];
 
     /**
      * $before/$after: label => readable value ("Preço" => "49.9"). create = $before empty,

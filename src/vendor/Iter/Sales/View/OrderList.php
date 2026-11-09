@@ -9,6 +9,7 @@ use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Sales\Model\OrderService;
 use Iter\Store\Model\Website;
+use Iter\Admin\View\GridColumns;
 
 class OrderList implements ViewComponentInterface
 {
@@ -50,6 +51,7 @@ class OrderList implements ViewComponentInterface
             'websites' => array_column((new Website())->getList(), 'name', 'website_id'),
             'channels' => (new OrderService())->channels(),
             'payments' => (new OrderService())->paymentMethods(),
+            'gridColumns' => new GridColumns('sales/order-list', $result['items'], ['number', 'created_at', 'customer', 'website', 'channel', 'payment', 'total', 'status']),
         ];
     }
 }

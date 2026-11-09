@@ -1,7 +1,0 @@
-{
-    "route": "user",
-    "vendor": "Egsn",
-    "module_name": "User",
-    "controller_name": "index",
-    "controller_action": "index"
-}

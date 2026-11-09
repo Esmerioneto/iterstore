@@ -445,7 +445,7 @@ class Backup
             return;
         }
         try {
-            (new MailService())->send('backup_failed', $to, ['error' => $message, 'last_ok' => $status['last_ok_at'] ?? 'nunca', 'link' => Config::get('web/base_url') . '/admin/backup/index'], now: true);
+            (new MailService())->send('backup_failed', $to, ['error' => $message, 'last_ok' => $status['last_ok_at'] ?? 'nunca', 'link' => Config::baseUrl() . '/admin/backup/index'], now: true);
             self::saveStatus(['error_mailed' => true]);
         } catch (\Throwable $e) {
             Log::error('Backup: aviso de falha por e-mail não enviado: ' . $e->getMessage());

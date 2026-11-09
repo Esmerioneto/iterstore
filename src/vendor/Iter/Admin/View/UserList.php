@@ -23,12 +23,13 @@ class UserList implements ViewComponentInterface
         [$users, $pager, $sort, $dir, $q] = Sort::slice($users, ['id' => 'user_id', 'username' => 'username', 'name' => 'firstname', 'email' => 'email', 'role' => 'role_name', 'is_active' => 'is_active'], 'id', 'asc', ['username', 'firstname', 'lastname', 'email']);
 
         return [
-        'sort' => $sort,
+            'sort' => $sort,
             'dir' => $dir,
             'q' => $q,
             'is_active' => in_array($active, ['0', '1'], true) ? $active : '',
             'users' => $users,
             'pager' => $pager,
+            'gridColumns' => new GridColumns('admin/user-list', $users, ['id', 'username', 'name', 'email', 'role', 'is_active']),
         ];
     }
 }

@@ -1,0 +1,53 @@
+[
+    {
+        "path": "catalog/tryon/provider",
+        "options": {
+            "cloudflare": "Cloudflare Workers AI"
+        }
+    },
+    {
+        "path": "tryon/cloudflare/account_id",
+        "group": "Provador virtual",
+        "block": "Cloudflare Workers AI",
+        "resource": "Iter_Tryon::manage",
+        "label": "Account ID",
+        "hint": "No painel da Cloudflare, Workers & Pages, à direita.",
+        "type": "text",
+        "required": false
+    },
+    {
+        "path": "tryon/cloudflare/api_token",
+        "group": "Provador virtual",
+        "block": "Cloudflare Workers AI",
+        "resource": "Iter_Tryon::manage",
+        "label": "API token",
+        "hint": "My Profile → API Tokens → Create Token, modelo \"Workers AI\".",
+        "type": "password",
+        "default": "",
+        "required": false
+    },
+    {
+        "path": "tryon/cloudflare/model",
+        "group": "Provador virtual",
+        "block": "Cloudflare Workers AI",
+        "resource": "Iter_Tryon::manage",
+        "label": "Modelo",
+        "hint": "O 9B copia melhor a peça; o 4B é mais barato. Cota grátis: 10.000 neurons por dia (cerca de 6 provas no 9B e 85 no 4B).",
+        "type": "select",
+        "default": "flux-2-klein-9b",
+        "options": {
+            "flux-2-klein-9b": "FLUX.2 klein 9B (cerca de US$ 0,017 por prova)",
+            "flux-2-klein-4b": "FLUX.2 klein 4B (cerca de US$ 0,001 por prova)"
+        }
+    },
+    {
+        "path": "tryon/cloudflare/prompt",
+        "group": "Provador virtual",
+        "block": "Cloudflare Workers AI",
+        "resource": "Iter_Tryon::manage",
+        "label": "Instrução para o modelo",
+        "hint": "Em inglês. Image 0 é a foto do cliente; image 1, a peça.",
+        "type": "textarea",
+        "default": "Image 0 is a photo of a person. Image 1 is a garment. Edit image 0: the person is now wearing the garment from image 1, copied exactly (color, print, collar, buttons, pockets, cuffs, length), without the hanger or anything visible inside it. A top is worn on the upper body, together with the same lower-body clothes and the same shoes as in image 0. A bottom is worn together with the same top as in image 0. Keep exactly the same face as image 0 (facial features, face shape, eyes, nose, mouth, teeth, expression, skin tone, makeup, head angle), and the same hair, accessories, hands, pose, body shape, background and lighting. Photorealistic, fully clothed."
+    }
+]

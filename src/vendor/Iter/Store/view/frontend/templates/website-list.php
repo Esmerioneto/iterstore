@@ -11,25 +11,25 @@
     <table>
         <thead>
             <tr>
-                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('sort_order', 'Ordem', $sort, $dir) ?>
-                <th>Padrão</th>
+                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?><?= $gridColumns->th('id') ?>
+                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?><?= $gridColumns->th('code') ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?><?= $gridColumns->th('name') ?>
+                <?= \Iter\Admin\View\Sort::th('sort_order', 'Ordem', $sort, $dir) ?><?= $gridColumns->th('sort_order') ?>
+                <th>Padrão</th><?= $gridColumns->th('is_default') ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php if (empty($websites)): ?>
-            <tr><td colspan="6" class="admin-empty">Nenhum website cadastrado.</td></tr>
+            <tr><td colspan="<?= 6 + $gridColumns->count() ?>" class="admin-empty">Nenhum website cadastrado.</td></tr>
 <?php else: ?>
     <?php foreach ($websites as $website): ?>
             <tr>
-                <td><?= (int) $website['website_id'] ?></td>
-                <td><?= htmlspecialchars((string) $website['code']) ?></td>
-                <td><?= htmlspecialchars((string) $website['name']) ?></td>
-                <td><?= (int) $website['sort_order'] ?></td>
-                <td><?= $website['is_default'] ? 'Sim' : '' ?></td>
+                <td><?= (int) $website['website_id'] ?></td><?= $gridColumns->td('id', $website['website_id']) ?>
+                <td><?= htmlspecialchars((string) $website['code']) ?></td><?= $gridColumns->td('code', $website['website_id']) ?>
+                <td><?= htmlspecialchars((string) $website['name']) ?></td><?= $gridColumns->td('name', $website['website_id']) ?>
+                <td><?= (int) $website['sort_order'] ?></td><?= $gridColumns->td('sort_order', $website['website_id']) ?>
+                <td><?= $website['is_default'] ? 'Sim' : '' ?></td><?= $gridColumns->td('is_default', $website['website_id']) ?>
                 <td class="admin-row-action">
                     <a href="/admin/website/edit?id=<?= (int) $website['website_id'] ?>">Editar</a>
                     <form method="post" action="/admin/website/delete" data-confirm="Remover este website e seus grupos?">

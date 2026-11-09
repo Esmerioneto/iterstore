@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Manual do Sistema — Iter Store</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm; }
+  :root { --ink:#1f1f1f; --muted:#6b6b6b; --line:#e2ded4; --paper:#f7f5ef; --accent:#1d5fa8; --green:#17a589; }
+  * { box-sizing: border-box; }
+  body { font-family: "Inter", "Segoe UI", Arial, sans-serif; color: var(--ink); font-size: 11pt; line-height: 1.55; margin: 0; background: #fff; }
+  main { max-width: 900px; margin: 0 auto; padding: 0 24px 40px; }
+  h1, h2, h3 { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 500; }
+  h2 { font-size: 24pt; border-bottom: 2px solid var(--ink); padding-bottom: 6px; margin: 0 0 14px; break-before: page; }
+  h3 { font-size: 15pt; margin: 22px 0 6px; }
+  h4 { font-size: 10.5pt; letter-spacing: .06em; text-transform: uppercase; margin: 16px 0 4px; }
+  p { margin: 6px 0; }
+  ul, ol { margin: 6px 0 6px 0; padding-left: 22px; }
+  li { margin: 2px 0; }
+  figure { margin: 14px 0 18px; break-inside: avoid; }
+  .report-group { break-inside: avoid; }
+  figure img { width: 100%; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+  figcaption { font-size: 9pt; color: var(--muted); text-align: center; margin-top: 6px; }
+  .path { display: inline-block; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; font-size: 9.5pt; }
+  .tip, .warn { border-radius: 8px; padding: 10px 14px; margin: 12px 0; break-inside: avoid; }
+  .tip { background: #eef6f3; border-left: 4px solid var(--green); }
+  .warn { background: #fdf3e6; border-left: 4px solid #e08a1e; }
+  .tip b:first-child, .warn b:first-child { display: block; margin-bottom: 2px; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 10pt; break-inside: avoid; }
+  th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: var(--paper); }
+  .steps { counter-reset: s; list-style: none; padding-left: 0; }
+  .steps li { counter-increment: s; position: relative; padding-left: 34px; margin: 6px 0; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 1px; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 9pt; display: flex; align-items: center; justify-content: center; }
+
+  /* Capa */
+  .cover { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center; padding: 60px 0 30px; break-after: page; }
+  .cover .iter { width: 220px; margin-top: 40px; }
+  .cover h1 { font-size: 40pt; margin: 30px 0 4px; }
+  .cover .sub { font-size: 14pt; color: var(--muted); }
+  .cover .ver { margin-top: 18px; font-size: 10pt; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  .signature { display: flex; align-items: center; gap: 18px; border-top: 1px solid var(--line); padding-top: 22px; text-align: left; }
+  .signature img { width: 84px; }
+  .signature p { margin: 2px 0; }
+  .signature .small { font-size: 9pt; color: var(--muted); }
+
+  /* Sumário */
+  .toc { break-after: page; }
+  .toc h2 { break-before: auto; }
+  .toc ol { columns: 2; column-gap: 32px; font-size: 10.5pt; }
+  .toc ol ol { columns: 1; font-size: 9.5pt; color: var(--muted); padding-left: 16px; }
+  .toc a { color: inherit; text-decoration: none; }
+
+  .final { break-before: page; text-align: center; padding-top: 120px; }
+  .final img { width: 140px; }
+  @media screen { body { background: #ece9e1; } main { background: #fff; padding: 30px 48px 60px; box-shadow: 0 0 30px rgba(0,0,0,.08); } }
+</style>
+</head>
+<body>
+<main>
+
+<!-- ============ CAPA ============ -->
+<section class="cover">
+  <div>
+    <img class="iter" src="img/iter-logo.png" alt="Logo Iter Store">
+    <h1>Manual do Sistema</h1>
+    <div class="sub">Iter Store — Painel administrativo da loja</div>
+    <div class="ver">Versão 1.0 · Outubro de 2026</div>
+  </div>
+  <div class="signature">
+    <img src="img/egsn-logo.png" alt="Logo EGSN">
+    <div>
+      <p class="small">Sistema projetado e desenvolvido por</p>
+      <p><strong>Esmerio Neto</strong> — EGSN</p>
+      <p class="small">esmerioneto@gmail.com · © 2026 EGSN. Todos os direitos reservados.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SUMÁRIO ============ -->
+<section class="toc">
+  <h2>Sumário</h2>
+  <ol>
+    <li><a href="#intro">Apresentação</a></li>
+    <li><a href="#acesso">Acesso ao sistema</a>
+      <ol><li>Entrar e sair</li><li>Esqueci minha senha</li><li>Alterar senha</li><li>Regras de segurança</li></ol></li>
+    <li><a href="#tela">Conhecendo a tela</a>
+      <ol><li>Menu lateral</li><li>Listas, filtros e páginas</li><li>Mensagens e confirmações</li></ol></li>
+    <li><a href="#painel">Painel de vendas</a></li>
+    <li><a href="#catalogo">Catálogo</a>
+      <ol><li>Produtos</li><li>Produto com grade</li><li>Estoque</li><li>Organizar tela</li><li>Categorias e banners</li><li>Atributos e conjuntos</li><li>Vitrine do app (Mobile)</li></ol></li>
+    <li><a href="#clientes">Clientes</a>
+      <ol><li>Cadastro PF e PJ</li><li>Endereços</li><li>Grupos</li><li>Mensagens</li><li>Marketing por e-mail</li><li>Provador virtual</li></ol></li>
+    <li><a href="#vendas">Vendas</a>
+      <ol><li>Pedidos</li><li>Atendimento do pedido</li><li>Cancelamento</li><li>Novo pedido</li><li>Promoções e cupons</li><li>Frete</li><li>Pagamentos e Mercado Pago</li></ol></li>
+    <li><a href="#relatorios">Relatórios</a>
+      <ol><li>Os relatórios</li><li>Usando um relatório</li><li>Exportar</li><li>Custo e margem</li><li>Envio automático por e-mail</li></ol></li>
+    <li><a href="#lojas">Lojas e Configurações</a>
+      <ol><li>Ajustes do sistema</li><li>Websites, grupos e lojas</li><li>E-mails</li></ol></li>
+    <li><a href="#sistema">Sistema</a>
+      <ol><li>Usuários e perfis</li><li>E-mails enviados</li><li>Log de operações</li><li>API (GraphiQL)</li><li>Chaves da API</li><li>Backup</li><li>Sobre</li></ol></li>
+    <li><a href="#rotinas">Rotinas automáticas</a></li>
+    <li><a href="#faq">Dúvidas frequentes</a></li>
+  </ol>
+</section>
+
+<!-- ============ 1 ============ -->
+<section id="intro">
+  <h2>1. Apresentação</h2>
+  <p>O <strong>Iter Store</strong> é a plataforma que administra a sua loja virtual. Por ele você cadastra produtos, controla o estoque, atende os pedidos, cria promoções, conversa com os clientes e acompanha as vendas em gráficos.</p>
+  <p>O sistema tem duas partes:</p>
+  <ul>
+    <li><strong>Painel administrativo (admin):</strong> usado pela equipe da loja, no navegador. É dele que este manual trata.</li>
+    <li><strong>Aplicativo e site da loja:</strong> onde o cliente compra. Eles conversam com o Iter Store pela API, então tudo o que você muda no painel (preço, estoque, banner, promoção) aparece para o cliente na hora.</li>
+  </ul>
+  <p>Uma mesma instalação pode atender várias lojas (chamadas de <strong>websites</strong>), cada uma com seus produtos, clientes, estoque, frete e formas de pagamento.</p>
+  <div class="tip"><b>Como ler este manual</b>Os caminhos de menu aparecem assim: <span class="path">Vendas → Pedidos</span>. Cada usuário vê só as telas que o perfil dele permite, então algumas telas podem não aparecer para você.</div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="acesso">
+  <h2>2. Acesso ao sistema</h2>
+
+  <h3>2.1 Entrar e sair</h3>
+  <ol class="steps">
+    <li>Abra o endereço do painel (ex.: <em>https://sualoja.com.br/admin</em>).</li>
+    <li>Informe o <strong>usuário</strong> e a <strong>senha</strong> e clique em <strong>Entrar</strong>.</li>
+    <li>Você é levado para a primeira tela que o seu perfil pode acessar (normalmente o Painel).</li>
+    <li>Para sair, clique em <strong>Sair</strong>, no canto superior direito. O "Sair" do fim do menu pede uma confirmação ("Sair do painel?"). Um link de outro site não consegue tirar você do painel.</li>
+  </ol>
+  <figure><img src="img/01-login.png" alt=""><figcaption>Tela de login do painel.</figcaption></figure>
+
+  <h3>2.2 Esqueci minha senha</h3>
+  <p>Na tela de login, clique em <strong>Esqueci minha senha</strong> e informe o seu e-mail. Você recebe um link para criar uma nova senha.</p>
+  <ul>
+    <li>A resposta é sempre a mesma, exista ou não o e-mail — assim ninguém descobre quem tem conta.</li>
+    <li>O link vale por <strong>2 horas</strong> (ajustável) e só pode ser usado uma vez.</li>
+    <li>Redefinir a senha também desbloqueia um usuário bloqueado por tentativas erradas.</li>
+  </ul>
+  <figure><img src="img/02-esqueci-senha.png" alt=""><figcaption>Pedido de redefinição de senha.</figcaption></figure>
+
+  <h3>2.3 Alterar senha</h3>
+  <p>Clique em <strong>Alterar senha</strong> no topo da tela. Informe a senha atual, a nova senha e a confirmação.</p>
+  <div class="tip"><b>Senha vazou?</b>Trocar a senha (aqui, em Usuários ou pelo "Esqueci minha senha") desconecta todas as outras sessões daquele usuário, em qualquer computador ou celular: elas voltam ao login com o aviso "Sua senha foi alterada". Só a sessão onde você trocou a própria senha continua.</div>
+  <figure><img src="img/04-alterar-senha.png" alt=""><figcaption>Troca da própria senha.</figcaption></figure>
+
+  <h3>2.4 Regras de segurança</h3>
+  <table>
+    <tr><th>Regra</th><th>Padrão</th><th>O que acontece</th></tr>
+    <tr><td>Tamanho mínimo da senha</td><td>8 caracteres</td><td>Senhas menores são recusadas.</td></tr>
+    <tr><td>Letras e números</td><td>Exigido</td><td>A senha precisa ter os dois.</td></tr>
+    <tr><td>Senhas anteriores</td><td>4</td><td>Não é possível repetir nenhuma das 4 últimas senhas.</td></tr>
+    <tr><td>Expiração</td><td>90 dias</td><td>Depois do prazo, o sistema pede uma nova senha antes de liberar o painel.</td></tr>
+    <tr><td>Tentativas de login</td><td>5</td><td>Depois de 5 senhas erradas seguidas, o usuário fica bloqueado.</td></tr>
+    <tr><td>Tempo de bloqueio</td><td>15 minutos</td><td>Nesse período nem a senha correta é aceita.</td></tr>
+    <tr><td>Sessão sem uso</td><td>8 horas</td><td>Passado o tempo sem uso, o painel volta para o login com o aviso "Sua sessão expirou".</td></tr>
+    <tr><td>Duração máxima da sessão</td><td>12 horas</td><td>Mesmo em uso, a sessão termina 12 horas depois do login e pede para entrar de novo. Com 0, não há limite.</td></tr>
+  </table>
+  <p>Todos esses valores podem ser mudados em <span class="path">Lojas → Configurações → Segurança do admin</span>.</p>
+  <figure><img src="img/40c-config-sessao.png" alt=""><figcaption>Segurança do admin: o tempo sem uso e a duração máxima da sessão.</figcaption></figure>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="tela">
+  <h2>3. Conhecendo a tela</h2>
+
+  <h3>3.1 Menu lateral</h3>
+  <p>O menu fica à esquerda e é organizado na ordem do dia a dia: primeiro o que se usa mais, por último a administração.</p>
+  <table>
+    <tr><th>Grupo</th><th>O que tem</th></tr>
+    <tr><td><strong>Painel</strong></td><td>Gráficos e indicadores de vendas.</td></tr>
+    <tr><td><strong>Vendas</strong></td><td>Pedidos, Novo pedido, Faixas de frete, Promoções, Conectar Melhor Envio.</td></tr>
+    <tr><td><strong>Catálogo</strong></td><td>Produtos, Categorias, Atributos, Mobile, Conjuntos de atributos, Estoque.</td></tr>
+    <tr><td><strong>Clientes</strong></td><td>Todos os clientes, Mensagens, Grupos, Provador virtual, Atributos e Conjuntos de cliente e de endereço.</td></tr>
+    <tr><td><strong>Marketing</strong></td><td>Sugestões, Histórico, Configurações.</td></tr>
+    <tr><td><strong>Lojas</strong></td><td>Configurações, Websites, Grupos de loja, Lojas, Modelos de e-mail.</td></tr>
+    <tr><td><strong>Sistema</strong></td><td>Usuários admin, Perfis, E-mails enviados, Log de operações, API (GraphiQL), Chaves da API.</td></tr>
+  </table>
+  <p>Clique no nome de um grupo para abri-lo; abrir outro fecha o anterior. O item da tela atual fica destacado. O item <strong>Mensagens</strong> mostra, em vermelho, quantas mensagens de clientes ainda não foram lidas, e o item <strong>Sugestões</strong>, quantos e-mails de marketing esperam aprovação.</p>
+
+  <h3>3.2 Listas, filtros e páginas</h3>
+  <p>Todas as listas do painel funcionam do mesmo jeito:</p>
+  <ul>
+    <li><strong>Topo:</strong> o título e o botão da ação principal (ex.: <em>+ Novo produto</em>).</li>
+    <li><strong>Barra de filtros:</strong> busca por texto e os filtros próprios da lista.</li>
+    <li><strong>Ordenação:</strong> clique no título de uma coluna para ordenar; clique de novo para inverter (▲ / ▼).</li>
+    <li><strong>Paginação:</strong> embaixo, à direita — "Ir para a página", "Mostrar linhas", a faixa exibida ("9–16 de 34") e as setas.</li>
+  </ul>
+  <figure><img src="img/10-produtos.png" alt=""><figcaption>Exemplo de lista: produtos, com busca, filtros, colunas ordenáveis e paginação.</figcaption></figure>
+
+  <h3>3.3 Mensagens e confirmações</h3>
+  <ul>
+    <li>Avisos de <strong>sucesso</strong> aparecem no canto superior direito e somem em 4 segundos. <strong>Erros</strong> e <strong>avisos</strong> ficam até você fechar no "×".</li>
+    <li>Ações que apagam ou cancelam algo pedem <strong>confirmação</strong> numa janela. O botão "Cancelar" vem selecionado, para evitar cliques acidentais.</li>
+    <li>Se um formulário ficar aberto por muito tempo, ao salvar pode aparecer "sessão expirada": basta recarregar a página e tentar de novo.</li>
+  </ul>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="painel">
+  <h2>4. Painel de vendas</h2>
+  <p><span class="path">Painel</span> — a primeira tela do sistema mostra a saúde da loja numa tela só, sem rolagem.</p>
+  <figure><img src="img/03-dashboard.png" alt=""><figcaption>Painel de vendas com indicadores e gráficos.</figcaption></figure>
+  <h4>No topo</h4>
+  <ul>
+    <li><strong>Período:</strong> 7, 30 ou 90 dias.</li>
+    <li><strong>Website:</strong> uma loja ou todas.</li>
+  </ul>
+  <h4>Indicadores</h4>
+  <ul>
+    <li><strong>Pedidos criados</strong>, com a comparação (▲/▼) com o período anterior e os pedidos de hoje.</li>
+    <li><strong>Pagos</strong>, <strong>Aguardando pagamento</strong> e <strong>Cancelados</strong>, cada um com o % e o valor.</li>
+    <li><strong>Ticket médio</strong> (faturamento ÷ pedidos).</li>
+  </ul>
+  <h4>Gráficos</h4>
+  <ul>
+    <li><strong>Evolução dos pedidos</strong> por dia, semana ou mês, em pedidos, faturamento ou situação.</li>
+    <li><strong>Horário que mais vende</strong>: dia da semana × hora, com o pico destacado.</li>
+    <li><strong>Pagamento por dia</strong> nos últimos 14 dias, com o % de cada forma.</li>
+    <li><strong>Top 10 produtos</strong>, <strong>Categorias</strong> que mais faturam e <strong>Canal de venda</strong> (app, atendimento etc.).</li>
+  </ul>
+  <div class="tip"><b>Dica</b>Passe o mouse sobre um gráfico para ver os números, ou clique em <em>tabela</em> para ver os dados. A tela se atualiza sozinha a cada minuto.</div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="catalogo">
+  <h2>5. Catálogo</h2>
+
+  <h3>5.1 Produtos</h3>
+  <p><span class="path">Catálogo → Produtos</span>. A lista mostra SKU, nome, conjunto, categorias, preço, status e estoque disponível. Produtos com grade aparecem uma vez só, com "(N variações)" e a faixa de preço. Buscar o SKU de uma variação encontra o produto pai.</p>
+
+  <h4>Vários produtos de uma vez</h4>
+  <p>Marque os produtos na caixa à esquerda (a caixa do título marca todos da página). Aparece uma barra acima da lista com quantos estão marcados: escolha a <strong>Ação</strong> e clique em <strong>Aplicar</strong>. As ações de hoje são do Provador virtual (item 6.6): ligar, desligar e o tipo de peça. Num produto com grade, a ação vale para o produto inteiro. Até 500 produtos por vez; cada produto alterado fica no Log de operações. Só aparecem as ações que o seu perfil permite.</p>
+
+  <h4>Cadastrar um produto</h4>
+  <ol class="steps">
+    <li>Clique em <strong>+ Novo produto</strong>.</li>
+    <li>Escolha o <strong>conjunto de atributos</strong> (ex.: Vestuário) e o <strong>tipo</strong>: <em>Simples</em> ou <em>Com grade</em>. Clique em <strong>Trocar</strong> para carregar os campos do conjunto.</li>
+    <li>Preencha <strong>SKU</strong> (código único), <strong>Nome</strong> e <strong>Preço</strong>.</li>
+    <li>Marque os <strong>Websites</strong> onde o produto será vendido e ao menos uma <strong>Categoria</strong> de cada website.</li>
+    <li>Preencha descrição, fotos e os demais campos e clique em <strong>Salvar</strong>.</li>
+  </ol>
+  <figure><img src="img/13-produto-novo.png" alt=""><figcaption>Novo produto: escolha do conjunto e do tipo.</figcaption></figure>
+  <figure><img src="img/11-produto-simples.png" alt=""><figcaption>Edição de um produto simples.</figcaption></figure>
+  <figure><img src="img/11d-produto-custo.png" alt=""><figcaption>Custo do produto, com a margem calculada na hora.</figcaption></figure>
+  <figure><img src="img/11e-produtos-importar-custos.png" alt=""><figcaption>Lista de produtos, com o botão Importar custos.</figcaption></figure>
+  <figure><img src="img/11f-importar-custos.png" alt=""><figcaption>Importar custos: um arquivo com SKUs que não existem não salva nada e mostra as linhas a corrigir.</figcaption></figure>
+
+  <h4>Regras importantes</h4>
+  <ul>
+    <li><strong>Chave de URL:</strong> deixe vazia e ela é criada a partir do nome ("Calça Jeans" → <em>calca-jeans</em>). É o endereço do produto na loja.</li>
+    <li><strong>Categorias:</strong> marcar uma subcategoria marca as categorias pai automaticamente.</li>
+    <li><strong>Imagens:</strong> WebP, AVIF, JPG, PNG ou JPEG XL. Imagens grandes são reduzidas sozinhas antes do envio. Clique na miniatura para ver em tamanho grande.</li>
+    <li><strong>Preço promocional:</strong> preencha "Preço promocional" e, se quiser, "Promoção de" / "Promoção até". Ele vale no app no lugar do preço normal enquanto estiver dentro do período e abaixo do preço.</li>
+    <li><strong>Custo:</strong> o quanto o produto custa para a loja. Logo abaixo aparece a margem com o preço atual (em vermelho se o custo passar do preço). O custo só aparece no painel, para perfis com a permissão "Ver e editar o custo", e nunca no app. Ele é usado na margem dos relatórios (item 8.4).</li>
+    <li><strong>Importar custos:</strong> para cadastrar o custo de muitos produtos de uma vez, use o botão <strong>Importar custos</strong>, no topo da lista de produtos. Clique em "Baixar modelo (.csv)": vem a lista de todos os produtos e variações com o custo de hoje. Abra no Excel, preencha a coluna Custo (por exemplo, 12,50), salve e envie o arquivo (.csv ou .xlsx). Custo em branco não muda nada. Se alguma linha estiver errada (um SKU que não existe, por exemplo), nada é salvo e a tela mostra o número da linha para você corrigir. Produto com variações: o custo vai na linha de cada variação.</li>
+    <li>Se algum campo estiver errado, nada é salvo e a tela volta com o que você digitou, indicando o erro.</li>
+  </ul>
+
+  <h3>5.2 Produto com grade (variações)</h3>
+  <p>Use para produtos vendidos em cor, tamanho, voltagem, sabor etc. Cada combinação é uma <strong>variação</strong> com SKU, preço, estoque e fotos próprios; nome, websites e categorias vêm do produto pai.</p>
+  <ol class="steps">
+    <li>Ao criar, escolha <strong>Tipo: Com grade</strong> e marque de 1 a 3 atributos (ex.: Cor e Tamanho).</li>
+    <li>No bloco <strong>Grade</strong>, marque as opções desejadas (Azul, Preto, P, M…).</li>
+    <li>Informe o <strong>Preço das novas variações</strong> e clique em <strong>Gerar variações</strong>. Só as combinações que faltam são criadas.</li>
+    <li>Na tabela, ajuste SKU, preço e ativo de cada variação, ou clique em <strong>Editar</strong> para fotos e descrição.</li>
+    <li>Na coluna <strong>Imagem do produto</strong>, escolha qual variação empresta as fotos para o produto pai na vitrine.</li>
+  </ol>
+  <figure><img src="img/12-produto-grade.png" alt=""><figcaption>Produto com grade: dados, websites, categorias e opções da grade.</figcaption></figure>
+  <figure><img src="img/12b-produto-grade-tabela.png" alt=""><figcaption>Tabela de variações e o botão "Gerar variações".</figcaption></figure>
+
+  <h3>5.3 Estoque</h3>
+  <p>O estoque é controlado por <strong>origem</strong> (depósito, CD, loja física). Cada origem pertence a um website.</p>
+  <ul>
+    <li><span class="path">Catálogo → Estoque</span>: cadastro das origens (código, nome, prioridade, endereço). A "Origem padrão" já vem criada.</li>
+    <li><strong>Produto simples:</strong> o painel <em>Estoque</em> no fim da edição tem uma linha por origem com a quantidade e a situação. Clique em <strong>Salvar estoque</strong>.</li>
+    <li><strong>Produto com grade:</strong> o painel <em>Estoque por grade</em> mostra uma tabela cor × tamanho com totais. Escolha a origem, digite as quantidades e clique em <strong>Salvar estoque</strong>.</li>
+  </ul>
+  <figure><img src="img/12c-produto-estoque-grade.png" alt=""><figcaption>Estoque por grade: quantidades por cor e tamanho na origem escolhida.</figcaption></figure>
+  <figure><img src="img/18-estoque-origens.png" alt=""><figcaption>Origens de estoque.</figcaption></figure>
+  <div class="tip"><b>Saldo vendável</b>É a soma das quantidades em estoque nas origens ativas, menos o que os pedidos já reservaram. Quando o cliente faz um pedido, o saldo cai na hora; se o pedido for cancelado, a quantidade volta. A baixa física acontece quando você registra a entrega.</div>
+
+  <h3>5.4 Organizar tela</h3>
+  <p>Na edição de produto (e de cliente), o botão <strong>Organizar tela</strong> permite arrastar os blocos e campos, deixar um bloco com largura total (↔) e escolher o número de colunas. Clique em <strong>Salvar layout</strong>. O layout é de cada usuário e vale para todos os produtos; <strong>Restaurar padrão</strong> desfaz.</p>
+  <figure><img src="img/11c-organizar-tela.png" alt=""><figcaption>Modo "Organizar tela" ligado.</figcaption></figure>
+
+  <h3>5.5 Categorias e banners</h3>
+  <p><span class="path">Catálogo → Categorias</span> mostra a árvore de categorias de cada website, com o número de produtos. Use <strong>+ Subcategoria</strong> para criar uma categoria dentro de outra.</p>
+  <figure><img src="img/14-categorias.png" alt=""><figcaption>Árvore de categorias.</figcaption></figure>
+  <ul>
+    <li>Cada categoria tem nome, chave de URL, posição (ordem) e status.</li>
+    <li>Não é possível remover uma categoria que tenha subcategorias ou produtos.</li>
+    <li><strong>Banners:</strong> no formulário da categoria, envie até <strong>5 imagens</strong> (sugestão: 1200 × 400 px). Com uma imagem o app mostra um banner; com duas ou mais, um carrossel. Arraste pela alça ⠿ para mudar a ordem.</li>
+  </ul>
+  <figure><img src="img/15-categoria-editar.png" alt=""><figcaption>Edição de categoria.</figcaption></figure>
+
+  <h3>5.6 Atributos e conjuntos</h3>
+  <p><strong>Atributos</strong> são os campos extras de um cadastro (cor, tamanho, marca, voltagem…). <strong>Conjuntos</strong> dizem quais atributos aparecem juntos, em que grupo e em que ordem — por exemplo, "Vestuário" com cor, tamanho e tecido; "Eletrônicos" com marca e voltagem.</p>
+  <figure><img src="img/16-atributos.png" alt=""><figcaption>Lista de atributos de produto.</figcaption></figure>
+  <ul>
+    <li><strong>Tipos de campo:</strong> Texto, Área de texto, Número, Seleção, Múltipla seleção, Sim/Não, Opções, Data, Imagem, Telefone, CEP, CPF/CNPJ e outros.</li>
+    <li><strong>Usar nos filtros da loja:</strong> faz o atributo aparecer como filtro no app (ex.: filtrar por cor).</li>
+    <li><strong>Usar na grade:</strong> permite usar o atributo para gerar variações.</li>
+    <li>O sistema recusa nomes repetidos ou muito parecidos ("Cor" × "Cores") e avisa quando há um nome quase igual.</li>
+    <li>Atributos do sistema (Preço, Descrição, Peso…) não podem ser removidos. Criar e remover atributos é exclusivo do perfil Administrador.</li>
+  </ul>
+  <figure><img src="img/17-conjuntos.png" alt=""><figcaption>Conjuntos de atributos.</figcaption></figure>
+
+  <h3>5.7 Vitrine do app (Mobile)</h3>
+  <p><span class="path">Catálogo → Mobile</span> define a tela inicial do aplicativo: uma seção por categoria, com os primeiros produtos dela e um "mostrar mais".</p>
+  <ol class="steps">
+    <li>Escolha o website e ligue <strong>Usar esta ordem no app</strong>.</li>
+    <li>Arraste as categorias (alça ⠿ ou ↑ ↓) para definir a ordem e ligue <strong>Mostrar no app</strong> nas desejadas.</li>
+    <li>Em cada categoria, defina quantos produtos <strong>Exibir de início</strong> e, se quiser, escolha produtos em destaque com <strong>Adicionar</strong>.</li>
+    <li>Ligue <strong>Mostrar banner</strong> para exibir os banners da categoria no topo da seção.</li>
+    <li>Clique em <strong>Salvar</strong>.</li>
+  </ol>
+  <figure><img src="img/19-mobile.png" alt=""><figcaption>Ordem da vitrine do app.</figcaption></figure>
+  <p>Com a chave desligada, o app mostra todas as categorias ativas, cada uma com os 10 produtos mais novos.</p>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="clientes">
+  <h2>6. Clientes</h2>
+  <p><span class="path">Clientes → Todos os clientes</span>. A busca aceita nome, razão social, e-mail ou CPF/CNPJ (com ou sem máscara). Filtros por tipo, grupo, website e situação.</p>
+  <figure><img src="img/20-clientes.png" alt=""><figcaption>Lista de clientes.</figcaption></figure>
+
+  <h3>6.1 Cadastro PF e PJ</h3>
+  <ul>
+    <li><strong>Pessoa física:</strong> CPF (validado) e data de nascimento.</li>
+    <li><strong>Pessoa jurídica:</strong> CNPJ (validado), razão social, nome fantasia e inscrição estadual (ou "Isento"). Nome e sobrenome passam a ser os do contato.</li>
+    <li>E-mail e CPF/CNPJ não se repetem dentro do mesmo website.</li>
+    <li>Trocar o tipo mostra os campos certos sem recarregar a página.</li>
+    <li>No fim da tela aparecem os <strong>últimos pedidos</strong> do cliente e o <strong>Histórico de alterações</strong>.</li>
+  </ul>
+  <figure><img src="img/21-cliente-editar.png" alt=""><figcaption>Cadastro do cliente.</figcaption></figure>
+
+  <h3>6.2 Endereços</h3>
+  <ul>
+    <li><strong>+ Adicionar endereço</strong> abre um endereço em branco. Ao digitar o CEP, rua, bairro, cidade e UF são preenchidos automaticamente; confira e complete o número.</li>
+    <li>Marque <strong>Padrão de entrega</strong> e <strong>Padrão de cobrança</strong>. Sem nenhum marcado, o primeiro endereço vira o padrão.</li>
+    <li><strong>Remover</strong> tira o endereço ao salvar. Tudo é gravado junto com o cliente, no botão <strong>Salvar</strong>.</li>
+  </ul>
+  <figure><img src="img/21b-cliente-enderecos.png" alt=""><figcaption>Bloco de endereços do cliente.</figcaption></figure>
+
+  <h3>6.3 Grupos de clientes</h3>
+  <p><span class="path">Clientes → Grupos de clientes</span>. Os grupos padrão são <em>Geral</em>, <em>Atacado</em> e <em>VIP</em>. O cliente novo entra no primeiro grupo. Um grupo com clientes não pode ser removido.</p>
+  <figure><img src="img/22-grupos-clientes.png" alt=""><figcaption>Grupos de clientes.</figcaption></figure>
+  <div class="tip"><b>Campos personalizados</b>Em <span class="path">Clientes → Atributos de cliente</span> e <span class="path">Atributos de endereço</span> você cria campos extras (ex.: "Ponto de referência"), que aparecem no cadastro e no app.</div>
+
+  <h3>6.4 Mensagens com clientes</h3>
+  <p><span class="path">Clientes → Mensagens</span>. Cada cliente tem uma conversa com a loja, pelo app.</p>
+  <ul>
+    <li><strong>Caixa de entrada:</strong> um cliente por linha, com a última mensagem. As conversas com mensagens não lidas ficam em negrito, com o número em vermelho. Use "Só não lidas" para filtrar.</li>
+    <li><strong>+ Nova conversa</strong> busca qualquer cliente e abre a conversa, mesmo vazia.</li>
+    <li><strong>Conversa:</strong> cliente à esquerda, loja à direita. Ao lado, os dados do cliente e os 3 últimos pedidos. As mensagens se atualizam sozinhas a cada 30 segundos.</li>
+  </ul>
+  <figure><img src="img/23-mensagens.png" alt=""><figcaption>Caixa de entrada de mensagens.</figcaption></figure>
+  <figure><img src="img/24-mensagem-conversa.png" alt=""><figcaption>Conversa com um cliente.</figcaption></figure>
+
+  <h3>6.5 Marketing por e-mail</h3>
+  <p>O sistema encontra clientes que merecem um lembrete e sugere um e-mail para cada um. Você escolhe, regra por regra, se o e-mail sai sozinho ou se espera a sua aprovação.</p>
+  <table>
+    <tr><th>Regra</th><th>Quem entra</th><th>O e-mail</th></tr>
+    <tr><td>Carrinho abandonado</td><td>Quem deixou produtos no carrinho e não fechou o pedido. Até dois lembretes (padrão: 3 h e 24 h depois). Visitantes entram se informaram o e-mail.</td><td>Lista os produtos e leva de volta ao carrinho.</td></tr>
+    <tr><td>Sem comprar há N dias</td><td>Quem não compra há mais de N dias (padrão 90).</td><td>Convida a voltar à loja.</td></tr>
+    <tr><td>Fora do ritmo habitual</td><td>Quem costuma comprar com regularidade (pelo menos 3 pedidos) e passou do seu intervalo médio mais uma tolerância (padrão 20%). Ex.: compra a cada 30 dias e está há 37 sem comprar.</td><td>Convida a voltar à loja.</td></tr>
+    <tr><td>Cadastrou e nunca comprou</td><td>Quem se cadastrou há N dias (padrão 7) e não fez nenhum pedido pago.</td><td>Boas-vindas e convite para a primeira compra.</td></tr>
+    <tr><td>Novidades para recorrentes</td><td>Quem fez pelo menos 3 pedidos nos últimos 180 dias. A cada 30 dias.</td><td>Os produtos novos com estoque; sem novos, os mais vendidos.</td></tr>
+  </table>
+  <p>Todas as regras vêm <strong>desligadas</strong>. Os e-mails podem ser editados em <span class="path">Lojas → Modelos de e-mail</span> (os que começam com "Marketing").</p>
+
+  <h4>Consentimento (LGPD)</h4>
+  <ul>
+    <li>Só recebe quem marcou <strong>"Aceita receber ofertas por e-mail"</strong>, no cadastro do cliente (tela do admin ou app). Os clientes que já existiam começam desmarcados.</li>
+    <li>Todo e-mail de marketing leva o link <strong>"Não quero mais receber"</strong>. O cliente confirma numa página da loja e a marcação sai do cadastro na hora. O Gmail e outros também mostram um botão de descadastro próprio, que faz o mesmo.</li>
+    <li>O sistema guarda cada vez que o cliente marcou ou desmarcou, com a data, como prova do consentimento.</li>
+    <li>Exceção, desligada por padrão: <strong>"Enviar carrinho abandonado mesmo sem consentimento"</strong>. Ligada, o lembrete do carrinho vai também para quem nunca respondeu, mas nunca para quem pediu para sair.</li>
+  </ul>
+
+  <h4>Sugestões</h4>
+  <p><span class="path">Marketing → Sugestões</span> lista os e-mails que esperam aprovação, com o cliente, a regra e o motivo (ex.: "Última compra: pedido RJ000120"). Filtre por regra, website ou nome/e-mail.</p>
+  <ul>
+    <li><strong>Ver e-mail</strong> mostra exatamente como o e-mail sairia agora.</li>
+    <li>Marque uma ou várias (a caixa do título marca todas) e clique em <strong>Enviar as marcadas</strong> ou <strong>Descartar as marcadas</strong>.</li>
+    <li>Dentro do horário de envio, o e-mail entra na fila na hora; fora dele, sai no início do próximo horário.</li>
+    <li>Sugestão não aprovada <strong>expira</strong> (padrão: 3 dias), para não chegar um lembrete velho.</li>
+  </ul>
+
+  <h4>Histórico</h4>
+  <p><span class="path">Marketing → Histórico</span> mostra todas as sugestões, com filtros por situação, regra, website e período. As situações são: Aguardando aprovação, Aprovada (aguardando o horário), Enviada, Descartada, Expirada e Não enviada.</p>
+  <ul>
+    <li>Antes de enviar, o sistema confere tudo de novo. Se algo mudou, a sugestão fica <strong>Não enviada</strong>, com o motivo na linha. Por exemplo: o cliente tirou o consentimento, já recebeu outro e-mail de marketing há pouco, ou o motivo deixou de valer porque o carrinho virou pedido ou ele comprou de novo.</li>
+    <li>No topo, um quadro por regra mostra quantos e-mails saíram e <strong>quantos clientes fizeram um pedido pago em até 7 dias</strong> depois do e-mail. É uma indicação: o cliente pode ter comprado por outro motivo.</li>
+  </ul>
+
+  <h4>Configurações</h4>
+  <p><span class="path">Marketing → Configurações</span> (ou <span class="path">Lojas → Configurações → Marketing</span>). Os ajustes valem por website.</p>
+  <ul>
+    <li><strong>Geral:</strong> no máximo 1 e-mail de marketing por cliente a cada N dias (padrão 7, somando todas as regras), o horário de envio (padrão das 9 às 20 h), o prazo para a sugestão expirar e a exceção do carrinho.</li>
+    <li><strong>Uma área para cada regra:</strong> ligar ou desligar, <strong>Envio</strong> ("Automático" ou "Aguardar aprovação") e os prazos da regra.</li>
+    <li>O mesmo motivo nunca gera dois e-mails: o cliente recebe uma vez o lembrete daquele carrinho ou daquela última compra.</li>
+  </ul>
+  <div class="tip"><b>Permissões</b>No perfil do usuário há três permissões separadas: "Marketing: aprovar e descartar sugestões", "Marketing: histórico" e "Marketing: configurar regras". Cada envio e descarte fica no Log de operações.</div>
+  <div class="tip"><b>Dica para começar</b>Ligue uma regra em "Aguardar aprovação", acompanhe as sugestões por alguns dias e, quando estiver confiante, mude para "Automático".</div>
+
+  <h3>6.6 Provador virtual</h3>
+  <p>No app, o cliente tira uma foto e vê a si mesmo vestindo o produto. A imagem é gerada por um serviço de inteligência artificial (o <strong>provedor</strong>), pago por prova.</p>
+  <ul>
+    <li><strong>Quem usa:</strong> só o cliente com <strong>"Pode usar o provador virtual"</strong> marcado no cadastro, e só nos produtos com <strong>"Provador virtual"</strong> marcado. Os dois vêm desmarcados. Para ligar em muitos produtos, use as ações em massa da lista de produtos (item 5.1). No produto, informe também o <strong>"Tipo de peça no provador"</strong> (parte de cima, parte de baixo ou peça inteira).</li>
+    <li><strong>Ligar e ajustar:</strong> <span class="path">Lojas → Configurações → Provador virtual</span>: o provedor e a chave dele, o <strong>teto de gasto do mês</strong>, quantas provas cada cliente pode fazer por dia, por quanto tempo a imagem pronta fica disponível e os textos de dicas e de consentimento que o app mostra.</li>
+    <li><strong>Teto do mês:</strong> quando o gasto chega ao teto, o botão "Experimentar" some do app até o mês seguinte.</li>
+  </ul>
+  <p><span class="path">Clientes → Provador virtual</span> lista todas as provas: data, cliente, produto, provedor, situação (Gerando, Pronta ou Erro, com o código do erro), tempo, custo e quantas vezes a prova foi <strong>reaproveitada</strong>. O mesmo cliente com a mesma foto e o mesmo produto recebe a prova pronta de novo, sem custo. Filtre por situação, provedor, website, período ou pelo nome do cliente, produto ou SKU.</p>
+  <ul>
+    <li><strong>No topo:</strong> o gasto do mês contra o teto, as provas de hoje, a porcentagem de erros nos últimos 7 dias e o provedor ativo.</li>
+    <li><strong>Aviso em vermelho:</strong> aparece quando a última prova foi recusada porque a chave do provedor foi recusada ou o saldo acabou. Enquanto isso, os clientes veem "O provador não está disponível agora". Confira a chave e o saldo do provedor.</li>
+    <li><strong>Ver imagem:</strong> abre a imagem pronta enquanto ela estiver disponível. É a foto de um cliente: cada abertura fica no Log de operações, no cadastro do cliente.</li>
+  </ul>
+  <div class="warn"><b>Privacidade</b>A foto do cliente não fica guardada no sistema; só a imagem pronta, pelo tempo configurado, e depois é apagada sozinha.</div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="vendas">
+  <h2>7. Vendas</h2>
+
+  <h3>7.1 Pedidos</h3>
+  <p><span class="path">Vendas → Pedidos</span>. Filtros por situação, website, canal de venda, forma de pagamento, período, motivo de cancelamento e busca por número, e-mail ou nome. O topo mostra quantos pedidos e o total do filtro (sem os cancelados).</p>
+  <figure><img src="img/30-pedidos.png" alt=""><figcaption>Lista de pedidos.</figcaption></figure>
+
+  <h4>Situações do pedido</h4>
+  <table>
+    <tr><th>Situação</th><th>Significado</th><th>Próximo passo</th></tr>
+    <tr><td>Aguardando pagamento</td><td>Todo pedido nasce assim.</td><td>Confirmar pagamento (ou automático pelo Mercado Pago).</td></tr>
+    <tr><td>Pagamento confirmado</td><td>Pago, pronto para separar.</td><td>Registrar entrega.</td></tr>
+    <tr><td>Enviado</td><td>Saiu da loja; o cliente recebeu o rastreio.</td><td>Concluir quando o cliente receber.</td></tr>
+    <tr><td>Concluído</td><td>Entregue.</td><td>—</td></tr>
+    <tr><td>Cancelado</td><td>Cancelado antes do envio; o estoque voltou.</td><td>—</td></tr>
+  </table>
+
+  <h3>7.2 Atendimento do pedido</h3>
+  <p>A tela do pedido mostra loja, canal, cliente, frete, pagamento (com a bandeira do cartão ou o logo do Pix), endereços, itens e histórico. Só aparecem as ações permitidas para a situação e o seu perfil:</p>
+  <ul>
+    <li><strong>Confirmar pagamento</strong> — com comentário opcional (ex.: "comprovante recebido pelo WhatsApp").</li>
+    <li><strong>Registrar entrega</strong> — escolha a origem do estoque (o sistema sugere a melhor), a transportadora e o código de rastreio. O cliente recebe o rastreio por e-mail.</li>
+    <li><strong>Concluir</strong> — quando o cliente recebeu.</li>
+    <li><strong>Cancelar</strong> — veja o item 7.3.</li>
+    <li><strong>Comentar</strong> — em qualquer situação; marque "Avisar o cliente por e-mail" se ele deve receber.</li>
+  </ul>
+  <figure><img src="img/31-pedido-ver.png" alt=""><figcaption>Tela do pedido: dados, frete e pagamento com cartão.</figcaption></figure>
+  <figure><img src="img/31b-pedido-itens.png" alt=""><figcaption>Itens, totais e ações do pedido.</figcaption></figure>
+  <figure><img src="img/31c-pedido-historico.png" alt=""><figcaption>Histórico: cada ação fica registrada com data, situação e o usuário que a fez.</figcaption></figure>
+
+  <h3>7.3 Cancelamento</h3>
+  <p>Em <strong>Cancelar pedido</strong>, informe:</p>
+  <ul>
+    <li><strong>Motivo:</strong> Desistência do cliente, Pagamento não recebido, Produto sem estoque, Suspeita de fraude, Erro no pedido ou Outro.</li>
+    <li><strong>Complemento:</strong> opcional (obrigatório com "Outro").</li>
+    <li><strong>Como o valor foi devolvido:</strong> obrigatório se o pedido já foi pago fora do Mercado Pago.</li>
+    <li><strong>Estornar no Mercado Pago:</strong> nos pedidos pagos pelo Mercado Pago, já vem ligado e devolve o valor na mesma forma de pagamento.</li>
+    <li><strong>Avisar o cliente por e-mail:</strong> ligado por padrão.</li>
+  </ul>
+  <p>O que estava reservado volta para o estoque, e o motivo aparece na lista e na tela do pedido.</p>
+  <figure><img src="img/32-pedido-cancelado.png" alt=""><figcaption>Pedido cancelado com o motivo registrado.</figcaption></figure>
+  <div class="warn"><b>Atenção — suspeita de fraude</b>Desligue "Avisar o cliente por e-mail" para que o cliente não receba "Motivo: Suspeita de fraude".</div>
+  <div class="tip"><b>Pedidos não pagos</b>O sistema cancela sozinho os pedidos que passam do prazo de pagamento de cada forma (ex.: Pix em 48 h). O estoque volta e o cliente é avisado.</div>
+
+  <h3>7.4 Novo pedido (atendimento)</h3>
+  <p><span class="path">Vendas → Novo pedido</span>: para vender por telefone, WhatsApp ou balcão. O pedido sai igual ao do app.</p>
+  <ol class="steps">
+    <li>Busque o cliente (nome, e-mail ou CPF/CNPJ) e clique em <strong>Iniciar pedido</strong>, ou use <strong>Iniciar pedido para visitante</strong>.</li>
+    <li>Adicione os <strong>itens</strong> por SKU ou nome; produtos com grade mostram cada variação com preço e saldo.</li>
+    <li>Escolha o <strong>endereço</strong>, o <strong>frete</strong> e a <strong>forma de pagamento</strong>.</li>
+    <li>Clique em <strong>Criar pedido</strong>. Marque <em>Pagamento recebido</em> se o cliente já pagou (balcão) e escreva um comentário interno, se quiser.</li>
+  </ol>
+  <figure><img src="img/33-novo-pedido.png" alt=""><figcaption>Novo pedido pelo atendimento.</figcaption></figure>
+  <p>Pedidos começados e não fechados ficam listados com <strong>Continuar</strong> e <strong>Descartar</strong>.</p>
+
+  <h3>7.5 Promoções e cupons</h3>
+  <p><span class="path">Vendas → Promoções</span>.</p>
+  <figure><img src="img/34-promocoes.png" alt=""><figcaption>Lista de promoções com desconto, validade e usos.</figcaption></figure>
+  <ul>
+    <li><strong>Aplicação:</strong> automática (vale para todos) ou por <strong>cupom</strong>.</li>
+    <li><strong>Desconto:</strong> percentual ou valor fixo.</li>
+    <li><strong>Onde vale:</strong> websites, produtos, categorias, conjuntos de atributos e faixa de subtotal (mínimo/máximo).</li>
+    <li><strong>Validade:</strong> data e hora de início e fim (horário de Brasília).</li>
+    <li><strong>Prioridade e acúmulo:</strong> define a ordem e se pode somar com outras promoções; escolha também se vale para produtos que já estão com preço promocional.</li>
+    <li><strong>Cupons:</strong> um código por linha (letras, números, hífen e sublinhado). Limite de uso: ilimitado, uso único ou uma vez por cliente.</li>
+    <li>O número de usos na lista abre o histórico: pedido, cliente, cupom, valor e situação. Ao cancelar o pedido, o uso do cupom é liberado.</li>
+  </ul>
+  <figure><img src="img/35-promocao-editar.png" alt=""><figcaption>Cadastro de promoção.</figcaption></figure>
+  <figure><img src="img/35b-promocao-cupons.png" alt=""><figcaption>Cupons e limite de uso.</figcaption></figure>
+
+  <h3>7.6 Frete</h3>
+  <p>As formas de entrega são ligadas em <span class="path">Lojas → Configurações → Frete</span>, por website:</p>
+  <ul>
+    <li><strong>Frete por tabela:</strong> valor e prazo pelas faixas de CEP e peso, em <span class="path">Vendas → Faixas de frete</span>.</li>
+    <li><strong>Frete grátis</strong> a partir de um valor de compra.</li>
+    <li><strong>Retirar na loja</strong>, sem custo, no endereço da loja.</li>
+    <li><strong>Correios</strong> (PAC, SEDEX…) e <strong>Melhor Envio</strong>, com cotação automática de preço e prazo. O Melhor Envio é conectado em <span class="path">Vendas → Conectar Melhor Envio</span>.</li>
+  </ul>
+  <figure><img src="img/36-faixas-frete.png" alt=""><figcaption>Faixas de frete por CEP e peso. O botão <strong>Excluir</strong>, no fim de cada faixa, apaga a faixa na hora (depois de confirmar); os pedidos já feitos não mudam.</figcaption></figure>
+  <div class="tip"><b>Peso dos produtos</b>O frete usa o campo "Peso (kg)" do produto. Produtos sem peso contam como zero — mantenha esse campo preenchido.</div>
+
+  <h3>7.7 Pagamentos e Mercado Pago</h3>
+  <ul>
+    <li><strong>Pix manual:</strong> mostra a chave Pix da loja; o pagamento é confirmado por você no pedido.</li>
+    <li><strong>Combinar com a loja:</strong> dinheiro, cartão na retirada, depósito.</li>
+    <li><strong>Mercado Pago:</strong> Pix, cartão de crédito (até 12x) e débito, pagos dentro do app. O pedido muda sozinho para <em>Pagamento confirmado</em> quando o pagamento é aprovado, e a tela do pedido mostra, em "Tentativas de cobrança", cada tentativa com a data, a situação, o motivo de uma recusa (ex.: "Saldo ou limite insuficiente", "Recusado pelo banco"), a bandeira, o cartão mascarado e o valor. Ajuda a explicar ao cliente por que o cartão não passou.</li>
+    <li><strong>Nome na fatura do cartão</strong> (Configurações → Pagamento, bloco Mercado Pago): o nome que aparece na fatura do cliente, até 13 caracteres (ex.: JARDIMVERA). Um nome que o cliente reconhece evita contestações. Vazio = o nome da conta do Mercado Pago. O Mercado Pago considera este campo obrigatório na medição de qualidade: preencha antes de vender.</li>
+    <li><strong>Categoria dos produtos</strong> (mesmo bloco): o ramo da loja (ex.: Moda e vestuário), enviado em cada cobrança. Ajuda o Mercado Pago a aprovar mais pagamentos.</li>
+    <li><strong>Cartão de débito:</strong> aceita cartões de débito e pré-pagos (ex.: Elo pré-pago), sempre à vista.</li>
+    <li>Cada cobrança leva ao Mercado Pago os itens do pedido, o frete e os dados do comprador (nome, CPF, telefone e endereço). Com isso, o Mercado Pago recusa menos pagamentos legítimos.</li>
+    <li><strong>Trocar uma credencial:</strong> para substituir o Access Token ou a assinatura do webhook, basta digitar o novo valor e salvar. A caixa "Apagar a senha salva" só apaga quando o campo fica vazio; com um valor novo digitado, vale o novo.</li>
+  </ul>
+  <p>As credenciais do Mercado Pago (Access Token, Public Key e assinatura do webhook) e os prazos de cada forma ficam em <span class="path">Lojas → Configurações → Pagamento</span>.</p>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="relatorios">
+  <h2>8. Relatórios</h2>
+  <p><span class="path">Relatórios</span>: os números da loja num período, com filtros, totais e exportação. "Todos os relatórios" mostra um cartão por assunto; "Vendas", "Operação", "Estoque e catálogo", "Clientes" e "Financeiro" abrem só os do assunto. Quem vê os relatórios é definido no perfil, com quatro permissões: "Relatórios de vendas e operação", "Relatórios de estoque e catálogo", "Relatórios de clientes" e "Relatórios financeiros".</p>
+  <figure><img src="img/60-relatorios.png" alt=""><figcaption>Relatórios: escolha um.</figcaption></figure>
+
+  <h3>8.1 Os relatórios</h3>
+  <p>São 26 relatórios em cinco assuntos, os mesmos do menu <span class="path">Relatórios</span>.</p>
+  <div class="tip"><b>O que conta como venda</b>Só os pedidos pagos (pagamento confirmado, enviado e concluído), o mesmo critério do Painel de vendas. Os que aguardam pagamento e os cancelados aparecem à parte e não entram nos totais.</div>
+
+  <div class="report-group">
+  <h4>Vendas</h4>
+  <p>Permissão "Relatórios de vendas e operação". O que vendeu, quanto e como.</p>
+  <table>
+    <tr><th>Relatório</th><th>O que mostra</th></tr>
+    <tr><td>Vendas por período</td><td>Por dia, semana ou mês (pela data do pedido ou do pagamento): pedidos, itens, subtotal, descontos, frete, total, margem, ticket médio, aguardando e cancelados. Gráfico do faturamento e da margem.</td></tr>
+    <tr><td>Vendas por produto</td><td>Quantidade, pedidos, faturamento, desconto, custo, margem, preço médio e % do total. Filtros por categoria e busca; "Somar variações no produto pai" junta as cores e tamanhos no produto.</td></tr>
+    <tr><td>Vendas por categoria</td><td>Faturamento e margem de cada categoria.</td></tr>
+    <tr><td>Vendas por forma de pagamento</td><td>Pix, cartão (parcelas e bandeiras) e as outras formas.</td></tr>
+    <tr><td>Vendas por canal e atendente</td><td>Por canal (App, Atendimento…) e, nos pedidos feitos no painel, por quem fez o pedido.</td></tr>
+    <tr><td>Vendas por região</td><td>Por estado (UF) ou cidade de entrega: pedidos, clientes, valor, frete cobrado e frete médio.</td></tr>
+    <tr><td>Promoções e cupons</td><td>Quantas vezes cada promoção e cupom foi usado, quanto de desconto deu e o ticket médio dos pedidos com e sem desconto.</td></tr>
+    <tr><td>Frete</td><td>Por forma de entrega: frete cobrado, frete médio, frete grátis, retirada na loja e prazo prometido.</td></tr>
+    <tr><td>Cancelamentos</td><td>Por motivo: quantos, o valor, quantos já estavam pagos e o estornado no Mercado Pago. Clique no motivo para ver os pedidos.</td></tr>
+  </table>
+  </div>
+  <figure><img src="img/70-vendas-por-canal.png" alt=""><figcaption>Vendas por canal e atendente.</figcaption></figure>
+  <figure><img src="img/71-vendas-por-regiao.png" alt=""><figcaption>Vendas por região.</figcaption></figure>
+
+  <div class="report-group">
+  <h4>Operação</h4>
+  <p>Mesma permissão de vendas. O que precisa de atenção hoje.</p>
+  <table>
+    <tr><th>Relatório</th><th>O que mostra</th></tr>
+    <tr><td>Pedidos parados</td><td>Aguardando pagamento há mais de 24 horas e pagos sem envio há mais de 2 dias (você muda os dois prazos). Clique no número para abrir o pedido.</td></tr>
+    <tr><td>Tempo de atendimento</td><td>Quanto tempo leva, em média e no pior caso, do pedido ao pagamento, do pagamento ao envio e do envio à conclusão, por semana ou mês.</td></tr>
+    <tr><td>Envios</td><td>Envios por transportadora e origem, os que estão sem código de rastreio, ou a lista de cada envio com o pedido.</td></tr>
+  </table>
+  </div>
+  <figure><img src="img/62-pedidos-parados.png" alt=""><figcaption>Pedidos parados: a lista do que precisa de atenção hoje.</figcaption></figure>
+  <figure><img src="img/73-tempo-de-atendimento.png" alt=""><figcaption>Tempo de atendimento: do pedido à conclusão.</figcaption></figure>
+
+  <div class="report-group">
+  <h4>Estoque e catálogo</h4>
+  <p>Permissão "Relatórios de estoque e catálogo". O que tem, o que falta e o que corrigir no cadastro.</p>
+  <table>
+    <tr><th>Relatório</th><th>O que mostra</th></tr>
+    <tr><td>Posição de estoque</td><td>Cada produto (ou variação) com o estoque de cada origem, o físico, o reservado em pedidos ainda não enviados, o vendável (o mesmo número da loja) e o valor em estoque pelo custo e pelo preço. Mostra a situação de agora.</td></tr>
+    <tr><td>Estoque baixo e esgotado</td><td>Os produtos ativos com até 3 unidades vendáveis (você muda o número), quanto venderam nos últimos 30 dias e mais ou menos quantos dias o estoque dura. "Venda perdida por dia" estima quanto os esgotados deixam de vender.</td></tr>
+    <tr><td>Produtos sem venda</td><td>Os produtos com estoque que não venderam nada no período (padrão: últimos 90 dias), com o valor parado e há quantos dias não vendem.</td></tr>
+    <tr><td>Movimentação de estoque</td><td>Cada entrada e saída no período: reserva de pedido, devolução de cancelamento, baixa no envio e ajuste manual (com a origem e quem fez). Clique no pedido para abri-lo.</td></tr>
+    <tr><td>Curva ABC</td><td>Os produtos que fazem o faturamento: A são os que somam os primeiros 80%, B os próximos 15% e C os 5% finais. Bom para decidir o que nunca pode faltar.</td></tr>
+    <tr><td>Qualidade do cadastro</td><td>O que corrigir: produtos ativos sem imagem, descrição, peso (o frete sai errado), preço ou custo, e produtos inativos com estoque. Clique no SKU para abrir o produto.</td></tr>
+  </table>
+  </div>
+  <figure><img src="img/64-estoque-baixo.png" alt=""><figcaption>Estoque baixo e esgotado: o que está acabando.</figcaption></figure>
+  <figure><img src="img/68-qualidade-cadastro.png" alt=""><figcaption>Qualidade do cadastro: o que falta em cada produto.</figcaption></figure>
+
+  <div class="report-group">
+  <h4>Clientes</h4>
+  <p>Permissão "Relatórios de clientes". Quem compra, quem chegou e quem volta.</p>
+  <table>
+    <tr><th>Relatório</th><th>O que mostra</th></tr>
+    <tr><td>Novos clientes</td><td>Cadastros por dia, semana ou mês, pessoa física e jurídica, e quantos deles já compraram.</td></tr>
+    <tr><td>Melhores clientes</td><td>Quem mais comprou no período, com e-mail, telefone, pedidos, total gasto, primeira e última compra. Quem compra sem cadastro aparece como "Visitante", pelo e-mail.</td></tr>
+    <tr><td>Clientes sem comprar</td><td>Os clientes cadastrados que não compram há mais de 90 dias (você muda o número), com e-mail, telefone, quanto já gastaram e a última compra. Bom para uma campanha de "volte a comprar". Pode incluir também quem se cadastrou e nunca comprou.</td></tr>
+    <tr><td>Backup</td><td>A cada minuto (copia no intervalo escolhido)</td><td>Faz as cópias de segurança, apaga as velhas uma vez por dia e testa uma restauração por mês (item 10.6).</td></tr>
+    <tr><td>Carrinhos abandonados</td><td>Carrinhos com produtos que não viraram pedido e estão parados há mais de 24 horas (você muda o número), com os itens e o valor pelo preço de hoje. O visitante só tem e-mail se chegou a informá-lo na finalização da compra.</td></tr>
+    <tr><td>Compras de visitantes</td><td>Quem comprou sem criar conta, com e-mail, CPF/CNPJ e telefone, para convidar a se cadastrar. Quem depois criou uma conta com o mesmo e-mail ou CPF/CNPJ sai da lista.</td></tr>
+  </table>
+  </div>
+  <div class="warn"><b>Dados pessoais e financeiros</b>Os relatórios de clientes mostram nome, e-mail e telefone. Cada vez que alguém exporta um deles ou um relatório financeiro (CSV, Excel ou PDF), o log de operações (item 10.3) guarda quem foi, quando e com quais filtros.</div>
+  <figure><img src="img/74-carrinhos-abandonados.png" alt=""><figcaption>Carrinhos abandonados (só visitantes): os itens e o valor pelo preço de hoje.</figcaption></figure>
+
+  <div class="report-group">
+  <h4>Financeiro</h4>
+  <p>Permissão "Relatórios financeiros". O que entrou, o Mercado Pago e a margem.</p>
+  <table>
+    <tr><th>Relatório</th><th>O que mostra</th></tr>
+    <tr><td>Recebimentos</td><td>O que entrou pela data do pagamento, por forma de pagamento: bruto, o que foi devolvido em cancelamentos e o líquido.</td></tr>
+    <tr><td>Conciliação Mercado Pago</td><td>Cada tentativa de cobrança: aprovadas, recusadas e o motivo (saldo insuficiente, recusado pelo banco…), estornos e as cobranças <strong>a estornar</strong> (aprovadas em pedido cancelado).</td></tr>
+    <tr><td>Margem</td><td>Faturamento menos custo, por produto ou por categoria. Só para quem também vê o custo.</td></tr>
+  </table>
+  </div>
+  <figure><img src="img/72-conciliacao-mercado-pago.png" alt=""><figcaption>Conciliação Mercado Pago: aprovadas, recusas por motivo e o que estornar.</figcaption></figure>
+
+  <h3>8.2 Usando um relatório</h3>
+  <ol class="steps">
+    <li>Escolha o <strong>período</strong> (Mês atual, Hoje, Últimos 7, 30 ou 90 dias, Mês anterior, Este ano) ou digite as datas. O período vai até 366 dias.</li>
+    <li>Se quiser, filtre por <strong>website</strong>, <strong>canal de venda</strong>, <strong>forma de pagamento</strong> e os filtros do relatório, e clique em <strong>Filtrar</strong>.</li>
+    <li>Os <strong>indicadores</strong> no topo resumem o período. Clique no título de uma coluna para ordenar; a última linha da tabela é o total.</li>
+  </ol>
+  <figure><img src="img/61-vendas-por-periodo.png" alt=""><figcaption>Vendas por período: indicadores, gráfico e tabela por dia.</figcaption></figure>
+
+  <h3>8.3 Exportar</h3>
+  <p>Os botões <strong>CSV</strong>, <strong>Excel</strong> e <strong>PDF</strong> baixam o relatório com os mesmos filtros e a mesma ordem da tela, com todas as linhas.</p>
+  <ul>
+    <li><strong>CSV:</strong> planilha simples, abre direto no Excel.</li>
+    <li><strong>Excel:</strong> valores como número (moeda e %), cabeçalho fixo, filtro em cada coluna e total com fórmula. Bom para fazer as suas contas.</li>
+    <li><strong>PDF:</strong> para imprimir ou mandar: logo da loja, indicadores, tabela e total, em folha A4 deitada. Até 2.000 linhas; acima disso, use o Excel.</li>
+  </ul>
+  <div class="tip"><b>Integração com outros sistemas</b>Os mesmos relatórios também podem ser lidos pela API do painel (item 10.4), por um sistema da loja ou da contabilidade, com o login e as permissões de um usuário do painel. As consultas aos relatórios de clientes e financeiros também ficam no log de operações.</div>
+
+  <h3>8.4 Custo e margem</h3>
+  <p>A margem dos relatórios usa o <strong>custo</strong> cadastrado no produto (item 5.1), copiado para o pedido no momento da compra: mudar o custo depois não muda os pedidos antigos. Margem = valor dos itens já com os descontos − custo; o frete fica fora.</p>
+  <ul>
+    <li>Itens sem custo ficam fora da margem, e o relatório diz quanto do faturamento ficou sem custo. Pedidos feitos antes do campo Custo existir ficam sem margem.</li>
+    <li>O custo e a margem só aparecem para perfis com a permissão "Ver e editar o custo". Sem ela, as colunas somem da tela e das exportações.</li>
+    <li>Para cadastrar o custo de muitos produtos de uma vez, use <strong>Importar custos</strong> na lista de produtos (item 5.1). O relatório Qualidade do cadastro mostra os produtos ativos ainda sem custo.</li>
+  </ul>
+
+  <h3>8.5 Envio automático por e-mail</h3>
+  <p><span class="path">Configurações → Ajustes do sistema → Relatórios</span>: ligue "Enviar os relatórios por e-mail" (vem desligado) e escolha:</p>
+  <ul>
+    <li><strong>Frequência:</strong> semanal (toda segunda-feira, com a semana anterior) ou mensal (todo dia 1º, com o mês anterior).</li>
+    <li><strong>Relatórios:</strong> Vendas por período e por produto, ou todos os de vendas e operação (estoque, clientes e financeiro não vão por e-mail).</li>
+    <li><strong>Formato dos anexos</strong> (Excel, PDF ou CSV) e os <strong>destinatários</strong>, um e-mail por linha.</li>
+  </ul>
+  <div class="warn"><b>Sigilo</b>Os anexos do envio automático nunca trazem custo nem margem, mesmo que algum destinatário seja de fora da empresa.</div>
+</section>
+
+<!-- ============ 9 ============ -->
+<section id="lojas">
+  <h2>9. Lojas e Configurações</h2>
+
+  <h3>9.1 Ajustes do sistema</h3>
+  <p><span class="path">Lojas → Configurações</span> reúne todos os ajustes, em grupos que abrem e fecham: <strong>Loja</strong> (nome, logo, contato, endereço), <strong>Vendas</strong> (pedidos, frete, pagamento), <strong>Clientes e comunicação</strong> (cadastro, e-mail) e <strong>Sistema</strong> (segurança, log, API, backup).</p>
+  <figure><img src="img/40-configuracoes.png" alt=""><figcaption>Ajustes do sistema organizados em grupos.</figcaption></figure>
+  <ul>
+    <li><strong>Escopo:</strong> "Padrão" vale para todas as lojas; escolhendo um website você muda só os ajustes dele. Marque "Usar o valor padrão" para herdar.</li>
+    <li><strong>Buscar ajuste:</strong> digite uma palavra (pix, senha, smtp) e aparecem só os ajustes que a contêm.</li>
+    <li>Cada campo alterado ganha um ponto laranja e uma barra com <strong>Descartar</strong> e <strong>Salvar</strong> aparece embaixo.</li>
+    <li>O cabeçalho de cada grupo mostra a situação sem abrir (ex.: "Formas ligadas: 3 de 5").</li>
+    <li>Senhas gravadas aparecem com a marca "salva" e nunca são exibidas.</li>
+  </ul>
+  <figure><img src="img/40b-config-busca.png" alt=""><figcaption>Busca de ajustes: "Mercado Pago", com o nome na fatura do cartão e a categoria dos produtos.</figcaption></figure>
+  <div class="warn"><b>Módulos do sistema</b>No fim da tela, a lista "Módulos do Sistema" permite ativar e desativar partes do sistema. Um módulo desativado sai do ar inteiro (telas, menus e app), mas os dados ficam guardados. Só altere com orientação do suporte.</div>
+
+  <h3>9.2 Websites, grupos e lojas</h3>
+  <p>A hierarquia é <strong>Website → Grupo de loja → Loja</strong>. Cada website é uma loja com numeração de pedidos própria (ex.: <em>RJ000001</em>, <em>SP000001</em>), seus produtos, clientes, categorias e estoque. Só existe um website padrão, e um website com cadastros ligados não pode ser removido.</p>
+  <figure><img src="img/41-websites.png" alt=""><figcaption>Websites.</figcaption></figure>
+
+  <h3>9.3 E-mails</h3>
+  <p>O sistema envia e-mails automaticamente: boas-vindas, pedido recebido, pagamento confirmado, pedido enviado (com rastreio), cancelamento, comentários e redefinição de senha. Todos levam a logo da loja.</p>
+  <ul>
+    <li><span class="path">Lojas → Modelos de e-mail</span>: edite assunto e texto de cada e-mail, com <strong>Pré-visualizar</strong> e <strong>Restaurar padrão</strong>.</li>
+    <li><span class="path">Lojas → Configurações → E-mail</span>: remetente, servidor SMTP e o botão <strong>Enviar e-mail de teste</strong>.</li>
+  </ul>
+  <figure><img src="img/44-modelos-email.png" alt=""><figcaption>Modelos de e-mail.</figcaption></figure>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="sistema">
+  <h2>10. Sistema</h2>
+
+  <h3>10.1 Usuários e perfis</h3>
+  <p><span class="path">Sistema → Usuários admin</span> cadastra as pessoas que usam o painel. <span class="path">Sistema → Perfis</span> define o que cada perfil pode acessar.</p>
+  <figure><img src="img/50-usuarios.png" alt=""><figcaption>Usuários do painel.</figcaption></figure>
+  <figure><img src="img/51-perfis.png" alt=""><figcaption>Perfis de acesso.</figcaption></figure>
+  <ul>
+    <li>O menu mostra só o que o perfil permite; uma tela sem permissão mostra "acesso negado".</li>
+    <li>As permissões de pedidos são separadas: ver e comentar, confirmar pagamento, registrar entrega, cancelar e criar pelo painel — assim é possível dar a cada pessoa só a parte do atendimento que ela faz.</li>
+    <li>Ninguém consegue desativar, remover ou trocar o perfil da própria conta, nem tirar do próprio perfil o acesso a Perfis. Essas mudanças precisam de outro administrador.</li>
+    <li>Quem cuida de Perfis ou Usuários só pode dar as permissões que o próprio perfil tem. Também não pode alterar, trocar a senha ou remover um perfil ou usuário com mais acesso que o seu. Assim, cuidar dos usuários não vira acesso total ao sistema. A mensagem "Você só pode dar ou alterar permissões que o seu próprio perfil tem" explica a recusa.</li>
+    <li>Para integrações (sistemas externos), crie um usuário e um perfil próprios, com só as permissões necessárias.</li>
+  </ul>
+
+  <h3>10.2 E-mails enviados</h3>
+  <p><span class="path">Sistema → E-mails enviados</span>: histórico de tudo o que o sistema enviou, com filtros por situação, destinatário e data. Abrindo um e-mail você vê o conteúdo, o erro (se houve) e pode <strong>Reenviar</strong>.</p>
+  <figure><img src="img/52-emails-enviados.png" alt=""><figcaption>Histórico de e-mails.</figcaption></figure>
+
+  <h3>10.3 Log de operações (auditoria)</h3>
+  <p><span class="path">Sistema → Log de operações</span> registra <strong>quem fez o quê</strong> no painel ou pela API: logins, senhas erradas, bloqueios, produtos, variações, estoque, clientes, configurações e exportações de relatórios de clientes e financeiros — com o valor de <strong>antes</strong> e o de <strong>depois</strong> de cada campo.</p>
+  <figure><img src="img/53-log-operacoes.png" alt=""><figcaption>Lista do log de operações.</figcaption></figure>
+  <figure><img src="img/54-log-ver.png" alt=""><figcaption>Detalhe de uma operação: campo, antes e depois.</figcaption></figure>
+  <ul>
+    <li>Senhas aparecem só como "definida" ou "alterada", nunca o valor.</li>
+    <li>O log é somente leitura: não pode ser editado nem apagado pela tela.</li>
+    <li>No fim da edição de produto e de cliente, o bloco <strong>Histórico de alterações</strong> mostra as 10 últimas mudanças daquele cadastro.</li>
+  </ul>
+
+  <h3>10.4 API (GraphiQL)</h3>
+  <p><span class="path">Sistema → API (GraphiQL)</span> é uma ferramenta técnica para testar a API usada pelo app. Destina-se à equipe de desenvolvimento.</p>
+  <figure><img src="img/55-graphiql.png" alt=""><figcaption>GraphiQL: teste da API.</figcaption></figure>
+
+  <h3>10.5 Chaves da API</h3>
+  <p><span class="path">Sistema → Chaves da API</span> controla quais aplicativos e sites podem usar a API da loja. Sem essa proteção, qualquer programa pode ler o catálogo e os preços automaticamente.</p>
+  <ol class="steps">
+    <li>Digite o nome do aplicativo ou site (ex.: "App Jardim Vera") e clique em <strong>+ Nova chave</strong>.</li>
+    <li>Copie a chave mostrada e passe para quem cuida do aplicativo. <strong>Ela só aparece uma vez</strong>; depois, a lista mostra só o começo e o fim dela.</li>
+    <li>Quando o aplicativo já estiver enviando a chave, ligue <strong>Exigir chave do aplicativo</strong> em <span class="path">Configurações → Ajustes do sistema → API</span>. A partir daí, quem chamar a API sem uma chave ativa é recusado.</li>
+  </ol>
+  <p>A coluna "Último uso" mostra se a chave está sendo usada. Se uma chave vazar, clique em <strong>Revogar</strong>: ela para de funcionar na hora (crie uma nova para o aplicativo antes). Criar e revogar ficam no log de operações.</p>
+  <div class="warn"><b>Não ligue antes da hora</b>Se "Exigir chave do aplicativo" for ligado antes de o app enviar a chave, o app para de carregar produtos. O painel continua funcionando normalmente.</div>
+  <h4>Outras proteções em Configurações</h4>
+  <ul>
+    <li><strong>Requisições à API por IP</strong> (padrão 240 por minuto) e <strong>Cotações de frete por IP</strong> (padrão 20): bloqueiam por um minuto quem chama a API em excesso.</li>
+    <li><strong>Usar só HTTPS</strong> (Geral): ligue quando o site tiver certificado. Endereços com http passam para https automaticamente.</li>
+    <li><strong>Proxies confiáveis</strong> (Geral): preenchido pela equipe técnica quando o site fica atrás de um balanceador ou CDN.</li>
+    <li><strong>Mensagens do cliente por minuto</strong> (Clientes, padrão 10): quantas mensagens um cliente pode mandar pelo app num minuto. As respostas da loja não têm limite.</li>
+    <li><strong>Complexidade máxima</strong> e <strong>Tamanho máximo da chamada</strong> (API): recusam consultas grandes demais. Os padrões servem para o app; só mude com a equipe técnica.</li>
+  </ul>
+
+  <h3>10.6 Backup</h3>
+  <p><span class="path">Sistema → Backup</span> mostra se as cópias de segurança estão em dia. O sistema copia sozinho o banco de dados (pedidos, clientes, produtos, configurações), as imagens enviadas e os arquivos de configuração do servidor. As cópias são <strong>compactadas e cifradas</strong>, e cada uma guarda só o que mudou desde a anterior, então ocupam pouco espaço.</p>
+  <figure><img src="img/53b-backup.png" alt=""><figcaption>Sistema → Backup: situação, destino, último backup, espaço ocupado e as últimas cópias.</figcaption></figure>
+  <ul>
+    <li><strong>Fazer backup agora:</strong> pede uma cópia fora de hora (antes de uma mudança grande, por exemplo). Ela começa em até 1 minuto; atualize a tela para ver o resultado.</li>
+    <li><strong>Teste de restauração:</strong> uma vez por mês, o sistema restaura sozinho a última cópia num banco de teste, confere se todos os dados voltaram e apaga o teste. Um teste que falha aparece em vermelho.</li>
+    <li><strong>Avisos:</strong> backup que falhou, atrasado (mais de 3 vezes o intervalo escolhido), desligado ou kit de recuperação não guardado aparecem nesta tela e no topo do Dashboard para o perfil Administrador. Com um e-mail em "Avisar falhas por e-mail para", a primeira falha também chega por e-mail. Para não ver nada sobre o backup no Dashboard, desligue <strong>"Avisos do backup no Dashboard"</strong> em Configurações → Backup: os avisos continuam nesta tela e no e-mail.</li>
+    <li>O <code>.zip</code> de uma cópia, para abrir em qualquer computador, é gerado pelo responsável técnico no servidor.</li>
+  </ul>
+  <h4>Configurações → Backup</h4>
+  <figure><img src="img/40d-config-backup.png" alt=""><figcaption>Frequência, quantas cópias guardar e onde guardar.</figcaption></figure>
+  <ul>
+    <li><strong>Fazer backup a cada:</strong> de 1 hora a 1 semana; no diário e no semanal, também o horário e o dia. Quanto maior o intervalo, mais pedidos se perdem se o servidor cair entre duas cópias.</li>
+    <li><strong>Quantas cópias guardar:</strong> uma por hora das últimas 24 horas, uma por dia dos últimos 7 dias, uma por semana das últimas 4 semanas e uma por mês dos últimos 12 meses (padrões). As mais velhas são apagadas sozinhas, uma vez por dia. Ao menos um nível precisa ficar acima de 0.</li>
+    <li><strong>Guardar em:</strong> "Só neste servidor" (padrão), <strong>Backblaze B2</strong> ou <strong>S3 compatível</strong> (AWS, Cloudflare R2 e outros). A cópia só no servidor protege contra erros, não contra perder o servidor: enquanto ela for a única, a tela avisa. Para o destino externo, crie um bucket privado e uma chave que só alcança esse bucket, e preencha bucket, ID da chave e chave secreta (gravada cifrada, nunca reexibida).</li>
+    <li>Trocar o destino não leva as cópias antigas: a próxima começa do zero no destino novo.</li>
+    <li>Estes ajustes só aparecem para quem tem a permissão <strong>Backup</strong> no perfil.</li>
+  </ul>
+  <h4>Kit de recuperação</h4>
+  <p>Para restaurar uma cópia é preciso a <strong>senha do backup</strong> e a <strong>chave das senhas salvas</strong>, que ficam no próprio servidor. Se o servidor for perdido, elas vão junto: por isso precisam de uma cópia fora dele, o kit de recuperação.</p>
+  <figure><img src="img/53c-backup-kit.png" alt=""><figcaption>O kit pede a senha do painel de novo antes de aparecer.</figcaption></figure>
+  <ul>
+    <li>Só o perfil <strong>Administrador</strong> abre o kit, em <span class="path">Sistema → Backup → Abrir o kit</span>, digitando a própria senha de novo. Cada abertura fica no log de operações.</li>
+    <li>O kit mostra a senha do backup, a chave do <code>env.ini</code>, o destino e os passos para restaurar num servidor novo.</li>
+    <li>Guarde em <strong>dois lugares</strong>: no gerenciador de senhas da empresa, num cofre que duas pessoas acessam, e impresso, em envelope lacrado, fora do local do servidor. Depois clique em <strong>"Já guardei nos dois lugares"</strong>.</li>
+    <li>Se a senha ou a chave mudarem, o aviso volta, para o kit ser guardado de novo.</li>
+  </ul>
+  <div class="warn"><b>Nunca guarde o kit</b>por e-mail, WhatsApp, num arquivo solto no computador ou no mesmo lugar das cópias. Quem tiver o kit e as cópias abre todos os dados da loja.</div>
+
+  <h3>10.7 Sobre</h3>
+  <p>O item <strong>Sobre</strong> do menu mostra a versão do sistema e os dados de quem o desenvolveu.</p>
+  <figure><img src="img/56-sobre.png" alt=""><figcaption>Tela Sobre.</figcaption></figure>
+</section>
+
+<!-- ============ 11 ============ -->
+<section id="rotinas">
+  <h2>11. Rotinas automáticas</h2>
+  <p>Algumas tarefas rodam sozinhas no servidor, sem ninguém precisar clicar. Elas são instaladas pelo responsável técnico na implantação:</p>
+  <table>
+    <tr><th>Rotina</th><th>Frequência</th><th>O que faz</th></tr>
+    <tr><td>Envio de e-mails</td><td>A cada minuto</td><td>Envia a fila de e-mails; em caso de falha, tenta de novo.</td></tr>
+    <tr><td>Pedidos não pagos</td><td>De hora em hora</td><td>Cancela os pedidos que passaram do prazo de pagamento e devolve o estoque.</td></tr>
+    <tr><td>Conferência do Mercado Pago</td><td>A cada 10 minutos</td><td>Confirma pagamentos que ainda estejam em aberto.</td></tr>
+    <tr><td>Limpeza de logs</td><td>Diária</td><td>Apaga logs mais antigos que o prazo configurado.</td></tr>
+    <tr><td>Relatórios por e-mail</td><td>Diária</td><td>Quando ligado em Configurações, envia os relatórios na segunda-feira (semanal) ou no dia 1º (mensal).</td></tr>
+    <tr><td>Backup</td><td>A cada minuto (copia no intervalo escolhido)</td><td>Faz as cópias de segurança, apaga as velhas uma vez por dia e testa uma restauração por mês (item 10.6).</td></tr>
+    <tr><td>Carrinhos abandonados</td><td>Diária</td><td>Apaga carrinhos de visitantes sem uso há mais de 30 dias.</td></tr>
+    <tr><td>Marketing por e-mail</td><td>A cada 15 minutos</td><td>Procura os clientes de cada regra ligada, cria as sugestões e envia as aprovadas dentro do horário (item 6.5).</td></tr>
+  </table>
+  <div class="warn"><b>Importante</b>Se os e-mails pararem de chegar, os pedidos Pix vencidos não forem cancelados ou o Dashboard avisar que o backup está atrasado, verifique com o responsável técnico se essas rotinas estão ativas.</div>
+</section>
+
+<!-- ============ 12 ============ -->
+<section id="faq">
+  <h2>12. Dúvidas frequentes</h2>
+  <h4>Fiquei bloqueado depois de errar a senha. E agora?</h4>
+  <p>Aguarde o tempo de bloqueio (padrão 15 minutos) ou use "Esqueci minha senha" — redefinir a senha libera o acesso na hora.</p>
+  <h4>Não consigo salvar o produto: "O produto não tem categoria no website X".</h4>
+  <p>Cada website marcado precisa de ao menos uma categoria dele. Marque uma categoria daquele website ou desmarque o website.</p>
+  <h4>O produto não aparece no app.</h4>
+  <p>Confira se ele está <strong>Ativo</strong>, se está no website certo, se a categoria (e a categoria pai) está ativa e, se o app usa a ordem de Catálogo → Mobile, se a categoria está com "Mostrar no app" ligado.</p>
+  <h4>O cliente pagou o Pix mas o pedido continua "Aguardando pagamento".</h4>
+  <p>No Mercado Pago a confirmação é automática em poucos minutos. No <em>Pix manual</em>, abra o pedido e clique em <strong>Confirmar pagamento</strong>.</p>
+  <h4>Quero saber quem alterou o preço de um produto.</h4>
+  <p>Abra o produto e veja o bloco <strong>Histórico de alterações</strong>, ou consulte <span class="path">Sistema → Log de operações</span> filtrando pelo SKU.</p>
+  <h4>Um e-mail não chegou ao cliente.</h4>
+  <p>Veja em <span class="path">Sistema → E-mails enviados</span> a situação e o erro; se precisar, use <strong>Reenviar</strong>.</p>
+  <h4>Liguei uma regra de Marketing e nenhuma sugestão apareceu.</h4>
+  <p>A busca roda a cada 15 minutos. Só entram clientes que marcaram "Aceita receber ofertas por e-mail" e que não receberam outro e-mail de marketing nos últimos dias. Carrinhos parados há muito tempo também ficam de fora, para a regra não disparar lembretes velhos ao ser ligada.</p>
+</section>
+
+<!-- ============ ENCERRAMENTO ============ -->
+<section class="final">
+  <img src="img/egsn-logo.png" alt="Logo EGSN">
+  <h3>Iter Store</h3>
+  <p>Projetado e desenvolvido por <strong>Esmerio Neto</strong></p>
+  <p>EGSN · esmerioneto@gmail.com</p>
+  <p style="color:#6b6b6b;font-size:9pt;margin-top:24px">© 2026 EGSN. Todos os direitos reservados.</p>
+</section>
+
+</main>
+</body>
+</html>

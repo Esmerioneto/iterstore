@@ -291,6 +291,22 @@ class VariantService
         return array_filter(array_map(static fn ($variantId) => $values[(int) $variantId] ?? [], $chosen));
     }
 
+    /**
+     * Each product's main image: its first image attribute with a file; a configurable product's comes from
+     * the variant chosen to give it its images (imageValues)
+     *
+     * @param array<int, array{product_id: int|string, type: string}> $rows catalog_product rows
+     * @return array<int, ?string> product id => file (null: no image)
+     */
+    public function mainImages(array $rows): array
+    {
+        $ids = array_map('intval', array_column($rows, 'product_id'));
+        $values = $ids ? (new ValueService())->loadMany(Product::ENTITY_TYPE, $ids, $this->imageCodes()) : [];
+        $images = $this->imageValues(array_map('intval', array_column(array_filter($rows, static fn ($r) => $r['type'] === 'configurable'), 'product_id')));
+
+        return array_combine($ids, array_map(static fn (int $id) => current(array_filter(array_map('strval', $images[$id] ?? $values[$id] ?? []), 'strlen')) ?: null, $ids));
+    }
+
     /** @return string[] the product attributes of a file type (image) */
     public function imageCodes(): array
     {

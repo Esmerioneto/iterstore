@@ -8,6 +8,7 @@ use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Eav\Model\Attribute;
 use Iter\Eav\Model\AttributeSet;
+use Iter\Admin\View\GridColumns;
 
 class AttributeSetList implements ViewComponentInterface
 {
@@ -32,6 +33,7 @@ class AttributeSetList implements ViewComponentInterface
             'pager' => $pager,
             'entity_type' => $entityType,
             'entity_types' => (new Attribute())->getResource()->getEntityTypes(),
+            'gridColumns' => new GridColumns('eav/attribute-set-list', $sets, ['entity', 'code', 'name', 'attributes', 'is_default']),
         ];
     }
 }

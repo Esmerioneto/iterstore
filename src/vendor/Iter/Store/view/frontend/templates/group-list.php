@@ -19,23 +19,23 @@
     <table>
         <thead>
             <tr>
-                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('website', 'Website', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('id', 'ID', $sort, $dir) ?><?= $gridColumns->th('id') ?>
+                <?= \Iter\Admin\View\Sort::th('website', 'Website', $sort, $dir) ?><?= $gridColumns->th('website') ?>
+                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?><?= $gridColumns->th('code') ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?><?= $gridColumns->th('name') ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php if (empty($groups)): ?>
-            <tr><td colspan="5" class="admin-empty">Nenhum grupo cadastrado.</td></tr>
+            <tr><td colspan="<?= 5 + $gridColumns->count() ?>" class="admin-empty">Nenhum grupo cadastrado.</td></tr>
 <?php else: ?>
     <?php foreach ($groups as $group): ?>
             <tr>
-                <td><?= (int) $group['group_id'] ?></td>
-                <td><?= htmlspecialchars((string) $group['website_name']) ?></td>
-                <td><?= htmlspecialchars((string) $group['code']) ?></td>
-                <td><?= htmlspecialchars((string) $group['name']) ?></td>
+                <td><?= (int) $group['group_id'] ?></td><?= $gridColumns->td('id', $group['group_id']) ?>
+                <td><?= htmlspecialchars((string) $group['website_name']) ?></td><?= $gridColumns->td('website', $group['group_id']) ?>
+                <td><?= htmlspecialchars((string) $group['code']) ?></td><?= $gridColumns->td('code', $group['group_id']) ?>
+                <td><?= htmlspecialchars((string) $group['name']) ?></td><?= $gridColumns->td('name', $group['group_id']) ?>
                 <td class="admin-row-action">
                     <a href="/admin/group/edit?id=<?= (int) $group['group_id'] ?>">Editar</a>
                     <form method="post" action="/admin/group/delete" data-confirm="Remover este grupo?">

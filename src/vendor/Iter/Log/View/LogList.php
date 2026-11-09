@@ -8,6 +8,7 @@ use Iter\Admin\View\Pager;
 use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Log\Model\OperationLog;
+use Iter\Admin\View\GridColumns;
 
 class LogList implements ViewComponentInterface
 {
@@ -25,6 +26,6 @@ class LogList implements ViewComponentInterface
         [$sort, $dir] = Sort::read(array_keys(OperationLog::SORTS), 'date', 'desc');
         [$result, $pager] = Pager::search(static fn (int $page, int $limit) => OperationLog::search($filters, $page, $limit, $sort, $dir));
 
-        return ['sort' => $sort, 'dir' => $dir, 'lines' => $result['items'], 'total' => $result['total'], 'filters' => $filters, 'pager' => $pager, 'users' => OperationLog::users()];
+        return ['sort' => $sort, 'dir' => $dir, 'lines' => $result['items'], 'total' => $result['total'], 'filters' => $filters, 'pager' => $pager, 'users' => OperationLog::users(), 'gridColumns' => new GridColumns('log/list', $result['items'], ['date', 'user', 'source', 'action', 'area', 'record', 'summary'])];
     }
 }

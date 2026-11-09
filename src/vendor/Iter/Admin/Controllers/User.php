@@ -143,6 +143,10 @@ class User
             $errors[] = 'Senha é obrigatória.';
         }
 
+        if (isset($data['interface_locale']) && !array_key_exists((string) $data['interface_locale'], AdminUser::interfaceLocales())) {
+            $errors[] = 'Escolha um idioma da lista.';
+        }
+
         // the logged-in admin can't lock themselves out: another admin has to do it
         $self = Auth::user();
         if ($id !== null && $id === (int) $self->getId()) {

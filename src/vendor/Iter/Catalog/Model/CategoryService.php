@@ -68,9 +68,11 @@ class CategoryService
             throw new AttributeException('CATEGORY_HAS_PRODUCTS', "A categoria '{$model->getData('name')}' tem produtos. Mova os produtos para outra categoria antes.");
         }
         $banners = (new CategoryBannerService())->getList($id); // their rows go by FK CASCADE, the files don't
+        $webFiles = (new WebHomeService())->categoryFiles($id); // the web home's sections and cards too
         $model->delete();
         (new ValueService())->deleteEntity(Category::ENTITY_TYPE, $id);
         (new CategoryBannerService())->unlink($banners);
+        WebHomeService::unlink($webFiles);
     }
 
     public function get(int $id): Category

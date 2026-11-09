@@ -5,6 +5,7 @@ namespace Iter\Promotion\View;
 use Iter\Admin\View\Sort;
 use Iter\Core\Db\Connection;
 use Iter\Core\View\ViewComponentInterface;
+use Iter\Admin\View\GridColumns;
 final class PromotionList implements ViewComponentInterface
 {
     public function getTemplate(): string { return 'promotion/list'; }
@@ -18,6 +19,6 @@ final class PromotionList implements ViewComponentInterface
         $rows = in_array($active, ['0', '1'], true) ? array_filter($rows, static fn ($p) => (string) (int) $p['is_active'] === $active) : $rows;
         [$rows, $pager, $sort, $dir, $q] = Sort::slice($rows, ['priority' => 'priority', 'name' => 'name', 'application' => 'application_type', 'discount' => 'discount_amount',
             'websites' => 'websites', 'starts' => 'starts_at', 'is_active' => 'is_active', 'coupons' => 'coupon_count', 'uses' => 'redemption_count'], 'priority', 'asc', ['name', 'websites']);
-        return ['promotions' => $rows, 'pager' => $pager, 'sort' => $sort, 'dir' => $dir, 'q' => $q, 'is_active' => in_array($active, ['0', '1'], true) ? $active : ''];
+        return ['promotions' => $rows, 'pager' => $pager, 'sort' => $sort, 'dir' => $dir, 'q' => $q, 'is_active' => in_array($active, ['0', '1'], true) ? $active : '', 'gridColumns' => new GridColumns('promotion/list', $rows, ['name', 'application', 'discount', 'websites', 'starts', 'is_active', 'coupons', 'uses'])];
     }
 }

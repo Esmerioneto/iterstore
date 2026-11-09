@@ -2,7 +2,7 @@
     "name": "egsn_user",
     "version": "1.0.0",
     "description": "Egsn User",
-    "enabled": true,
+    "enabled": false,
     "index": "0",
     "author": "Esmerio"
 }

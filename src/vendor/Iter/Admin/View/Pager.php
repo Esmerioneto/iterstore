@@ -54,8 +54,11 @@ final class Pager
         return [$result['items'], $pager];
     }
 
-    /** @param State $pager */
-    public static function render(array $pager): void
+    /**
+     * @param State $pager
+     * @param string|null $anchor id of the list's element: the links and the form land there, not at the page's top
+     */
+    public static function render(array $pager, ?string $anchor = null): void
     {
         require (new ComponentResolver())->resolveTemplate('admin/pager');
     }

@@ -47,7 +47,7 @@ foreach ($schema['fields'] as $field) {
         <?php elseif ($f['type'] === 'hidden'): ?>
     <input<?= $formAttr ?> type="hidden" name="<?= $name ?>" value="<?= $e($value) ?>">
         <?php elseif ($f['type'] === 'checkbox'): ?>
-    <p><label><input<?= $formAttr ?> type="hidden" name="<?= $name ?>" value="0"><input<?= $formAttr ?> type="checkbox" name="<?= $name ?>" value="1" <?= $value ? 'checked' : '' ?>> <?= $label ?></label></p>
+    <p><label class="eav-switch"><input<?= $formAttr ?> type="hidden" name="<?= $name ?>" value="0"><input<?= $formAttr ?> type="checkbox" class="admin-switch" name="<?= $name ?>" value="1" <?= $value ? 'checked' : '' ?>> <?= $label ?></label></p>
         <?php elseif (isset($f['options']) && $f['type'] === 'radio'): ?>
     <fieldset><legend><?= $label ?></legend>
             <?php foreach ($f['options'] as $o): ?>

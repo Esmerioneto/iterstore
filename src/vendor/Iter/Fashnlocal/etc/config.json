@@ -1,0 +1,9 @@
+{
+  "name": "iter_fashnlocal",
+  "version": "1.0.0",
+  "description": "Provador virtual pelo FASHN VTON 1.5 rodando num servidor próprio (API HTTP POST /tryon)",
+  "enabled": true,
+  "index": "0",
+  "author": "Esmerio",
+  "depends": ["iter_tryon"]
+}

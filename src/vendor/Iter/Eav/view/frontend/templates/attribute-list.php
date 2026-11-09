@@ -30,29 +30,29 @@
     <table>
         <thead>
             <tr>
-                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('entity', 'Entidade', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('type', 'Tipo', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('storage', 'Armazenamento', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('is_system', 'Sistema', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('position', 'Posição', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('code', 'Código', $sort, $dir) ?><?= $gridColumns->th('code') ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Nome', $sort, $dir) ?><?= $gridColumns->th('name') ?>
+                <?= \Iter\Admin\View\Sort::th('entity', 'Entidade', $sort, $dir) ?><?= $gridColumns->th('entity') ?>
+                <?= \Iter\Admin\View\Sort::th('type', 'Tipo', $sort, $dir) ?><?= $gridColumns->th('type') ?>
+                <?= \Iter\Admin\View\Sort::th('storage', 'Armazenamento', $sort, $dir) ?><?= $gridColumns->th('storage') ?>
+                <?= \Iter\Admin\View\Sort::th('is_system', 'Sistema', $sort, $dir) ?><?= $gridColumns->th('is_system') ?>
+                <?= \Iter\Admin\View\Sort::th('position', 'Posição', $sort, $dir) ?><?= $gridColumns->th('position') ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php if (empty($attributes)): ?>
-            <tr><td colspan="8" class="admin-empty">Nenhum atributo encontrado.</td></tr>
+            <tr><td colspan="<?= 8 + $gridColumns->count() ?>" class="admin-empty">Nenhum atributo encontrado.</td></tr>
 <?php else: ?>
     <?php foreach ($attributes as $attribute): ?>
             <tr>
-                <td><code><?= htmlspecialchars((string) $attribute['code']) ?></code></td>
-                <td><?= htmlspecialchars((string) $attribute['label']) ?></td>
-                <td><?= htmlspecialchars((string) $attribute['entity_type_label']) ?></td>
-                <td><?= htmlspecialchars((string) ($input_types[$attribute['input_type']]['label'] ?? $attribute['input_type'])) ?></td>
-                <td><?= htmlspecialchars((string) $attribute['storage_type']) ?></td>
-                <td><?= $attribute['is_system'] ? 'Sim' : '' ?></td>
-                <td><?= (int) $attribute['sort_order'] ?></td>
+                <td><code><?= htmlspecialchars((string) $attribute['code']) ?></code></td><?= $gridColumns->td('code', $attribute['attribute_id']) ?>
+                <td><?= htmlspecialchars((string) $attribute['label']) ?></td><?= $gridColumns->td('name', $attribute['attribute_id']) ?>
+                <td><?= htmlspecialchars((string) $attribute['entity_type_label']) ?></td><?= $gridColumns->td('entity', $attribute['attribute_id']) ?>
+                <td><?= htmlspecialchars((string) ($input_types[$attribute['input_type']]['label'] ?? $attribute['input_type'])) ?></td><?= $gridColumns->td('type', $attribute['attribute_id']) ?>
+                <td><?= htmlspecialchars((string) $attribute['storage_type']) ?></td><?= $gridColumns->td('storage', $attribute['attribute_id']) ?>
+                <td><?= $attribute['is_system'] ? 'Sim' : '' ?></td><?= $gridColumns->td('is_system', $attribute['attribute_id']) ?>
+                <td><?= (int) $attribute['sort_order'] ?></td><?= $gridColumns->td('position', $attribute['attribute_id']) ?>
                 <td class="admin-row-action">
                     <a href="/admin/attribute/edit?id=<?= (int) $attribute['attribute_id'] ?>">Editar</a>
         <?php if ($can_manage && !$attribute['is_system']): ?>

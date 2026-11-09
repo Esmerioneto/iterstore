@@ -38,8 +38,9 @@
         <p>
             <label>Idioma<br>
                 <select name="interface_locale">
-                    <option value="pt_BR" <?= $values['interface_locale'] === 'pt_BR' ? 'selected' : '' ?>>Português (Brasil)</option>
-                    <option value="en_US" <?= $values['interface_locale'] === 'en_US' ? 'selected' : '' ?>>English (US)</option>
+<?php foreach (\Iter\Admin\Model\AdminUser::interfaceLocales() as $code => $label): ?>
+                    <option value="<?= htmlspecialchars($code) ?>" <?= $values['interface_locale'] === $code ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+<?php endforeach; ?>
                 </select>
             </label>
         </p>

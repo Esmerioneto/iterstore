@@ -23,7 +23,7 @@ $cep = static fn (string $v) => $v === '' ? '' : substr($v, 0, 5) . '-' . substr
         <?= \Iter\Core\FormKey::field() ?>
         <input type="hidden" name="website_id" value="<?= (int) $website_id ?>">
         <table>
-            <thead><tr><th>CEP inicial</th><th>CEP final</th><th>Peso até (kg)</th><th>Valor (R$)</th><th>Prazo (dias úteis)</th></tr></thead>
+            <thead><tr><th>CEP inicial</th><th>CEP final</th><th>Peso até (kg)</th><th>Valor (R$)</th><th>Prazo (dias úteis)</th><th></th></tr></thead>
             <tbody id="shipping-rate-rows">
 <?php foreach (array_merge($rates, [['postcode_from' => '', 'postcode_to' => '', 'weight_to' => null, 'price' => null, 'days' => null]]) as $i => $rate): ?>
                 <tr>
@@ -32,14 +32,23 @@ $cep = static fn (string $v) => $v === '' ? '' : substr($v, 0, 5) . '-' . substr
                     <td><input type="text" name="rates[<?= $i ?>][weight_to]" value="<?= $e($number($rate['weight_to'])) ?>" inputmode="decimal"></td>
                     <td><input type="text" name="rates[<?= $i ?>][price]" value="<?= $e($rate['price'] === null ? '' : number_format($rate['price'], 2, ',', '')) ?>" inputmode="decimal"></td>
                     <td><input type="number" name="rates[<?= $i ?>][days]" value="<?= $e($rate['days']) ?>" min="0" max="365"></td>
+                    <td class="admin-row-action"><?php if (isset($rate['rate_id'])): ?><button type="submit" form="shipping-rate-delete-<?= (int) $rate['rate_id'] ?>">Excluir</button><?php endif; ?></td>
                 </tr>
 <?php endforeach; ?>
             </tbody>
         </table>
         <p>
             <button type="button" data-add-row="shipping-rate-rows">+ Adicionar faixa</button>
-            <small>Linhas em branco são ignoradas: apague os campos de uma faixa para removê-la.</small>
+            <small>Linhas em branco são ignoradas. "Excluir" apaga a faixa na hora; os pedidos já feitos não mudam.</small>
         </p>
         <p><button type="submit" class="admin-button-primary">Salvar faixas</button></p>
     </form>
+    <!-- the rows' "Excluir" reach these forms by their form attribute: the rows are inside the save form, and forms can't nest -->
+<?php foreach ($rates as $rate): ?>
+    <form method="post" action="/admin/shippingrate/delete" id="shipping-rate-delete-<?= (int) $rate['rate_id'] ?>" data-confirm="Excluir a faixa <?= $e($cep($rate['postcode_from']) . ' a ' . $cep($rate['postcode_to'])) ?>? Os pedidos já feitos não mudam." data-confirm-button="Excluir" hidden>
+        <?= \Iter\Core\FormKey::field() ?>
+        <input type="hidden" name="website_id" value="<?= (int) $website_id ?>">
+        <input type="hidden" name="rate_id" value="<?= (int) $rate['rate_id'] ?>">
+    </form>
+<?php endforeach; ?>
 </section>

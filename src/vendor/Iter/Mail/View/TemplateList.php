@@ -7,6 +7,7 @@ namespace Iter\Mail\View;
 use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Mail\Model\Template;
+use Iter\Admin\View\GridColumns;
 
 class TemplateList implements ViewComponentInterface
 {
@@ -20,6 +21,6 @@ class TemplateList implements ViewComponentInterface
         [$templates, $pager, $sort, $dir, $q] = Sort::slice(array_map(static fn (string $code) => Template::get($code), array_keys(Template::all())),
             ['label' => 'label', 'code' => 'code', 'subject' => 'subject', 'is_custom' => 'is_custom'], 'label', 'asc', ['label', 'code', 'subject']);
 
-        return ['templates' => $templates, 'pager' => $pager, 'sort' => $sort, 'dir' => $dir, 'q' => $q];
+        return ['templates' => $templates, 'pager' => $pager, 'sort' => $sort, 'dir' => $dir, 'q' => $q, 'gridColumns' => new GridColumns('mail/template-list', $templates, ['label', 'code', 'subject', 'is_custom'])];
     }
 }

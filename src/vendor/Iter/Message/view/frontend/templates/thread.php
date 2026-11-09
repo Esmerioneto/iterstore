@@ -9,8 +9,8 @@ $name = $customer['customer_type'] === 'pj' && $customer['company_name'] ? $cust
     <h2>Conversa com <?= $e($name) ?></h2>
     <div class="message-thread-layout">
         <div>
-            <!-- admin.js reloads this block every 30 s (data-refresh) -->
-            <div class="message-bubbles" id="message-bubbles" data-refresh="30">
+            <!-- admin.js reloads this block and the menu's unread counters every 15 s (data-refresh) -->
+            <div class="message-bubbles" id="message-bubbles" data-refresh="15">
 <?php if ($older): ?>
                 <p class="message-older"><a href="/admin/message/view?customer_id=<?= $id ?>&amp;before=<?= (int) $older ?>">Ver mensagens anteriores</a></p>
 <?php endif; ?>

@@ -6,5 +6,6 @@ return [
     'catalog/category-list' => \Iter\Catalog\View\CategoryList::class,
     'catalog/category-form' => \Iter\Catalog\View\CategoryForm::class,
     'catalog/mobile-order' => \Iter\Catalog\View\MobileOrder::class,
+    'catalog/web-home' => \Iter\Catalog\View\WebHome::class,
     'catalog/cost-import' => \Iter\Catalog\View\CostImportForm::class,
 ];

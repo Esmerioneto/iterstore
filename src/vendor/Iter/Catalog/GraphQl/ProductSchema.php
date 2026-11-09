@@ -15,6 +15,7 @@ use Iter\Catalog\Model\Category;
 use Iter\Catalog\Model\CategoryBannerService;
 use Iter\Catalog\Model\CategoryService;
 use Iter\Catalog\Model\MobileService;
+use Iter\Catalog\Model\WebHomeService;
 use Iter\Catalog\Model\Product;
 use Iter\Catalog\Model\ProductService;
 use Iter\Catalog\Model\ResourceModel\Product\Collection as ProductCollection;
@@ -46,7 +47,7 @@ class ProductSchema
 {
     /**
      * @param array $productFields extra fields of the Product type, from other modules (e.g. Inventory's stock)
-     * @return array{types: array{product: ObjectType}, query: array, mutation: array}
+     * @return array{types: array{product: ObjectType}, preloadFor: \Closure, query: array, mutation: array}
      */
     public static function fields(array $productFields = []): array
     {
@@ -235,9 +236,14 @@ class ProductSchema
 
             return $rows;
         };
-        // what the list's items will read, from the query: no preload for a list of names
+        // what the list's items will read, from the query: no preload for a list of names. $key: where the
+        // products are under the field, dotted when deeper ("items.product")
         $preloadFor = static function (array $rows, ResolveInfo $info, string $key = 'items') use ($preload): array {
-            $fields = $info->getFieldSelection(3)[$key] ?? [];
+            $path = explode('.', $key);
+            $fields = $info->getFieldSelection(count($path) + 2);
+            foreach ($path as $part) {
+                $fields = $fields[$part] ?? [];
+            }
             $parts = array_keys(array_filter([
                 'values' => isset($fields['attributes']),
                 'variants' => isset($fields['priceRange']) || isset($fields['variants']) || isset($fields['variantAttributes']),
@@ -415,6 +421,70 @@ class ProductSchema
                 'total' => ['type' => Type::nonNull(Type::int()), 'description' => 'Produtos da categoria no app, contando os primeiros da seção.'],
             ],
         ]);
+        // the web store's home (WEB-HOME-PLAN §5): Catálogo → Web, read only
+        $webCardType = new ObjectType([
+            'name' => 'WebCard',
+            'fields' => [
+                'category' => Type::nonNull($categoryType),
+                'image' => ['type' => Type::nonNull(Type::string()), 'description' => 'URL absoluta da foto do card (vertical, 900×1200), no endereço em que a API foi chamada.'],
+            ],
+        ]);
+        $webHomeType = new ObjectType([
+            'name' => 'WebHome',
+            'fields' => [
+                'announcement' => ['type' => new ObjectType([
+                    'name' => 'WebAnnouncement',
+                    'fields' => [
+                        'text' => ['type' => Type::nonNull(Type::string()), 'description' => 'Texto puro: escape ao mostrar.'],
+                        'url' => ['type' => Type::string(), 'description' => '"/…" desta loja ou https://.'],
+                    ],
+                ]), 'description' => 'A barra de aviso; null quando desligada.'],
+                'campaign' => ['type' => new ObjectType([
+                    'name' => 'WebCampaign',
+                    'fields' => [
+                        'video' => ['type' => Type::string(), 'description' => 'URL absoluta do vídeo (MP4 ou WEBM), no endereço em que a API foi chamada; imageDesktop é a capa.'],
+                        'imageDesktop' => ['type' => Type::nonNull(Type::string()), 'resolve' => static fn (array $c) => $c['image_desktop']],
+                        'imageMobile' => ['type' => Type::string(), 'description' => 'Para telas estreitas; null = use imageDesktop.', 'resolve' => static fn (array $c) => $c['image_mobile']],
+                        'title' => Type::string(),
+                        'text' => Type::string(),
+                        'button' => Type::string(),
+                        'url' => ['type' => Type::string(), 'description' => '"/…" desta loja ou https://.'],
+                    ],
+                ]), 'description' => 'A campanha (o topo em banner); null quando desligada ou com o topo em carrossel. Textos puros: escape ao mostrar.'],
+                'sectionsTitle' => ['type' => Type::string(), 'description' => 'O título acima do grid das 3 primeiras seções (ex.: "Escolha uma seção"); null = sem título. Texto puro: escape ao mostrar.',
+                    'resolve' => static fn (array $h) => $h['sections_title']],
+                'slides' => ['type' => Type::nonNull(Type::listOf(Type::nonNull(new ObjectType([
+                    'name' => 'WebSlide',
+                    'fields' => [
+                        'imageDesktop' => ['type' => Type::nonNull(Type::string()), 'description' => 'URL absoluta (1600×900), no endereço em que a API foi chamada.', 'resolve' => static fn (array $s) => $s['image_desktop']],
+                        'imageMobile' => ['type' => Type::string(), 'description' => 'Para telas estreitas (1080×1350); null = use imageDesktop.', 'resolve' => static fn (array $s) => $s['image_mobile']],
+                        'title' => ['type' => Type::string(), 'description' => 'Texto puro: escape ao mostrar.'],
+                        'url' => ['type' => Type::string(), 'description' => '"/…" desta loja ou https://.'],
+                    ],
+                ])))), 'description' => 'O carrossel do topo, na ordem; vazio com o topo em banner.'],
+                'carousel' => ['type' => Type::nonNull(new ObjectType([
+                    'name' => 'WebCarouselControls',
+                    'description' => 'Valem para o carrossel do topo e para os banners das seções.',
+                    'fields' => [
+                        'arrows' => ['type' => Type::nonNull(Type::boolean()), 'description' => 'Mostrar as setas anterior/próximo.'],
+                        'dots' => ['type' => Type::nonNull(Type::boolean()), 'description' => 'Mostrar os indicadores (bolinhas).'],
+                        'autoplay' => ['type' => Type::nonNull(Type::int()), 'description' => 'Segundos até passar sozinho; 0 = não passa.'],
+                    ],
+                ]))],
+                'sections' => Type::nonNull(Type::listOf(Type::nonNull(new ObjectType([
+                    'name' => 'WebSection',
+                    'description' => 'Na ordem da tela; as 3 primeiras são o grid de seções (título em sectionsTitle).',
+                    'fields' => [
+                        'category' => Type::nonNull($categoryType),
+                        'title' => ['type' => Type::nonNull(Type::string()), 'description' => 'O da tela; vazio lá = o nome da categoria.'],
+                        'image' => ['type' => Type::string(), 'description' => 'URL absoluta da foto da seção (1200×900), no endereço em que a API foi chamada; null = sem foto (use a do primeiro produto).'],
+                        'cards' => ['type' => Type::nonNull(Type::listOf(Type::nonNull($webCardType))), 'description' => 'Até ' . WebHomeService::WEB_CARD_LIMIT . ' subcategorias, na ordem; vêm antes dos produtos.'],
+                        'banners' => ['type' => Type::nonNull(Type::listOf(Type::nonNull(Type::string()))), 'description' => 'URLs absolutas dos banners da categoria, no topo da seção: um é imagem, dois ou mais são carrossel. Vazia sem "Mostrar banner" ou sem banner.'],
+                        'products' => ['type' => Type::nonNull(Type::listOf(Type::nonNull($productType))), 'description' => 'Os escolhidos à mão, depois os mais novos da categoria, até a quantidade da tela (0 = nenhum). Só produtos ativos do website, ligados direto à categoria.'],
+                    ],
+                ])))),
+            ],
+        ]);
         // Catálogo → Mobile through the API (admin): the same data and rules as the screen
         $mobileGuard = static fn (callable $resolve) => Schema::guard('Iter_Catalog::mobile', $resolve);
         $mobileOrderType = new ObjectType([
@@ -546,6 +616,7 @@ class ProductSchema
 
         return [
             'types' => ['product' => $productType], // for other modules' types (Sales' CartItem.product)
+            'preloadFor' => $preloadFor, // a list of Products from another module (Wishlist) without N+1
             'query' => [
                 'product' => [
                     'type' => $productType,
@@ -661,6 +732,26 @@ class ProductSchema
                             'total' => $s['total'],
                             'banners' => $s['banners'],
                         ], $sections);
+                    },
+                ],
+                'webHome' => [
+                    'type' => Type::nonNull($webHomeType),
+                    'description' => 'A home da loja web (Catálogo → Web): barra de aviso, topo (campanha ou carrossel) e seções com banners, cards e produtos. Seção ou card de categoria inativa fica de fora. Website desconhecido dá as listas vazias.',
+                    'args' => ['websiteId' => ['type' => Type::id(), 'description' => 'Omitido = website padrão.']],
+                    'resolve' => static function ($root, array $args, $context, ResolveInfo $info) use ($categories, $rowsOf, $preloadFor): array {
+                        $websiteId = (int) ($args['websiteId'] ?? (new Website())->getResource()->getDefaultId());
+                        $home = (new WebHomeService())->read($websiteId);
+                        $category = static fn (int $id): ?array => $categories()[$id] ?? null;
+                        $rows = array_column($preloadFor($rowsOf(array_values(array_unique(array_merge([], ...array_column($home['sections'], 'product_ids'))))), $info, 'sections.products'), null, 'product_id');
+                        $home['sections'] = array_values(array_filter(array_map(static function (array $s) use ($category, $rows): ?array {
+                            $s['category'] = $category($s['category_id']);
+                            $s['products'] = array_values(array_filter(array_map(static fn (int $id) => $rows[$id] ?? null, $s['product_ids'])));
+                            $s['cards'] = array_values(array_filter(array_map(static fn (array $c) => ($c['category'] = $category($c['category_id'])) ? $c : null, $s['cards'])));
+
+                            return $s['category'] === null ? null : $s;
+                        }, $home['sections'])));
+
+                        return $home;
                     },
                 ],
                 'mobileCategoryProducts' => [
@@ -888,7 +979,7 @@ class ProductSchema
                     'args' => [
                         'categoryId' => Type::nonNull(Type::id()),
                         'keep' => ['type' => Type::nonNull(Type::listOf(Type::nonNull(Type::id()))), 'description' => '[] remove todos.'],
-                        'add' => ['type' => Type::listOf(Type::nonNull(Schema::upload())), 'description' => 'Arquivos novos (WebP, AVIF, JPG ou PNG).'],
+                        'add' => ['type' => Type::listOf(Type::nonNull(Schema::upload())), 'description' => 'Arquivos novos (WebP, AVIF, JPG, PNG ou JPEG XL).'],
                     ],
                     'resolve' => $categoryGuard(static function ($root, array $args) use ($categoryService): array {
                         $id = (int) $categoryService->get((int) $args['categoryId'])->getId(); // CATEGORY_NOT_FOUND

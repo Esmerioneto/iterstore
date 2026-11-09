@@ -13,10 +13,10 @@
     <table>
         <thead>
             <tr>
-                <?= \Iter\Admin\View\Sort::th('group', 'Grupo', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('vendor', 'Vendor', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('name', 'Modulo', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('enabled', 'Status', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('group', 'Grupo', $sort, $dir, anchor: 'modulos') ?><?= $gridColumns->th('group') ?>
+                <?= \Iter\Admin\View\Sort::th('vendor', 'Vendor', $sort, $dir, anchor: 'modulos') ?><?= $gridColumns->th('vendor') ?>
+                <?= \Iter\Admin\View\Sort::th('name', 'Modulo', $sort, $dir, anchor: 'modulos') ?><?= $gridColumns->th('name') ?>
+                <?= \Iter\Admin\View\Sort::th('enabled', 'Status', $sort, $dir, anchor: 'modulos') ?><?= $gridColumns->th('enabled') ?>
 <?php if ($can_toggle): ?>
                 <th>Ações</th>
 <?php endif; ?>
@@ -25,10 +25,10 @@
         <tbody>
 <?php foreach ($modules as $module): ?>
             <tr>
-                <td><?= htmlspecialchars($module['group']) ?></td>
-                <td><?= htmlspecialchars($module['vendor']) ?></td>
-                <td><?= htmlspecialchars($module['name']) ?></td>
-                <td><span class="admin-status admin-status-<?= $module['enabled'] ? 'on' : 'off' ?>"><?= $module['enabled'] ? 'Ativo' : 'Inativo' ?></span></td>
+                <td><?= htmlspecialchars($module['group']) ?></td><?= $gridColumns->td('group', $module['key']) ?>
+                <td><?= htmlspecialchars($module['vendor']) ?></td><?= $gridColumns->td('vendor', $module['key']) ?>
+                <td><?= htmlspecialchars($module['name']) ?></td><?= $gridColumns->td('name', $module['key']) ?>
+                <td><span class="admin-status admin-status-<?= $module['enabled'] ? 'on' : 'off' ?>"><?= $module['enabled'] ? 'Ativo' : 'Inativo' ?></span></td><?= $gridColumns->td('enabled', $module['key']) ?>
     <?php if ($can_toggle): ?>
                 <td class="admin-row-action">
         <?php if ($module['enabled'] && $module['required']): ?>
@@ -50,5 +50,5 @@
 <?php endforeach; ?>
         </tbody>
     </table>
-    <?php \Iter\Admin\View\Pager::render($pager); ?>
+    <?php \Iter\Admin\View\Pager::render($pager, 'modulos'); ?>
 </section>

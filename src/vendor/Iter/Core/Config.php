@@ -32,10 +32,20 @@ class Config
     private static ?array $values = null;
     private static ?array $fields = null;
 
-    /** @return array<string, array> field definitions keyed by path */
+    /**
+     * @return array<string, array> field definitions keyed by path; a path repeated in another module adds to the
+     *         field (a provider module adds its "options" to the select of the module it plugs into)
+     */
     public static function fields(): array
     {
-        return self::$fields ??= array_column(\getModuleJson('etc' . DIRECTORY_SEPARATOR . 'config_fields.json'), null, 'path');
+        if (self::$fields === null) {
+            self::$fields = [];
+            foreach (\getModuleJson('etc' . DIRECTORY_SEPARATOR . 'config_fields.json') as $field) {
+                self::$fields[$field['path']] = array_replace_recursive(self::$fields[$field['path']] ?? [], $field);
+            }
+        }
+
+        return self::$fields;
     }
 
     public static function get(string $path, ?int $websiteId = null): mixed
@@ -69,6 +79,91 @@ class Config
         $scope = self::scope($websiteId);
         Connection::get()->adapter()->delete('core_config_data', ['scope = ?' => $scope['scope'], 'scope_id = ?' => $scope['scope_id'], 'path IN (?)' => $paths]);
         self::$values = null;
+    }
+
+    /** Configurações → Geral → Endereço do site (web/base_url), without the trailing "/": the start of every link sent out */
+    public static function baseUrl(?int $websiteId = null): string
+    {
+        return rtrim(trim((string) self::get('web/base_url', $websiteId)), '/');
+    }
+
+    /**
+     * Configurações → Geral → Endereços da loja web (web/storefront_urls): the one the calling store names in X-Store-Url
+     * when it is listed, else the first listed, else Endereço do site. Only listed addresses: a caller can't point the
+     * e-mailed links (with their tokens) at a site of its own.
+     */
+    public static function storefrontUrl(?int $websiteId = null): string
+    {
+        $listed = self::storefrontUrls($websiteId);
+        $asked = rtrim(trim((string) ($_SERVER['HTTP_X_STORE_URL'] ?? '')), '/');
+        foreach ($listed as $url) {
+            if (strcasecmp($url, $asked) === 0) {
+                return $url;
+            }
+        }
+
+        return $listed[0] ?? self::baseUrl($websiteId);
+    }
+
+    /**
+     * A link to the store for an e-mail: a setting starting with "/" goes after storefrontUrl(), a full one stays;
+     * {token} becomes $token. Empty setting: $fallback ("/…" too), or just the token when there's none.
+     */
+    public static function storefrontLink(string $setting, string $token, ?int $websiteId = null, string $fallback = ''): string
+    {
+        $link = trim($setting) !== '' && str_contains($setting, '{token}') ? trim($setting) : $fallback;
+        if ($link === '') {
+            return $token;
+        }
+
+        return str_replace('{token}', $token, str_starts_with($link, '/') && !str_starts_with($link, '//') ? self::storefrontUrl($websiteId) . $link : $link);
+    }
+
+    /** @return string[] web/storefront_urls, valid lines only, without the trailing "/" */
+    public static function storefrontUrls(?int $websiteId = null): array
+    {
+        $lines = preg_split('/\s+/', trim((string) self::get('web/storefront_urls', $websiteId)), -1, PREG_SPLIT_NO_EMPTY);
+
+        return array_values(array_filter(array_map(static fn ($u) => rtrim($u, '/'), $lines), [self::class, 'isOrigin']));
+    }
+
+    /** http(s)://host[:port], nothing after it */
+    public static function isOrigin(string $url): bool
+    {
+        return (bool) preg_match('#^https?://[a-z0-9.-]+(:\d{1,5})?$|^https?://\[[0-9a-f:.]+\](:\d{1,5})?$#i', $url);
+    }
+
+    /** Configurações → Geral: every line of "Endereços da loja web" is http(s)://host[:port] */
+    public static function validateStorefrontUrls(callable $get): array
+    {
+        foreach (preg_split('/\s+/', trim((string) $get('web/storefront_urls')), -1, PREG_SPLIT_NO_EMPTY) as $url) {
+            if (!self::isOrigin(rtrim($url, '/'))) {
+                return ["Endereços da loja web: \"{$url}\" não é um endereço. Use só o início, ex.: https://loja.com.br ou http://192.168.1.22:8081 (sem caminho)."];
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * The address this request came in on (scheme://host[:port]), for absolute URLs in API answers: it follows the
+     * domain the client called, so moving to another domain (dev → production) needs no setting. Behind a proxy in
+     * "Proxies confiáveis", its X-Forwarded-Host and X-Forwarded-Proto count. Outside a request (cron, CLI) or with
+     * a malformed Host, Endereço do site (baseUrl). E-mails and other links sent out keep using baseUrl.
+     */
+    public static function requestBaseUrl(?int $websiteId = null): string
+    {
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+        $forwarded = trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_HOST'] ?? ''))[0]);
+        if ($forwarded !== '' && RateLimit::fromTrustedProxy()) {
+            $host = $forwarded;
+        }
+        $label = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+        if (!preg_match('/^(?:' . $label . '(?:\.' . $label . ')*|\[[0-9a-f:.]+\])(?::\d{1,5})?$/i', $host)) {
+            return self::baseUrl($websiteId);
+        }
+
+        return (RateLimit::https() ? 'https' : 'http') . '://' . strtolower($host);
     }
 
     /** Public URL of an image setting's value ('' when there's none) */

@@ -7,6 +7,7 @@ namespace Iter\Customer\View;
 use Iter\Admin\View\Sort;
 use Iter\Core\View\ViewComponentInterface;
 use Iter\Customer\Model\Group;
+use Iter\Admin\View\GridColumns;
 
 class GroupList implements ViewComponentInterface
 {
@@ -25,6 +26,7 @@ class GroupList implements ViewComponentInterface
             'q' => $q,
             'groups' => $groups,
             'pager' => $pager,
+            'gridColumns' => new GridColumns('customer/group-list', $groups, ['id', 'code', 'name', 'customers']),
         ];
     }
 }

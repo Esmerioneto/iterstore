@@ -21,6 +21,17 @@ class AdminUser extends AbstractModel
     }
 
     /**
+     * The languages a user can pick for the panel: etc/interface_locales.json of every enabled module
+     * (a module bringing a language adds it there), in module order.
+     *
+     * @return array<string, string> code => label
+     */
+    public static function interfaceLocales(): array
+    {
+        return array_column(\getModuleJson('etc' . DIRECTORY_SEPARATOR . 'interface_locales.json'), 'label', 'code');
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function getList(): array

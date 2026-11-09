@@ -26,27 +26,27 @@ $e = static fn ($v) => htmlspecialchars((string) $v);
     <table>
         <thead>
             <tr>
-                <?= \Iter\Admin\View\Sort::th('date', 'Data', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('to', 'Destinatário', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('subject', 'Assunto', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('template', 'Modelo', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('status', 'Situação', $sort, $dir) ?>
-                <?= \Iter\Admin\View\Sort::th('attempts', 'Tentativas', $sort, $dir) ?>
+                <?= \Iter\Admin\View\Sort::th('date', 'Data', $sort, $dir) ?><?= $gridColumns->th('date') ?>
+                <?= \Iter\Admin\View\Sort::th('to', 'Destinatário', $sort, $dir) ?><?= $gridColumns->th('to') ?>
+                <?= \Iter\Admin\View\Sort::th('subject', 'Assunto', $sort, $dir) ?><?= $gridColumns->th('subject') ?>
+                <?= \Iter\Admin\View\Sort::th('template', 'Modelo', $sort, $dir) ?><?= $gridColumns->th('template') ?>
+                <?= \Iter\Admin\View\Sort::th('status', 'Situação', $sort, $dir) ?><?= $gridColumns->th('status') ?>
+                <?= \Iter\Admin\View\Sort::th('attempts', 'Tentativas', $sort, $dir) ?><?= $gridColumns->th('attempts') ?>
                 <th></th>
             </tr>
         </thead>
         <tbody>
 <?php if (!$messages): ?>
-            <tr><td colspan="7" class="admin-empty">Nenhum e-mail encontrado.</td></tr>
+            <tr><td colspan="<?= 7 + $gridColumns->count() ?>" class="admin-empty">Nenhum e-mail encontrado.</td></tr>
 <?php endif; ?>
 <?php foreach ($messages as $message): ?>
             <tr>
-                <td><?= $e(substr((string) $message['created_at'], 0, 16)) ?></td>
-                <td><?= $e($message['to_email']) ?></td>
-                <td><?= $e($message['subject']) ?></td>
-                <td><code><?= $e($message['template_code']) ?></code></td>
-                <td class="mail-status-<?= (int) $message['status'] ?>"><?= $e(MailService::STATUS_LABELS[(int) $message['status']]) ?></td>
-                <td><?= (int) $message['attempts'] ?></td>
+                <td><?= $e(substr((string) $message['created_at'], 0, 16)) ?></td><?= $gridColumns->td('date', $message['message_id']) ?>
+                <td><?= $e($message['to_email']) ?></td><?= $gridColumns->td('to', $message['message_id']) ?>
+                <td><?= $e($message['subject']) ?></td><?= $gridColumns->td('subject', $message['message_id']) ?>
+                <td><code><?= $e($message['template_code']) ?></code></td><?= $gridColumns->td('template', $message['message_id']) ?>
+                <td class="mail-status-<?= (int) $message['status'] ?>"><?= $e(MailService::STATUS_LABELS[(int) $message['status']]) ?></td><?= $gridColumns->td('status', $message['message_id']) ?>
+                <td><?= (int) $message['attempts'] ?></td><?= $gridColumns->td('attempts', $message['message_id']) ?>
                 <td class="admin-row-action"><a href="/admin/mail/view?id=<?= (int) $message['message_id'] ?>">Ver</a></td>
             </tr>
 <?php endforeach; ?>

@@ -4,9 +4,20 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+use Iter\Admin\View\GridColumnSource;
+use Iter\Admin\View\GridColumns;
 use Iter\Core\View\LayoutMerger;
 use Iter\Core\View\LayoutParser;
 use Iter\Core\View\PositionResolver;
+
+/** a column source for test 9: the row's name in capitals */
+final class SelftestGridSource implements GridColumnSource
+{
+    public function values(array $rows): array
+    {
+        return array_map('strtoupper', array_column($rows, 'name', 'id'));
+    }
+}
 
 function assertSame($expected, $actual, string $label): void
 {
@@ -157,5 +168,53 @@ try {
 } catch (\RuntimeException $e) {
     echo "OK: modo estrito lanca RuntimeException para referencia desconhecida ({$e->getMessage()})\n";
 }
+
+// 9) colunas que outro módulo acrescenta a uma grid (GridColumns): na posição de "after", "after"
+// desconhecido vai depois da última, outra grid não entra, o valor é escapado, id sem valor fica vazio
+$rows = [['id' => 1, 'name' => 'ana <b>'], ['id' => 2, 'name' => 'bia']];
+$columns = new GridColumns('test/grid', $rows, ['id', 'name', 'status'], [
+    ['grid' => 'test/grid', 'code' => 'upper', 'label' => 'Maiúsculo', 'after' => 'id', 'class' => SelftestGridSource::class],
+    ['grid' => 'test/grid', 'code' => 'lost', 'label' => 'Sem lugar', 'after' => 'nope', 'class' => SelftestGridSource::class],
+    ['grid' => 'other/grid', 'code' => 'other', 'label' => 'Outra', 'after' => 'id', 'class' => SelftestGridSource::class],
+]);
+assertSame([2, '<th class="grid-column-upper">Maiúsculo</th>', '', '<th class="grid-column-lost">Sem lugar</th>'],
+    [$columns->count(), $columns->th('id'), $columns->th('name'), $columns->th('status')], 'grid: colunas extras no lugar de "after", desconhecido vai para o fim, outra grid fica de fora');
+assertSame(['<td class="grid-column-upper">ANA &lt;B&gt;</td>', '<td class="grid-column-upper"></td>'],
+    [$columns->td('id', 1), (new GridColumns('test/grid', [$rows[1]], ['id'], [['grid' => 'test/grid', 'code' => 'upper', 'label' => 'x', 'after' => 'id', 'class' => SelftestGridSource::class]]))->td('id', 1)],
+    'grid: valor escapado; linha sem valor fica vazia');
+try {
+    new GridColumns('test/grid', $rows, ['id'], [['grid' => 'test/grid', 'code' => 'bad', 'label' => 'x', 'after' => 'id', 'class' => \stdClass::class]]);
+    fwrite(STDERR, "FALHOU: classe que não é GridColumnSource deveria lançar RuntimeException\n");
+    exit(1);
+} catch (\RuntimeException $e) {
+    echo "OK: grid: classe que não é GridColumnSource é recusada ({$e->getMessage()})\n";
+}
+
+// 10) toda grid do admin, de qualquer módulo (Iter ou app/code), aceita colunas de outros módulos: uma grid é
+// um template com colunas ordenáveis (o padrão das listas) ou uma das que não ordenam, listadas aqui
+$unsorted = ['Catalog/view/frontend/templates/category-list.php', 'Admin/view/frontend/templates/apikey-list.php'];
+// ordenam, mas não são grids de registros: as colunas do relatório vêm da classe de cada relatório
+$notGrids = ['Report/view/frontend/templates/view.php'];
+$listed = static fn (string $relative, array $list): bool => (bool) array_filter($list, static fn ($u) => str_ends_with($relative, $u));
+$missing = [];
+$grids = 0;
+foreach (glob(__DIR__ . '/../src/{vendor,app/code}/*/*/view/frontend/templates/*.php', GLOB_BRACE) as $file) {
+    $html = (string) file_get_contents($file);
+    $relative = substr($file, strpos($file, '/src/') + 5);
+    if ($listed($relative, $notGrids) || (!preg_match('/Sort::th\(|\$sortHeader\(/', $html) && !$listed($relative, $unsorted))) {
+        continue;
+    }
+    $grids++;
+    $needs = ['$gridColumns->th(', '$gridColumns->td('];
+    if (str_contains($html, 'admin-empty') && str_contains($html, 'colspan=')) {
+        $needs[] = '$gridColumns->count()';
+    }
+    foreach ($needs as $need) {
+        if (!str_contains($html, $need)) {
+            $missing[] = "{$relative}: falta {$need}";
+        }
+    }
+}
+assertSame([], $missing, "grid: as {$grids} grids do admin chamam \$gridColumns->th()/td() (e count() no colspan da linha vazia)");
 
 echo "\nTodos os testes passaram.\n";
