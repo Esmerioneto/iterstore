@@ -7,8 +7,8 @@
         "response": {
             "data": {
                 "generateAdminToken": {
-                    "token": "0532c3e0d8ac12425fdf049a1be38ef1c240fc9f5b759433f2575a009dff9773",
-                    "expires_at": "2026-10-20 22:08:27",
+                    "token": "0e22d24ba8b9908ae5b19d81a2bf32c591f953edc50af1ff16a7303bd35c2a61",
+                    "expires_at": "2026-11-13 19:02:44",
                     "user": {
                         "username": "integracao",
                         "role": "Administradores"
@@ -50,7 +50,7 @@
         "response": {
             "data": {
                 "currentAdmin": {
-                    "id": "4503",
+                    "id": "6045",
                     "username": "integracao",
                     "firstname": "Integração",
                     "role": "Administradores"
@@ -72,8 +72,8 @@
                         "isDefault": true
                     },
                     {
-                        "id": "216",
-                        "name": "Loja SP",
+                        "id": "2238",
+                        "name": "Loja SC",
                         "isDefault": false
                     }
                 ],
@@ -98,11 +98,17 @@
             "data": {
                 "categories": [
                     {
-                        "id": "13",
-                        "name": "Cosmético",
-                        "url_key": "cosmetico",
+                        "id": "6301",
+                        "name": "Acessórios",
+                        "url_key": "acessorios",
                         "level": 0,
-                        "children": []
+                        "children": [
+                            {
+                                "id": "6302",
+                                "name": "Bolsa",
+                                "url_key": "bolsa"
+                            }
+                        ]
                     },
                     {
                         "id": "224",
@@ -141,6 +147,11 @@
                                 "url_key": "jaqueta"
                             },
                             {
+                                "id": "6300",
+                                "name": "Macacão",
+                                "url_key": "macacao"
+                            },
+                            {
                                 "id": "536",
                                 "name": "Saia",
                                 "url_key": "saia"
@@ -158,52 +169,17 @@
                         ]
                     },
                     {
-                        "id": "352",
+                        "id": "6343",
                         "name": "Vestuário",
                         "url_key": "vestuario",
                         "level": 0,
-                        "children": []
-                    },
-                    {
-                        "id": "14",
-                        "name": "Farmácia",
-                        "url_key": "farmacia",
-                        "level": 0,
                         "children": [
                             {
-                                "id": "22",
-                                "name": "Vitaminas",
-                                "url_key": "vitaminas"
+                                "id": "6344",
+                                "name": "Vestido",
+                                "url_key": "vestido"
                             }
                         ]
-                    },
-                    {
-                        "id": "15",
-                        "name": "Beleza",
-                        "url_key": "beleza",
-                        "level": 0,
-                        "children": []
-                    },
-                    {
-                        "id": "16",
-                        "name": "Higiene Pessoal",
-                        "url_key": "higiene-pessoal",
-                        "level": 0,
-                        "children": []
-                    },
-                    {
-                        "id": "17",
-                        "name": "Medicamentos",
-                        "url_key": "medicamentos",
-                        "level": 0,
-                        "children": []
-                    },
-                    {
-                        "id": "18",
-                        "name": "Perfumaria",
-                        "url_key": "perfumaria",
-                        "level": 0,
-                        "children": []
                     }
                 ]
             }
@@ -322,6 +298,10 @@
                                     "option_label": "P"
                                 },
                                 {
+                                    "code": "imagem",
+                                    "option_label": null
+                                },
+                                {
                                     "code": "description",
                                     "option_label": null
                                 },
@@ -345,6 +325,10 @@
                                 {
                                     "code": "tamanho",
                                     "option_label": "M"
+                                },
+                                {
+                                    "code": "imagem",
+                                    "option_label": null
                                 },
                                 {
                                     "code": "description",
@@ -372,6 +356,10 @@
                                     "option_label": "G"
                                 },
                                 {
+                                    "code": "imagem",
+                                    "option_label": null
+                                },
+                                {
                                     "code": "description",
                                     "option_label": null
                                 },
@@ -395,6 +383,10 @@
                                 {
                                     "code": "tamanho",
                                     "option_label": "GG"
+                                },
+                                {
+                                    "code": "imagem",
+                                    "option_label": null
                                 },
                                 {
                                     "code": "description",
@@ -422,6 +414,10 @@
                                     "option_label": "P"
                                 },
                                 {
+                                    "code": "imagem",
+                                    "option_label": null
+                                },
+                                {
                                     "code": "description",
                                     "option_label": null
                                 },
@@ -445,6 +441,10 @@
                                 {
                                     "code": "tamanho",
                                     "option_label": "M"
+                                },
+                                {
+                                    "code": "imagem",
+                                    "option_label": null
                                 },
                                 {
                                     "code": "description",
@@ -472,6 +472,10 @@
                                     "option_label": "G"
                                 },
                                 {
+                                    "code": "imagem",
+                                    "option_label": null
+                                },
+                                {
                                     "code": "description",
                                     "option_label": null
                                 },
@@ -495,6 +499,10 @@
                                 {
                                     "code": "tamanho",
                                     "option_label": "GG"
+                                },
+                                {
+                                    "code": "imagem",
+                                    "option_label": null
                                 },
                                 {
                                     "code": "description",
@@ -529,6 +537,420 @@
             }
         }
     },
+    "webHome": {
+        "query": "{\n  webHome {\n    announcement { text url }\n    campaign { video imageDesktop imageMobile title text button url }\n    slides { imageDesktop imageMobile title url }\n    carousel { arrows dots autoplay }\n    sectionsTitle\n    sections {\n      title image banners\n      category { id name url_key }\n      cards { image category { name url_key } }\n      products { sku name url_key priceRange { min max } }\n    }\n  }\n}",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "webHome": {
+                    "announcement": {
+                        "text": "Esta loja está em desenvolvimento, TODAS as compras nesta loja NÃO são REAIS.",
+                        "url": null
+                    },
+                    "campaign": null,
+                    "slides": [
+                        {
+                            "imageDesktop": "http://192.168.1.22:8080/media/web/4d/b1d48ed6c8576b385e33829127b26f3a.jpg",
+                            "imageMobile": "http://192.168.1.22:8080/media/web/6c/6cd4a0c4f3a449aa956b83b4c370231b.jpg",
+                            "title": null,
+                            "url": null
+                        },
+                        {
+                            "imageDesktop": "http://192.168.1.22:8080/media/web/10/17cf12fe394ffd66ba3bfc6ba817966e.jpg",
+                            "imageMobile": "http://192.168.1.22:8080/media/web/f3/3b2fc2e7aee4ab1956e130d863ace145.jpg",
+                            "title": null,
+                            "url": null
+                        },
+                        {
+                            "imageDesktop": "http://192.168.1.22:8080/media/web/26/86631ae280cb8e0a5bc6e9d5e1cce771.jpg",
+                            "imageMobile": "http://192.168.1.22:8080/media/web/da/17c29f43e47344514f184633bbf98891.jpg",
+                            "title": null,
+                            "url": null
+                        }
+                    ],
+                    "carousel": {
+                        "arrows": true,
+                        "dots": true,
+                        "autoplay": 5
+                    },
+                    "sectionsTitle": "Escolha uma seção",
+                    "sections": [
+                        {
+                            "title": "Macacão",
+                            "image": "http://192.168.1.22:8080/media/web/39/9af3dbd3e077d52f8153529b23f74697.jpg",
+                            "banners": [],
+                            "category": {
+                                "id": "6300",
+                                "name": "Macacão",
+                                "url_key": "macacao"
+                            },
+                            "cards": [],
+                            "products": [
+                                {
+                                    "sku": "JV-MACACAO-LIN",
+                                    "name": "Macacão Lin",
+                                    "url_key": "macacao-lin",
+                                    "priceRange": {
+                                        "min": 319.9,
+                                        "max": 319.9
+                                    }
+                                },
+                                {
+                                    "sku": "JV-MACACAO-ERA",
+                                    "name": "Macacão Era",
+                                    "url_key": "macacao-era",
+                                    "priceRange": {
+                                        "min": 299.9,
+                                        "max": 299.9
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Ecobag",
+                            "image": null,
+                            "banners": [],
+                            "category": {
+                                "id": "6302",
+                                "name": "Bolsa",
+                                "url_key": "bolsa"
+                            },
+                            "cards": [],
+                            "products": [
+                                {
+                                    "sku": "JV-ECOBAG-POA",
+                                    "name": "Ecobag Babados e Poá",
+                                    "url_key": "ecobag-babados-e-poa",
+                                    "priceRange": {
+                                        "min": 89.9,
+                                        "max": 89.9
+                                    }
+                                },
+                                {
+                                    "sku": "JV-ECOBAG-LISTRAS",
+                                    "name": "Ecobag Babados e Listras",
+                                    "url_key": "ecobag-babados-e-listras",
+                                    "priceRange": {
+                                        "min": 89.9,
+                                        "max": 89.9
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Vestido",
+                            "image": "http://192.168.1.22:8080/media/web/15/0970045f56d256be02fcf097879a2802.jpg",
+                            "banners": [
+                                "http://192.168.1.22:8080/media/eav/category-banner/be/1771faac3b6618691c2036854e99ceb0.webp"
+                            ],
+                            "category": {
+                                "id": "535",
+                                "name": "Vestido",
+                                "url_key": "vestido"
+                            },
+                            "cards": [],
+                            "products": [
+                                {
+                                    "sku": "MODA-VESTIDO-LONGO",
+                                    "name": "Vestido Longo Alcinha",
+                                    "url_key": "vestido-longo-alcinha",
+                                    "priceRange": {
+                                        "min": 239.9,
+                                        "max": 249.9
+                                    }
+                                },
+                                {
+                                    "sku": "MODA-VESTIDO-TUBINHO",
+                                    "name": "Vestido Tubinho Malha",
+                                    "url_key": "vestido-tubinho-malha",
+                                    "priceRange": {
+                                        "min": 179.9,
+                                        "max": 179.9
+                                    }
+                                },
+                                {
+                                    "sku": "JV-VESTIDO-LINHO",
+                                    "name": "Vestido Linho",
+                                    "url_key": "vestido-linho",
+                                    "priceRange": {
+                                        "min": 259.9,
+                                        "max": 259.9
+                                    }
+                                },
+                                {
+                                    "sku": "JV-VESTIDO-CHEMY",
+                                    "name": "Vestido Chemy",
+                                    "url_key": "vestido-chemy",
+                                    "priceRange": {
+                                        "min": 279.9,
+                                        "max": 279.9
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Camisa",
+                            "image": null,
+                            "banners": [],
+                            "category": {
+                                "id": "519",
+                                "name": "Camisa",
+                                "url_key": "camisa"
+                            },
+                            "cards": [],
+                            "products": [
+                                {
+                                    "sku": "JV-CAMISA-FLOW",
+                                    "name": "Camisa Flow Viscose Listrada",
+                                    "url_key": "camisa-flow-viscose-listrada",
+                                    "priceRange": {
+                                        "min": 189.9,
+                                        "max": 189.9
+                                    }
+                                },
+                                {
+                                    "sku": "comurasp",
+                                    "name": "Camiseta Oversized Masculina “BAROQUE” Urbana Ripfire Algodão Streetwear Preto",
+                                    "url_key": "camiseta-oversized-masculina-baroque-urbana-ripfire-algodao-streetwear-preto",
+                                    "priceRange": {
+                                        "min": 85.49,
+                                        "max": 85.49
+                                    }
+                                },
+                                {
+                                    "sku": "MODA-CAMISA-POLO",
+                                    "name": "Camisa Polo Piquet",
+                                    "url_key": "camisa-polo-piquet",
+                                    "priceRange": {
+                                        "min": 119.9,
+                                        "max": 129.9
+                                    }
+                                },
+                                {
+                                    "sku": "MODA-CAMISA-XADREZ",
+                                    "name": "Camisa Xadrez Flanela Feminina",
+                                    "url_key": "camisa-xadrez-flanela",
+                                    "priceRange": {
+                                        "min": 159.9,
+                                        "max": 159.9
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Blusa",
+                            "image": null,
+                            "banners": [],
+                            "category": {
+                                "id": "225",
+                                "name": "Blusa",
+                                "url_key": "blusa"
+                            },
+                            "cards": [],
+                            "products": [
+                                {
+                                    "sku": "MODA-BLUSA-OMBRO",
+                                    "name": "Blusa Ombro a Ombro",
+                                    "url_key": "blusa-ombro-a-ombro",
+                                    "priceRange": {
+                                        "min": 89.9,
+                                        "max": 89.9
+                                    }
+                                },
+                                {
+                                    "sku": "MODA-BLUSA-SEDA",
+                                    "name": "Blusa de Seda Manga Longa",
+                                    "url_key": "blusa-de-seda-manga-longa",
+                                    "priceRange": {
+                                        "min": 199.9,
+                                        "max": 199.9
+                                    }
+                                },
+                                {
+                                    "sku": "MODA-BLUSA-CROPPED",
+                                    "name": "Blusa Cropped Canelada",
+                                    "url_key": "blusa-cropped-canelada",
+                                    "priceRange": {
+                                        "min": 69.9,
+                                        "max": 69.9
+                                    }
+                                },
+                                {
+                                    "sku": "MODA-BLUSA-TRICO",
+                                    "name": "Blusa de Tricô Gola Alta",
+                                    "url_key": "blusa-de-trico-gola-alta",
+                                    "priceRange": {
+                                        "min": 129.9,
+                                        "max": 129.9
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Macacão",
+                            "image": null,
+                            "banners": [],
+                            "category": {
+                                "id": "6300",
+                                "name": "Macacão",
+                                "url_key": "macacao"
+                            },
+                            "cards": [],
+                            "products": [
+                                {
+                                    "sku": "JV-MACACAO-LIN",
+                                    "name": "Macacão Lin",
+                                    "url_key": "macacao-lin",
+                                    "priceRange": {
+                                        "min": 319.9,
+                                        "max": 319.9
+                                    }
+                                },
+                                {
+                                    "sku": "JV-MACACAO-ERA",
+                                    "name": "Macacão Era",
+                                    "url_key": "macacao-era",
+                                    "priceRange": {
+                                        "min": 299.9,
+                                        "max": 299.9
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "title": "Conjunto",
+                            "image": null,
+                            "banners": [],
+                            "category": {
+                                "id": "520",
+                                "name": "Conjunto",
+                                "url_key": "conjunto"
+                            },
+                            "cards": [],
+                            "products": [
+                                {
+                                    "sku": "JV-CONJ-TERRA",
+                                    "name": "Conjunto Terra",
+                                    "url_key": "conjunto-terra",
+                                    "priceRange": {
+                                        "min": 339.9,
+                                        "max": 339.9
+                                    }
+                                },
+                                {
+                                    "sku": "JV-CONJ-ASSIMETRIA",
+                                    "name": "Conjunto Assimetria",
+                                    "url_key": "conjunto-assimetria",
+                                    "priceRange": {
+                                        "min": 359.9,
+                                        "max": 359.9
+                                    }
+                                },
+                                {
+                                    "sku": "JV-CONJ-ACETINADO",
+                                    "name": "Conjunto Acetinado",
+                                    "url_key": "conjunto-acetinado",
+                                    "priceRange": {
+                                        "min": 389.9,
+                                        "max": 389.9
+                                    }
+                                },
+                                {
+                                    "sku": "MODA-CONJ-ALF",
+                                    "name": "Conjunto Alfaiataria Blazer e Calça",
+                                    "url_key": "conjunto-alfaiataria-blazer-e-calca",
+                                    "priceRange": {
+                                        "min": 459.9,
+                                        "max": 459.9
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "subscribeNewsletter": {
+        "query": "mutation Inscrever($email: String!) { subscribeNewsletter(email: $email) }",
+        "variables": {
+            "email": "leitora@exemplo.com.br"
+        },
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "subscribeNewsletter": true
+            }
+        }
+    },
+    "subscribeInvalid": {
+        "query": "mutation { subscribeNewsletter(email: \"sem-arroba\") }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "errors": [
+                {
+                    "message": "Informe um e-mail válido.",
+                    "locations": [
+                        {
+                            "line": 1,
+                            "column": 12
+                        }
+                    ],
+                    "path": [
+                        "subscribeNewsletter"
+                    ],
+                    "extensions": {
+                        "code": "INVALID_INPUT"
+                    }
+                }
+            ]
+        }
+    },
+    "confirmNewsletter": {
+        "query": "mutation Confirmar($token: String!) { confirmNewsletter(token: $token) }",
+        "variables": {
+            "token": "bf44fb88d012d7e806eb65f14b9a808bd332d7d6ca73e57ae3fa19252d6214d0"
+        },
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "confirmNewsletter": true
+            }
+        }
+    },
+    "confirmNewsletterAgain": {
+        "query": "mutation Confirmar($token: String!) { confirmNewsletter(token: $token) }",
+        "variables": {
+            "token": "bf44fb88d012d7e806eb65f14b9a808bd332d7d6ca73e57ae3fa19252d6214d0"
+        },
+        "token": false,
+        "headers": [],
+        "response": {
+            "errors": [
+                {
+                    "message": "Link de confirmação inválido ou vencido. Inscreva-se de novo para receber outro.",
+                    "locations": [
+                        {
+                            "line": 1,
+                            "column": 39
+                        }
+                    ],
+                    "path": [
+                        "confirmNewsletter"
+                    ],
+                    "extensions": {
+                        "code": "TOKEN_INVALID"
+                    }
+                }
+            ]
+        }
+    },
     "createCart": {
         "query": "mutation { createCart }",
         "variables": [],
@@ -536,15 +958,15 @@
         "headers": [],
         "response": {
             "data": {
-                "createCart": "31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183"
+                "createCart": "3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49"
             }
         }
     },
     "addToCart": {
         "query": "mutation Adicionar($cartId: String!, $sku: String!) {\n  addToCart(cartId: $cartId, sku: $sku, quantity: 2) { items { id sku name quantity price rowTotal error } subtotal discountAmount shippingAmount total hasErrors }\n}",
         "variables": {
-            "cartId": "31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183",
-            "sku": "001"
+            "cartId": "3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49",
+            "sku": "003"
         },
         "token": false,
         "headers": [],
@@ -553,26 +975,26 @@
                 "addToCart": {
                     "items": [
                         {
-                            "id": "4991",
-                            "sku": "001",
-                            "name": "Produto teste",
+                            "id": "7500",
+                            "sku": "003",
+                            "name": "Blusa branca lisa",
                             "quantity": 2,
-                            "price": 8.5,
-                            "rowTotal": 17,
+                            "price": 35.6,
+                            "rowTotal": 71.2,
                             "error": null
                         }
                     ],
-                    "subtotal": 17,
+                    "subtotal": 71.2,
                     "discountAmount": 0,
                     "shippingAmount": 0,
-                    "total": 17,
+                    "total": 71.2,
                     "hasErrors": false
                 }
             }
         }
     },
     "addConfigurable": {
-        "query": "mutation { addToCart(cartId: \"31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183\", sku: \"MODA-CALCA-JEANS\", quantity: 1) { total } }",
+        "query": "mutation { addToCart(cartId: \"3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49\", sku: \"MODA-CALCA-JEANS\", quantity: 1) { total } }",
         "variables": [],
         "token": false,
         "headers": [],
@@ -599,7 +1021,7 @@
     "guestInfo": {
         "query": "mutation Visitante($cartId: String!) {\n  setCartGuestInfo(cartId: $cartId, email: \"maria@exemplo.com.br\", firstname: \"Maria\", lastname: \"Souza\", taxvat: \"529.982.247-25\") { email firstname taxvat }\n}",
         "variables": {
-            "cartId": "31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183"
+            "cartId": "3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49"
         },
         "token": false,
         "headers": [],
@@ -614,7 +1036,7 @@
         }
     },
     "shippingQuotes": {
-        "query": "{ shippingQuotes(cartId: \"31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183\", destinationCep: \"20040-020\") { code label amount days } }",
+        "query": "{ shippingQuotes(cartId: \"3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49\", destinationCep: \"20040-020\") { code label amount days } }",
         "variables": [],
         "token": false,
         "headers": [],
@@ -626,6 +1048,24 @@
                         "label": "Retirar na loja (Avenida Ayrton Senna, 2600, Rio de Janeiro)",
                         "amount": 0,
                         "days": 1
+                    },
+                    {
+                        "code": "melhorenvio:2",
+                        "label": "Correios — SEDEX",
+                        "amount": 12.64,
+                        "days": 2
+                    },
+                    {
+                        "code": "melhorenvio:3",
+                        "label": "Jadlog — .Package",
+                        "amount": 15.23,
+                        "days": 4
+                    },
+                    {
+                        "code": "melhorenvio:4",
+                        "label": "Jadlog — .Com",
+                        "amount": 15.35,
+                        "days": 3
                     }
                 ]
             }
@@ -634,7 +1074,7 @@
     "shippingAddress": {
         "query": "mutation Endereco($cartId: String!, $endereco: CartAddressInput!) {\n  setCartShippingAddress(cartId: $cartId, address: $endereco) {\n    shippingAddress { postcode city region }\n    availableShippingMethods { code label amount days }\n  }\n}",
         "variables": {
-            "cartId": "31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183",
+            "cartId": "3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49",
             "endereco": {
                 "recipient": "Maria Souza",
                 "postcode": "20040-020",
@@ -662,6 +1102,24 @@
                             "label": "Retirar na loja (Avenida Ayrton Senna, 2600, Rio de Janeiro)",
                             "amount": 0,
                             "days": 1
+                        },
+                        {
+                            "code": "melhorenvio:2",
+                            "label": "Correios — SEDEX",
+                            "amount": 12.64,
+                            "days": 2
+                        },
+                        {
+                            "code": "melhorenvio:3",
+                            "label": "Jadlog — .Package",
+                            "amount": 15.23,
+                            "days": 4
+                        },
+                        {
+                            "code": "melhorenvio:4",
+                            "label": "Jadlog — .Com",
+                            "amount": 15.35,
+                            "days": 3
                         }
                     ]
                 }
@@ -669,7 +1127,7 @@
         }
     },
     "shippingMethod": {
-        "query": "mutation { setCartShippingMethod(cartId: \"31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183\", code: \"pickup\") { shippingMethod { code label amount } total availablePaymentMethods { code label } } }",
+        "query": "mutation { setCartShippingMethod(cartId: \"3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49\", code: \"pickup\") { shippingMethod { code label amount } total availablePaymentMethods { code label } } }",
         "variables": [],
         "token": false,
         "headers": [],
@@ -681,7 +1139,7 @@
                         "label": "Retirar na loja (Avenida Ayrton Senna, 2600, Rio de Janeiro)",
                         "amount": 0
                     },
-                    "total": 17,
+                    "total": 71.2,
                     "availablePaymentMethods": [
                         {
                             "code": "mercadopago_pix",
@@ -701,7 +1159,7 @@
         }
     },
     "paymentMethod": {
-        "query": "mutation { setCartPaymentMethod(cartId: \"31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183\", code: \"mercadopago_pix\") { paymentMethod { code label } total } }",
+        "query": "mutation { setCartPaymentMethod(cartId: \"3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49\", code: \"mercadopago_pix\") { paymentMethod { code label } total } }",
         "variables": [],
         "token": false,
         "headers": [],
@@ -712,13 +1170,13 @@
                         "code": "mercadopago_pix",
                         "label": "Pix"
                     },
-                    "total": 17
+                    "total": 71.2
                 }
             }
         }
     },
     "totalChanged": {
-        "query": "mutation { placeOrder(cartId: \"31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183\", expectedTotal: 1.00) { number } }",
+        "query": "mutation { placeOrder(cartId: \"3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49\", expectedTotal: 1.00) { number } }",
         "variables": [],
         "token": false,
         "headers": [],
@@ -745,8 +1203,8 @@
     "placeOrder": {
         "query": "mutation Fechar($cartId: String!, $total: Float!) {\n  placeOrder(cartId: $cartId, expectedTotal: $total) {\n    id number status statusLabel total salesChannel\n    paymentMethod paymentInstructions\n    items { sku name quantity price rowTotal }\n  }\n}",
         "variables": {
-            "cartId": "31312e081da812baa6fc25c5b2ea38858978bf706a0c229f8ffe5ff05e291183",
-            "total": 17
+            "cartId": "3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49",
+            "total": 71.2
         },
         "token": false,
         "headers": {
@@ -755,21 +1213,21 @@
         "response": {
             "data": {
                 "placeOrder": {
-                    "id": "4838",
-                    "number": "RJ000060",
+                    "id": "7724",
+                    "number": "RJ000076",
                     "status": "pending_payment",
                     "statusLabel": "Aguardando pagamento",
-                    "total": 17,
+                    "total": 71.2,
                     "salesChannel": "Site",
                     "paymentMethod": "mercadopago_pix",
                     "paymentInstructions": null,
                     "items": [
                         {
-                            "sku": "001",
-                            "name": "Produto teste",
+                            "sku": "003",
+                            "name": "Blusa branca lisa",
                             "quantity": 2,
-                            "price": 8.5,
-                            "rowTotal": 17
+                            "price": 35.6,
+                            "rowTotal": 71.2
                         }
                     ]
                 }
@@ -777,16 +1235,16 @@
         }
     },
     "guestOrder": {
-        "query": "{ guestOrder(number: \"RJ000060\", email: \"maria@exemplo.com.br\") { number statusLabel total } }",
+        "query": "{ guestOrder(number: \"RJ000076\", email: \"maria@exemplo.com.br\") { number statusLabel total } }",
         "variables": [],
         "token": false,
         "headers": [],
         "response": {
             "data": {
                 "guestOrder": {
-                    "number": "RJ000060",
+                    "number": "RJ000076",
                     "statusLabel": "Aguardando pagamento",
-                    "total": 17
+                    "total": 71.2
                 }
             }
         }
@@ -801,11 +1259,11 @@
         "response": {
             "data": {
                 "registerCustomer": {
-                    "token": "51e3fbb2df4dc6edd42852295af6c59859bd9df652edb87cca48d7e8b882e66f",
-                    "expires_at": "2026-11-19 18:08:28",
+                    "token": "b08c70fc80acfba467fbfce4232020bbe04da0025703d72c3c75f2f5dcf13b5e",
+                    "expires_at": "2026-12-13 15:02:46",
                     "confirmationRequired": false,
                     "customer": {
-                        "id": "2668",
+                        "id": "3855",
                         "email": "joao@exemplo.com.br",
                         "firstname": "João"
                     }
@@ -821,10 +1279,10 @@
         "response": {
             "data": {
                 "generateCustomerToken": {
-                    "token": "9bc77bc43ee2dae04898197b44d0ea22ffaffcec28d94725051b6d2392fb83f9",
-                    "expires_at": "2026-11-19 18:08:28",
+                    "token": "e87413f898ac11ba785d7a612d0bf47bc5a30ed4779ef612616dc3514416c4e7",
+                    "expires_at": "2026-12-13 15:02:46",
                     "customer": {
-                        "id": "2668",
+                        "id": "3855",
                         "firstname": "João"
                     }
                 }
@@ -839,7 +1297,7 @@
         "response": {
             "data": {
                 "me": {
-                    "id": "2668",
+                    "id": "3855",
                     "email": "joao@exemplo.com.br",
                     "firstname": "João",
                     "lastname": "Lima",
@@ -859,7 +1317,7 @@
             "data": {
                 "createMyAddress": [
                     {
-                        "id": "2420",
+                        "id": "3036",
                         "city": "São Paulo",
                         "region": "SP",
                         "is_default_shipping": true
@@ -891,25 +1349,25 @@
         "headers": [],
         "response": {
             "data": {
-                "createCart": "f2cb98dced50ce2741a960854799bba2ba2a0e14e842d2839dca79a22cbe6eeb"
+                "createCart": "4ce9330f28b68e048678f67b01712f230eb0c5a94ccb359136ac7794adc4bbb8"
             }
         }
     },
     "addGuest2": {
-        "query": "mutation { addToCart(cartId: \"f2cb98dced50ce2741a960854799bba2ba2a0e14e842d2839dca79a22cbe6eeb\", sku: \"001\", quantity: 1) { total } }",
+        "query": "mutation { addToCart(cartId: \"4ce9330f28b68e048678f67b01712f230eb0c5a94ccb359136ac7794adc4bbb8\", sku: \"003\", quantity: 1) { total } }",
         "variables": [],
         "token": false,
         "headers": [],
         "response": {
             "data": {
                 "addToCart": {
-                    "total": 8.5
+                    "total": 35.6
                 }
             }
         }
     },
     "mergeCarts": {
-        "query": "mutation { mergeCarts(cartId: \"f2cb98dced50ce2741a960854799bba2ba2a0e14e842d2839dca79a22cbe6eeb\") { isGuest items { sku quantity } total } }",
+        "query": "mutation { mergeCarts(cartId: \"4ce9330f28b68e048678f67b01712f230eb0c5a94ccb359136ac7794adc4bbb8\") { isGuest items { sku quantity } total } }",
         "variables": [],
         "token": true,
         "headers": [],
@@ -919,13 +1377,117 @@
                     "isGuest": false,
                     "items": [
                         {
-                            "sku": "001",
+                            "sku": "003",
                             "quantity": 1
                         }
                     ],
-                    "total": 8.5
+                    "total": 35.6
                 }
             }
+        }
+    },
+    "addToWishlist": {
+        "query": "mutation Favoritar($id: ID!) { addToWishlist(productId: $id) }",
+        "variables": {
+            "id": "1821"
+        },
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "addToWishlist": true
+            }
+        }
+    },
+    "addVariantToWishlist": {
+        "query": "mutation { addToWishlist(productId: \"1822\") }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "errors": [
+                {
+                    "message": "Favorite o produto, não a variação.",
+                    "locations": [
+                        {
+                            "line": 1,
+                            "column": 12
+                        }
+                    ],
+                    "path": [
+                        "addToWishlist"
+                    ],
+                    "extensions": {
+                        "code": "PRODUCT_IS_VARIANT"
+                    }
+                }
+            ]
+        }
+    },
+    "myWishlist": {
+        "query": "{\n  myWishlist(page: 1, pageSize: 20) {\n    total\n    items {\n      addedAt\n      product { id sku name url_key priceRange { min max } }\n    }\n  }\n}",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "myWishlist": {
+                    "total": 1,
+                    "items": [
+                        {
+                            "addedAt": "2026-11-13 15:02:44.84852-03",
+                            "product": {
+                                "id": "1821",
+                                "sku": "MODA-CALCA-JEANS",
+                                "name": "Calça Jeans Skinny",
+                                "url_key": "calca-jeans-skinny",
+                                "priceRange": {
+                                    "min": 159.9,
+                                    "max": 169.9
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "removeFromWishlist": {
+        "query": "mutation Desfavoritar($id: ID!) { removeFromWishlist(productId: $id) }",
+        "variables": {
+            "id": "1821"
+        },
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "removeFromWishlist": true
+            }
+        }
+    },
+    "wishlistNoToken": {
+        "query": "{ myWishlist { total } }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "errors": [
+                {
+                    "message": "Faça login como cliente.",
+                    "locations": [
+                        {
+                            "line": 1,
+                            "column": 3
+                        }
+                    ],
+                    "path": [
+                        "myWishlist"
+                    ],
+                    "extensions": {
+                        "code": "UNAUTHENTICATED"
+                    }
+                }
+            ]
         }
     },
     "myOrders": {
@@ -961,23 +1523,15 @@
         "response": {
             "data": {
                 "orders": {
-                    "total": 2,
-                    "amount": 30.5,
+                    "total": 1,
+                    "amount": 71.2,
                     "items": [
                         {
-                            "number": "RJ000060",
-                            "createdAt": "2026-10-20 18:08:27.402208",
+                            "number": "RJ000076",
+                            "createdAt": "2026-11-13 15:02:44.84852",
                             "statusLabel": "Aguardando pagamento",
-                            "total": 17,
+                            "total": 71.2,
                             "salesChannel": "Site",
-                            "paymentLabel": "Pix"
-                        },
-                        {
-                            "number": "RJ000057",
-                            "createdAt": "2026-10-20 12:12:44.420628",
-                            "statusLabel": "Aguardando pagamento",
-                            "total": 13.5,
-                            "salesChannel": "App mobile",
                             "paymentLabel": "Pix"
                         }
                     ]
@@ -1011,26 +1565,26 @@
         }
     },
     "confirmPayment": {
-        "query": "mutation { confirmOrderPayment(id: \"4838\", comment: \"Pix conferido no extrato\") { number status statusLabel history { status comment createdAt } } }",
+        "query": "mutation { confirmOrderPayment(id: \"7724\", comment: \"Pix conferido no extrato\") { number status statusLabel history { status comment createdAt } } }",
         "variables": [],
         "token": true,
         "headers": [],
         "response": {
             "data": {
                 "confirmOrderPayment": {
-                    "number": "RJ000060",
+                    "number": "RJ000076",
                     "status": "processing",
                     "statusLabel": "Pagamento confirmado",
                     "history": [
                         {
                             "status": "processing",
                             "comment": "Pix conferido no extrato",
-                            "createdAt": "2026-10-20 18:08:27.402208"
+                            "createdAt": "2026-11-13 15:02:44.84852"
                         },
                         {
                             "status": "pending_payment",
                             "comment": null,
-                            "createdAt": "2026-10-20 18:08:27.402208"
+                            "createdAt": "2026-11-13 15:02:44.84852"
                         }
                     ]
                 }
@@ -1038,14 +1592,14 @@
         }
     },
     "shipOrder": {
-        "query": "mutation { shipOrder(id: \"4838\", carrier: \"Correios\", trackingCode: \"AA123456789BR\") { number statusLabel shipment { carrier trackingCode } } }",
+        "query": "mutation { shipOrder(id: \"7724\", carrier: \"Correios\", trackingCode: \"AA123456789BR\") { number statusLabel shipment { carrier trackingCode } } }",
         "variables": [],
         "token": true,
         "headers": [],
         "response": {
             "data": {
                 "shipOrder": {
-                    "number": "RJ000060",
+                    "number": "RJ000076",
                     "statusLabel": "Enviado",
                     "shipment": {
                         "carrier": "Correios",
@@ -1056,7 +1610,7 @@
         }
     },
     "salesSummary": {
-        "query": "{ salesSummary(from: \"2026-10-01\", to: \"2026-10-20\") { status statusLabel count amount } }",
+        "query": "{ salesSummary(from: \"2026-11-01\", to: \"2026-11-13\") { status statusLabel count amount } }",
         "variables": [],
         "token": true,
         "headers": [],
@@ -1066,39 +1620,39 @@
                     {
                         "status": "pending_payment",
                         "statusLabel": "Aguardando pagamento",
-                        "count": 1,
-                        "amount": 13.5
+                        "count": 0,
+                        "amount": 0
                     },
                     {
                         "status": "processing",
                         "statusLabel": "Pagamento confirmado",
-                        "count": 30,
-                        "amount": 879.55
+                        "count": 9,
+                        "amount": 1607.12
                     },
                     {
                         "status": "shipped",
                         "statusLabel": "Enviado",
                         "count": 1,
-                        "amount": 17
+                        "amount": 71.2
                     },
                     {
                         "status": "complete",
                         "statusLabel": "Concluído",
-                        "count": 3,
-                        "amount": 193.95
+                        "count": 1,
+                        "amount": 8.5
                     },
                     {
                         "status": "canceled",
                         "statusLabel": "Cancelado",
-                        "count": 25,
-                        "amount": 943.16
+                        "count": 4,
+                        "amount": 561.5
                     }
                 ]
             }
         }
     },
     "createProduct": {
-        "query": "mutation Novo($attrs: [ProductAttributeInput!]) {\n  createProduct(sku: \"CANECA-001\", name: \"Caneca de cerâmica\", attributeSetId: \"1\", websiteIds: [\"15\"], categoryIds: [\"22\"], attributes: $attrs) {\n    id sku name url_key is_active\n    attributes { code value }\n  }\n}",
+        "query": "mutation Novo($attrs: [ProductAttributeInput!]) {\n  createProduct(sku: \"CANECA-001\", name: \"Caneca de cerâmica\", attributeSetId: \"1\", websiteIds: [\"15\"], categoryIds: [\"225\"], attributes: $attrs) {\n    id sku name url_key is_active\n    attributes { code value }\n  }\n}",
         "variables": {
             "attrs": [
                 {
@@ -1120,7 +1674,7 @@
         "response": {
             "data": {
                 "createProduct": {
-                    "id": "14668",
+                    "id": "22556",
                     "sku": "CANECA-001",
                     "name": "Caneca de cerâmica",
                     "url_key": "caneca-de-ceramica",
@@ -1164,7 +1718,7 @@
         }
     },
     "updateProduct": {
-        "query": "mutation { updateProduct(id: \"14668\", attributes: [{ code: \"price\", value: \"44.90\" }]) { sku attributes { code value } } }",
+        "query": "mutation { updateProduct(id: \"22556\", attributes: [{ code: \"price\", value: \"44.90\" }]) { sku attributes { code value } } }",
         "variables": [],
         "token": true,
         "headers": [],
@@ -1301,8 +1855,12 @@
                                         "label": "Todas as categorias"
                                     },
                                     {
-                                        "value": "13",
-                                        "label": "Cosmético"
+                                        "value": "6301",
+                                        "label": "Acessórios"
+                                    },
+                                    {
+                                        "value": "6302",
+                                        "label": "— Bolsa"
                                     },
                                     {
                                         "value": "224",
@@ -1333,6 +1891,10 @@
                                         "label": "— Jaqueta"
                                     },
                                     {
+                                        "value": "6300",
+                                        "label": "— Macacão"
+                                    },
+                                    {
                                         "value": "536",
                                         "label": "— Saia"
                                     },
@@ -1345,32 +1907,12 @@
                                         "label": "— Blusa"
                                     },
                                     {
-                                        "value": "352",
+                                        "value": "6343",
                                         "label": "Vestuário"
                                     },
                                     {
-                                        "value": "14",
-                                        "label": "Farmácia"
-                                    },
-                                    {
-                                        "value": "22",
-                                        "label": "— Vitaminas"
-                                    },
-                                    {
-                                        "value": "15",
-                                        "label": "Beleza"
-                                    },
-                                    {
-                                        "value": "16",
-                                        "label": "Higiene Pessoal"
-                                    },
-                                    {
-                                        "value": "17",
-                                        "label": "Medicamentos"
-                                    },
-                                    {
-                                        "value": "18",
-                                        "label": "Perfumaria"
+                                        "value": "6344",
+                                        "label": "— Vestido"
                                     }
                                 ]
                             },
@@ -1723,8 +2265,12 @@
                                         "label": "Todas as categorias"
                                     },
                                     {
-                                        "value": "13",
-                                        "label": "Cosmético"
+                                        "value": "6301",
+                                        "label": "Acessórios"
+                                    },
+                                    {
+                                        "value": "6302",
+                                        "label": "— Bolsa"
                                     },
                                     {
                                         "value": "224",
@@ -1755,6 +2301,10 @@
                                         "label": "— Jaqueta"
                                     },
                                     {
+                                        "value": "6300",
+                                        "label": "— Macacão"
+                                    },
+                                    {
                                         "value": "536",
                                         "label": "— Saia"
                                     },
@@ -1767,32 +2317,12 @@
                                         "label": "— Blusa"
                                     },
                                     {
-                                        "value": "352",
+                                        "value": "6343",
                                         "label": "Vestuário"
                                     },
                                     {
-                                        "value": "14",
-                                        "label": "Farmácia"
-                                    },
-                                    {
-                                        "value": "22",
-                                        "label": "— Vitaminas"
-                                    },
-                                    {
-                                        "value": "15",
-                                        "label": "Beleza"
-                                    },
-                                    {
-                                        "value": "16",
-                                        "label": "Higiene Pessoal"
-                                    },
-                                    {
-                                        "value": "17",
-                                        "label": "Medicamentos"
-                                    },
-                                    {
-                                        "value": "18",
-                                        "label": "Perfumaria"
+                                        "value": "6344",
+                                        "label": "— Vestido"
                                     }
                                 ]
                             },
@@ -1840,8 +2370,12 @@
                                         "label": "Todas as categorias"
                                     },
                                     {
-                                        "value": "13",
-                                        "label": "Cosmético"
+                                        "value": "6301",
+                                        "label": "Acessórios"
+                                    },
+                                    {
+                                        "value": "6302",
+                                        "label": "— Bolsa"
                                     },
                                     {
                                         "value": "224",
@@ -1872,6 +2406,10 @@
                                         "label": "— Jaqueta"
                                     },
                                     {
+                                        "value": "6300",
+                                        "label": "— Macacão"
+                                    },
+                                    {
                                         "value": "536",
                                         "label": "— Saia"
                                     },
@@ -1884,32 +2422,12 @@
                                         "label": "— Blusa"
                                     },
                                     {
-                                        "value": "352",
+                                        "value": "6343",
                                         "label": "Vestuário"
                                     },
                                     {
-                                        "value": "14",
-                                        "label": "Farmácia"
-                                    },
-                                    {
-                                        "value": "22",
-                                        "label": "— Vitaminas"
-                                    },
-                                    {
-                                        "value": "15",
-                                        "label": "Beleza"
-                                    },
-                                    {
-                                        "value": "16",
-                                        "label": "Higiene Pessoal"
-                                    },
-                                    {
-                                        "value": "17",
-                                        "label": "Medicamentos"
-                                    },
-                                    {
-                                        "value": "18",
-                                        "label": "Perfumaria"
+                                        "value": "6344",
+                                        "label": "— Vestido"
                                     }
                                 ]
                             },
@@ -1955,8 +2473,12 @@
                                         "label": "Todas as categorias"
                                     },
                                     {
-                                        "value": "13",
-                                        "label": "Cosmético"
+                                        "value": "6301",
+                                        "label": "Acessórios"
+                                    },
+                                    {
+                                        "value": "6302",
+                                        "label": "— Bolsa"
                                     },
                                     {
                                         "value": "224",
@@ -1987,6 +2509,10 @@
                                         "label": "— Jaqueta"
                                     },
                                     {
+                                        "value": "6300",
+                                        "label": "— Macacão"
+                                    },
+                                    {
                                         "value": "536",
                                         "label": "— Saia"
                                     },
@@ -1999,32 +2525,12 @@
                                         "label": "— Blusa"
                                     },
                                     {
-                                        "value": "352",
+                                        "value": "6343",
                                         "label": "Vestuário"
                                     },
                                     {
-                                        "value": "14",
-                                        "label": "Farmácia"
-                                    },
-                                    {
-                                        "value": "22",
-                                        "label": "— Vitaminas"
-                                    },
-                                    {
-                                        "value": "15",
-                                        "label": "Beleza"
-                                    },
-                                    {
-                                        "value": "16",
-                                        "label": "Higiene Pessoal"
-                                    },
-                                    {
-                                        "value": "17",
-                                        "label": "Medicamentos"
-                                    },
-                                    {
-                                        "value": "18",
-                                        "label": "Perfumaria"
+                                        "value": "6344",
+                                        "label": "— Vestido"
                                     }
                                 ]
                             },
@@ -2091,8 +2597,12 @@
                                         "label": "Todas as categorias"
                                     },
                                     {
-                                        "value": "13",
-                                        "label": "Cosmético"
+                                        "value": "6301",
+                                        "label": "Acessórios"
+                                    },
+                                    {
+                                        "value": "6302",
+                                        "label": "— Bolsa"
                                     },
                                     {
                                         "value": "224",
@@ -2123,6 +2633,10 @@
                                         "label": "— Jaqueta"
                                     },
                                     {
+                                        "value": "6300",
+                                        "label": "— Macacão"
+                                    },
+                                    {
                                         "value": "536",
                                         "label": "— Saia"
                                     },
@@ -2135,32 +2649,12 @@
                                         "label": "— Blusa"
                                     },
                                     {
-                                        "value": "352",
+                                        "value": "6343",
                                         "label": "Vestuário"
                                     },
                                     {
-                                        "value": "14",
-                                        "label": "Farmácia"
-                                    },
-                                    {
-                                        "value": "22",
-                                        "label": "— Vitaminas"
-                                    },
-                                    {
-                                        "value": "15",
-                                        "label": "Beleza"
-                                    },
-                                    {
-                                        "value": "16",
-                                        "label": "Higiene Pessoal"
-                                    },
-                                    {
-                                        "value": "17",
-                                        "label": "Medicamentos"
-                                    },
-                                    {
-                                        "value": "18",
-                                        "label": "Perfumaria"
+                                        "value": "6344",
+                                        "label": "— Vestido"
                                     }
                                 ]
                             },
@@ -2486,8 +2980,12 @@
                                         "label": "Todas as categorias"
                                     },
                                     {
-                                        "value": "13",
-                                        "label": "Cosmético"
+                                        "value": "6301",
+                                        "label": "Acessórios"
+                                    },
+                                    {
+                                        "value": "6302",
+                                        "label": "— Bolsa"
                                     },
                                     {
                                         "value": "224",
@@ -2518,6 +3016,10 @@
                                         "label": "— Jaqueta"
                                     },
                                     {
+                                        "value": "6300",
+                                        "label": "— Macacão"
+                                    },
+                                    {
                                         "value": "536",
                                         "label": "— Saia"
                                     },
@@ -2530,32 +3032,12 @@
                                         "label": "— Blusa"
                                     },
                                     {
-                                        "value": "352",
+                                        "value": "6343",
                                         "label": "Vestuário"
                                     },
                                     {
-                                        "value": "14",
-                                        "label": "Farmácia"
-                                    },
-                                    {
-                                        "value": "22",
-                                        "label": "— Vitaminas"
-                                    },
-                                    {
-                                        "value": "15",
-                                        "label": "Beleza"
-                                    },
-                                    {
-                                        "value": "16",
-                                        "label": "Higiene Pessoal"
-                                    },
-                                    {
-                                        "value": "17",
-                                        "label": "Medicamentos"
-                                    },
-                                    {
-                                        "value": "18",
-                                        "label": "Perfumaria"
+                                        "value": "6344",
+                                        "label": "— Vestido"
                                     }
                                 ]
                             },
@@ -2649,7 +3131,7 @@
                     ],
                     "rows": [
                         [
-                            "01/10/2026",
+                            "01/11/2026",
                             "0",
                             "0",
                             "0",
@@ -2663,7 +3145,7 @@
                             "0"
                         ],
                         [
-                            "02/10/2026",
+                            "02/11/2026",
                             "0",
                             "0",
                             "0",
@@ -2677,7 +3159,7 @@
                             "0"
                         ],
                         [
-                            "03/10/2026",
+                            "03/11/2026",
                             "0",
                             "0",
                             "0",
@@ -2691,63 +3173,63 @@
                             "0"
                         ],
                         [
-                            "04/10/2026",
-                            "0",
-                            "0",
-                            "0",
-                            "0",
-                            "0",
-                            "0",
-                            null,
-                            null,
-                            null,
-                            "0",
-                            "0"
-                        ],
-                        [
-                            "05/10/2026",
+                            "04/11/2026",
                             "1",
                             "1.0000",
-                            "49.90",
+                            "8.50",
                             "0.00",
                             "0.00",
-                            "49.90",
+                            "8.50",
                             null,
                             null,
-                            "49.9000000000000000",
+                            "8.5000000000000000",
                             "0",
-                            "0"
+                            "2"
+                        ],
+                        [
+                            "05/11/2026",
+                            "8",
+                            "8.0000",
+                            "1279.20",
+                            "31.98",
+                            "0.00",
+                            "1247.22",
+                            null,
+                            null,
+                            "155.9025000000000000",
+                            "0",
+                            "1"
                         ]
                     ],
-                    "total": 20,
+                    "total": 13,
                     "totals": [
                         null,
-                        "34",
-                        "73.0000",
-                        "877.52",
-                        "9.35",
-                        "222.33",
-                        "1090.50",
+                        "11",
+                        "12.0000",
+                        "1718.80",
+                        "31.98",
+                        "0.00",
+                        "1686.82",
                         null,
                         null,
-                        "32.073529411765",
-                        "1",
-                        "25"
+                        "153.34727272727",
+                        "0",
+                        "4"
                     ],
                     "tiles": [
                         {
                             "label": "Faturamento",
-                            "value": "R$ 1.090,50",
-                            "note": "sem vendas nos 20 dias antes"
+                            "value": "R$ 1.686,82",
+                            "note": "▲ 1.285,5% vs. 13 dias antes"
                         },
                         {
                             "label": "Pedidos pagos",
-                            "value": "34",
-                            "note": "73 itens"
+                            "value": "11",
+                            "note": "12 itens"
                         },
                         {
                             "label": "Ticket médio",
-                            "value": "R$ 32,07",
+                            "value": "R$ 153,35",
                             "note": "com frete"
                         },
                         {
@@ -2757,12 +3239,12 @@
                         },
                         {
                             "label": "Aguardando",
-                            "value": "1",
+                            "value": "0",
                             "note": "fora do total"
                         },
                         {
                             "label": "Cancelados",
-                            "value": "25",
+                            "value": "4",
                             "note": "fora do total"
                         }
                     ]
@@ -2859,6 +3341,20 @@
                         "code": "description",
                         "label": "Descrição",
                         "inputType": "textarea",
+                        "isRequired": false,
+                        "isFilterable": false
+                    },
+                    {
+                        "code": "tryon_enabled",
+                        "label": "Provador virtual",
+                        "inputType": "checkbox",
+                        "isRequired": false,
+                        "isFilterable": false
+                    },
+                    {
+                        "code": "tryon_category",
+                        "label": "Tipo de peça no provador",
+                        "inputType": "select",
                         "isRequired": false,
                         "isFilterable": false
                     }

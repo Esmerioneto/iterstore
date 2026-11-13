@@ -189,6 +189,9 @@ ERRORS = [
                            ('ORDER_NOT_FOUND', 'Pedido que não existe (ou e-mail que não confere no guestOrder).'), ('ORDER_STATUS_INVALID', 'A ação não vale para a situação atual do pedido.'),
                            ('REASON_REQUIRED', 'Cancelamento com motivo OTHER sem comentário.'), ('REFUND_NOTE_REQUIRED', 'Cancelar pedido pago sem estorno nem nota de devolução.'),
                            ('PAYMENT_FAILED', 'O Mercado Pago recusou a cobrança (veja statusDetail).'), ('PAYMENT_APPROVED', 'A cobrança acabou de ser paga; o pedido foi confirmado.')]),
+    ('Favoritos e newsletter', [('PRODUCT_IS_VARIANT', 'addToWishlist com uma variação: favorite o produto pai.'), ('WISHLIST_LIMIT', 'A lista de favoritos já tem 200 produtos.'),
+                                ('INVALID_INPUT', 'subscribeNewsletter com e-mail inválido ou websiteId que não existe.'),
+                                ('TOKEN_INVALID', 'confirmNewsletter com link desconhecido, já usado ou vencido (HTTP 200, ao contrário do token de login).')]),
 ]
 
 
@@ -225,7 +228,7 @@ MODULES = [
     ('Mail', '—', 'Fila de e-mails, modelos editáveis e e-mails enviados.'),
     ('Store', '—', 'Websites, grupos e lojas.'),
     ('Eav', '—', 'Atributos, conjuntos e valores (produto, categoria, cliente, endereço).'),
-    ('Catalog', 'Eav', 'Produtos (simples e com grade), categorias, imagens, custo, ordem do app e importação de custos.'),
+    ('Catalog', 'Eav', 'Produtos (simples e com grade), categorias, imagens, custo, ordem do app, home da loja web (Catálogo → Web, <code>webHome</code>) e importação de custos.'),
     ('Inventory', 'Catalog', 'Origens de estoque, quantidade por origem, reservas e o vendável.'),
     ('Customer', 'Eav, Store', 'Clientes PF/PJ, endereços, login do cliente na loja e token da API.'),
     ('Sales', 'Catalog, Inventory, Customer, Store', 'Carrinho, pedido, situações, envio, cancelamento e painel de vendas.'),
@@ -237,6 +240,8 @@ MODULES = [
     ('Correios', 'Shipping', 'Cotação pela API dos Correios (contrato). <em>Desligado nesta instalação.</em>'),
     ('Promotion', 'Sales, Catalog, Store', 'Promoções automáticas e cupons.'),
     ('Message', 'Customer, Store', 'Mensagens entre a loja e o cliente.'),
+    ('Wishlist', 'Customer, Catalog', 'Favoritos do cliente, pela API e no cadastro do cliente.'),
+    ('Marketing', 'Customer, Sales, Mail, Catalog', 'E-mails de marketing (carrinho abandonado, clientes sem comprar, recorrentes) e a newsletter com confirmação por e-mail.'),
     ('Log', 'Admin, Config', 'Log de operações (auditoria) com antes e depois.'),
     ('Report', 'Admin, Config, Sales', 'Os 26 relatórios, exportação, envio por e-mail e a API de relatórios.'),
 ]
@@ -286,13 +291,14 @@ doc = f'''<!DOCTYPE html>
     <li><a href="#operacao">Operação</a><ol><li>Tarefas agendadas (cron)</li><li>Webhook do Mercado Pago</li><li>Logs</li><li>Testes</li><li>Backup</li></ol></li>
     <li><a href="#api">A API GraphQL</a><ol><li>Endpoint e formato</li><li>Autenticação</li><li>Cabeçalhos e CORS</li><li>Erros</li><li>Limites</li><li>Envio de arquivos</li></ol></li>
     <li><a href="#catalogo">Exemplos: loja e catálogo</a></li>
+    <li><a href="#lojaweb">Exemplos: loja web</a><ol><li>Home (webHome)</li><li>Newsletter</li></ol></li>
     <li><a href="#checkout">Exemplos: compra do visitante</a></li>
-    <li><a href="#cliente">Exemplos: conta do cliente</a></li>
+    <li><a href="#cliente">Exemplos: conta do cliente</a> (com os favoritos)</li>
     <li><a href="#admin">Exemplos: integração do admin</a><ol><li>Login</li><li>Pedidos</li><li>Produtos e estoque</li><li>Relatórios</li></ol></li>
     <li><a href="#erros">Códigos de erro</a></li>
     <li><a href="#referencia">Referência das consultas e mutações</a></li>
   </ol>
-  <div class="tip"><b>Exemplos reais</b>Todas as requisições deste manual foram executadas contra a API desta instalação em 20/10/2026, e as respostas são as que ela devolveu (dentro de uma transação desfeita depois: nada ficou gravado). Listas longas foram cortadas ("… mais N") e os tokens, abreviados.</div>
+  <div class="tip"><b>Exemplos reais</b>Todas as requisições deste manual foram executadas contra a API desta instalação em 13/11/2026, e as respostas são as que ela devolveu (dentro de uma transação desfeita depois: nada ficou gravado). Listas longas foram cortadas ("… mais N") e os tokens, abreviados.</div>
 </section>
 
 <section id="visao">
@@ -525,8 +531,34 @@ if (isset($body['errors'])) {{
   {example('route', 'Resolver um endereço da loja', 'Para o site: o que abre em <code>/calca-jeans-skinny</code> (produto ou categoria).')}
 </section>
 
+<section id="lojaweb">
+  <h2>6. Exemplos: loja web</h2>
+  <h3>6.1 Home (webHome)</h3>
+  <p>Uma chamada pública traz a home inteira da loja web, como montada em <b>Catálogo → Web</b> no painel: a barra de aviso, o topo (campanha em banner <i>ou</i> carrossel de slides), o título do grid e as seções. Cada seção é uma categoria, com a foto da seção, até 4 cards de subcategorias, os banners da categoria (com "Mostrar banner") e os produtos (os escolhidos à mão, depois os mais novos, até a quantidade da tela).</p>
+  <ul>
+    <li>As 3 primeiras seções formam o grid "Escolha uma seção" (título em <code>sectionsTitle</code>); as outras vêm em sequência na página.</li>
+    <li>Topo: <code>campaign</code> vem preenchida quando o topo é banner (com <code>video</code> opcional, MP4/WEBM, e <code>imageDesktop</code> como capa); <code>slides</code> vem preenchida quando é carrossel. <code>carousel</code> (setas, bolinhas, segundos do autoplay; 0 = parado) vale para o carrossel do topo e para os banners das seções.</li>
+    <li>As imagens vêm em URL absoluta, no endereço em que a API foi chamada. <code>imageMobile</code> nulo = use <code>imageDesktop</code>; <code>image</code> da seção nulo = use a foto do primeiro produto.</li>
+    <li>Textos (aviso, títulos, campanha) são texto puro: escape ao mostrar. Links (<code>url</code>) são <code>/…</code> da própria loja ou <code>https://</code>.</li>
+    <li>Seção ou card de categoria inativa fica de fora; website desconhecido devolve as listas vazias.</li>
+  </ul>
+  {example('webHome', 'A home da loja', 'Aqui, com o topo em carrossel (3 slides) e a barra de aviso ligada.', keep=2)}
+  <h3>6.2 Newsletter</h3>
+  <p>Inscrição com confirmação por e-mail (<i>double opt-in</i>): <code>subscribeNewsletter</code> grava o e-mail como pendente e envia o e-mail com o link; o e-mail só passa a receber depois que a página do link chama <code>confirmNewsletter</code> com o token. Confirmado, ele entra nos envios de "Novidades" do Marketing; se for o e-mail de um cliente do website, o consentimento do cliente também é ligado.</p>
+  <ul>
+    <li><code>subscribeNewsletter</code> responde <code>true</code> sempre, mesmo para um e-mail já inscrito ou confirmado, para não revelar quem está cadastrado. Um segundo e-mail de confirmação para o mesmo endereço só sai depois de 1 minuto.</li>
+    <li>O link do e-mail sai de <b>Configurações → Marketing → Newsletter → Link de confirmação na loja</b>, com <code>{{token}}</code>; começando com <code>/</code>, vale o endereço da loja web que chamou (cabeçalho <code>X-Store-Url</code>, se estiver na lista de Configurações → Geral). Padrão: <code>/newsletter/confirmar?token={{token}}</code>. O link vale pelas horas configuradas (48 por padrão) e uma vez só.</li>
+    <li>Limite de inscrições por minuto por IP (5 por padrão): acima dele, <code>TOO_MANY_REQUESTS</code>.</li>
+    <li>Os inscritos ficam em <b>Marketing → Inscritos</b> (com exportação CSV).</li>
+  </ul>
+  {example('subscribeNewsletter', 'Inscrever um e-mail')}
+  {example('subscribeInvalid', 'Erro: e-mail inválido', '<code>INVALID_INPUT</code> também para um <code>websiteId</code> que não existe.')}
+  {example('confirmNewsletter', 'Confirmar (a página do link)', 'O token é o do link do e-mail.')}
+  {example('confirmNewsletterAgain', 'Erro: link já usado', 'O mesmo token de novo, um token desconhecido ou vencido: <code>TOKEN_INVALID</code> (aqui, com HTTP 200). Mostre a mensagem e ofereça a inscrição de novo.')}
+</section>
+
 <section id="checkout">
-  <h2>6. Exemplos: compra do visitante</h2>
+  <h2>7. Exemplos: compra do visitante</h2>
   <p>A sequência completa, do carrinho ao pedido. O cliente logado faz o mesmo sem <code>cartId</code> (usa o carrinho dele) e sem <code>setCartGuestInfo</code>.</p>
   <ol class="steps">
     <li><code>createCart</code> → guarde o <code>cartId</code> (no app, no armazenamento local).</li>
@@ -577,7 +609,7 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {{
 </section>
 
 <section id="cliente">
-  <h2>7. Exemplos: conta do cliente</h2>
+  <h2>8. Exemplos: conta do cliente</h2>
   {example('register', 'Cadastro', 'Devolve o token já logado. Com "Exigir confirmação do e-mail" ligado, <code>token</code> vem nulo e <code>confirmationRequired: true</code>: o cliente confirma pelo link do e-mail (<code>confirmCustomerEmail</code>). Para pessoa jurídica: <code>type: PJ</code>, CNPJ, <code>companyName</code> e inscrição estadual.')}
   {example('customerToken', 'Login')}
   {example('me', 'Dados do cliente logado')}
@@ -585,18 +617,25 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {{
   {example('createAddress', 'Cadastrar endereço', 'Devolve a lista de endereços. O endereço padrão de entrega pode ser usado no carrinho com <code>setCartShippingAddress(customerAddressId: ...)</code>.')}
   {example('customerCart', 'Carrinho do cliente', 'Sem <code>cartId</code>: o cliente tem um carrinho por website, que acompanha o login em qualquer aparelho.')}
   {example('mergeCarts', 'Juntar o carrinho de visitante ao fazer login', 'O visitante montou um carrinho e depois entrou: <code>mergeCarts</code> com o <code>cartId</code> antigo leva os itens para o carrinho do cliente.')}
+  <h4>Favoritos</h4>
+  <p>Cada cliente tem a sua lista de favoritos no website, que acompanha o login em qualquer aparelho. Só com o token de cliente. Favorita-se o produto (o pai, num produto com grade), nunca a variação; repetir não duplica, e o limite é de 200 produtos. Produto que ficou inativo ou saiu do website some da lista e volta se voltar. No painel, os favoritos aparecem no cadastro do cliente (seção "Favoritos").</p>
+  {example('addToWishlist', 'Favoritar', 'Devolve <code>true</code>, também se o produto já estava na lista.')}
+  {example('addVariantToWishlist', 'Erro: variação', 'Envie o <code>id</code> do produto pai. <code>PRODUCT_NOT_FOUND</code> para produto inexistente, inativo ou de outro website; <code>WISHLIST_LIMIT</code> com 200 produtos na lista.')}
+  {example('myWishlist', 'A lista', 'O mais recente primeiro, paginada (até 100 por página). Peça do produto os campos da vitrine (<code>priceRange</code>, imagens em <code>attributes</code>).')}
+  {example('removeFromWishlist', 'Tirar dos favoritos', '<code>true</code> também se o produto não estava na lista.')}
+  {example('wishlistNoToken', 'Sem token', 'Ao contrário de <code>me</code>, os favoritos sem login são erro (<code>UNAUTHENTICATED</code>): o app deve pedir o login antes de favoritar.')}
   {example('myOrders', 'Meus pedidos', 'Paginado. <code>myOrder(number:)</code> traz um pedido com itens, endereço, rastreio e o histórico visível ao cliente.')}
 </section>
 
 <section id="admin">
-  <h2>8. Exemplos: integração do admin</h2>
+  <h2>9. Exemplos: integração do admin</h2>
   <p>Para ERP, aplicativo de atendimento, contabilidade e automações. Tudo com o token do admin; cada ação grava no histórico do pedido e no log de operações o usuário do token.</p>
-  <h3>8.1 Login</h3>
+  <h3>9.1 Login</h3>
   {example('adminToken', 'Gerar o token')}
   {example('adminWrong', 'Senha errada', 'A mesma mensagem para usuário inexistente, senha errada ou conta bloqueada (não revela quais usuários existem). Depois do limite por IP, o código vira <code>TOO_MANY_REQUESTS</code> (HTTP 429).')}
   {example('currentAdmin', 'Quem é o token')}
   {example('ordersForbidden', 'Token de cliente num campo do admin', 'O token de cliente nunca vale como admin.')}
-  <h3>8.2 Pedidos</h3>
+  <h3>9.2 Pedidos</h3>
   {example('orders', 'Listar pedidos', 'Filtros: <code>status</code>, <code>websiteId</code>, <code>customerId</code>, <code>salesChannel</code>, <code>paymentMethod</code>, <code>cancelReason</code>, <code>search</code> (número, nome, e-mail, CPF), <code>from</code>/<code>to</code> (AAAA-MM-DD), ordenação e página. <code>amount</code> é a soma do resultado.')}
   {example('confirmPayment', 'Confirmar o pagamento', 'Aguardando pagamento → Pagamento confirmado. Avisa o cliente por e-mail. Exige "Pedidos: confirmar pagamento".')}
   {example('shipOrder', 'Registrar o envio', 'Pagamento confirmado → Enviado: baixa o estoque da origem (a sugerida, se <code>sourceCode</code> for omitido) e manda o rastreio ao cliente. Depois, <code>completeOrder</code> marca como Concluído.')}
@@ -608,29 +647,29 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {{
 }}</pre>
   <p>Motivos: <code>CUSTOMER</code>, <code>UNPAID</code>, <code>OUT_OF_STOCK</code>, <code>FRAUD</code>, <code>ORDER_ERROR</code>, <code>OTHER</code> (este exige <code>comment</code>). Pedido pago pelo Mercado Pago é estornado lá com <code>refund: true</code>; pago de outra forma exige <code>refundNote</code> (como o dinheiro foi devolvido). A reserva de estoque volta.</p>
   {example('salesSummary', 'Resumo de vendas por situação', 'Quantos pedidos e quanto em cada situação, no período.', keep=5)}
-  <h3>8.3 Produtos e estoque</h3>
+  <h3>9.3 Produtos e estoque</h3>
   {example('attributes', 'Os atributos do produto', 'Os códigos que podem ir em <code>attributes</code> ao criar ou alterar um produto. O admin vê também os ocultos.', keep=4)}
   {example('createProduct', 'Criar um produto', 'Preço, custo, peso e os outros campos vão em <code>attributes</code>, como texto (decimal com ponto). Precisa de ao menos uma categoria de cada website. O custo exige a permissão "Ver e editar o custo" e nunca aparece na API pública. Produto com grade: <code>type: CONFIGURABLE</code> com <code>variantAttributes</code>, e depois <code>saveVariants</code>.')}
   {example('setStock', 'Definir o estoque', 'A quantidade física por origem (código da origem em Catálogo → Estoque). O vendável desconta as reservas dos pedidos ainda não enviados.')}
   {example('updateProduct', 'Alterar o preço', 'Só os campos enviados mudam. A alteração entra no log de operações com antes e depois. Para muitos custos de uma vez, há também a importação por planilha no painel.')}
-  <h3>8.4 Relatórios</h3>
+  <h3>9.4 Relatórios</h3>
   {example('reports', 'Os relatórios disponíveis', 'Só os que o perfil do token pode abrir, com os filtros de cada um.', keep=3)}
   {example('report', 'Um relatório', 'Os mesmos números da tela. <code>rows</code> traz uma lista por linha, na ordem de <code>columns</code>, com os valores sem formatação (o <code>type</code> diz como mostrar: <code>money</code>, <code>pct</code> como fração, <code>date</code>…). <code>tiles</code> são os indicadores já formatados. Consultar relatórios de clientes ou financeiros grava no log de operações.', keep=3)}
   {example('revokeAdmin', 'Sair', 'O token para de valer na hora.')}
 </section>
 
 <section id="erros">
-  <h2>9. Códigos de erro</h2>
+  <h2>10. Códigos de erro</h2>
   <p>Os mais comuns, por assunto. A descrição de cada campo no <code>schema.graphql</code> lista os códigos específicos dele.</p>
   {errors_html()}
 </section>
 
 <section id="referencia">
-  <h2>10. Referência das consultas e mutações</h2>
+  <h2>11. Referência das consultas e mutações</h2>
   <p>Todas as entradas da API desta versão ({len(q_fields)} consultas e {len(m_fields)} mutações), com quem pode chamar e o início da descrição do <code>schema.graphql</code>, que tem os argumentos e os tipos completos. "admin: X" = token do admin com a permissão X no perfil (o perfil Administradores tem todas). "público" = sem login, mas com a chave do aplicativo quando ela é exigida.</p>
-  <h3>10.1 Consultas (query)</h3>
+  <h3>11.1 Consultas (query)</h3>
   {ref_table('Query')}
-  <h3>10.2 Mutações (mutation)</h3>
+  <h3>11.2 Mutações (mutation)</h3>
   {ref_table('Mutation')}
 </section>
 

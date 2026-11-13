@@ -90,6 +90,29 @@ $run('productBySku', 'query Produto($sku: String!) {
 }', ['sku' => $configurable]);
 $run('route', '{ route(url: "/' . $db->fetchOne("SELECT url_key FROM catalog_product WHERE sku = ?", [$configurable]) . '") { type product { sku name } category { name } } }');
 
+// --- web store home and newsletter (public) --------------------------------------------------------------------
+$run('webHome', '{
+  webHome {
+    announcement { text url }
+    campaign { video imageDesktop imageMobile title text button url }
+    slides { imageDesktop imageMobile title url }
+    carousel { arrows dots autoplay }
+    sectionsTitle
+    sections {
+      title image banners
+      category { id name url_key }
+      cards { image category { name url_key } }
+      products { sku name url_key priceRange { min max } }
+    }
+  }
+}');
+$run('subscribeNewsletter', 'mutation Inscrever($email: String!) { subscribeNewsletter(email: $email) }', ['email' => 'leitora@exemplo.com.br']);
+$run('subscribeInvalid', 'mutation { subscribeNewsletter(email: "sem-arroba") }');
+// the confirmation link went to the e-mail queue (rolled back with the rest); the page of the link sends its token
+preg_match('/token=([0-9a-f]{64})/', (string) $db->fetchOne("SELECT body_html FROM mail_queue WHERE to_email = 'leitora@exemplo.com.br' ORDER BY 1 DESC LIMIT 1"), $nl);
+$run('confirmNewsletter', 'mutation Confirmar($token: String!) { confirmNewsletter(token: $token) }', ['token' => $nl[1] ?? 'sem-token']);
+$run('confirmNewsletterAgain', 'mutation Confirmar($token: String!) { confirmNewsletter(token: $token) }', ['token' => $nl[1] ?? 'sem-token']);
+
 // --- guest checkout -----------------------------------------------------------------------------------------
 $r = $run('createCart', 'mutation { createCart }');
 $cart = $r['data']['createCart'];
@@ -151,6 +174,23 @@ $r = $run('customerCart', '{ cart { isGuest email items { sku quantity } total }
 $guestCart = $run('createCart2', 'mutation { createCart }')['data']['createCart'];
 $run('addGuest2', 'mutation { addToCart(cartId: "' . $guestCart . '", sku: "' . $simple['sku'] . '", quantity: 1) { total } }');
 $run('mergeCarts', 'mutation { mergeCarts(cartId: "' . $guestCart . '") { isGuest items { sku quantity } total } }', [], $customer);
+// favorites: the parent of a product with a grid; a variant is refused
+$parent = $db->fetchRow("SELECT p.product_id, p.sku FROM catalog_product p WHERE p.type = 'configurable' AND p.is_active = 1
+    AND EXISTS (SELECT 1 FROM catalog_product_website w WHERE w.product_id = p.product_id AND w.website_id = (SELECT website_id FROM store_website WHERE is_default = 1)) ORDER BY p.product_id LIMIT 1");
+$variant = $db->fetchOne('SELECT product_id FROM catalog_product WHERE parent_id = ? ORDER BY product_id LIMIT 1', [$parent['product_id']]);
+$run('addToWishlist', 'mutation Favoritar($id: ID!) { addToWishlist(productId: $id) }', ['id' => (string) $parent['product_id']], $customer);
+$run('addVariantToWishlist', 'mutation { addToWishlist(productId: "' . $variant . '") }', [], $customer);
+$run('myWishlist', '{
+  myWishlist(page: 1, pageSize: 20) {
+    total
+    items {
+      addedAt
+      product { id sku name url_key priceRange { min max } }
+    }
+  }
+}', [], $customer);
+$run('removeFromWishlist', 'mutation Desfavoritar($id: ID!) { removeFromWishlist(productId: $id) }', ['id' => (string) $parent['product_id']], $customer);
+$run('wishlistNoToken', '{ myWishlist { total } }');
 $run('myOrders', '{ myOrders { total items { number statusLabel total } } }', [], $customer);
 $run('noToken', '{ me { id } }');
 
