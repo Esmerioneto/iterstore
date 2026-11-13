@@ -97,7 +97,7 @@ def fields(type_name):
 PUBLIC = 'público'
 CUST = 'cliente (token)'
 ACCESS = {
-    'store': PUBLIC, 'stores': PUBLIC, 'websites': PUBLIC, 'storeInfo': PUBLIC, 'product': PUBLIC, 'categories': PUBLIC,
+    'store': 'admin: Iter_Store::store', 'stores': 'admin: Iter_Store::store', 'websites': PUBLIC, 'storeInfo': PUBLIC, 'product': PUBLIC, 'categories': PUBLIC,
     'category': PUBLIC, 'route': PUBLIC, 'products': PUBLIC, 'mobileHome': PUBLIC, 'mobileCategoryProducts': PUBLIC,
     'mobileOrder': 'admin: Iter_Catalog::mobile', 'inventorySources': 'admin: Iter_Inventory::source', 'inventorySource': 'admin: Iter_Inventory::source',
     'customer': 'admin: Iter_Customer::customer', 'me': CUST, 'customers': 'admin: Iter_Customer::customer',
@@ -125,6 +125,9 @@ ACCESS = {
     'placeAdminOrder': 'admin: Iter_Adminsales::create', 'saveShippingTableRates': 'admin: Iter_Shipping::rates',
     'payOrder': 'cliente, ou visitante com número + e-mail', 'sendCustomerMessage': CUST, 'adminSendCustomerMessage': 'admin: Iter_Message::manage',
     'generateAdminToken': PUBLIC, 'revokeAdminToken': 'admin (qualquer)',
+    'webHome': PUBLIC, 'subscribeNewsletter': PUBLIC, 'confirmNewsletter': PUBLIC,
+    'tryOnSettings': PUBLIC + ' (sem login, enabled: false)', 'tryOn': CUST, 'startTryOn': CUST,
+    'myWishlist': CUST, 'addToWishlist': CUST, 'removeFromWishlist': CUST,
 }
 
 
