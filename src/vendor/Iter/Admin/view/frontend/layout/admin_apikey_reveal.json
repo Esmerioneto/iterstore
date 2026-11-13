@@ -1,0 +1,7 @@
+{
+    "dashboard": {
+        "children": {
+            "reveal": "admin/apikey-reveal"
+        }
+    }
+}

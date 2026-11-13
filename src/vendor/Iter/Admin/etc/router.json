@@ -75,7 +75,7 @@
         "vendor": "Iter",
         "module_name": "Admin",
         "controller_name": "apikey",
-        "controller_action": "index",
+        "controller_action": "index,reveal",
         "method": "GET"
     },
     {
@@ -83,7 +83,7 @@
         "vendor": "Iter",
         "module_name": "Admin",
         "controller_name": "apikey",
-        "controller_action": "create,revoke",
+        "controller_action": "create,revoke,revealpost",
         "method": "POST"
     }
 ]

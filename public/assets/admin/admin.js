@@ -1270,3 +1270,29 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
 });
+
+// "Copiar" (data-copy-button) copies the [data-copy] text of its block. On plain http outside localhost
+// (the panel on the LAN) there is no clipboard API: it selects the text and uses execCommand('copy')
+document.addEventListener('click', function (event) {
+  var button = event.target.closest('[data-copy-button]');
+  if (!button) {
+    return;
+  }
+  var code = button.closest('.admin-apikey-new').querySelector('[data-copy]');
+  var label = function (text) {
+    button.textContent = text;
+    setTimeout(function () { button.textContent = 'Copiar'; }, 2000);
+  };
+  var fallback = function () {
+    var range = document.createRange();
+    range.selectNodeContents(code);
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
+    label(document.execCommand('copy') ? 'Copiado' : 'Selecionado: Ctrl+C');
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(code.textContent.trim()).then(function () { label('Copiado'); }, fallback);
+  } else {
+    fallback();
+  }
+});

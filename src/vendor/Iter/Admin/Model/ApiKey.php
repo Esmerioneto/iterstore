@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace Iter\Admin\Model;
 
+use Iter\Core\Crypt;
 use Iter\Core\Db\Connection;
 
 /**
  * The keys of the apps and sites that use the API (Sistema → Chaves da API). With Configurações → API →
  * "Exigir chave do aplicativo" on, a request without a valid X-Api-Key is refused, unless an admin is
- * logged in (panel session or admin token). The key is shown once; only its sha256 is kept.
+ * logged in (panel session or admin token). The lookup goes by its sha256; a copy encrypted with the env.ini
+ * key (Crypt) lets the Administrador see it again ("Ver chave", password asked again, operation log).
  */
 final class ApiKey
 {
@@ -37,10 +39,19 @@ final class ApiKey
             'name' => $name,
             'key_hash' => hash('sha256', $key),
             'key_hint' => substr($key, 0, 8) . '…' . substr($key, -3),
+            'key_encrypted' => Crypt::encrypt($key),
             'created_by' => $adminUserId,
         ]);
 
         return [(int) $row['key_id'], $key];
+    }
+
+    /** the key itself, of an active key made after it started being kept encrypted; '' otherwise */
+    public static function reveal(int $id): string
+    {
+        $row = self::get($id);
+
+        return $row !== null && (int) $row['is_active'] === 1 ? Crypt::decrypt($row['key_encrypted'] ?? null) : '';
     }
 
     public static function revoke(int $id): bool

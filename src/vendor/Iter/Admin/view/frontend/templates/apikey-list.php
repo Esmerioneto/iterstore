@@ -5,8 +5,9 @@
     </div>
 <?php if ($new): ?>
     <div class="admin-apikey-new">
-        <strong>Chave de "<?= $e($new['name']) ?>": copie agora, ela não aparece de novo.</strong>
+        <strong>Chave de "<?= $e($new['name']) ?>" criada.</strong>
         <code data-copy><?= $e($new['key']) ?></code>
+        <div><button type="button" class="admin-button-primary" data-copy-button>Copiar</button></div>
         <small>O aplicativo ou site envia esta chave no cabeçalho <code>X-Api-Key</code> de cada chamada à API.</small>
     </div>
 <?php endif; ?>
@@ -38,6 +39,11 @@
                 <td><?= date('d/m/Y H:i', strtotime($k['created_at'])) ?><?= $k['created_by_name'] ? '<br><small>' . $e($k['created_by_name']) . '</small>' : '' ?></td><?= $gridColumns->td('created', $k['key_id']) ?>
                 <td><?= $k['last_used_at'] ? date('d/m/Y H:i', strtotime($k['last_used_at'])) : 'Nunca' ?></td><?= $gridColumns->td('last_used', $k['key_id']) ?>
                 <td class="admin-row-action">
+<?php if ($k['is_active'] && !empty($k['key_encrypted'])): ?>
+                    <a href="/admin/apikey/reveal?id=<?= (int) $k['key_id'] ?>">Ver chave</a>
+<?php elseif ($k['is_active']): ?>
+                    <small class="admin-apikey-nocopy" title="Criada antes de as chaves serem guardadas: só o começo e o fim ficaram. Crie uma nova para o mesmo aplicativo, troque nele e revogue esta.">Sem cópia: crie uma nova</small>
+<?php endif; ?>
 <?php if ($k['is_active']): ?>
                     <form method="post" action="/admin/apikey/revoke" data-confirm="Revogar a chave &quot;<?= $e($k['name']) ?>&quot;? O aplicativo que a usa para de funcionar na hora." data-confirm-button="Revogar">
                         <?= \Iter\Core\FormKey::field() ?>

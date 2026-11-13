@@ -29,6 +29,7 @@ class OperationLog
         'backup_run' => 'Pediu um backup', 'backup_kit' => 'Abriu o kit de recuperação', 'backup_kit_saved' => 'Guardou o kit de recuperação',
         'marketing_send' => 'Enviou e-mails de marketing', 'marketing_discard' => 'Descartou sugestões de marketing',
         'tryon_image' => 'Abriu a imagem do provador virtual',
+        'api_key_reveal' => 'Viu a chave da API',
     ];
     public const AREAS = ['product' => 'Produto', 'customer' => 'Cliente', 'config' => 'Configurações', 'report' => 'Relatório', 'api_key' => 'Chave da API', 'backup' => 'Backup', 'marketing' => 'Marketing', 'web_home' => 'Home web'];
 

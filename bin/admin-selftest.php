@@ -231,6 +231,7 @@ $purge = static function () use ($pdo, $savedConfig, $savedMedia, $savedModules,
         $restoreTemplate->execute($row);
     }
     $pdo->exec("DELETE FROM log_operation WHERE admin_user_id IN (SELECT user_id FROM admin_user WHERE username LIKE 'selftest\\_%') OR admin_name LIKE 'selftest\\_%'");
+    $pdo->exec("DELETE FROM api_key WHERE name LIKE 'Selftest%'");
     $pdo->exec("DELETE FROM admin_user WHERE username LIKE 'selftest\\_%'");
     $pdo->exec("DELETE FROM admin_role WHERE role_name LIKE 'selftest\\_%'");
     $pdo->exec('DELETE FROM core_config_data');
@@ -1018,15 +1019,28 @@ assertSame([[200, 200, 429, 200], '203.0.113.9'], [$v6, $pdo->query("SELECT ip F
     'IPv6 pela API: endereços do mesmo /64 contam juntos, outro /64 conta à parte; o log de operações grava o IP do cliente atrás do proxy confiável');
 $pdo->exec("DELETE FROM log_operation WHERE admin_name = 'selftest_ip_log'");
 
-// the screen: a new key shown once, then only its hint; revoked from the list
+// the screen: a new key shown after creating; "Ver chave" shows it again after the password; revoked from the list
 [, $keyMsgs] = $admin->submit('/admin/apikey/index', '/admin/apikey/create', ['name' => 'Selftest Tela']);
-$keyPage = $admin->request('/admin/apikey/index')['body'];
 $created = $pdo->query("SELECT key_id, key_hint FROM api_key WHERE name = 'Selftest Tela'")->fetch(PDO::FETCH_ASSOC) ?: [];
+$shown = [1 => Iter\Admin\Model\ApiKey::reveal((int) ($created['key_id'] ?? 0))];
+$revealUrl = '/admin/apikey/reveal?id=' . (int) ($created['key_id'] ?? 0);
+$listAfter = $admin->request('/admin/apikey/index')['body'];
+[, $wrongMsgs] = $admin->submit($revealUrl, '/admin/apikey/revealpost', ['key_id' => $created['key_id'] ?? 0, 'password' => 'errada']);
+preg_match('/name="form_key" value="([0-9a-f]{64})"/', $admin->request($revealUrl)['body'], $fk);
+$revealed = $admin->request('/admin/apikey/revealpost', ['key_id' => $created['key_id'] ?? 0, 'password' => PASSWORD, 'form_key' => $fk[1] ?? '']);
+$revealLog = (int) $pdo->query("SELECT COUNT(*) FROM log_operation WHERE action = 'api_key_reveal' AND entity_type = 'api_key' AND entity_id = " . (int) ($created['key_id'] ?? 0))->fetchColumn();
+$pdo->exec("INSERT INTO api_key (name, key_hash, key_hint) VALUES ('Selftest Antiga Sem Copia', '" . str_repeat('a', 64) . "', 'itk_aaaa…aaa')");
+$legacyId = (int) $pdo->query("SELECT key_id FROM api_key WHERE name = 'Selftest Antiga Sem Copia'")->fetchColumn();
+$legacyTo = $admin->request('/admin/apikey/reveal?id=' . $legacyId)['location'];
 [, $revokeMsgs] = $admin->submit('/admin/apikey/index', '/admin/apikey/revoke', ['key_id' => $created['key_id'] ?? 0]);
-assertSame([['Chave criada. Copie-a agora: ela não aparece de novo.'], false, true, ['Chave "Selftest Tela" revogada: ela para de funcionar agora.'], 0, 403],
-    [$keyMsgs, str_contains($keyPage, 'Copie agora'), str_contains($keyPage, htmlspecialchars($created['key_hint'] ?? 'x')), $revokeMsgs,
-     (int) $pdo->query('SELECT is_active FROM api_key WHERE key_id = ' . (int) ($created['key_id'] ?? 0))->fetchColumn(), $dash->request('/admin/apikey/index')['status']],
-    'Chaves da API: criar mostra a chave uma vez (a lista guarda só o começo e o fim), revogar desliga; sem a permissão, 403');
+assertSame([['Chave criada. Para vê-la de novo depois, use "Ver chave" na lista.'], true, false, true, ['Senha incorreta.'], [200, true, true], 1, '/admin/apikey/index',
+    ['Chave "Selftest Tela" revogada: ela para de funcionar agora.'], 0, 403, 403], [
+    $keyMsgs, str_starts_with($shown[1], 'itk_'), str_contains($listAfter, $shown[1] ?? 'x'), str_contains($listAfter, $revealUrl), $wrongMsgs,
+    [$revealed['status'], str_contains($revealed['body'], '<code data-copy>' . ($shown[1] ?? 'x') . '</code>'), in_array('no-store', $revealed['headers']['cache-control'] ?? [], true)],
+    $revealLog, $legacyTo, $revokeMsgs,
+    (int) $pdo->query('SELECT is_active FROM api_key WHERE key_id = ' . (int) ($created['key_id'] ?? 0))->fetchColumn(),
+    $dash->request('/admin/apikey/index')['status'], $dash->request($revealUrl)['status'],
+], 'Chaves da API: a lista mostra só o começo e o fim da chave; "Ver chave" pede a senha, mostra a mesma chave sem cache e vai para o log; chave antiga sem cópia volta para a lista; revogar desliga; sem a permissão, 403');
 $pdo->exec("DELETE FROM api_key WHERE name LIKE 'Selftest%'");
 $service->create(['entity_type' => 'product', 'code' => 'selftest_novo', 'label' => 'Novo', 'input_type' => 'checkbox']);
 $service->create(['entity_type' => 'product', 'code' => 'selftest_cor', 'label' => 'Cor multipla', 'input_type' => 'multiselect', 'options' => [['value' => 'az', 'label' => 'Azul'], ['value' => 'vm', 'label' => 'Vermelho']]]);
