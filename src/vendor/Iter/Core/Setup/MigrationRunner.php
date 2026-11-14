@@ -21,13 +21,21 @@ class MigrationRunner
 
     public function up(): void
     {
+        // chronological across modules, not module by module: a migration may touch another module's
+        // table (Core's api_hardening_config updates Config's core_config_data), so a fresh DB needs that
+        // table created first. The "<timestamp>_" prefix gives the order.
+        $pending = [];
         foreach ($this->discoverMigrations() as $module => $files) {
             foreach ($files as $name => $path) {
-                if ($this->isApplied($module, $name)) {
-                    continue;
-                }
-                $this->run($module, $name, $path, 'up');
+                $pending[] = [$name, $module, $path];
             }
+        }
+        sort($pending);
+        foreach ($pending as [$name, $module, $path]) {
+            if ($this->isApplied($module, $name)) {
+                continue;
+            }
+            $this->run($module, $name, $path, 'up');
         }
     }
 
