@@ -9,7 +9,10 @@
         </p>
         <p>
             <label>Senha<br>
-                <input type="password" name="password" autocomplete="current-password" required>
+                <span class="password-field">
+                    <input type="password" name="password" autocomplete="current-password" required>
+                    <?php include __DIR__ . '/password-toggle.php' ?>
+                </span>
             </label>
         </p>
         <p>

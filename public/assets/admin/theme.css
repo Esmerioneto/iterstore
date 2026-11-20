@@ -1233,6 +1233,36 @@ a {
   max-width: none;
 }
 
+.admin-login-form .password-field {
+  position: relative;
+  display: block;
+}
+
+.admin-dashboard .admin-login-form .password-field input {
+  padding-right: 40px;
+}
+
+/* outranks the global ".admin-dashboard form button" key look (hover fill, shadow, press) */
+.admin-dashboard .admin-login-form .password-toggle,
+.admin-dashboard .admin-login-form .password-toggle:hover,
+.admin-dashboard .admin-login-form .password-toggle:active {
+  position: absolute;
+  top: calc(50% + 2px); /* input has margin-top: 4px */
+  right: 8px;
+  transform: translateY(-50%);
+  display: flex;
+  padding: 4px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.admin-dashboard .admin-login-form .password-toggle:hover { color: var(--color-ink); }
+.admin-login-form .password-toggle[aria-pressed="true"] .icon-show,
+.admin-login-form .password-toggle[aria-pressed="false"] .icon-hide { display: none; }
+
 .admin-login-form button + a {
   margin-left: var(--spacing-16);
 }

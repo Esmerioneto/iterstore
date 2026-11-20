@@ -4,17 +4,26 @@
         <?= \Iter\Core\FormKey::field() ?>
         <p>
             <label>Senha atual<br>
-                <input type="password" name="current_password" autocomplete="current-password" required autofocus>
+                <span class="password-field">
+                    <input type="password" name="current_password" autocomplete="current-password" required autofocus>
+                    <?php include __DIR__ . '/password-toggle.php' ?>
+                </span>
             </label>
         </p>
         <p>
             <label>Nova senha<br>
-                <input type="password" name="password" autocomplete="new-password" required>
+                <span class="password-field">
+                    <input type="password" name="password" autocomplete="new-password" required>
+                    <?php include __DIR__ . '/password-toggle.php' ?>
+                </span>
             </label>
         </p>
         <p>
             <label>Confirmar nova senha<br>
-                <input type="password" name="password_confirm" autocomplete="new-password" required>
+                <span class="password-field">
+                    <input type="password" name="password_confirm" autocomplete="new-password" required>
+                    <?php include __DIR__ . '/password-toggle.php' ?>
+                </span>
             </label>
         </p>
         <p>

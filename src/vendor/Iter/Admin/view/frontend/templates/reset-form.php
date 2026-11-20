@@ -6,12 +6,18 @@
         <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
         <p>
             <label>Nova senha<br>
-                <input type="password" name="password" autocomplete="new-password" required autofocus>
+                <span class="password-field">
+                    <input type="password" name="password" autocomplete="new-password" required autofocus>
+                    <?php include __DIR__ . '/password-toggle.php' ?>
+                </span>
             </label>
         </p>
         <p>
             <label>Confirmar nova senha<br>
-                <input type="password" name="password_confirm" autocomplete="new-password" required>
+                <span class="password-field">
+                    <input type="password" name="password_confirm" autocomplete="new-password" required>
+                    <?php include __DIR__ . '/password-toggle.php' ?>
+                </span>
             </label>
         </p>
         <p>
