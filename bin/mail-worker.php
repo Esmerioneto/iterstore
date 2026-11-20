@@ -12,6 +12,10 @@ require_once __DIR__ . '/../path.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once FUNCTIONS . 'bootstrap.php';
 
+if (!\isModuleEnabled('iter_mail')) {
+    exit(0);
+}
+
 $result = (new Iter\Mail\Model\MailService())->processQueue();
 if ($result['sent'] || $result['failed']) {
     echo date('Y-m-d H:i:s') . " enviados: {$result['sent']}, falhas: {$result['failed']}\n";

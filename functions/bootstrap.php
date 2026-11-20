@@ -57,7 +57,10 @@ function isModuleEnabled(string $module): bool
 {
     foreach (getModules() as $group) {
         if (isset($group[$module])) {
-            return $group[$module] == 1;
+            // the folder too: a module deleted while still "1" in config.json counts as off, not as a missing class
+            $dir = ucfirst(getModuleVendor($module)) . DIRECTORY_SEPARATOR . ucfirst(getModuleName($module));
+
+            return $group[$module] == 1 && (is_dir(getVendorPath() . $dir) || is_dir(getCodePath() . $dir));
         }
     }
 

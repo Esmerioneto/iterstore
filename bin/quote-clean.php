@@ -14,6 +14,10 @@ require_once __DIR__ . '/../path.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once FUNCTIONS . 'bootstrap.php';
 
+if (!\isModuleEnabled('iter_sales')) {
+    exit(0);
+}
+
 $deleted = (new Iter\Sales\Model\CartService())->cleanGuests((int) Iter\Core\Config::get('sales/quote/guest_days'));
 if ($deleted) {
     echo date('Y-m-d H:i:s') . " carrinhos de visitante e pedidos em montagem apagados: {$deleted}\n";

@@ -14,6 +14,10 @@ require_once __DIR__ . '/../path.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once FUNCTIONS . 'bootstrap.php';
 
+if (!\isModuleEnabled('iter_sales')) {
+    exit(0);
+}
+
 $canceled = (new Iter\Sales\Model\OrderService())->cancelUnpaid();
 if ($canceled) {
     echo date('Y-m-d H:i:s') . ' pedidos não pagos cancelados: ' . implode(', ', $canceled) . "\n";
