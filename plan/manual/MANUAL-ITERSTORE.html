@@ -64,7 +64,7 @@
     <img class="iter" src="img/iter-logo.png" alt="Logo Iter Store">
     <h1>Manual do Sistema</h1>
     <div class="sub">Iter Store — Painel administrativo da loja</div>
-    <div class="ver">Versão 1.0 · Outubro de 2026</div>
+    <div class="ver">Versão 1.0 · Novembro de 2026</div>
   </div>
   <div class="signature">
     <img src="img/egsn-logo.png" alt="Logo EGSN">
@@ -98,6 +98,8 @@
       <ol><li>Ajustes do sistema</li><li>Websites, grupos e lojas</li><li>E-mails</li></ol></li>
     <li><a href="#sistema">Sistema</a>
       <ol><li>Usuários e perfis</li><li>E-mails enviados</li><li>Log de operações</li><li>API (GraphiQL)</li><li>Chaves da API</li><li>Backup</li><li>Sobre</li></ol></li>
+    <li><a href="#lgpd">LGPD (privacidade)</a>
+      <ol><li>Inventário</li><li>Solicitações dos clientes</li><li>Política de privacidade</li><li>Aviso de cookies</li><li>Prazos de guarda</li></ol></li>
     <li><a href="#rotinas">Rotinas automáticas</a></li>
     <li><a href="#faq">Dúvidas frequentes</a></li>
   </ol>
@@ -753,8 +755,70 @@
 </section>
 
 <!-- ============ 11 ============ -->
+<section id="lgpd">
+  <h2>11. LGPD (privacidade)</h2>
+  <p>O menu <strong>LGPD</strong> reúne o que a loja precisa para cumprir a Lei Geral de Proteção de Dados (Lei 13.709/2018): saber quais dados pessoais guarda e com quem compartilha, atender os pedidos dos clientes sobre os próprios dados, publicar a política de privacidade e apagar o que passou do prazo.</p>
+
+  <h3>11.1 Inventário</h3>
+  <p><span class="path">LGPD → Inventário</span> mostra, só para leitura, tudo o que o sistema guarda ou repassa de dados pessoais: a atividade (cadastro, pedidos, marketing, provador…), de quem são os dados, quais dados, para quê, a base legal e por quanto tempo ficam guardados. Quando o prazo depende de uma configuração, a tela mostra o valor em uso.</p>
+  <ul>
+    <li><strong>Operadores:</strong> as empresas que recebem dados em nome da loja (Mercado Pago, Melhor Envio, provedor do provador, backup…), com o país. Fora do Brasil aparece como <strong>transferência internacional</strong>.</li>
+    <li>A lista acompanha o sistema: um módulo desligado sai do inventário, e o que depende de configuração (o destino do backup, o provedor do provador em uso) só aparece quando acontece.</li>
+    <li><strong>Outros operadores:</strong> quem recebe dados fora do sistema (hospedagem, contador, ferramenta de e-mail) entra em <span class="path">Lojas → Configurações → LGPD → Outros operadores</span>, um por linha, no formato <code>Nome | País | Para quê</code>.</li>
+    <li>No fim da tela há um <strong>texto pronto</strong> com os operadores e os prazos, para copiar para a política de privacidade.</li>
+  </ul>
+
+  <h3>11.2 Solicitações dos clientes</h3>
+  <p>A lei dá ao cliente o direito de pedir uma cópia dos seus dados, corrigir e excluir. Na loja web, o próprio cliente baixa a cópia e exclui a conta em "Minha conta" (o app usa o mesmo caminho quando ganhar essas opções); cada uso fica registrado em <span class="path">LGPD → Solicitações</span> como atendido. Pedidos que chegam por e-mail ou telefone são registrados ali pelo atendimento.</p>
+  <ul>
+    <li><strong>A lista</strong> mostra o protocolo (ex.: LGPD-000042), o titular, o tipo (cópia, correção, exclusão), a origem (app, loja web ou painel), a data, a situação e o <strong>prazo de 15 dias</strong> para responder. Atrasadas aparecem em vermelho (filtro "Só atrasadas"). O número ao lado do menu conta as abertas.</li>
+    <li><strong>+ Nova solicitação:</strong> informe o e-mail e o tipo. Se o e-mail é de um cliente cadastrado, a solicitação fica ligada a ele; senão, é de um visitante (alguém que comprou sem cadastro).</li>
+    <li><strong>Na solicitação:</strong> <strong>Baixar a cópia</strong> (arquivo com todos os dados do titular, por assunto), <strong>Excluir os dados</strong>, <strong>Concluir</strong> e <strong>Recusar</strong> (pede o motivo). Cada cópia baixada e cada exclusão ficam no Log de operações.</li>
+    <li><strong>Cadastro do cliente:</strong> o bloco <strong>LGPD</strong> tem atalhos para registrar uma cópia, uma exclusão ou uma correção desse cliente, já com o e-mail preenchido, e lista as solicitações dele.</li>
+  </ul>
+  <h4>O que a exclusão faz</h4>
+  <ul>
+    <li>Não é possível excluir com <strong>pedido em andamento</strong> (aguardando pagamento, pago ou enviado): a tela e o app mostram os números dos pedidos. Conclua ou cancele antes.</li>
+    <li>O cadastro vira <strong>"Cliente excluído"</strong>: sem e-mail, CPF/CNPJ, telefone, nascimento e endereços, e sem acesso. Saem também o carrinho, os favoritos, as mensagens, a inscrição na newsletter e as provas do provador.</li>
+    <li><strong>Ficam:</strong> os pedidos, pelo prazo fiscal (depois são anonimizados, item 11.5), a prova do consentimento e a lista "Não quero receber", para a loja nunca mais mandar e-mail a esse endereço.</li>
+    <li>O cliente recebe um e-mail confirmando a exclusão. O CPF e o e-mail ficam livres para um cadastro novo.</li>
+    <li>Excluir os dados pelo painel exige no perfil do usuário a permissão própria <strong>"LGPD: excluir os dados de um cliente"</strong>.</li>
+  </ul>
+  <div class="warn"><b>Não tem volta</b>A exclusão não pode ser desfeita. Confira o titular antes de clicar em Excluir os dados.</div>
+
+  <h3>11.3 Política de privacidade</h3>
+  <p><span class="path">LGPD → Política de privacidade</span>: o texto que o app e a loja web mostram ao cliente, um por website.</p>
+  <ul>
+    <li>Escolha o website e escreva o texto (uma linha em branco separa os parágrafos). <strong>Salvar rascunho</strong> guarda sem mostrar a ninguém; <strong>Publicar versão N</strong> coloca o texto em vigor (pede confirmação).</li>
+    <li>Uma versão publicada não pode ser alterada: é o texto que os clientes aceitaram. Para mudar, edite o rascunho e publique a versão seguinte. A tela lista as versões, com quantos clientes aceitaram cada uma, e o botão <strong>Ler</strong>.</li>
+    <li>Quando sai uma versão nova, o app e a loja web pedem que o cliente aceite de novo. Cada aceite guarda a data, a versão e de onde veio.</li>
+    <li>O <strong>encarregado (DPO)</strong>, a pessoa que responde aos clientes e à ANPD, é informado em <span class="path">Lojas → Configurações → LGPD</span> (nome e e-mail, por website) e aparece junto com a política.</li>
+  </ul>
+  <div class="tip"><b>O texto é da loja</b>O sistema guarda, versiona e mostra a política, mas não a escreve. Use o texto pronto do Inventário como base e, se possível, peça a revisão de um advogado.</div>
+
+  <h3>11.4 Aviso de cookies</h3>
+  <p>A loja web mostra um aviso de cookies na primeira visita. Hoje ela só usa os cookies <strong>necessários</strong> (login, sacola e segurança), então o aviso é informativo, com o botão <strong>Entendi</strong>. Cada clique fica gravado como prova, com a data e a versão da política em vigor; se o cliente estiver logado, aparece na cópia dos dados dele.</p>
+  <ul>
+    <li>O texto do aviso e a descrição de cada categoria (Necessários, Estatística, Marketing) ficam em <span class="path">Lojas → Configurações → LGPD → Cookies da loja web</span>, por website.</li>
+    <li>As categorias Estatística e Marketing só passam a ser oferecidas quando a loja instalar ferramentas de análise ou de anúncios (Google Analytics, Meta).</li>
+  </ul>
+
+  <h3>11.5 Prazos de guarda</h3>
+  <p>Todo dia, uma rotina automática apaga ou anonimiza o que passou do prazo. Os prazos ficam em <span class="path">Lojas → Configurações → LGPD → Prazos de guarda</span> (0 = nunca):</p>
+  <table>
+    <tr><th>Prazo</th><th>Padrão</th><th>O que acontece</th></tr>
+    <tr><td>Anonimizar os pedidos depois de</td><td>5 anos</td><td>O pedido perde nome, CPF/CNPJ, e-mail, telefone e endereço do comprador. Itens, valores, cidade e estado ficam para os relatórios. Vale para clientes e visitantes; pedido em andamento nunca é tocado.</td></tr>
+    <tr><td>Apagar inscrições na newsletter não confirmadas depois de</td><td>7 dias</td><td>Quem se inscreveu e nunca clicou no link de confirmação.</td></tr>
+    <tr><td>Apagar as provas de consentimento depois de</td><td>5 anos</td><td>Contados do fim da relação: os aceites da política e o consentimento de ofertas de quem excluiu a conta, a inscrição de quem saiu da newsletter e as escolhas no aviso de cookies.</td></tr>
+    <tr><td>Apagar as solicitações LGPD atendidas depois de</td><td>5 anos</td><td>Solicitações abertas nunca são apagadas.</td></tr>
+  </table>
+  <p>A lista "Não quero receber" nunca é apagada. O <strong>Log de operações</strong> tem o prazo próprio em <span class="path">Lojas → Configurações → Log do sistema</span>.</p>
+  <p>No perfil do usuário (<span class="path">Sistema → Usuários e perfis</span>), cada parte do menu LGPD tem a sua permissão: inventário, solicitações e cópia dos dados, política de privacidade, excluir os dados de um cliente e configurações.</p>
+</section>
+
+<!-- ============ 12 ============ -->
 <section id="rotinas">
-  <h2>11. Rotinas automáticas</h2>
+  <h2>12. Rotinas automáticas</h2>
   <p>Algumas tarefas rodam sozinhas no servidor, sem ninguém precisar clicar. Elas são instaladas pelo responsável técnico na implantação:</p>
   <table>
     <tr><th>Rotina</th><th>Frequência</th><th>O que faz</th></tr>
@@ -766,13 +830,14 @@
     <tr><td>Backup</td><td>A cada minuto (copia no intervalo escolhido)</td><td>Faz as cópias de segurança, apaga as velhas uma vez por dia e testa uma restauração por mês (item 10.6).</td></tr>
     <tr><td>Carrinhos abandonados</td><td>Diária</td><td>Apaga carrinhos de visitantes sem uso há mais de 30 dias.</td></tr>
     <tr><td>Marketing por e-mail</td><td>A cada 15 minutos</td><td>Procura os clientes de cada regra ligada, cria as sugestões e envia as aprovadas dentro do horário (item 6.5).</td></tr>
+    <tr><td>Prazos de guarda (LGPD)</td><td>Diária</td><td>Anonimiza os pedidos depois do prazo fiscal e apaga inscrições não confirmadas, provas de consentimento e solicitações vencidas (item 11.5).</td></tr>
   </table>
   <div class="warn"><b>Importante</b>Se os e-mails pararem de chegar, os pedidos Pix vencidos não forem cancelados ou o Dashboard avisar que o backup está atrasado, verifique com o responsável técnico se essas rotinas estão ativas.</div>
 </section>
 
-<!-- ============ 12 ============ -->
+<!-- ============ 13 ============ -->
 <section id="faq">
-  <h2>12. Dúvidas frequentes</h2>
+  <h2>13. Dúvidas frequentes</h2>
   <h4>Fiquei bloqueado depois de errar a senha. E agora?</h4>
   <p>Aguarde o tempo de bloqueio (padrão 15 minutos) ou use "Esqueci minha senha" — redefinir a senha libera o acesso na hora.</p>
   <h4>Não consigo salvar o produto: "O produto não tem categoria no website X".</h4>
@@ -787,6 +852,10 @@
   <p>Veja em <span class="path">Sistema → E-mails enviados</span> a situação e o erro; se precisar, use <strong>Reenviar</strong>.</p>
   <h4>Liguei uma regra de Marketing e nenhuma sugestão apareceu.</h4>
   <p>A busca roda a cada 15 minutos. Só entram clientes que marcaram "Aceita receber ofertas por e-mail" e que não receberam outro e-mail de marketing nos últimos dias. Carrinhos parados há muito tempo também ficam de fora, para a regra não disparar lembretes velhos ao ser ligada.</p>
+  <h4>Um cliente pediu por e-mail para apagar os dados dele.</h4>
+  <p>Registre em <span class="path">LGPD → Solicitações → + Nova solicitação</span> (tipo Exclusão), abra a solicitação e clique em <strong>Excluir os dados</strong>. Se aparecer um pedido em andamento, conclua ou cancele o pedido antes. O prazo para responder é de 15 dias.</p>
+  <h4>Mudei a política de privacidade. Os clientes precisam aceitar de novo?</h4>
+  <p>Sim, e é automático: ao publicar a versão nova, o app e a loja web pedem o aceite na próxima vez que o cliente entrar. Um rascunho salvo não muda nada para o cliente.</p>
 </section>
 
 <!-- ============ ENCERRAMENTO ============ -->

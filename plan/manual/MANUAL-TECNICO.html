@@ -98,14 +98,14 @@
     <li><a href="#operacao">Operação</a><ol><li>Tarefas agendadas (cron)</li><li>Webhook do Mercado Pago</li><li>Logs</li><li>Testes</li><li>Backup</li></ol></li>
     <li><a href="#api">A API GraphQL</a><ol><li>Endpoint e formato</li><li>Autenticação</li><li>Cabeçalhos e CORS</li><li>Erros</li><li>Limites</li><li>Envio de arquivos</li></ol></li>
     <li><a href="#catalogo">Exemplos: loja e catálogo</a></li>
-    <li><a href="#lojaweb">Exemplos: loja web</a><ol><li>Home (webHome)</li><li>Newsletter</li></ol></li>
+    <li><a href="#lojaweb">Exemplos: loja web</a><ol><li>Home (webHome)</li><li>Newsletter</li><li>Privacidade e cookies</li></ol></li>
     <li><a href="#checkout">Exemplos: compra do visitante</a></li>
-    <li><a href="#cliente">Exemplos: conta do cliente</a> (com os favoritos)</li>
+    <li><a href="#cliente">Exemplos: conta do cliente</a> (com os favoritos e a LGPD)</li>
     <li><a href="#admin">Exemplos: integração do admin</a><ol><li>Login</li><li>Pedidos</li><li>Produtos e estoque</li><li>Relatórios</li></ol></li>
     <li><a href="#erros">Códigos de erro</a></li>
     <li><a href="#referencia">Referência das consultas e mutações</a></li>
   </ol>
-  <div class="tip"><b>Exemplos reais</b>Todas as requisições deste manual foram executadas contra a API desta instalação em 13/11/2026, e as respostas são as que ela devolveu (dentro de uma transação desfeita depois: nada ficou gravado). Listas longas foram cortadas ("… mais N") e os tokens, abreviados.</div>
+  <div class="tip"><b>Exemplos reais</b>Todas as requisições deste manual foram executadas contra a API desta instalação em 25/11/2026, e as respostas são as que ela devolveu (dentro de uma transação desfeita depois: nada ficou gravado). Listas longas foram cortadas ("… mais N") e os tokens, abreviados.</div>
 </section>
 
 <section id="visao">
@@ -121,7 +121,7 @@
 
   <h3>1.2 Módulos</h3>
   <table><tr><th>Módulo</th><th>Depende de</th><th>O que faz</th></tr>
-  <tr><td><strong>Core</strong></td><td>—</td><td>Banco (Adapter, Select), configuração, criptografia dos segredos, log, sessão, limite por IP, migrações e o endpoint GraphQL.</td></tr><tr><td><strong>Router</strong></td><td>—</td><td>Rotas: <code>/admin/&lt;controller&gt;/&lt;ação&gt;</code> e as rotas dos módulos (<code>etc/router.json</code>).</td></tr><tr><td><strong>Admin</strong></td><td>—</td><td>Login do painel, perfis e permissões (ACL), menu, token da API do admin.</td></tr><tr><td><strong>Config</strong></td><td>—</td><td>Configurações por escopo (padrão / website) e a tela de módulos.</td></tr><tr><td><strong>Mail</strong></td><td>—</td><td>Fila de e-mails, modelos editáveis e e-mails enviados.</td></tr><tr><td><strong>Store</strong></td><td>—</td><td>Websites, grupos e lojas.</td></tr><tr><td><strong>Eav</strong></td><td>—</td><td>Atributos, conjuntos e valores (produto, categoria, cliente, endereço).</td></tr><tr><td><strong>Catalog</strong></td><td>Eav</td><td>Produtos (simples e com grade), categorias, imagens, custo, ordem do app, home da loja web (Catálogo → Web, <code>webHome</code>) e importação de custos.</td></tr><tr><td><strong>Inventory</strong></td><td>Catalog</td><td>Origens de estoque, quantidade por origem, reservas e o vendável.</td></tr><tr><td><strong>Customer</strong></td><td>Eav, Store</td><td>Clientes PF/PJ, endereços, login do cliente na loja e token da API.</td></tr><tr><td><strong>Sales</strong></td><td>Catalog, Inventory, Customer, Store</td><td>Carrinho, pedido, situações, envio, cancelamento e painel de vendas.</td></tr><tr><td><strong>Adminsales</strong></td><td>Sales</td><td>Vendas → Novo pedido (pedido feito pelo atendimento) e a API correspondente.</td></tr><tr><td><strong>Payment</strong></td><td>Sales</td><td>Formas de pagamento manuais (Pix com chave, pagamento na entrega).</td></tr><tr><td><strong>Mercadopago</strong></td><td>Payment</td><td>Pix, crédito e débito pelo Mercado Pago, webhook, sincronização e estorno.</td></tr><tr><td><strong>Shipping</strong></td><td>Sales</td><td>Frete por faixas, retirada na loja e o registro de provedores.</td></tr><tr><td><strong>Melhorenvio</strong></td><td>Shipping</td><td>Cotação pelo Melhor Envio (OAuth).</td></tr><tr><td><strong>Correios</strong></td><td>Shipping</td><td>Cotação pela API dos Correios (contrato). <em>Desligado nesta instalação.</em></td></tr><tr><td><strong>Promotion</strong></td><td>Sales, Catalog, Store</td><td>Promoções automáticas e cupons.</td></tr><tr><td><strong>Message</strong></td><td>Customer, Store</td><td>Mensagens entre a loja e o cliente.</td></tr><tr><td><strong>Wishlist</strong></td><td>Customer, Catalog</td><td>Favoritos do cliente, pela API e no cadastro do cliente.</td></tr><tr><td><strong>Marketing</strong></td><td>Customer, Sales, Mail, Catalog</td><td>E-mails de marketing (carrinho abandonado, clientes sem comprar, recorrentes) e a newsletter com confirmação por e-mail.</td></tr><tr><td><strong>Log</strong></td><td>Admin, Config</td><td>Log de operações (auditoria) com antes e depois.</td></tr><tr><td><strong>Report</strong></td><td>Admin, Config, Sales</td><td>Os 26 relatórios, exportação, envio por e-mail e a API de relatórios.</td></tr>
+  <tr><td><strong>Core</strong></td><td>—</td><td>Banco (Adapter, Select), configuração, criptografia dos segredos, log, sessão, limite por IP, migrações e o endpoint GraphQL.</td></tr><tr><td><strong>Router</strong></td><td>—</td><td>Rotas: <code>/admin/&lt;controller&gt;/&lt;ação&gt;</code> e as rotas dos módulos (<code>etc/router.json</code>).</td></tr><tr><td><strong>Admin</strong></td><td>—</td><td>Login do painel, perfis e permissões (ACL), menu, token da API do admin.</td></tr><tr><td><strong>Config</strong></td><td>—</td><td>Configurações por escopo (padrão / website) e a tela de módulos.</td></tr><tr><td><strong>Mail</strong></td><td>—</td><td>Fila de e-mails, modelos editáveis e e-mails enviados.</td></tr><tr><td><strong>Store</strong></td><td>—</td><td>Websites, grupos e lojas.</td></tr><tr><td><strong>Eav</strong></td><td>—</td><td>Atributos, conjuntos e valores (produto, categoria, cliente, endereço).</td></tr><tr><td><strong>Catalog</strong></td><td>Eav</td><td>Produtos (simples e com grade), categorias, imagens, custo, ordem do app, home da loja web (Catálogo → Web, <code>webHome</code>) e importação de custos.</td></tr><tr><td><strong>Inventory</strong></td><td>Catalog</td><td>Origens de estoque, quantidade por origem, reservas e o vendável.</td></tr><tr><td><strong>Customer</strong></td><td>Eav, Store</td><td>Clientes PF/PJ, endereços, login do cliente na loja e token da API.</td></tr><tr><td><strong>Sales</strong></td><td>Catalog, Inventory, Customer, Store</td><td>Carrinho, pedido, situações, envio, cancelamento e painel de vendas.</td></tr><tr><td><strong>Adminsales</strong></td><td>Sales</td><td>Vendas → Novo pedido (pedido feito pelo atendimento) e a API correspondente.</td></tr><tr><td><strong>Payment</strong></td><td>Sales</td><td>Formas de pagamento manuais (Pix com chave, pagamento na entrega).</td></tr><tr><td><strong>Mercadopago</strong></td><td>Payment</td><td>Pix, crédito e débito pelo Mercado Pago, webhook, sincronização e estorno.</td></tr><tr><td><strong>Shipping</strong></td><td>Sales</td><td>Frete por faixas, retirada na loja e o registro de provedores.</td></tr><tr><td><strong>Melhorenvio</strong></td><td>Shipping</td><td>Cotação pelo Melhor Envio (OAuth).</td></tr><tr><td><strong>Correios</strong></td><td>Shipping</td><td>Cotação pela API dos Correios (contrato). <em>Desligado nesta instalação.</em></td></tr><tr><td><strong>Promotion</strong></td><td>Sales, Catalog, Store</td><td>Promoções automáticas e cupons.</td></tr><tr><td><strong>Message</strong></td><td>Customer, Store</td><td>Mensagens entre a loja e o cliente.</td></tr><tr><td><strong>Wishlist</strong></td><td>Customer, Catalog</td><td>Favoritos do cliente, pela API e no cadastro do cliente.</td></tr><tr><td><strong>Marketing</strong></td><td>Customer, Sales, Mail, Catalog</td><td>E-mails de marketing (carrinho abandonado, clientes sem comprar, recorrentes) e a newsletter com confirmação por e-mail.</td></tr><tr><td><strong>Log</strong></td><td>Admin, Config</td><td>Log de operações (auditoria) com antes e depois.</td></tr><tr><td><strong>Lgpd</strong></td><td>Customer</td><td>LGPD: inventário dos dados e operadores, solicitações dos titulares (cópia, correção, exclusão), política de privacidade com versões, aviso de cookies e prazos de guarda.</td></tr><tr><td><strong>Report</strong></td><td>Admin, Config, Sales</td><td>Os 26 relatórios, exportação, envio por e-mail e a API de relatórios.</td></tr>
   </table>
   <p>Core, Router, Admin, Config e Mail são obrigatórios. Os outros são ligados em <code>src/etc/config.json</code> (pela tela de módulos); o painel recusa desligar um módulo do qual outro ligado depende.</p>
 </section>
@@ -172,13 +172,14 @@ php -S localhost:8080 -t public                       # só para desenvolvimento
   <h2>3. Operação</h2>
   <h3>3.1 Tarefas agendadas (cron)</h3>
   <table><tr><th>Quando</th><th>Script</th><th>Para quê</th></tr>
-  <tr><td><code>* * * * *</code></td><td><code>bin/mail-worker.php</code></td><td>Envia a fila de e-mails. Sem ele, nenhum e-mail sai.</td></tr><tr><td><code>* * * * *</code></td><td><code>bin/mercadopago-sync-loop.sh</code></td><td>Roda o mercadopago-sync.php a cada 5 segundos dentro do minuto (com flock), para o Pix ser confirmado rápido. Alternativa mais leve: mercadopago-sync.php a cada 10 minutos.</td></tr><tr><td><code>15 * * * *</code></td><td><code>bin/order-clean.php</code></td><td>Cancela os pedidos não pagos depois do prazo de cada forma de pagamento.</td></tr><tr><td><code>10 0 * * *</code></td><td><code>bin/log-clean.php</code></td><td>Apaga os arquivos de log e o log de operações mais antigos que o prazo configurado.</td></tr><tr><td><code>20 0 * * *</code></td><td><code>bin/quote-clean.php</code></td><td>Apaga carrinhos de visitante e pedidos em montagem do admin parados.</td></tr><tr><td><code>30 7 * * *</code></td><td><code>bin/report-mail.php</code></td><td>Envio automático dos relatórios (segunda-feira ou dia 1º, se ligado).</td></tr><tr><td><code>* * * * *</code></td><td><code>bin/backup.php</code></td><td>Backup com restic no intervalo de Configurações → Backup (ou ao &quot;Fazer backup agora&quot;); limpeza diária das cópias velhas e teste de restauração mensal. Ver 3.5.</td></tr>
+  <tr><td><code>* * * * *</code></td><td><code>bin/mail-worker.php</code></td><td>Envia a fila de e-mails. Sem ele, nenhum e-mail sai.</td></tr><tr><td><code>* * * * *</code></td><td><code>bin/mercadopago-sync-loop.sh</code></td><td>Roda o mercadopago-sync.php a cada 5 segundos dentro do minuto (com flock), para o Pix ser confirmado rápido. Alternativa mais leve: mercadopago-sync.php a cada 10 minutos.</td></tr><tr><td><code>15 * * * *</code></td><td><code>bin/order-clean.php</code></td><td>Cancela os pedidos não pagos depois do prazo de cada forma de pagamento.</td></tr><tr><td><code>10 0 * * *</code></td><td><code>bin/log-clean.php</code></td><td>Apaga os arquivos de log e o log de operações mais antigos que o prazo configurado.</td></tr><tr><td><code>20 0 * * *</code></td><td><code>bin/quote-clean.php</code></td><td>Apaga carrinhos de visitante e pedidos em montagem do admin parados.</td></tr><tr><td><code>40 0 * * *</code></td><td><code>bin/lgpd-clean.php</code></td><td>LGPD: aplica os prazos de guarda (anonimiza pedidos depois do prazo fiscal, apaga newsletter não confirmada, provas de consentimento e solicitações vencidas). Sai sem fazer nada com o módulo Lgpd desligado.</td></tr><tr><td><code>30 7 * * *</code></td><td><code>bin/report-mail.php</code></td><td>Envio automático dos relatórios (segunda-feira ou dia 1º, se ligado).</td></tr><tr><td><code>* * * * *</code></td><td><code>bin/backup.php</code></td><td>Backup com restic no intervalo de Configurações → Backup (ou ao &quot;Fazer backup agora&quot;); limpeza diária das cópias velhas e teste de restauração mensal. Ver 3.5.</td></tr>
   </table>
   <pre class="sh">* * * * *   php /srv/iterstore/bin/mail-worker.php
 * * * * *   /srv/iterstore/bin/mercadopago-sync-loop.sh
 15 * * * *  php /srv/iterstore/bin/order-clean.php
 10 0 * * *  php /srv/iterstore/bin/log-clean.php
 20 0 * * *  php /srv/iterstore/bin/quote-clean.php
+40 0 * * *  php /srv/iterstore/bin/lgpd-clean.php
 30 7 * * *  php /srv/iterstore/bin/report-mail.php
 * * * * *   php /srv/iterstore/bin/backup.php >> /srv/iterstore/var/log/backup.log 2>&1</pre>
   <p>Outros scripts: <code>bin/create-admin.php</code> (primeiro admin, ou recuperar o acesso), <code>bin/schema-dump.php</code> (regera o <code>schema.graphql</code>), <code>bin/migrate.php</code> e <code>bin/db-bench.php</code> (tempo das listagens EAV).</p>
@@ -192,7 +193,7 @@ php -S localhost:8080 -t public                       # só para desenvolvimento
   </ul>
   <h3>3.4 Testes</h3>
   <pre class="sh">composer test</pre>
-  <p>Roda <code>view-selftest</code>, <code>db-selftest</code>, <code>admin-selftest</code> (sobe um <code>php -S</code> e testa o painel e a API de ponta a ponta), <code>promotion-selftest</code>, <code>report-selftest</code>, <code>backup-selftest</code> (um backup de verdade num repositório descartável, com restauração e zip) e <code>shipping-provider-selftest</code> (provedores de frete sem rede). Usam o banco real: criam registros <code>selftest_*</code> ou trabalham numa transação desfeita, e limpam tudo ao terminar. Mantêm ligados só os módulos que estavam ligados antes.</p>
+  <p>Roda <code>view-selftest</code>, <code>db-selftest</code>, <code>admin-selftest</code> (sobe um <code>php -S</code> e testa o painel e a API de ponta a ponta), <code>promotion-selftest</code>, <code>report-selftest</code>, <code>backup-selftest</code> (um backup de verdade num repositório descartável, com restauração e zip) <code>shipping-provider-selftest</code> (provedores de frete sem rede), <code>tryon-selftest</code> e os dos provedores do provador, e <code>lgpd-selftest</code> (inventário, cópia, exclusão, política, cookies e prazos de guarda, numa transação desfeita). Usam o banco real: criam registros <code>selftest_*</code> ou trabalham numa transação desfeita, e limpam tudo ao terminar. Mantêm ligados só os módulos que estavam ligados antes.</p>
   <h3>3.5 Backup</h3>
   <p>Módulo <code>Iter_Backup</code>, com <a href="https://restic.net">restic</a>. Cada cópia leva o banco em SQL puro (<code>pg_dump --no-owner --no-privileges</code>, em <code>var/backup/dump/banco.sql</code>, apagado depois), o <code>commit.txt</code> do código, <code>public/media</code> e <code>src/etc</code>. O restic compacta (zstd, nível máximo), cifra e só guarda o que mudou: com o banco de 17 MB e 4,5 MB de imagens, a primeira cópia ocupa 2,6 MB e cada nova cerca de 0,1 MB.</p>
   <ul>
@@ -779,7 +780,7 @@ if (isset($body['errors'])) {
     <p>O token é o do link do e-mail.</p>
     <div class="lbl">Requisição</div>
     <pre class="gql">mutation Confirmar($token: String!) { confirmNewsletter(token: $token) }</pre><div class="lbl">Variáveis</div><pre class="json">{
-  &quot;token&quot;: &quot;bf44fb88…14d0&quot;
+  &quot;token&quot;: &quot;e3b3d039…70aa&quot;
 }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
@@ -795,7 +796,7 @@ if (isset($body['errors'])) {
     <p>O mesmo token de novo, um token desconhecido ou vencido: <code>TOKEN_INVALID</code> (aqui, com HTTP 200). Mostre a mensagem e ofereça a inscrição de novo.</p>
     <div class="lbl">Requisição</div>
     <pre class="gql">mutation Confirmar($token: String!) { confirmNewsletter(token: $token) }</pre><div class="lbl">Variáveis</div><pre class="json">{
-  &quot;token&quot;: &quot;bf44fb88…14d0&quot;
+  &quot;token&quot;: &quot;e3b3d039…70aa&quot;
 }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
@@ -807,6 +808,128 @@ if (isset($body['errors'])) {
       ],
       &quot;extensions&quot;: {
         &quot;code&quot;: &quot;TOKEN_INVALID&quot;
+      }
+    }
+  ]
+}</pre>
+    
+  </div>
+  <h3>6.3 Privacidade e cookies</h3>
+  <p>A política de privacidade é escrita no painel em <b>LGPD → Política de privacidade</b>, por website, e publicada em versões numeradas; uma versão publicada nunca muda. <code>privacy</code> é pública e traz tudo o que a página "Privacidade" e o aviso de cookies precisam: a versão em vigor e o texto, o encarregado (DPO), os operadores que recebem dados (os do Inventário, só módulos ligados, com <code>international</code> para fora do Brasil), o texto do aviso de cookies e as categorias.</p>
+  <ul>
+    <li><code>version</code> nulo: o website ainda não publicou política; não mostre a página nem peça aceite. Sem <code>websiteId</code>, vale o website padrão; website desconhecido devolve <code>null</code>.</li>
+    <li><code>text</code> é texto puro: linha em branco separa parágrafos. Escape ao mostrar.</li>
+    <li><code>dpo</code> nulo: o encarregado não foi informado em Configurações → LGPD.</li>
+    <li>Categorias de cookies com códigos fixos: <code>necessary</code> (sempre ligada, <code>required: true</code>), <code>statistics</code> e <code>marketing</code>. Os textos vêm de Configurações → LGPD → Cookies da loja web.</li>
+  </ul>
+  
+  <div class="ex">
+    <h4>A política e o aviso de cookies</h4>
+    <p>O texto foi cortado aqui; a resposta traz a política inteira.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">{
+  privacy {
+    version publishedAt text
+    dpo { name email }
+    operators { name country purpose international }
+    cookieBannerText
+    cookieCategories { code label description required }
+  }
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;privacy&quot;: {
+      &quot;version&quot;: 2,
+      &quot;publishedAt&quot;: &quot;2026-11-22 01:19:56&quot;,
+      &quot;text&quot;: &quot;Segundo a Lei nº 13.709, de 14/08/2018, Lei Geral de Proteção de Dados Pessoais,\nLGPD, uma das hipóteses para o tratamento de dados é a manifestação do\nconsenti…&quot;,
+      &quot;dpo&quot;: {
+        &quot;name&quot;: &quot;Esmerio Neto&quot;,
+        &quot;email&quot;: &quot;esmerioneto@gmail.com&quot;
+      },
+      &quot;operators&quot;: [
+        {
+          &quot;name&quot;: &quot;Servidor de e-mail (SMTP)&quot;,
+          &quot;country&quot;: &quot;país a confirmar&quot;,
+          &quot;purpose&quot;: &quot;entregar os e-mails&quot;,
+          &quot;international&quot;: false
+        },
+        {
+          &quot;name&quot;: &quot;Mercado Pago&quot;,
+          &quot;country&quot;: &quot;Brasil&quot;,
+          &quot;purpose&quot;: &quot;processar pagamentos (Pix e cartão)&quot;,
+          &quot;international&quot;: false
+        },
+        {
+          &quot;name&quot;: &quot;Melhor Envio&quot;,
+          &quot;country&quot;: &quot;Brasil&quot;,
+          &quot;purpose&quot;: &quot;cotação de frete&quot;,
+          &quot;international&quot;: false
+        },
+        &quot;… mais 1&quot;
+      ],
+      &quot;cookieBannerText&quot;: &quot;Usamos apenas cookies necessários para a loja funcionar (login, sacola e segurança).&quot;,
+      &quot;cookieCategories&quot;: [
+        {
+          &quot;code&quot;: &quot;necessary&quot;,
+          &quot;label&quot;: &quot;Necessários&quot;,
+          &quot;description&quot;: &quot;Login, carrinho e segurança. Sem eles a loja não funciona.&quot;,
+          &quot;required&quot;: true
+        },
+        {
+          &quot;code&quot;: &quot;statistics&quot;,
+          &quot;label&quot;: &quot;Estatística&quot;,
+          &quot;description&quot;: &quot;Contam visitas e cliques para melhorar a loja (ex.: Google Analytics).&quot;,
+          &quot;required&quot;: false
+        },
+        {
+          &quot;code&quot;: &quot;marketing&quot;,
+          &quot;label&quot;: &quot;Marketing&quot;,
+          &quot;description&quot;: &quot;Mostram anúncios de acordo com o que você viu na loja (ex.: Google Ads, Meta).&quot;,
+          &quot;required&quot;: false
+        }
+      ]
+    }
+  }
+}</pre>
+    
+  </div>
+  <p><code>saveCookieConsent</code> grava a escolha do aviso como prova, sem login: o <code>visitorId</code> é um ID aleatório que a loja gera e guarda no cookie do navegador (16 a 64 letras, números ou hífens), as categorias aceitas (as obrigatórias entram sempre) e a <code>privacy.version</code> mostrada. Cada chamada é um registro novo, com a data e o IP truncado. Com o token de um cliente, a escolha fica ligada a ele e sai na cópia dos dados. Limite por IP em Configurações → LGPD (10 por minuto por padrão).</p>
+  
+  <div class="ex">
+    <h4>Gravar a escolha do aviso</h4>
+    
+    <div class="lbl">Requisição</div>
+    <div class="hdr">X-Store-Url: https://loja.exemplo.com.br</div><pre class="gql">mutation Cookies($visitor: String!, $versao: Int) {
+  saveCookieConsent(visitorId: $visitor, categories: [&quot;necessary&quot;, &quot;statistics&quot;], policyVersion: $versao)
+}</pre><div class="lbl">Variáveis</div><pre class="json">{
+  &quot;visitor&quot;: &quot;3f9c2a7e5b1d4c8e9a0f6b2d7c4e1a95&quot;,
+  &quot;versao&quot;: 2
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;saveCookieConsent&quot;: true
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Erro: categoria desconhecida</h4>
+    <p><code>INVALID_INPUT</code> também para <code>visitorId</code> fora do formato, versão da política que não existe no website e website desconhecido.</p>
+    <div class="lbl">Requisição</div>
+    <pre class="gql">mutation { saveCookieConsent(visitorId: &quot;3f9c2a7e5b1d4c8e9a0f6b2d7c4e1a95&quot;, categories: [&quot;ads&quot;]) }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;errors&quot;: [
+    {
+      &quot;message&quot;: &quot;Categoria desconhecida: ads.&quot;,
+      &quot;path&quot;: [
+        &quot;saveCookieConsent&quot;
+      ],
+      &quot;extensions&quot;: {
+        &quot;code&quot;: &quot;INVALID_INPUT&quot;
       }
     }
   ]
@@ -836,7 +959,7 @@ if (isset($body['errors'])) {
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;data&quot;: {
-    &quot;createCart&quot;: &quot;3ffeb7d5…db49&quot;
+    &quot;createCart&quot;: &quot;97ee2884…8e5e&quot;
   }
 }</pre>
     
@@ -849,7 +972,7 @@ if (isset($body['errors'])) {
     <pre class="gql">mutation Adicionar($cartId: String!, $sku: String!) {
   addToCart(cartId: $cartId, sku: $sku, quantity: 2) { items { id sku name quantity price rowTotal error } subtotal discountAmount shippingAmount total hasErrors }
 }</pre><div class="lbl">Variáveis</div><pre class="json">{
-  &quot;cartId&quot;: &quot;3ffeb7d5…db49&quot;,
+  &quot;cartId&quot;: &quot;97ee2884…8e5e&quot;,
   &quot;sku&quot;: &quot;003&quot;
 }</pre>
     <div class="lbl">Resposta</div>
@@ -858,7 +981,7 @@ if (isset($body['errors'])) {
     &quot;addToCart&quot;: {
       &quot;items&quot;: [
         {
-          &quot;id&quot;: &quot;7500&quot;,
+          &quot;id&quot;: &quot;7643&quot;,
           &quot;sku&quot;: &quot;003&quot;,
           &quot;name&quot;: &quot;Blusa branca lisa&quot;,
           &quot;quantity&quot;: 2,
@@ -882,7 +1005,7 @@ if (isset($body['errors'])) {
     <h4>Erro: produto com grade</h4>
     <p>Enviar o SKU do produto pai é recusado; envie o da variação.</p>
     <div class="lbl">Requisição</div>
-    <pre class="gql">mutation { addToCart(cartId: &quot;3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49&quot;, sku: &quot;MODA-CALCA-JEANS&quot;, quantity: 1) { total } }</pre>
+    <pre class="gql">mutation { addToCart(cartId: &quot;97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e&quot;, sku: &quot;MODA-CALCA-JEANS&quot;, quantity: 1) { total } }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;errors&quot;: [
@@ -907,7 +1030,7 @@ if (isset($body['errors'])) {
     <pre class="gql">mutation Visitante($cartId: String!) {
   setCartGuestInfo(cartId: $cartId, email: &quot;maria@exemplo.com.br&quot;, firstname: &quot;Maria&quot;, lastname: &quot;Souza&quot;, taxvat: &quot;529.982.247-25&quot;) { email firstname taxvat }
 }</pre><div class="lbl">Variáveis</div><pre class="json">{
-  &quot;cartId&quot;: &quot;3ffeb7d5…db49&quot;
+  &quot;cartId&quot;: &quot;97ee2884…8e5e&quot;
 }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
@@ -926,7 +1049,7 @@ if (isset($body['errors'])) {
     <h4>Cotação de frete antes do endereço</h4>
     <p>Para o "calcule o frete" da tela do produto ou do carrinho, só com o CEP.</p>
     <div class="lbl">Requisição</div>
-    <pre class="gql">{ shippingQuotes(cartId: &quot;3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49&quot;, destinationCep: &quot;20040-020&quot;) { code label amount days } }</pre>
+    <pre class="gql">{ shippingQuotes(cartId: &quot;97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e&quot;, destinationCep: &quot;20040-020&quot;) { code label amount days } }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;data&quot;: {
@@ -966,7 +1089,7 @@ if (isset($body['errors'])) {
     availableShippingMethods { code label amount days }
   }
 }</pre><div class="lbl">Variáveis</div><pre class="json">{
-  &quot;cartId&quot;: &quot;3ffeb7d5…db49&quot;,
+  &quot;cartId&quot;: &quot;97ee2884…8e5e&quot;,
   &quot;endereco&quot;: {
     &quot;recipient&quot;: &quot;Maria Souza&quot;,
     &quot;postcode&quot;: &quot;20040-020&quot;,
@@ -1018,7 +1141,7 @@ if (isset($body['errors'])) {
     <h4>Escolher a entrega</h4>
     <p>Depois da entrega, <code>availablePaymentMethods</code> lista as formas de pagamento válidas para este carrinho (nesta loja, as do Mercado Pago).</p>
     <div class="lbl">Requisição</div>
-    <pre class="gql">mutation { setCartShippingMethod(cartId: &quot;3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49&quot;, code: &quot;pickup&quot;) { shippingMethod { code label amount } total availablePaymentMethods { code label } } }</pre>
+    <pre class="gql">mutation { setCartShippingMethod(cartId: &quot;97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e&quot;, code: &quot;pickup&quot;) { shippingMethod { code label amount } total availablePaymentMethods { code label } } }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;data&quot;: {
@@ -1053,7 +1176,7 @@ if (isset($body['errors'])) {
     <h4>5. Escolher o pagamento</h4>
     
     <div class="lbl">Requisição</div>
-    <pre class="gql">mutation { setCartPaymentMethod(cartId: &quot;3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49&quot;, code: &quot;mercadopago_pix&quot;) { paymentMethod { code label } total } }</pre>
+    <pre class="gql">mutation { setCartPaymentMethod(cartId: &quot;97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e&quot;, code: &quot;mercadopago_pix&quot;) { paymentMethod { code label } total } }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;data&quot;: {
@@ -1073,7 +1196,7 @@ if (isset($body['errors'])) {
     <h4>Erro: o total mudou</h4>
     <p><code>expectedTotal</code> protege o cliente de pagar um valor diferente do que viu (preço, promoção ou frete mudaram no meio). Mostre o carrinho de novo e peça a confirmação.</p>
     <div class="lbl">Requisição</div>
-    <pre class="gql">mutation { placeOrder(cartId: &quot;3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49&quot;, expectedTotal: 1.00) { number } }</pre>
+    <pre class="gql">mutation { placeOrder(cartId: &quot;97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e&quot;, expectedTotal: 1.00) { number } }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;errors&quot;: [
@@ -1102,15 +1225,15 @@ if (isset($body['errors'])) {
     items { sku name quantity price rowTotal }
   }
 }</pre><div class="lbl">Variáveis</div><pre class="json">{
-  &quot;cartId&quot;: &quot;3ffeb7d5…db49&quot;,
+  &quot;cartId&quot;: &quot;97ee2884…8e5e&quot;,
   &quot;total&quot;: 71.2
 }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;data&quot;: {
     &quot;placeOrder&quot;: {
-      &quot;id&quot;: &quot;7724&quot;,
-      &quot;number&quot;: &quot;RJ000076&quot;,
+      &quot;id&quot;: &quot;7940&quot;,
+      &quot;number&quot;: &quot;RJ000077&quot;,
       &quot;status&quot;: &quot;pending_payment&quot;,
       &quot;statusLabel&quot;: &quot;Aguardando pagamento&quot;,
       &quot;total&quot;: 71.2,
@@ -1136,12 +1259,12 @@ if (isset($body['errors'])) {
     <h4>Acompanhar o pedido do visitante</h4>
     <p>Com o número e o e-mail do pedido (a tela "acompanhe seu pedido").</p>
     <div class="lbl">Requisição</div>
-    <pre class="gql">{ guestOrder(number: &quot;RJ000076&quot;, email: &quot;maria@exemplo.com.br&quot;) { number statusLabel total } }</pre>
+    <pre class="gql">{ guestOrder(number: &quot;RJ000077&quot;, email: &quot;maria@exemplo.com.br&quot;) { number statusLabel total } }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;data&quot;: {
     &quot;guestOrder&quot;: {
-      &quot;number&quot;: &quot;RJ000076&quot;,
+      &quot;number&quot;: &quot;RJ000077&quot;,
       &quot;statusLabel&quot;: &quot;Aguardando pagamento&quot;,
       &quot;total&quot;: 71.2
     }
@@ -1196,11 +1319,11 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
     <pre class="json">{
   &quot;data&quot;: {
     &quot;registerCustomer&quot;: {
-      &quot;token&quot;: &quot;b08c70fc…3b5e&quot;,
-      &quot;expires_at&quot;: &quot;2026-12-13 15:02:46&quot;,
+      &quot;token&quot;: &quot;48ec0901…0801&quot;,
+      &quot;expires_at&quot;: &quot;2026-12-25 14:18:27&quot;,
       &quot;confirmationRequired&quot;: false,
       &quot;customer&quot;: {
-        &quot;id&quot;: &quot;3855&quot;,
+        &quot;id&quot;: &quot;4034&quot;,
         &quot;email&quot;: &quot;joao@exemplo.com.br&quot;,
         &quot;firstname&quot;: &quot;João&quot;
       }
@@ -1221,10 +1344,10 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
     <pre class="json">{
   &quot;data&quot;: {
     &quot;generateCustomerToken&quot;: {
-      &quot;token&quot;: &quot;e87413f8…c4e7&quot;,
-      &quot;expires_at&quot;: &quot;2026-12-13 15:02:46&quot;,
+      &quot;token&quot;: &quot;454cc0e1…6f9e&quot;,
+      &quot;expires_at&quot;: &quot;2026-12-25 14:18:27&quot;,
       &quot;customer&quot;: {
-        &quot;id&quot;: &quot;3855&quot;,
+        &quot;id&quot;: &quot;4034&quot;,
         &quot;firstname&quot;: &quot;João&quot;
       }
     }
@@ -1242,7 +1365,7 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
     <pre class="json">{
   &quot;data&quot;: {
     &quot;me&quot;: {
-      &quot;id&quot;: &quot;3855&quot;,
+      &quot;id&quot;: &quot;4034&quot;,
       &quot;email&quot;: &quot;joao@exemplo.com.br&quot;,
       &quot;firstname&quot;: &quot;João&quot;,
       &quot;lastname&quot;: &quot;Lima&quot;,
@@ -1283,7 +1406,7 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
   &quot;data&quot;: {
     &quot;createMyAddress&quot;: [
       {
-        &quot;id&quot;: &quot;3036&quot;,
+        &quot;id&quot;: &quot;3099&quot;,
         &quot;city&quot;: &quot;São Paulo&quot;,
         &quot;region&quot;: &quot;SP&quot;,
         &quot;is_default_shipping&quot;: true
@@ -1317,7 +1440,7 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
     <h4>Juntar o carrinho de visitante ao fazer login</h4>
     <p>O visitante montou um carrinho e depois entrou: <code>mergeCarts</code> com o <code>cartId</code> antigo leva os itens para o carrinho do cliente.</p>
     <div class="lbl">Requisição</div>
-    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { mergeCarts(cartId: &quot;4ce9330f28b68e048678f67b01712f230eb0c5a94ccb359136ac7794adc4bbb8&quot;) { isGuest items { sku quantity } total } }</pre>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { mergeCarts(cartId: &quot;ff4c526f03a4ff1d36d83bf2252acb7a67487ecc6a23301aa36efa0c389af138&quot;) { isGuest items { sku quantity } total } }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;data&quot;: {
@@ -1396,7 +1519,7 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
       &quot;total&quot;: 1,
       &quot;items&quot;: [
         {
-          &quot;addedAt&quot;: &quot;2026-11-13 15:02:44.84852-03&quot;,
+          &quot;addedAt&quot;: &quot;2026-11-25 14:18:27.153711-03&quot;,
           &quot;product&quot;: {
             &quot;id&quot;: &quot;1821&quot;,
             &quot;sku&quot;: &quot;MODA-CALCA-JEANS&quot;,
@@ -1469,6 +1592,136 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
 }</pre>
     
   </div>
+  <h4>Privacidade (LGPD)</h4>
+  <p>Os direitos do titular pelo app e pela loja web, sempre para o cliente do token (não há argumento de cliente). Cada cópia e cada exclusão ficam registradas em <b>LGPD → Solicitações</b> no painel, com a origem (app ou loja web, pelo cabeçalho <code>X-Store-Url</code>).</p>
+  <ul>
+    <li><b>Aceite da política:</b> compare <code>me.privacyVersion</code> (a última versão que o cliente aceitou; nulo se nenhuma) com <code>privacy.version</code>. Diferentes: mostre a política e chame <code>acceptPrivacy</code> com a versão mostrada. Publicar uma versão nova faz todos aceitarem de novo. No cadastro, chame <code>acceptPrivacy</code> logo depois do <code>registerCustomer</code>. Aceitar de novo a mesma versão não muda nada.</li>
+    <li><b>Cópia dos dados</b> (art. 18, II): <code>myPersonalData</code> devolve um JSON em texto, com uma chave por assunto (cadastro, pedidos, favoritos, newsletter, mensagens, provador, aceites…); ofereça para baixar. Até 3 por minuto.</li>
+    <li><b>Excluir a conta</b> (art. 18, VI): <code>deleteMe</code> pede a senha atual. Com pedido em andamento, <code>LGPD_ERASE_BLOCKED</code> com os números dos pedidos. Sem bloqueio: o cadastro vira "Cliente excluído" (sem e-mail, CPF, telefone, endereços), saem favoritos, newsletter, mensagens e o provador; os pedidos ficam pelo prazo fiscal e são anonimizados depois. O cliente recebe um e-mail de confirmação e o token deixa de valer.</li>
+  </ul>
+  
+  <div class="ex">
+    <h4>Precisa aceitar a política?</h4>
+    <p><code>privacyVersion</code> nulo e <code>version</code> 2: mostre a política e peça o aceite.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ me { privacyVersion } privacy { version } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;me&quot;: {
+      &quot;privacyVersion&quot;: null
+    },
+    &quot;privacy&quot;: {
+      &quot;version&quot;: 2
+    }
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Erro: versão que não é a em vigor</h4>
+    <p>O app mostrou um texto antigo (ou de cache): <code>POLICY_VERSION_OUTDATED</code>. Busque <code>privacy</code> de novo. Sem política publicada: <code>POLICY_NOT_PUBLISHED</code>.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { acceptPrivacy(version: 3) }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;errors&quot;: [
+    {
+      &quot;message&quot;: &quot;A política mudou (versão 2). Mostre o texto novo e peça o aceite de novo.&quot;,
+      &quot;path&quot;: [
+        &quot;acceptPrivacy&quot;
+      ],
+      &quot;extensions&quot;: {
+        &quot;code&quot;: &quot;POLICY_VERSION_OUTDATED&quot;
+      }
+    }
+  ]
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Aceitar a política</h4>
+    
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation Aceitar($versao: Int!) { acceptPrivacy(version: $versao) }</pre><div class="lbl">Variáveis</div><pre class="json">{
+  &quot;versao&quot;: 2
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;acceptPrivacy&quot;: true
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Cópia dos dados</h4>
+    <p>O valor é um JSON em texto; aqui, de um cliente recém-cadastrado.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ myPersonalData }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;myPersonalData&quot;: &quot;{\n    \&quot;Titular\&quot;: \&quot;joao@exemplo.com.br\&quot;,\n    \&quot;Gerado em\&quot;: \&quot;25/11/2026 14:18\&quot;,\n    \&quot;Sobre esta cópia\&quot;: \&quot;Dados pessoais que a loja guarda sobre você, por assunto (LGPD, art. 18, II). Quem recebe esses dados e por quanto tempo estão na política de privacidade.\&quot;,\n    \&quot;E-mails enviados\&quot;: [\n        \&quot;2026-11-25 14:18 — Bem-vindo(a) à Iterstore\&quot;\n    ],\n    \&quot;Cadastro do cliente\&quot;: {\n        \&quot;Cadastrado em\&quot;: \&quot;2026-11-25 14:18\&quot;,\n        \&quot;Website\&quot;: \&quot;Loja RJ\&quot;,\n        \&quot;Grupo\&quot;: \&quot;Geral\&quot;,\n        \&quot;Ativo\&quot;: \&quot;Sim\&quot;,\n        \&quot;E-mail\&quot;: \&quot;joao@exemplo.com.br\&quot;,\n        \&quot;Nome\&quot;: \&quot;João\&quot;,\n        \&quot;Sobrenome\&quot;: \&quot;Lima\&quot;,\n        \&quot;Tipo\&quot;: \&quot;Pessoa física\&quot;,\n        \&quot;CPF/CNPJ\&quot;: \&quot;11144477735\&quot;,\n        \&quot;Isento de IE\&quot;: \&quot;Não\&quot;,\n        \&quot;Endereço 3099\&quot;: \&quot;CEP: 01310100; Rua: Avenida Paulista; Número: 1000; Bairro: Bela Vista; Cidade: São Paulo; Estado (UF): São Paulo; Destinatário: João Lima (entrega padrão, cobrança padrão)\&quot;\n    },\n    \&quot;Pedidos\&quot;: {\n        \&quot;Carrinho\&quot;: [\n            \&quot;1.0000 × Blusa branca lisa (003)\&quot;\n        ]\n    },\n    \&quot;Aceite da política, aviso de cookies e solicitações LGPD\&quot;: {\n        \&quot;Política de privacidade aceita\&quot;: [\n            \&quot;Versão 2 em 2026-11-25 14:18\&quot;\n        ]\n    }\n}&quot;
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Erro: senha errada</h4>
+    <p><code>INVALID_CREDENTIALS</code>. As tentativas contam no limite de login por IP.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { deleteMe(currentPassword: &quot;errada&quot;) }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;errors&quot;: [
+    {
+      &quot;message&quot;: &quot;Senha atual incorreta.&quot;,
+      &quot;path&quot;: [
+        &quot;deleteMe&quot;
+      ],
+      &quot;extensions&quot;: {
+        &quot;code&quot;: &quot;INVALID_CREDENTIALS&quot;
+      }
+    }
+  ]
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Excluir a conta</h4>
+    
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation Excluir($senha: String!) { deleteMe(currentPassword: $senha) }</pre><div class="lbl">Variáveis</div><pre class="json">{
+  &quot;senha&quot;: &quot;SenhaDoJoao123&quot;
+}</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;deleteMe&quot;: true
+  }
+}</pre>
+    
+  </div>
+  
+  <div class="ex">
+    <h4>Depois da exclusão</h4>
+    <p>O token antigo não vale mais: <code>me</code> volta <code>null</code>. Leve o cliente para a home, deslogado.</p>
+    <div class="lbl">Requisição</div>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ me { id } }</pre>
+    <div class="lbl">Resposta</div>
+    <pre class="json">{
+  &quot;data&quot;: {
+    &quot;me&quot;: null
+  }
+}</pre>
+    
+  </div>
 </section>
 
 <section id="admin">
@@ -1491,8 +1744,8 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
     <pre class="json">{
   &quot;data&quot;: {
     &quot;generateAdminToken&quot;: {
-      &quot;token&quot;: &quot;0e22d24b…2a61&quot;,
-      &quot;expires_at&quot;: &quot;2026-11-13 19:02:44&quot;,
+      &quot;token&quot;: &quot;cbfc79b3…0a17&quot;,
+      &quot;expires_at&quot;: &quot;2026-11-25 18:18:27&quot;,
       &quot;user&quot;: {
         &quot;username&quot;: &quot;integracao&quot;,
         &quot;role&quot;: &quot;Administradores&quot;
@@ -1534,7 +1787,7 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
     <pre class="json">{
   &quot;data&quot;: {
     &quot;currentAdmin&quot;: {
-      &quot;id&quot;: &quot;6045&quot;,
+      &quot;id&quot;: &quot;6202&quot;,
       &quot;username&quot;: &quot;integracao&quot;,
       &quot;firstname&quot;: &quot;Integração&quot;,
       &quot;role&quot;: &quot;Administradores&quot;
@@ -1585,8 +1838,8 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
       &quot;amount&quot;: 71.2,
       &quot;items&quot;: [
         {
-          &quot;number&quot;: &quot;RJ000076&quot;,
-          &quot;createdAt&quot;: &quot;2026-11-13 15:02:44&quot;,
+          &quot;number&quot;: &quot;RJ000077&quot;,
+          &quot;createdAt&quot;: &quot;2026-11-25 14:18:27&quot;,
           &quot;statusLabel&quot;: &quot;Aguardando pagamento&quot;,
           &quot;total&quot;: 71.2,
           &quot;salesChannel&quot;: &quot;Site&quot;,
@@ -1603,24 +1856,24 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
     <h4>Confirmar o pagamento</h4>
     <p>Aguardando pagamento → Pagamento confirmado. Avisa o cliente por e-mail. Exige "Pedidos: confirmar pagamento".</p>
     <div class="lbl">Requisição</div>
-    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { confirmOrderPayment(id: &quot;7724&quot;, comment: &quot;Pix conferido no extrato&quot;) { number status statusLabel history { status comment createdAt } } }</pre>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { confirmOrderPayment(id: &quot;7940&quot;, comment: &quot;Pix conferido no extrato&quot;) { number status statusLabel history { status comment createdAt } } }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;data&quot;: {
     &quot;confirmOrderPayment&quot;: {
-      &quot;number&quot;: &quot;RJ000076&quot;,
+      &quot;number&quot;: &quot;RJ000077&quot;,
       &quot;status&quot;: &quot;processing&quot;,
       &quot;statusLabel&quot;: &quot;Pagamento confirmado&quot;,
       &quot;history&quot;: [
         {
           &quot;status&quot;: &quot;processing&quot;,
           &quot;comment&quot;: &quot;Pix conferido no extrato&quot;,
-          &quot;createdAt&quot;: &quot;2026-11-13 15:02:44&quot;
+          &quot;createdAt&quot;: &quot;2026-11-25 14:18:27&quot;
         },
         {
           &quot;status&quot;: &quot;pending_payment&quot;,
           &quot;comment&quot;: null,
-          &quot;createdAt&quot;: &quot;2026-11-13 15:02:44&quot;
+          &quot;createdAt&quot;: &quot;2026-11-25 14:18:27&quot;
         }
       ]
     }
@@ -1633,12 +1886,12 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
     <h4>Registrar o envio</h4>
     <p>Pagamento confirmado → Enviado: baixa o estoque da origem (a sugerida, se <code>sourceCode</code> for omitido) e manda o rastreio ao cliente. Depois, <code>completeOrder</code> marca como Concluído.</p>
     <div class="lbl">Requisição</div>
-    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { shipOrder(id: &quot;7724&quot;, carrier: &quot;Correios&quot;, trackingCode: &quot;AA123456789BR&quot;) { number statusLabel shipment { carrier trackingCode } } }</pre>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { shipOrder(id: &quot;7940&quot;, carrier: &quot;Correios&quot;, trackingCode: &quot;AA123456789BR&quot;) { number statusLabel shipment { carrier trackingCode } } }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;data&quot;: {
     &quot;shipOrder&quot;: {
-      &quot;number&quot;: &quot;RJ000076&quot;,
+      &quot;number&quot;: &quot;RJ000077&quot;,
       &quot;statusLabel&quot;: &quot;Enviado&quot;,
       &quot;shipment&quot;: {
         &quot;carrier&quot;: &quot;Correios&quot;,
@@ -1661,7 +1914,7 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
     <h4>Resumo de vendas por situação</h4>
     <p>Quantos pedidos e quanto em cada situação, no período.</p>
     <div class="lbl">Requisição</div>
-    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ salesSummary(from: &quot;2026-11-01&quot;, to: &quot;2026-11-13&quot;) { status statusLabel count amount } }</pre>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">{ salesSummary(from: &quot;2026-11-01&quot;, to: &quot;2026-11-25&quot;) { status statusLabel count amount } }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;data&quot;: {
@@ -1675,8 +1928,8 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
       {
         &quot;status&quot;: &quot;processing&quot;,
         &quot;statusLabel&quot;: &quot;Pagamento confirmado&quot;,
-        &quot;count&quot;: 9,
-        &quot;amount&quot;: 1607.12
+        &quot;count&quot;: 10,
+        &quot;amount&quot;: 2246.92
       },
       {
         &quot;status&quot;: &quot;shipped&quot;,
@@ -1776,7 +2029,7 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
     <pre class="json">{
   &quot;data&quot;: {
     &quot;createProduct&quot;: {
-      &quot;id&quot;: &quot;22556&quot;,
+      &quot;id&quot;: &quot;23605&quot;,
       &quot;sku&quot;: &quot;CANECA-001&quot;,
       &quot;name&quot;: &quot;Caneca de cerâmica&quot;,
       &quot;url_key&quot;: &quot;caneca-de-ceramica&quot;,
@@ -1828,7 +2081,7 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
     <h4>Alterar o preço</h4>
     <p>Só os campos enviados mudam. A alteração entra no log de operações com antes e depois. Para muitos custos de uma vez, há também a importação por planilha no painel.</p>
     <div class="lbl">Requisição</div>
-    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { updateProduct(id: &quot;22556&quot;, attributes: [{ code: &quot;price&quot;, value: &quot;44.90&quot; }]) { sku attributes { code value } } }</pre>
+    <div class="hdr">Authorization: Bearer &lt;token&gt;</div><pre class="gql">mutation { updateProduct(id: &quot;23605&quot;, attributes: [{ code: &quot;price&quot;, value: &quot;44.90&quot; }]) { sku attributes { code value } } }</pre>
     <div class="lbl">Resposta</div>
     <pre class="json">{
   &quot;data&quot;: {
@@ -2054,27 +2307,27 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
         ],
         &quot;… mais 2&quot;
       ],
-      &quot;total&quot;: 13,
+      &quot;total&quot;: 25,
       &quot;totals&quot;: [
         null,
-        &quot;11&quot;,
-        &quot;12.0000&quot;,
+        &quot;12&quot;,
+        &quot;14.0000&quot;,
         &quot;… mais 9&quot;
       ],
       &quot;tiles&quot;: [
         {
           &quot;label&quot;: &quot;Faturamento&quot;,
-          &quot;value&quot;: &quot;R$ 1.686,82&quot;,
-          &quot;note&quot;: &quot;▲ 1.285,5% vs. 13 dias antes&quot;
+          &quot;value&quot;: &quot;R$ 2.326,62&quot;,
+          &quot;note&quot;: &quot;▲ 106,2% vs. 25 dias antes&quot;
         },
         {
           &quot;label&quot;: &quot;Pedidos pagos&quot;,
-          &quot;value&quot;: &quot;11&quot;,
-          &quot;note&quot;: &quot;12 itens&quot;
+          &quot;value&quot;: &quot;12&quot;,
+          &quot;note&quot;: &quot;14 itens&quot;
         },
         {
           &quot;label&quot;: &quot;Ticket médio&quot;,
-          &quot;value&quot;: &quot;R$ 153,35&quot;,
+          &quot;value&quot;: &quot;R$ 193,89&quot;,
           &quot;note&quot;: &quot;com frete&quot;
         },
         &quot;… mais 3&quot;
@@ -2103,16 +2356,16 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {
 <section id="erros">
   <h2>10. Códigos de erro</h2>
   <p>Os mais comuns, por assunto. A descrição de cada campo no <code>schema.graphql</code> lista os códigos específicos dele.</p>
-  <h4>Comuns</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>UNAUTHENTICATED</code></td><td>Sem login (ou com o token de outro tipo: um token de cliente num campo do admin).</td></tr><tr><td><code>FORBIDDEN</code></td><td>Logado, mas o perfil não tem a permissão.</td></tr><tr><td><code>TOKEN_INVALID</code></td><td>HTTP 401: o token enviado não existe, expirou ou foi revogado. Faça login de novo.</td></tr><tr><td><code>API_KEY_INVALID</code></td><td>HTTP 401: a chave do aplicativo é exigida e não veio, não existe ou foi revogada (cabeçalho X-Api-Key).</td></tr><tr><td><code>TOO_MANY_REQUESTS</code></td><td>Requisições, tentativas de login ou cotações de frete demais do mesmo IP no minuto (HTTP 429 no limite geral), ou mensagens demais do mesmo cliente.</td></tr><tr><td><code>PAYLOAD_TOO_LARGE</code></td><td>HTTP 413: o corpo da chamada passou do tamanho máximo (64 KB sem login de admin).</td></tr><tr><td><code>UNSUPPORTED_MEDIA_TYPE</code></td><td>HTTP 415: chamada feita com a sessão do painel (cookie) sem Content-Type: application/json. Protege o admin de um formulário de outro site.</td></tr><tr><td><code>GRAPHQL_PARSE_FAILED</code></td><td>A consulta tem erro de sintaxe.</td></tr><tr><td><code>GRAPHQL_VALIDATION_FAILED</code></td><td>Campo ou argumento que não existe, variável de tipo errado, ou introspecção desligada. Sem login de admin, a mensagem não traz as sugestões de nomes (&quot;Did you mean...&quot;).</td></tr><tr><td><code>QUERY_LIMIT_EXCEEDED</code></td><td>A consulta passou da profundidade ou da complexidade máxima.</td></tr><tr><td><code>NOT_FOUND</code></td><td>O registro não existe ou não é visível para quem pediu.</td></tr><tr><td><code>INTERNAL_ERROR</code></td><td>Falha inesperada no servidor; a causa vai para o log do sistema.</td></tr><tr><td><code>BAD_REQUEST</code></td><td>Pedido inválido, sem código mais específico.</td></tr></table><h4>Login e cadastro</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>INVALID_CREDENTIALS</code></td><td>Usuário ou senha errados, ou conta bloqueada temporariamente.</td></tr><tr><td><code>PASSWORD_EXPIRED</code></td><td>A senha do admin venceu: troque pelo painel.</td></tr><tr><td><code>EMAIL_NOT_CONFIRMED</code></td><td>O cliente ainda não confirmou o e-mail.</td></tr><tr><td><code>EMAIL_DUPLICATE</code></td><td>E-mail já cadastrado no website.</td></tr><tr><td><code>TAXVAT_INVALID</code></td><td>CPF/CNPJ inválido.</td></tr><tr><td><code>TAXVAT_DUPLICATE</code></td><td>CPF/CNPJ já cadastrado no website.</td></tr><tr><td><code>PASSWORD_INVALID</code></td><td>Senha curta demais ou senha atual errada.</td></tr></table><h4>Catálogo e estoque</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>PRODUCT_NOT_FOUND</code></td><td>SKU ou id que não existe.</td></tr><tr><td><code>SKU_DUPLICATE</code></td><td>SKU já usado.</td></tr><tr><td><code>CATEGORY_REQUIRED</code></td><td>O produto precisa de uma categoria do website.</td></tr><tr><td><code>URL_KEY_DUPLICATE</code></td><td>Chave de URL já usada.</td></tr><tr><td><code>ATTRIBUTE_NOT_FOUND</code></td><td>Atributo fora do conjunto do produto.</td></tr><tr><td><code>VALUE_INVALID</code></td><td>Valor inválido para o atributo.</td></tr><tr><td><code>VALUE_REQUIRED</code></td><td>Atributo obrigatório vazio.</td></tr><tr><td><code>SOURCE_NOT_FOUND</code></td><td>Origem de estoque que não existe.</td></tr></table><h4>Carrinho e pedido</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>CART_NOT_FOUND</code></td><td>cartId que não existe (ou de outro cliente).</td></tr><tr><td><code>PRODUCT_IS_CONFIGURABLE</code></td><td>Produto com grade: envie o SKU da variação.</td></tr><tr><td><code>INSUFFICIENT_STOCK</code></td><td>Quantidade acima do vendável.</td></tr><tr><td><code>QUANTITY_INVALID</code></td><td>Quantidade zero, negativa ou fracionada onde não pode.</td></tr><tr><td><code>SHIPPING_CEP_INVALID</code></td><td>CEP inválido.</td></tr><tr><td><code>SHIPPING_METHOD_UNAVAILABLE</code></td><td>Forma de entrega que não vale para o endereço/carrinho.</td></tr><tr><td><code>PAYMENT_METHOD_UNAVAILABLE</code></td><td>Forma de pagamento desligada ou fora do limite de valor.</td></tr><tr><td><code>COUPON_NOT_FOUND</code></td><td>Cupom que não existe.</td></tr><tr><td><code>COUPON_EXPIRED</code></td><td>Cupom fora da validade.</td></tr><tr><td><code>COUPON_USED_UP</code></td><td>Cupom sem usos restantes.</td></tr><tr><td><code>COUPON_LOGIN_REQUIRED</code></td><td>Cupom só para cliente logado.</td></tr><tr><td><code>TOTAL_CHANGED</code></td><td>O total mudou entre a revisão e o placeOrder (expectedTotal): mostre o novo total e peça a confirmação.</td></tr><tr><td><code>ORDER_NOT_FOUND</code></td><td>Pedido que não existe (ou e-mail que não confere no guestOrder).</td></tr><tr><td><code>ORDER_STATUS_INVALID</code></td><td>A ação não vale para a situação atual do pedido.</td></tr><tr><td><code>REASON_REQUIRED</code></td><td>Cancelamento com motivo OTHER sem comentário.</td></tr><tr><td><code>REFUND_NOTE_REQUIRED</code></td><td>Cancelar pedido pago sem estorno nem nota de devolução.</td></tr><tr><td><code>PAYMENT_FAILED</code></td><td>O Mercado Pago recusou a cobrança (veja statusDetail).</td></tr><tr><td><code>PAYMENT_APPROVED</code></td><td>A cobrança acabou de ser paga; o pedido foi confirmado.</td></tr></table><h4>Favoritos e newsletter</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>PRODUCT_IS_VARIANT</code></td><td>addToWishlist com uma variação: favorite o produto pai.</td></tr><tr><td><code>WISHLIST_LIMIT</code></td><td>A lista de favoritos já tem 200 produtos.</td></tr><tr><td><code>INVALID_INPUT</code></td><td>subscribeNewsletter com e-mail inválido ou websiteId que não existe.</td></tr><tr><td><code>TOKEN_INVALID</code></td><td>confirmNewsletter com link desconhecido, já usado ou vencido (HTTP 200, ao contrário do token de login).</td></tr></table>
+  <h4>Comuns</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>UNAUTHENTICATED</code></td><td>Sem login (ou com o token de outro tipo: um token de cliente num campo do admin).</td></tr><tr><td><code>FORBIDDEN</code></td><td>Logado, mas o perfil não tem a permissão.</td></tr><tr><td><code>TOKEN_INVALID</code></td><td>HTTP 401: o token enviado não existe, expirou ou foi revogado. Faça login de novo.</td></tr><tr><td><code>API_KEY_INVALID</code></td><td>HTTP 401: a chave do aplicativo é exigida e não veio, não existe ou foi revogada (cabeçalho X-Api-Key).</td></tr><tr><td><code>TOO_MANY_REQUESTS</code></td><td>Requisições, tentativas de login ou cotações de frete demais do mesmo IP no minuto (HTTP 429 no limite geral), ou mensagens demais do mesmo cliente.</td></tr><tr><td><code>PAYLOAD_TOO_LARGE</code></td><td>HTTP 413: o corpo da chamada passou do tamanho máximo (64 KB sem login de admin).</td></tr><tr><td><code>UNSUPPORTED_MEDIA_TYPE</code></td><td>HTTP 415: chamada feita com a sessão do painel (cookie) sem Content-Type: application/json. Protege o admin de um formulário de outro site.</td></tr><tr><td><code>GRAPHQL_PARSE_FAILED</code></td><td>A consulta tem erro de sintaxe.</td></tr><tr><td><code>GRAPHQL_VALIDATION_FAILED</code></td><td>Campo ou argumento que não existe, variável de tipo errado, ou introspecção desligada. Sem login de admin, a mensagem não traz as sugestões de nomes (&quot;Did you mean...&quot;).</td></tr><tr><td><code>QUERY_LIMIT_EXCEEDED</code></td><td>A consulta passou da profundidade ou da complexidade máxima.</td></tr><tr><td><code>NOT_FOUND</code></td><td>O registro não existe ou não é visível para quem pediu.</td></tr><tr><td><code>INTERNAL_ERROR</code></td><td>Falha inesperada no servidor; a causa vai para o log do sistema.</td></tr><tr><td><code>BAD_REQUEST</code></td><td>Pedido inválido, sem código mais específico.</td></tr></table><h4>Login e cadastro</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>INVALID_CREDENTIALS</code></td><td>Usuário ou senha errados, ou conta bloqueada temporariamente.</td></tr><tr><td><code>PASSWORD_EXPIRED</code></td><td>A senha do admin venceu: troque pelo painel.</td></tr><tr><td><code>EMAIL_NOT_CONFIRMED</code></td><td>O cliente ainda não confirmou o e-mail.</td></tr><tr><td><code>EMAIL_DUPLICATE</code></td><td>E-mail já cadastrado no website.</td></tr><tr><td><code>TAXVAT_INVALID</code></td><td>CPF/CNPJ inválido.</td></tr><tr><td><code>TAXVAT_DUPLICATE</code></td><td>CPF/CNPJ já cadastrado no website.</td></tr><tr><td><code>PASSWORD_INVALID</code></td><td>Senha curta demais ou senha atual errada.</td></tr></table><h4>Catálogo e estoque</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>PRODUCT_NOT_FOUND</code></td><td>SKU ou id que não existe.</td></tr><tr><td><code>SKU_DUPLICATE</code></td><td>SKU já usado.</td></tr><tr><td><code>CATEGORY_REQUIRED</code></td><td>O produto precisa de uma categoria do website.</td></tr><tr><td><code>URL_KEY_DUPLICATE</code></td><td>Chave de URL já usada.</td></tr><tr><td><code>ATTRIBUTE_NOT_FOUND</code></td><td>Atributo fora do conjunto do produto.</td></tr><tr><td><code>VALUE_INVALID</code></td><td>Valor inválido para o atributo.</td></tr><tr><td><code>VALUE_REQUIRED</code></td><td>Atributo obrigatório vazio.</td></tr><tr><td><code>SOURCE_NOT_FOUND</code></td><td>Origem de estoque que não existe.</td></tr></table><h4>Carrinho e pedido</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>CART_NOT_FOUND</code></td><td>cartId que não existe (ou de outro cliente).</td></tr><tr><td><code>PRODUCT_IS_CONFIGURABLE</code></td><td>Produto com grade: envie o SKU da variação.</td></tr><tr><td><code>INSUFFICIENT_STOCK</code></td><td>Quantidade acima do vendável.</td></tr><tr><td><code>QUANTITY_INVALID</code></td><td>Quantidade zero, negativa ou fracionada onde não pode.</td></tr><tr><td><code>SHIPPING_CEP_INVALID</code></td><td>CEP inválido.</td></tr><tr><td><code>SHIPPING_METHOD_UNAVAILABLE</code></td><td>Forma de entrega que não vale para o endereço/carrinho.</td></tr><tr><td><code>PAYMENT_METHOD_UNAVAILABLE</code></td><td>Forma de pagamento desligada ou fora do limite de valor.</td></tr><tr><td><code>COUPON_NOT_FOUND</code></td><td>Cupom que não existe.</td></tr><tr><td><code>COUPON_EXPIRED</code></td><td>Cupom fora da validade.</td></tr><tr><td><code>COUPON_USED_UP</code></td><td>Cupom sem usos restantes.</td></tr><tr><td><code>COUPON_LOGIN_REQUIRED</code></td><td>Cupom só para cliente logado.</td></tr><tr><td><code>TOTAL_CHANGED</code></td><td>O total mudou entre a revisão e o placeOrder (expectedTotal): mostre o novo total e peça a confirmação.</td></tr><tr><td><code>ORDER_NOT_FOUND</code></td><td>Pedido que não existe (ou e-mail que não confere no guestOrder).</td></tr><tr><td><code>ORDER_STATUS_INVALID</code></td><td>A ação não vale para a situação atual do pedido.</td></tr><tr><td><code>REASON_REQUIRED</code></td><td>Cancelamento com motivo OTHER sem comentário.</td></tr><tr><td><code>REFUND_NOTE_REQUIRED</code></td><td>Cancelar pedido pago sem estorno nem nota de devolução.</td></tr><tr><td><code>PAYMENT_FAILED</code></td><td>O Mercado Pago recusou a cobrança (veja statusDetail).</td></tr><tr><td><code>PAYMENT_APPROVED</code></td><td>A cobrança acabou de ser paga; o pedido foi confirmado.</td></tr></table><h4>Favoritos e newsletter</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>PRODUCT_IS_VARIANT</code></td><td>addToWishlist com uma variação: favorite o produto pai.</td></tr><tr><td><code>WISHLIST_LIMIT</code></td><td>A lista de favoritos já tem 200 produtos.</td></tr><tr><td><code>INVALID_INPUT</code></td><td>subscribeNewsletter com e-mail inválido ou websiteId que não existe.</td></tr><tr><td><code>TOKEN_INVALID</code></td><td>confirmNewsletter com link desconhecido, já usado ou vencido (HTTP 200, ao contrário do token de login).</td></tr></table><h4>Privacidade (LGPD)</h4><table><tr><th style="width:34%">Código</th><th>Quando</th></tr><tr><td><code>POLICY_VERSION_OUTDATED</code></td><td>acceptPrivacy com uma versão que não é a em vigor: mostre o texto de privacy de novo e peça o aceite.</td></tr><tr><td><code>POLICY_NOT_PUBLISHED</code></td><td>acceptPrivacy sem política publicada no website do cliente.</td></tr><tr><td><code>INVALID_INPUT</code></td><td>saveCookieConsent com visitorId fora do formato, categoria ou versão da política desconhecida, ou website que não existe.</td></tr><tr><td><code>INVALID_CREDENTIALS</code></td><td>deleteMe com a senha atual errada.</td></tr><tr><td><code>LGPD_ERASE_BLOCKED</code></td><td>deleteMe com pedido em andamento (aguardando pagamento, pago ou enviado); a mensagem traz os números.</td></tr><tr><td><code>TOO_MANY_REQUESTS</code></td><td>myPersonalData mais de 3 vezes por minuto; deleteMe acima do limite de login; saveCookieConsent acima do limite por IP.</td></tr></table>
 </section>
 
 <section id="referencia">
   <h2>11. Referência das consultas e mutações</h2>
-  <p>Todas as entradas da API desta versão (39 consultas e 63 mutações), com quem pode chamar e o início da descrição do <code>schema.graphql</code>, que tem os argumentos e os tipos completos. "admin: X" = token do admin com a permissão X no perfil (o perfil Administradores tem todas). "público" = sem login, mas com a chave do aplicativo quando ela é exigida.</p>
+  <p>Todas as entradas da API desta versão (41 consultas e 66 mutações), com quem pode chamar e o início da descrição do <code>schema.graphql</code>, que tem os argumentos e os tipos completos. "admin: X" = token do admin com a permissão X no perfil (o perfil Administradores tem todas). "público" = sem login, mas com a chave do aplicativo quando ela é exigida.</p>
   <h3>11.1 Consultas (query)</h3>
-  <table class="ref"><tr><th>Campo</th><th>Quem pode</th><th>Descrição (do schema)</th></tr><tr><td><code>store</code></td><td>admin: Iter_Store::store</td><td>Uma loja (store view) pelo id.</td></tr><tr><td><code>stores</code></td><td>admin: Iter_Store::store</td><td>Todas as lojas (store views).</td></tr><tr><td><code>websites</code></td><td>público</td><td>As lojas, na ordem do admin (o cadastro do app oferece a escolha).</td></tr><tr><td><code>storeInfo</code></td><td>público</td><td>Dados da loja.</td></tr><tr><td><code>product</code></td><td>público</td><td>Por id ou por SKU (sem diferenciar maiúsculas); informe um dos dois.</td></tr><tr><td><code>categories</code></td><td>público</td><td>As categorias principais; as outras vêm em children.</td></tr><tr><td><code>category</code></td><td>público</td><td>Por id ou por url_key; informe um dos dois.</td></tr><tr><td><code>route</code></td><td>público</td><td>O que abre num endereço da loja.</td></tr><tr><td><code>products</code></td><td>público</td><td>Lista de produtos com busca, filtros por atributo, categoria e preço, página e as agregações para os filtros.</td></tr><tr><td><code>mobileHome</code></td><td>público</td><td>A tela inicial do app.</td></tr><tr><td><code>webHome</code></td><td>público</td><td>A home da loja web (Catálogo → Web).</td></tr><tr><td><code>mobileCategoryProducts</code></td><td>público</td><td>O &quot;mostrar mais&quot; de uma seção de mobileHome.</td></tr><tr><td><code>mobileOrder</code></td><td>admin: Iter_Catalog::mobile</td><td>Catálogo → Mobile (admin).</td></tr><tr><td><code>inventorySources</code></td><td>admin: Iter_Inventory::source</td><td>As origens de estoque.</td></tr><tr><td><code>inventorySource</code></td><td>admin: Iter_Inventory::source</td><td>Uma origem de estoque pelo código.</td></tr><tr><td><code>customer</code></td><td>admin: Iter_Customer::customer</td><td>Por id ou por e-mail; informe um dos dois.</td></tr><tr><td><code>me</code></td><td>cliente (token)</td><td>O cliente do token; null sem login de cliente.</td></tr><tr><td><code>customers</code></td><td>admin: Iter_Customer::customer</td><td>Lista de clientes com busca, tipo (PF/PJ), grupo, website, situação e página.</td></tr><tr><td><code>attributes</code></td><td>público (os ocultos só para o admin)</td><td>Os atributos de uma entidade (product, customer, customer_address, category), na ordem de posição.</td></tr><tr><td><code>cart</code></td><td>público (cartId) ou cliente</td><td>O carrinho: do visitante pelo cartId, do cliente logado sem cartId; itens, totais, entrega, pagamento e formas disponíveis.</td></tr><tr><td><code>orders</code></td><td>admin: Iter_Sales::order</td><td>Lista de pedidos com filtros, ordenação, página e a soma (amount).</td></tr><tr><td><code>order</code></td><td>admin: Iter_Sales::order</td><td>Pelo id ou pelo número (SP-000001).</td></tr><tr><td><code>myOrders</code></td><td>cliente (token)</td><td>Os pedidos do cliente do token, o mais novo primeiro.</td></tr><tr><td><code>myOrder</code></td><td>cliente (token)</td><td>Um pedido do cliente do token pelo número; null se não for dele.</td></tr><tr><td><code>guestOrder</code></td><td>público (número + e-mail)</td><td>Consulta sem login.</td></tr><tr><td><code>salesSummary</code></td><td>admin: Iter_Sales::order</td><td>Quantos pedidos e quanto em cada situação, no período (todas as situações vêm, mesmo com 0).</td></tr><tr><td><code>shippingTableRates</code></td><td>admin: Iter_Shipping::rates</td><td>As faixas de frete do website.</td></tr><tr><td><code>shippingQuotes</code></td><td>público</td><td>Todas as opções de frete disponíveis para o carrinho e CEP informados, usando o mesmo serviço central do checkout.</td></tr><tr><td><code>mercadopagoSettings</code></td><td>público</td><td>A Public Key e o máximo de parcelas, para o SDK do Mercado Pago no app.</td></tr><tr><td><code>customerMessages</code></td><td>cliente (token)</td><td>A conversa do cliente do token com a loja, a mais antiga primeiro.</td></tr><tr><td><code>customerUnreadMessages</code></td><td>cliente (token)</td><td>Mensagens da loja que o cliente do token ainda não leu.</td></tr><tr><td><code>adminMessageInbox</code></td><td>admin: Iter_Message::manage</td><td>Um cliente por linha, a conversa mais recente primeiro; 20 por página.</td></tr><tr><td><code>adminCustomerMessages</code></td><td>admin: Iter_Message::manage</td><td>A conversa de um cliente, a mais antiga primeiro.</td></tr><tr><td><code>reports</code></td><td>admin: Iter_Report::*</td><td>Os relatórios que o admin do token pode abrir, com os filtros de cada um.</td></tr><tr><td><code>report</code></td><td>admin: a permissão do relatório</td><td>Um relatório, como na tela.</td></tr><tr><td><code>tryOnSettings</code></td><td>público (sem login, enabled: false)</td><td>Antes de mostrar o provador.</td></tr><tr><td><code>tryOn</code></td><td>cliente (token)</td><td>Uma prova do cliente do token; consulte a cada 2 s enquanto PROCESSING.</td></tr><tr><td><code>myWishlist</code></td><td>cliente (token)</td><td>Os favoritos do cliente do token, o mais recente primeiro.</td></tr><tr><td><code>currentAdmin</code></td><td>admin (qualquer)</td><td>O usuário do token (ou da sessão do painel); null sem login.</td></tr></table>
+  <table class="ref"><tr><th>Campo</th><th>Quem pode</th><th>Descrição (do schema)</th></tr><tr><td><code>store</code></td><td>admin: Iter_Store::store</td><td>Uma loja (store view) pelo id.</td></tr><tr><td><code>stores</code></td><td>admin: Iter_Store::store</td><td>Todas as lojas (store views).</td></tr><tr><td><code>websites</code></td><td>público</td><td>As lojas, na ordem do admin (o cadastro do app oferece a escolha).</td></tr><tr><td><code>storeInfo</code></td><td>público</td><td>Dados da loja.</td></tr><tr><td><code>product</code></td><td>público</td><td>Por id ou por SKU (sem diferenciar maiúsculas); informe um dos dois.</td></tr><tr><td><code>categories</code></td><td>público</td><td>As categorias principais; as outras vêm em children.</td></tr><tr><td><code>category</code></td><td>público</td><td>Por id ou por url_key; informe um dos dois.</td></tr><tr><td><code>route</code></td><td>público</td><td>O que abre num endereço da loja.</td></tr><tr><td><code>products</code></td><td>público</td><td>Lista de produtos com busca, filtros por atributo, categoria e preço, página e as agregações para os filtros.</td></tr><tr><td><code>mobileHome</code></td><td>público</td><td>A tela inicial do app.</td></tr><tr><td><code>webHome</code></td><td>público</td><td>A home da loja web (Catálogo → Web).</td></tr><tr><td><code>mobileCategoryProducts</code></td><td>público</td><td>O &quot;mostrar mais&quot; de uma seção de mobileHome.</td></tr><tr><td><code>mobileOrder</code></td><td>admin: Iter_Catalog::mobile</td><td>Catálogo → Mobile (admin).</td></tr><tr><td><code>inventorySources</code></td><td>admin: Iter_Inventory::source</td><td>As origens de estoque.</td></tr><tr><td><code>inventorySource</code></td><td>admin: Iter_Inventory::source</td><td>Uma origem de estoque pelo código.</td></tr><tr><td><code>customer</code></td><td>admin: Iter_Customer::customer</td><td>Por id ou por e-mail; informe um dos dois.</td></tr><tr><td><code>me</code></td><td>cliente (token)</td><td>O cliente do token; null sem login de cliente.</td></tr><tr><td><code>customers</code></td><td>admin: Iter_Customer::customer</td><td>Lista de clientes com busca, tipo (PF/PJ), grupo, website, situação e página.</td></tr><tr><td><code>attributes</code></td><td>público (os ocultos só para o admin)</td><td>Os atributos de uma entidade (product, customer, customer_address, category), na ordem de posição.</td></tr><tr><td><code>cart</code></td><td>público (cartId) ou cliente</td><td>O carrinho: do visitante pelo cartId, do cliente logado sem cartId; itens, totais, entrega, pagamento e formas disponíveis.</td></tr><tr><td><code>orders</code></td><td>admin: Iter_Sales::order</td><td>Lista de pedidos com filtros, ordenação, página e a soma (amount).</td></tr><tr><td><code>order</code></td><td>admin: Iter_Sales::order</td><td>Pelo id ou pelo número (SP-000001).</td></tr><tr><td><code>myOrders</code></td><td>cliente (token)</td><td>Os pedidos do cliente do token, o mais novo primeiro.</td></tr><tr><td><code>myOrder</code></td><td>cliente (token)</td><td>Um pedido do cliente do token pelo número; null se não for dele.</td></tr><tr><td><code>guestOrder</code></td><td>público (número + e-mail)</td><td>Consulta sem login.</td></tr><tr><td><code>salesSummary</code></td><td>admin: Iter_Sales::order</td><td>Quantos pedidos e quanto em cada situação, no período (todas as situações vêm, mesmo com 0).</td></tr><tr><td><code>shippingTableRates</code></td><td>admin: Iter_Shipping::rates</td><td>As faixas de frete do website.</td></tr><tr><td><code>shippingQuotes</code></td><td>público</td><td>Todas as opções de frete disponíveis para o carrinho e CEP informados, usando o mesmo serviço central do checkout.</td></tr><tr><td><code>mercadopagoSettings</code></td><td>público</td><td>A Public Key e o máximo de parcelas, para o SDK do Mercado Pago no app.</td></tr><tr><td><code>customerMessages</code></td><td>cliente (token)</td><td>A conversa do cliente do token com a loja, a mais antiga primeiro.</td></tr><tr><td><code>customerUnreadMessages</code></td><td>cliente (token)</td><td>Mensagens da loja que o cliente do token ainda não leu.</td></tr><tr><td><code>adminMessageInbox</code></td><td>admin: Iter_Message::manage</td><td>Um cliente por linha, a conversa mais recente primeiro; 20 por página.</td></tr><tr><td><code>adminCustomerMessages</code></td><td>admin: Iter_Message::manage</td><td>A conversa de um cliente, a mais antiga primeiro.</td></tr><tr><td><code>reports</code></td><td>admin: Iter_Report::*</td><td>Os relatórios que o admin do token pode abrir, com os filtros de cada um.</td></tr><tr><td><code>report</code></td><td>admin: a permissão do relatório</td><td>Um relatório, como na tela.</td></tr><tr><td><code>tryOnSettings</code></td><td>público (sem login, enabled: false)</td><td>Antes de mostrar o provador.</td></tr><tr><td><code>tryOn</code></td><td>cliente (token)</td><td>Uma prova do cliente do token; consulte a cada 2 s enquanto PROCESSING.</td></tr><tr><td><code>myWishlist</code></td><td>cliente (token)</td><td>Os favoritos do cliente do token, o mais recente primeiro.</td></tr><tr><td><code>privacy</code></td><td>público</td><td>Política de privacidade de um website (pública, sem login), com o encarregado, os operadores e as categorias de cookies.</td></tr><tr><td><code>myPersonalData</code></td><td>cliente (token)</td><td>Cópia dos dados pessoais do cliente do token (LGPD, art.</td></tr><tr><td><code>currentAdmin</code></td><td>admin (qualquer)</td><td>O usuário do token (ou da sessão do painel); null sem login.</td></tr></table>
   <h3>11.2 Mutações (mutation)</h3>
-  <table class="ref"><tr><th>Campo</th><th>Quem pode</th><th>Descrição (do schema)</th></tr><tr><td><code>createStore</code></td><td>admin: Iter_Store::store</td><td>Cria uma loja (store view).</td></tr><tr><td><code>updateStore</code></td><td>admin: Iter_Store::store</td><td>Altera uma loja.</td></tr><tr><td><code>deleteStore</code></td><td>admin: Iter_Store::store</td><td>Exclui uma loja.</td></tr><tr><td><code>saveMobileOrder</code></td><td>admin: Iter_Catalog::mobile</td><td>Catálogo → Mobile (admin), como o &quot;Salvar&quot; da tela.</td></tr><tr><td><code>createProduct</code></td><td>admin: Iter_Catalog::product</td><td>Cria um produto simples ou com grade, com os atributos, websites e categorias.</td></tr><tr><td><code>updateProduct</code></td><td>admin: Iter_Catalog::product</td><td>Só muda o que for enviado; atributos omitidos mantêm o valor.</td></tr><tr><td><code>saveVariants</code></td><td>admin: Iter_Catalog::product</td><td>A lista enviada é a lista final.</td></tr><tr><td><code>deleteProduct</code></td><td>admin: Iter_Catalog::product</td><td>Exclui o produto (e as variações).</td></tr><tr><td><code>uploadProductImage</code></td><td>admin: Iter_Catalog::product</td><td>Envia a imagem de um atributo de imagem do conjunto do produto (troca a atual), pelo multipart request spec com token.</td></tr><tr><td><code>createCategory</code></td><td>admin: Iter_Catalog::category</td><td>Sem parentId, uma categoria principal do website.</td></tr><tr><td><code>updateCategory</code></td><td>admin: Iter_Catalog::category</td><td>Só muda o que for enviado.</td></tr><tr><td><code>moveCategory</code></td><td>admin: Iter_Catalog::category</td><td>Muda a categoria mãe (sem parentId = principal) e a posição.</td></tr><tr><td><code>setCategoryBanners</code></td><td>admin: Iter_Catalog::category</td><td>Os banners da categoria (como o bloco &quot;Banners&quot; do formulário).</td></tr><tr><td><code>deleteCategory</code></td><td>admin: Iter_Catalog::category</td><td>Recusada com subcategorias (CATEGORY_HAS_CHILDREN) ou produtos (CATEGORY_HAS_PRODUCTS).</td></tr><tr><td><code>setProductStock</code></td><td>admin: Iter_Inventory::stock</td><td>Só muda as origens enviadas; as outras mantêm o que têm.</td></tr><tr><td><code>registerCustomer</code></td><td>público</td><td>Cadastro pela loja.</td></tr><tr><td><code>confirmCustomerEmail</code></td><td>público</td><td>O token do link do e-mail de confirmação.</td></tr><tr><td><code>generateCustomerToken</code></td><td>público</td><td>Login do cliente pela loja.</td></tr><tr><td><code>refreshCustomerToken</code></td><td>cliente (token)</td><td>Troca o token enviado por um novo, com a validade renovada (app mobile).</td></tr><tr><td><code>revokeCustomerToken</code></td><td>cliente (token)</td><td>Logout.</td></tr><tr><td><code>requestCustomerPasswordReset</code></td><td>público</td><td>Senha esquecida.</td></tr><tr><td><code>resetCustomerPassword</code></td><td>público</td><td>O token do link do e-mail + a nova senha.</td></tr><tr><td><code>updateMe</code></td><td>cliente (token)</td><td>O cliente do token muda os próprios dados; só muda o que for enviado.</td></tr><tr><td><code>changeMyPassword</code></td><td>cliente (token)</td><td>Troca a senha do cliente do token.</td></tr><tr><td><code>createMyAddress</code></td><td>cliente (token)</td><td>Novo endereço do cliente do token.</td></tr><tr><td><code>updateMyAddress</code></td><td>cliente (token)</td><td>Troca o endereço inteiro (o id vem em address.id).</td></tr><tr><td><code>setMyDefaultAddress</code></td><td>cliente (token)</td><td>Torna o endereço o padrão de entrega e/ou de cobrança.</td></tr><tr><td><code>deleteMyAddress</code></td><td>cliente (token)</td><td>Remove o endereço.</td></tr><tr><td><code>createCustomer</code></td><td>admin: Iter_Customer::customer</td><td>Cria um cliente pelo admin, com endereços.</td></tr><tr><td><code>updateCustomer</code></td><td>admin: Iter_Customer::customer</td><td>Só muda o que for enviado; atributos omitidos mantêm o valor.</td></tr><tr><td><code>deleteCustomer</code></td><td>admin: Iter_Customer::customer</td><td>Apaga também os endereços e os atributos.</td></tr><tr><td><code>createCart</code></td><td>público</td><td>Novo carrinho de visitante; devolve o cartId (guarde-o.</td></tr><tr><td><code>addToCart</code></td><td>público ou cliente</td><td>Soma à quantidade que já estiver no carrinho.</td></tr><tr><td><code>updateCartItem</code></td><td>público ou cliente</td><td>A nova quantidade do item; 0 remove.</td></tr><tr><td><code>removeCartItem</code></td><td>público ou cliente</td><td>Tira um item do carrinho.</td></tr><tr><td><code>mergeCarts</code></td><td>cliente (token)</td><td>Depois do login.</td></tr><tr><td><code>setCartGuestInfo</code></td><td>público</td><td>Dados do visitante para o pedido.</td></tr><tr><td><code>setCartShippingAddress</code></td><td>público ou cliente</td><td>O endereço digitado (address) ou um salvo do cliente (customerAddressId).</td></tr><tr><td><code>setCartShippingMethod</code></td><td>público ou cliente</td><td>Um code de availableShippingMethods.</td></tr><tr><td><code>setCartPaymentMethod</code></td><td>público ou cliente</td><td>Um code de availablePaymentMethods.</td></tr><tr><td><code>applyCartCoupon</code></td><td>público ou cliente</td><td>Aplica um cupom no carrinho e devolve os valores recalculados.</td></tr><tr><td><code>removeCartCoupon</code></td><td>público ou cliente</td><td>Remove o cupom do carrinho e recalcula promoções automáticas.</td></tr><tr><td><code>placeOrder</code></td><td>público ou cliente</td><td>Fecha o pedido.</td></tr><tr><td><code>setCartBillingAddress</code></td><td>público ou cliente</td><td>Como o de entrega; sem address nem customerAddressId, a cobrança é no endereço de entrega.</td></tr><tr><td><code>changeMyOrderPaymentMethod</code></td><td>cliente (token)</td><td>O cliente do token troca a forma de pagamento de um pedido dele que aguarda pagamento (ex..</td></tr><tr><td><code>confirmOrderPayment</code></td><td>admin: Iter_Sales::order_payment</td><td>Aguardando pagamento → Pagamento confirmado.</td></tr><tr><td><code>shipOrder</code></td><td>admin: Iter_Sales::order_ship</td><td>Pagamento confirmado → Enviado.</td></tr><tr><td><code>completeOrder</code></td><td>admin: Iter_Sales::order_ship</td><td>Enviado → Concluído (o cliente recebeu).</td></tr><tr><td><code>cancelOrder</code></td><td>admin: Iter_Sales::order_cancel</td><td>Antes do envio.</td></tr><tr><td><code>addOrderComment</code></td><td>admin: Iter_Sales::order</td><td>Comentário no histórico, em qualquer situação.</td></tr><tr><td><code>createAdminCart</code></td><td>admin: Iter_Adminsales::create</td><td>Um pedido em montagem pelo admin; devolve o cartId, usado nas mutations do carrinho e no placeAdminOrder.</td></tr><tr><td><code>placeAdminOrder</code></td><td>admin: Iter_Adminsales::create</td><td>Fecha o pedido em montagem.</td></tr><tr><td><code>saveShippingTableRates</code></td><td>admin: Iter_Shipping::rates</td><td>A lista enviada é a tabela inteira do website (faixa ausente é removida).</td></tr><tr><td><code>payOrder</code></td><td>cliente, ou visitante com número + e-mail</td><td>Cobra pelo Mercado Pago um pedido &quot;Aguardando pagamento&quot;.</td></tr><tr><td><code>sendCustomerMessage</code></td><td>cliente (token)</td><td>O cliente do token escreve para a loja (1 a 2000 caracteres).</td></tr><tr><td><code>adminSendCustomerMessage</code></td><td>admin: Iter_Message::manage</td><td>A loja escreve para o cliente, mesmo sem conversa anterior.</td></tr><tr><td><code>startTryOn</code></td><td>cliente (token)</td><td>A foto do cliente vestindo o produto, pelo multipart request spec com o token do cliente.</td></tr><tr><td><code>addToWishlist</code></td><td>cliente (token)</td><td>Favorita um produto (o pai, num produto com grade).</td></tr><tr><td><code>removeFromWishlist</code></td><td>cliente (token)</td><td>Tira o produto dos favoritos.</td></tr><tr><td><code>subscribeNewsletter</code></td><td>público</td><td>Inscreve o e-mail na newsletter da loja e manda o e-mail de confirmação (só recebe depois de confirmar).</td></tr><tr><td><code>confirmNewsletter</code></td><td>público</td><td>A página do link do e-mail de confirmação chama com o token do link.</td></tr><tr><td><code>generateAdminToken</code></td><td>público</td><td>Login do admin pela API.</td></tr><tr><td><code>revokeAdminToken</code></td><td>admin (qualquer)</td><td>Logout.</td></tr></table>
+  <table class="ref"><tr><th>Campo</th><th>Quem pode</th><th>Descrição (do schema)</th></tr><tr><td><code>createStore</code></td><td>admin: Iter_Store::store</td><td>Cria uma loja (store view).</td></tr><tr><td><code>updateStore</code></td><td>admin: Iter_Store::store</td><td>Altera uma loja.</td></tr><tr><td><code>deleteStore</code></td><td>admin: Iter_Store::store</td><td>Exclui uma loja.</td></tr><tr><td><code>saveMobileOrder</code></td><td>admin: Iter_Catalog::mobile</td><td>Catálogo → Mobile (admin), como o &quot;Salvar&quot; da tela.</td></tr><tr><td><code>createProduct</code></td><td>admin: Iter_Catalog::product</td><td>Cria um produto simples ou com grade, com os atributos, websites e categorias.</td></tr><tr><td><code>updateProduct</code></td><td>admin: Iter_Catalog::product</td><td>Só muda o que for enviado; atributos omitidos mantêm o valor.</td></tr><tr><td><code>saveVariants</code></td><td>admin: Iter_Catalog::product</td><td>A lista enviada é a lista final.</td></tr><tr><td><code>deleteProduct</code></td><td>admin: Iter_Catalog::product</td><td>Exclui o produto (e as variações).</td></tr><tr><td><code>uploadProductImage</code></td><td>admin: Iter_Catalog::product</td><td>Envia a imagem de um atributo de imagem do conjunto do produto (troca a atual), pelo multipart request spec com token.</td></tr><tr><td><code>createCategory</code></td><td>admin: Iter_Catalog::category</td><td>Sem parentId, uma categoria principal do website.</td></tr><tr><td><code>updateCategory</code></td><td>admin: Iter_Catalog::category</td><td>Só muda o que for enviado.</td></tr><tr><td><code>moveCategory</code></td><td>admin: Iter_Catalog::category</td><td>Muda a categoria mãe (sem parentId = principal) e a posição.</td></tr><tr><td><code>setCategoryBanners</code></td><td>admin: Iter_Catalog::category</td><td>Os banners da categoria (como o bloco &quot;Banners&quot; do formulário).</td></tr><tr><td><code>deleteCategory</code></td><td>admin: Iter_Catalog::category</td><td>Recusada com subcategorias (CATEGORY_HAS_CHILDREN) ou produtos (CATEGORY_HAS_PRODUCTS).</td></tr><tr><td><code>setProductStock</code></td><td>admin: Iter_Inventory::stock</td><td>Só muda as origens enviadas; as outras mantêm o que têm.</td></tr><tr><td><code>registerCustomer</code></td><td>público</td><td>Cadastro pela loja.</td></tr><tr><td><code>confirmCustomerEmail</code></td><td>público</td><td>O token do link do e-mail de confirmação.</td></tr><tr><td><code>generateCustomerToken</code></td><td>público</td><td>Login do cliente pela loja.</td></tr><tr><td><code>refreshCustomerToken</code></td><td>cliente (token)</td><td>Troca o token enviado por um novo, com a validade renovada (app mobile).</td></tr><tr><td><code>revokeCustomerToken</code></td><td>cliente (token)</td><td>Logout.</td></tr><tr><td><code>requestCustomerPasswordReset</code></td><td>público</td><td>Senha esquecida.</td></tr><tr><td><code>resetCustomerPassword</code></td><td>público</td><td>O token do link do e-mail + a nova senha.</td></tr><tr><td><code>updateMe</code></td><td>cliente (token)</td><td>O cliente do token muda os próprios dados; só muda o que for enviado.</td></tr><tr><td><code>changeMyPassword</code></td><td>cliente (token)</td><td>Troca a senha do cliente do token.</td></tr><tr><td><code>createMyAddress</code></td><td>cliente (token)</td><td>Novo endereço do cliente do token.</td></tr><tr><td><code>updateMyAddress</code></td><td>cliente (token)</td><td>Troca o endereço inteiro (o id vem em address.id).</td></tr><tr><td><code>setMyDefaultAddress</code></td><td>cliente (token)</td><td>Torna o endereço o padrão de entrega e/ou de cobrança.</td></tr><tr><td><code>deleteMyAddress</code></td><td>cliente (token)</td><td>Remove o endereço.</td></tr><tr><td><code>createCustomer</code></td><td>admin: Iter_Customer::customer</td><td>Cria um cliente pelo admin, com endereços.</td></tr><tr><td><code>updateCustomer</code></td><td>admin: Iter_Customer::customer</td><td>Só muda o que for enviado; atributos omitidos mantêm o valor.</td></tr><tr><td><code>deleteCustomer</code></td><td>admin: Iter_Customer::customer</td><td>Apaga também os endereços e os atributos.</td></tr><tr><td><code>createCart</code></td><td>público</td><td>Novo carrinho de visitante; devolve o cartId (guarde-o.</td></tr><tr><td><code>addToCart</code></td><td>público ou cliente</td><td>Soma à quantidade que já estiver no carrinho.</td></tr><tr><td><code>updateCartItem</code></td><td>público ou cliente</td><td>A nova quantidade do item; 0 remove.</td></tr><tr><td><code>removeCartItem</code></td><td>público ou cliente</td><td>Tira um item do carrinho.</td></tr><tr><td><code>mergeCarts</code></td><td>cliente (token)</td><td>Depois do login.</td></tr><tr><td><code>setCartGuestInfo</code></td><td>público</td><td>Dados do visitante para o pedido.</td></tr><tr><td><code>setCartShippingAddress</code></td><td>público ou cliente</td><td>O endereço digitado (address) ou um salvo do cliente (customerAddressId).</td></tr><tr><td><code>setCartShippingMethod</code></td><td>público ou cliente</td><td>Um code de availableShippingMethods.</td></tr><tr><td><code>setCartPaymentMethod</code></td><td>público ou cliente</td><td>Um code de availablePaymentMethods.</td></tr><tr><td><code>applyCartCoupon</code></td><td>público ou cliente</td><td>Aplica um cupom no carrinho e devolve os valores recalculados.</td></tr><tr><td><code>removeCartCoupon</code></td><td>público ou cliente</td><td>Remove o cupom do carrinho e recalcula promoções automáticas.</td></tr><tr><td><code>placeOrder</code></td><td>público ou cliente</td><td>Fecha o pedido.</td></tr><tr><td><code>setCartBillingAddress</code></td><td>público ou cliente</td><td>Como o de entrega; sem address nem customerAddressId, a cobrança é no endereço de entrega.</td></tr><tr><td><code>changeMyOrderPaymentMethod</code></td><td>cliente (token)</td><td>O cliente do token troca a forma de pagamento de um pedido dele que aguarda pagamento (ex..</td></tr><tr><td><code>confirmOrderPayment</code></td><td>admin: Iter_Sales::order_payment</td><td>Aguardando pagamento → Pagamento confirmado.</td></tr><tr><td><code>shipOrder</code></td><td>admin: Iter_Sales::order_ship</td><td>Pagamento confirmado → Enviado.</td></tr><tr><td><code>completeOrder</code></td><td>admin: Iter_Sales::order_ship</td><td>Enviado → Concluído (o cliente recebeu).</td></tr><tr><td><code>cancelOrder</code></td><td>admin: Iter_Sales::order_cancel</td><td>Antes do envio.</td></tr><tr><td><code>addOrderComment</code></td><td>admin: Iter_Sales::order</td><td>Comentário no histórico, em qualquer situação.</td></tr><tr><td><code>createAdminCart</code></td><td>admin: Iter_Adminsales::create</td><td>Um pedido em montagem pelo admin; devolve o cartId, usado nas mutations do carrinho e no placeAdminOrder.</td></tr><tr><td><code>placeAdminOrder</code></td><td>admin: Iter_Adminsales::create</td><td>Fecha o pedido em montagem.</td></tr><tr><td><code>saveShippingTableRates</code></td><td>admin: Iter_Shipping::rates</td><td>A lista enviada é a tabela inteira do website (faixa ausente é removida).</td></tr><tr><td><code>payOrder</code></td><td>cliente, ou visitante com número + e-mail</td><td>Cobra pelo Mercado Pago um pedido &quot;Aguardando pagamento&quot;.</td></tr><tr><td><code>sendCustomerMessage</code></td><td>cliente (token)</td><td>O cliente do token escreve para a loja (1 a 2000 caracteres).</td></tr><tr><td><code>adminSendCustomerMessage</code></td><td>admin: Iter_Message::manage</td><td>A loja escreve para o cliente, mesmo sem conversa anterior.</td></tr><tr><td><code>startTryOn</code></td><td>cliente (token)</td><td>A foto do cliente vestindo o produto, pelo multipart request spec com o token do cliente.</td></tr><tr><td><code>addToWishlist</code></td><td>cliente (token)</td><td>Favorita um produto (o pai, num produto com grade).</td></tr><tr><td><code>removeFromWishlist</code></td><td>cliente (token)</td><td>Tira o produto dos favoritos.</td></tr><tr><td><code>subscribeNewsletter</code></td><td>público</td><td>Inscreve o e-mail na newsletter da loja e manda o e-mail de confirmação (só recebe depois de confirmar).</td></tr><tr><td><code>confirmNewsletter</code></td><td>público</td><td>A página do link do e-mail de confirmação chama com o token do link.</td></tr><tr><td><code>acceptPrivacy</code></td><td>cliente (token)</td><td>O cliente do token aceita a política em vigor do website dele.</td></tr><tr><td><code>saveCookieConsent</code></td><td>público (com login, fica ligado ao cliente)</td><td>Grava a escolha do aviso de cookies da loja web, como prova (sem login; com login, fica ligada ao cliente e sai na cópia dos dados).</td></tr><tr><td><code>deleteMe</code></td><td>cliente (token)</td><td>Exclui a conta do cliente do token (LGPD, art.</td></tr><tr><td><code>generateAdminToken</code></td><td>público</td><td>Login do admin pela API.</td></tr><tr><td><code>revokeAdminToken</code></td><td>admin (qualquer)</td><td>Logout.</td></tr></table>
 </section>
 
 <section class="final">

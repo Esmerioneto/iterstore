@@ -108,6 +108,26 @@ $run('webHome', '{
 }');
 $run('subscribeNewsletter', 'mutation Inscrever($email: String!) { subscribeNewsletter(email: $email) }', ['email' => 'leitora@exemplo.com.br']);
 $run('subscribeInvalid', 'mutation { subscribeNewsletter(email: "sem-arroba") }');
+// LGPD: the policy of the default website (published here if there is none) and the cookie notice
+$websiteDefault = (int) $db->fetchOne('SELECT website_id FROM store_website WHERE is_default = 1');
+$policies = new Iter\Lgpd\Model\PolicyService();
+$policies->current($websiteDefault) ?? $policies->publish($websiteDefault, "Esta política explica quais dados pessoais a loja guarda, para quê e por quanto tempo.\n\nTexto de exemplo.", null);
+$policyVersion = (int) $policies->current($websiteDefault)['version'];
+$run('privacy', '{
+  privacy {
+    version publishedAt text
+    dpo { name email }
+    operators { name country purpose international }
+    cookieBannerText
+    cookieCategories { code label description required }
+  }
+}');
+$run('saveCookieConsent', 'mutation Cookies($visitor: String!, $versao: Int) {
+  saveCookieConsent(visitorId: $visitor, categories: ["necessary", "statistics"], policyVersion: $versao)
+}', ['visitor' => '3f9c2a7e5b1d4c8e9a0f6b2d7c4e1a95', 'versao' => $policyVersion], null, ['X-Store-Url' => 'https://loja.exemplo.com.br']);
+// the policy is the store's own long text: the manual shows its start
+$out['privacy']['response']['data']['privacy']['text'] = mb_substr((string) $out['privacy']['response']['data']['privacy']['text'], 0, 160) . '…';
+$run('saveCookieInvalid', 'mutation { saveCookieConsent(visitorId: "3f9c2a7e5b1d4c8e9a0f6b2d7c4e1a95", categories: ["ads"]) }');
 // the confirmation link went to the e-mail queue (rolled back with the rest); the page of the link sends its token
 preg_match('/token=([0-9a-f]{64})/', (string) $db->fetchOne("SELECT body_html FROM mail_queue WHERE to_email = 'leitora@exemplo.com.br' ORDER BY 1 DESC LIMIT 1"), $nl);
 $run('confirmNewsletter', 'mutation Confirmar($token: String!) { confirmNewsletter(token: $token) }', ['token' => $nl[1] ?? 'sem-token']);
@@ -192,6 +212,14 @@ $run('myWishlist', '{
 $run('removeFromWishlist', 'mutation Desfavoritar($id: ID!) { removeFromWishlist(productId: $id) }', ['id' => (string) $parent['product_id']], $customer);
 $run('wishlistNoToken', '{ myWishlist { total } }');
 $run('myOrders', '{ myOrders { total items { number statusLabel total } } }', [], $customer);
+// LGPD: policy acceptance, the copy and the account deletion (last: the token stops working)
+$run('privacyStatus', '{ me { privacyVersion } privacy { version } }', [], $customer);
+$run('acceptPrivacyOld', 'mutation { acceptPrivacy(version: ' . ($policyVersion + 1) . ') }', [], $customer);
+$run('acceptPrivacy', 'mutation Aceitar($versao: Int!) { acceptPrivacy(version: $versao) }', ['versao' => $policyVersion], $customer);
+$run('myPersonalData', '{ myPersonalData }', [], $customer);
+$run('deleteMeWrong', 'mutation { deleteMe(currentPassword: "errada") }', [], $customer);
+$run('deleteMe', 'mutation Excluir($senha: String!) { deleteMe(currentPassword: $senha) }', ['senha' => 'SenhaDoJoao123'], $customer);
+$run('afterDeleteMe', '{ me { id } }', [], $customer);
 $run('noToken', '{ me { id } }');
 
 // --- admin: orders, catalog, stock, reports ----------------------------------------------------------------------

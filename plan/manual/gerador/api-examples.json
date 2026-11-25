@@ -7,8 +7,8 @@
         "response": {
             "data": {
                 "generateAdminToken": {
-                    "token": "0e22d24ba8b9908ae5b19d81a2bf32c591f953edc50af1ff16a7303bd35c2a61",
-                    "expires_at": "2026-11-13 19:02:44",
+                    "token": "cbfc79b3e92ee6301db4a3deb760ca5dd99f0ecd0a8a64e184d210ad98be0a17",
+                    "expires_at": "2026-11-25 18:18:27",
                     "user": {
                         "username": "integracao",
                         "role": "Administradores"
@@ -50,7 +50,7 @@
         "response": {
             "data": {
                 "currentAdmin": {
-                    "id": "6045",
+                    "id": "6202",
                     "username": "integracao",
                     "firstname": "Integração",
                     "role": "Administradores"
@@ -911,10 +911,117 @@
             ]
         }
     },
+    "privacy": {
+        "query": "{\n  privacy {\n    version publishedAt text\n    dpo { name email }\n    operators { name country purpose international }\n    cookieBannerText\n    cookieCategories { code label description required }\n  }\n}",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "data": {
+                "privacy": {
+                    "version": 2,
+                    "publishedAt": "2026-11-22 01:19:56",
+                    "text": "Segundo a Lei nº 13.709, de 14/08/2018, Lei Geral de Proteção de Dados Pessoais,\nLGPD, uma das hipóteses para o tratamento de dados é a manifestação do\nconsenti…",
+                    "dpo": {
+                        "name": "Esmerio Neto",
+                        "email": "esmerioneto@gmail.com"
+                    },
+                    "operators": [
+                        {
+                            "name": "Servidor de e-mail (SMTP)",
+                            "country": "país a confirmar",
+                            "purpose": "entregar os e-mails",
+                            "international": false
+                        },
+                        {
+                            "name": "Mercado Pago",
+                            "country": "Brasil",
+                            "purpose": "processar pagamentos (Pix e cartão)",
+                            "international": false
+                        },
+                        {
+                            "name": "Melhor Envio",
+                            "country": "Brasil",
+                            "purpose": "cotação de frete",
+                            "international": false
+                        },
+                        {
+                            "name": "Hugging Face (FASHN)",
+                            "country": "EUA",
+                            "purpose": "gerar a imagem do provador virtual",
+                            "international": true
+                        }
+                    ],
+                    "cookieBannerText": "Usamos apenas cookies necessários para a loja funcionar (login, sacola e segurança).",
+                    "cookieCategories": [
+                        {
+                            "code": "necessary",
+                            "label": "Necessários",
+                            "description": "Login, carrinho e segurança. Sem eles a loja não funciona.",
+                            "required": true
+                        },
+                        {
+                            "code": "statistics",
+                            "label": "Estatística",
+                            "description": "Contam visitas e cliques para melhorar a loja (ex.: Google Analytics).",
+                            "required": false
+                        },
+                        {
+                            "code": "marketing",
+                            "label": "Marketing",
+                            "description": "Mostram anúncios de acordo com o que você viu na loja (ex.: Google Ads, Meta).",
+                            "required": false
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "saveCookieConsent": {
+        "query": "mutation Cookies($visitor: String!, $versao: Int) {\n  saveCookieConsent(visitorId: $visitor, categories: [\"necessary\", \"statistics\"], policyVersion: $versao)\n}",
+        "variables": {
+            "visitor": "3f9c2a7e5b1d4c8e9a0f6b2d7c4e1a95",
+            "versao": 2
+        },
+        "token": false,
+        "headers": {
+            "X-Store-Url": "https://loja.exemplo.com.br"
+        },
+        "response": {
+            "data": {
+                "saveCookieConsent": true
+            }
+        }
+    },
+    "saveCookieInvalid": {
+        "query": "mutation { saveCookieConsent(visitorId: \"3f9c2a7e5b1d4c8e9a0f6b2d7c4e1a95\", categories: [\"ads\"]) }",
+        "variables": [],
+        "token": false,
+        "headers": [],
+        "response": {
+            "errors": [
+                {
+                    "message": "Categoria desconhecida: ads.",
+                    "locations": [
+                        {
+                            "line": 1,
+                            "column": 12
+                        }
+                    ],
+                    "path": [
+                        "saveCookieConsent"
+                    ],
+                    "extensions": {
+                        "code": "INVALID_INPUT"
+                    }
+                }
+            ]
+        }
+    },
     "confirmNewsletter": {
         "query": "mutation Confirmar($token: String!) { confirmNewsletter(token: $token) }",
         "variables": {
-            "token": "bf44fb88d012d7e806eb65f14b9a808bd332d7d6ca73e57ae3fa19252d6214d0"
+            "token": "e3b3d039f809c439b9bb8f8ef7b8164cb903d8db29680b5dffa577aeb03e70aa"
         },
         "token": false,
         "headers": [],
@@ -927,7 +1034,7 @@
     "confirmNewsletterAgain": {
         "query": "mutation Confirmar($token: String!) { confirmNewsletter(token: $token) }",
         "variables": {
-            "token": "bf44fb88d012d7e806eb65f14b9a808bd332d7d6ca73e57ae3fa19252d6214d0"
+            "token": "e3b3d039f809c439b9bb8f8ef7b8164cb903d8db29680b5dffa577aeb03e70aa"
         },
         "token": false,
         "headers": [],
@@ -958,14 +1065,14 @@
         "headers": [],
         "response": {
             "data": {
-                "createCart": "3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49"
+                "createCart": "97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e"
             }
         }
     },
     "addToCart": {
         "query": "mutation Adicionar($cartId: String!, $sku: String!) {\n  addToCart(cartId: $cartId, sku: $sku, quantity: 2) { items { id sku name quantity price rowTotal error } subtotal discountAmount shippingAmount total hasErrors }\n}",
         "variables": {
-            "cartId": "3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49",
+            "cartId": "97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e",
             "sku": "003"
         },
         "token": false,
@@ -975,7 +1082,7 @@
                 "addToCart": {
                     "items": [
                         {
-                            "id": "7500",
+                            "id": "7643",
                             "sku": "003",
                             "name": "Blusa branca lisa",
                             "quantity": 2,
@@ -994,7 +1101,7 @@
         }
     },
     "addConfigurable": {
-        "query": "mutation { addToCart(cartId: \"3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49\", sku: \"MODA-CALCA-JEANS\", quantity: 1) { total } }",
+        "query": "mutation { addToCart(cartId: \"97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e\", sku: \"MODA-CALCA-JEANS\", quantity: 1) { total } }",
         "variables": [],
         "token": false,
         "headers": [],
@@ -1021,7 +1128,7 @@
     "guestInfo": {
         "query": "mutation Visitante($cartId: String!) {\n  setCartGuestInfo(cartId: $cartId, email: \"maria@exemplo.com.br\", firstname: \"Maria\", lastname: \"Souza\", taxvat: \"529.982.247-25\") { email firstname taxvat }\n}",
         "variables": {
-            "cartId": "3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49"
+            "cartId": "97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e"
         },
         "token": false,
         "headers": [],
@@ -1036,7 +1143,7 @@
         }
     },
     "shippingQuotes": {
-        "query": "{ shippingQuotes(cartId: \"3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49\", destinationCep: \"20040-020\") { code label amount days } }",
+        "query": "{ shippingQuotes(cartId: \"97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e\", destinationCep: \"20040-020\") { code label amount days } }",
         "variables": [],
         "token": false,
         "headers": [],
@@ -1074,7 +1181,7 @@
     "shippingAddress": {
         "query": "mutation Endereco($cartId: String!, $endereco: CartAddressInput!) {\n  setCartShippingAddress(cartId: $cartId, address: $endereco) {\n    shippingAddress { postcode city region }\n    availableShippingMethods { code label amount days }\n  }\n}",
         "variables": {
-            "cartId": "3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49",
+            "cartId": "97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e",
             "endereco": {
                 "recipient": "Maria Souza",
                 "postcode": "20040-020",
@@ -1127,7 +1234,7 @@
         }
     },
     "shippingMethod": {
-        "query": "mutation { setCartShippingMethod(cartId: \"3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49\", code: \"pickup\") { shippingMethod { code label amount } total availablePaymentMethods { code label } } }",
+        "query": "mutation { setCartShippingMethod(cartId: \"97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e\", code: \"pickup\") { shippingMethod { code label amount } total availablePaymentMethods { code label } } }",
         "variables": [],
         "token": false,
         "headers": [],
@@ -1159,7 +1266,7 @@
         }
     },
     "paymentMethod": {
-        "query": "mutation { setCartPaymentMethod(cartId: \"3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49\", code: \"mercadopago_pix\") { paymentMethod { code label } total } }",
+        "query": "mutation { setCartPaymentMethod(cartId: \"97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e\", code: \"mercadopago_pix\") { paymentMethod { code label } total } }",
         "variables": [],
         "token": false,
         "headers": [],
@@ -1176,7 +1283,7 @@
         }
     },
     "totalChanged": {
-        "query": "mutation { placeOrder(cartId: \"3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49\", expectedTotal: 1.00) { number } }",
+        "query": "mutation { placeOrder(cartId: \"97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e\", expectedTotal: 1.00) { number } }",
         "variables": [],
         "token": false,
         "headers": [],
@@ -1203,7 +1310,7 @@
     "placeOrder": {
         "query": "mutation Fechar($cartId: String!, $total: Float!) {\n  placeOrder(cartId: $cartId, expectedTotal: $total) {\n    id number status statusLabel total salesChannel\n    paymentMethod paymentInstructions\n    items { sku name quantity price rowTotal }\n  }\n}",
         "variables": {
-            "cartId": "3ffeb7d5e273293903caa4b81a6def2df18b862608fbfeb216887625a62cdb49",
+            "cartId": "97ee2884fcbcd2654273dd44f70512ddeb32e2272f06acf6d631de1949378e5e",
             "total": 71.2
         },
         "token": false,
@@ -1213,8 +1320,8 @@
         "response": {
             "data": {
                 "placeOrder": {
-                    "id": "7724",
-                    "number": "RJ000076",
+                    "id": "7940",
+                    "number": "RJ000077",
                     "status": "pending_payment",
                     "statusLabel": "Aguardando pagamento",
                     "total": 71.2,
@@ -1235,14 +1342,14 @@
         }
     },
     "guestOrder": {
-        "query": "{ guestOrder(number: \"RJ000076\", email: \"maria@exemplo.com.br\") { number statusLabel total } }",
+        "query": "{ guestOrder(number: \"RJ000077\", email: \"maria@exemplo.com.br\") { number statusLabel total } }",
         "variables": [],
         "token": false,
         "headers": [],
         "response": {
             "data": {
                 "guestOrder": {
-                    "number": "RJ000076",
+                    "number": "RJ000077",
                     "statusLabel": "Aguardando pagamento",
                     "total": 71.2
                 }
@@ -1259,11 +1366,11 @@
         "response": {
             "data": {
                 "registerCustomer": {
-                    "token": "b08c70fc80acfba467fbfce4232020bbe04da0025703d72c3c75f2f5dcf13b5e",
-                    "expires_at": "2026-12-13 15:02:46",
+                    "token": "48ec09012c2530c9272672dc78346aee21117cad0c43db2e382681e615b30801",
+                    "expires_at": "2026-12-25 14:18:27",
                     "confirmationRequired": false,
                     "customer": {
-                        "id": "3855",
+                        "id": "4034",
                         "email": "joao@exemplo.com.br",
                         "firstname": "João"
                     }
@@ -1279,10 +1386,10 @@
         "response": {
             "data": {
                 "generateCustomerToken": {
-                    "token": "e87413f898ac11ba785d7a612d0bf47bc5a30ed4779ef612616dc3514416c4e7",
-                    "expires_at": "2026-12-13 15:02:46",
+                    "token": "454cc0e1e02f19f9040adeefa8806ae992c75f4602f307dc2a347216102f6f9e",
+                    "expires_at": "2026-12-25 14:18:27",
                     "customer": {
-                        "id": "3855",
+                        "id": "4034",
                         "firstname": "João"
                     }
                 }
@@ -1297,7 +1404,7 @@
         "response": {
             "data": {
                 "me": {
-                    "id": "3855",
+                    "id": "4034",
                     "email": "joao@exemplo.com.br",
                     "firstname": "João",
                     "lastname": "Lima",
@@ -1317,7 +1424,7 @@
             "data": {
                 "createMyAddress": [
                     {
-                        "id": "3036",
+                        "id": "3099",
                         "city": "São Paulo",
                         "region": "SP",
                         "is_default_shipping": true
@@ -1349,12 +1456,12 @@
         "headers": [],
         "response": {
             "data": {
-                "createCart": "4ce9330f28b68e048678f67b01712f230eb0c5a94ccb359136ac7794adc4bbb8"
+                "createCart": "ff4c526f03a4ff1d36d83bf2252acb7a67487ecc6a23301aa36efa0c389af138"
             }
         }
     },
     "addGuest2": {
-        "query": "mutation { addToCart(cartId: \"4ce9330f28b68e048678f67b01712f230eb0c5a94ccb359136ac7794adc4bbb8\", sku: \"003\", quantity: 1) { total } }",
+        "query": "mutation { addToCart(cartId: \"ff4c526f03a4ff1d36d83bf2252acb7a67487ecc6a23301aa36efa0c389af138\", sku: \"003\", quantity: 1) { total } }",
         "variables": [],
         "token": false,
         "headers": [],
@@ -1367,7 +1474,7 @@
         }
     },
     "mergeCarts": {
-        "query": "mutation { mergeCarts(cartId: \"4ce9330f28b68e048678f67b01712f230eb0c5a94ccb359136ac7794adc4bbb8\") { isGuest items { sku quantity } total } }",
+        "query": "mutation { mergeCarts(cartId: \"ff4c526f03a4ff1d36d83bf2252acb7a67487ecc6a23301aa36efa0c389af138\") { isGuest items { sku quantity } total } }",
         "variables": [],
         "token": true,
         "headers": [],
@@ -1435,7 +1542,7 @@
                     "total": 1,
                     "items": [
                         {
-                            "addedAt": "2026-11-13 15:02:44.84852-03",
+                            "addedAt": "2026-11-25 14:18:27.153711-03",
                             "product": {
                                 "id": "1821",
                                 "sku": "MODA-CALCA-JEANS",
@@ -1504,6 +1611,120 @@
             }
         }
     },
+    "privacyStatus": {
+        "query": "{ me { privacyVersion } privacy { version } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "me": {
+                    "privacyVersion": null
+                },
+                "privacy": {
+                    "version": 2
+                }
+            }
+        }
+    },
+    "acceptPrivacyOld": {
+        "query": "mutation { acceptPrivacy(version: 3) }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "errors": [
+                {
+                    "message": "A política mudou (versão 2). Mostre o texto novo e peça o aceite de novo.",
+                    "locations": [
+                        {
+                            "line": 1,
+                            "column": 12
+                        }
+                    ],
+                    "path": [
+                        "acceptPrivacy"
+                    ],
+                    "extensions": {
+                        "code": "POLICY_VERSION_OUTDATED"
+                    }
+                }
+            ]
+        }
+    },
+    "acceptPrivacy": {
+        "query": "mutation Aceitar($versao: Int!) { acceptPrivacy(version: $versao) }",
+        "variables": {
+            "versao": 2
+        },
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "acceptPrivacy": true
+            }
+        }
+    },
+    "myPersonalData": {
+        "query": "{ myPersonalData }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "myPersonalData": "{\n    \"Titular\": \"joao@exemplo.com.br\",\n    \"Gerado em\": \"25/11/2026 14:18\",\n    \"Sobre esta cópia\": \"Dados pessoais que a loja guarda sobre você, por assunto (LGPD, art. 18, II). Quem recebe esses dados e por quanto tempo estão na política de privacidade.\",\n    \"E-mails enviados\": [\n        \"2026-11-25 14:18 — Bem-vindo(a) à Iterstore\"\n    ],\n    \"Cadastro do cliente\": {\n        \"Cadastrado em\": \"2026-11-25 14:18\",\n        \"Website\": \"Loja RJ\",\n        \"Grupo\": \"Geral\",\n        \"Ativo\": \"Sim\",\n        \"E-mail\": \"joao@exemplo.com.br\",\n        \"Nome\": \"João\",\n        \"Sobrenome\": \"Lima\",\n        \"Tipo\": \"Pessoa física\",\n        \"CPF/CNPJ\": \"11144477735\",\n        \"Isento de IE\": \"Não\",\n        \"Endereço 3099\": \"CEP: 01310100; Rua: Avenida Paulista; Número: 1000; Bairro: Bela Vista; Cidade: São Paulo; Estado (UF): São Paulo; Destinatário: João Lima (entrega padrão, cobrança padrão)\"\n    },\n    \"Pedidos\": {\n        \"Carrinho\": [\n            \"1.0000 × Blusa branca lisa (003)\"\n        ]\n    },\n    \"Aceite da política, aviso de cookies e solicitações LGPD\": {\n        \"Política de privacidade aceita\": [\n            \"Versão 2 em 2026-11-25 14:18\"\n        ]\n    }\n}"
+            }
+        }
+    },
+    "deleteMeWrong": {
+        "query": "mutation { deleteMe(currentPassword: \"errada\") }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "errors": [
+                {
+                    "message": "Senha atual incorreta.",
+                    "locations": [
+                        {
+                            "line": 1,
+                            "column": 12
+                        }
+                    ],
+                    "path": [
+                        "deleteMe"
+                    ],
+                    "extensions": {
+                        "code": "INVALID_CREDENTIALS"
+                    }
+                }
+            ]
+        }
+    },
+    "deleteMe": {
+        "query": "mutation Excluir($senha: String!) { deleteMe(currentPassword: $senha) }",
+        "variables": {
+            "senha": "SenhaDoJoao123"
+        },
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "deleteMe": true
+            }
+        }
+    },
+    "afterDeleteMe": {
+        "query": "{ me { id } }",
+        "variables": [],
+        "token": true,
+        "headers": [],
+        "response": {
+            "data": {
+                "me": null
+            }
+        }
+    },
     "noToken": {
         "query": "{ me { id } }",
         "variables": [],
@@ -1527,8 +1748,8 @@
                     "amount": 71.2,
                     "items": [
                         {
-                            "number": "RJ000076",
-                            "createdAt": "2026-11-13 15:02:44.84852",
+                            "number": "RJ000077",
+                            "createdAt": "2026-11-25 14:18:27.153711",
                             "statusLabel": "Aguardando pagamento",
                             "total": 71.2,
                             "salesChannel": "Site",
@@ -1565,26 +1786,26 @@
         }
     },
     "confirmPayment": {
-        "query": "mutation { confirmOrderPayment(id: \"7724\", comment: \"Pix conferido no extrato\") { number status statusLabel history { status comment createdAt } } }",
+        "query": "mutation { confirmOrderPayment(id: \"7940\", comment: \"Pix conferido no extrato\") { number status statusLabel history { status comment createdAt } } }",
         "variables": [],
         "token": true,
         "headers": [],
         "response": {
             "data": {
                 "confirmOrderPayment": {
-                    "number": "RJ000076",
+                    "number": "RJ000077",
                     "status": "processing",
                     "statusLabel": "Pagamento confirmado",
                     "history": [
                         {
                             "status": "processing",
                             "comment": "Pix conferido no extrato",
-                            "createdAt": "2026-11-13 15:02:44.84852"
+                            "createdAt": "2026-11-25 14:18:27.153711"
                         },
                         {
                             "status": "pending_payment",
                             "comment": null,
-                            "createdAt": "2026-11-13 15:02:44.84852"
+                            "createdAt": "2026-11-25 14:18:27.153711"
                         }
                     ]
                 }
@@ -1592,14 +1813,14 @@
         }
     },
     "shipOrder": {
-        "query": "mutation { shipOrder(id: \"7724\", carrier: \"Correios\", trackingCode: \"AA123456789BR\") { number statusLabel shipment { carrier trackingCode } } }",
+        "query": "mutation { shipOrder(id: \"7940\", carrier: \"Correios\", trackingCode: \"AA123456789BR\") { number statusLabel shipment { carrier trackingCode } } }",
         "variables": [],
         "token": true,
         "headers": [],
         "response": {
             "data": {
                 "shipOrder": {
-                    "number": "RJ000076",
+                    "number": "RJ000077",
                     "statusLabel": "Enviado",
                     "shipment": {
                         "carrier": "Correios",
@@ -1610,7 +1831,7 @@
         }
     },
     "salesSummary": {
-        "query": "{ salesSummary(from: \"2026-11-01\", to: \"2026-11-13\") { status statusLabel count amount } }",
+        "query": "{ salesSummary(from: \"2026-11-01\", to: \"2026-11-25\") { status statusLabel count amount } }",
         "variables": [],
         "token": true,
         "headers": [],
@@ -1626,8 +1847,8 @@
                     {
                         "status": "processing",
                         "statusLabel": "Pagamento confirmado",
-                        "count": 9,
-                        "amount": 1607.12
+                        "count": 10,
+                        "amount": 2246.92
                     },
                     {
                         "status": "shipped",
@@ -1674,7 +1895,7 @@
         "response": {
             "data": {
                 "createProduct": {
-                    "id": "22556",
+                    "id": "23605",
                     "sku": "CANECA-001",
                     "name": "Caneca de cerâmica",
                     "url_key": "caneca-de-ceramica",
@@ -1718,7 +1939,7 @@
         }
     },
     "updateProduct": {
-        "query": "mutation { updateProduct(id: \"22556\", attributes: [{ code: \"price\", value: \"44.90\" }]) { sku attributes { code value } } }",
+        "query": "mutation { updateProduct(id: \"23605\", attributes: [{ code: \"price\", value: \"44.90\" }]) { sku attributes { code value } } }",
         "variables": [],
         "token": true,
         "headers": [],
@@ -3201,35 +3422,35 @@
                             "1"
                         ]
                     ],
-                    "total": 13,
+                    "total": 25,
                     "totals": [
                         null,
-                        "11",
-                        "12.0000",
-                        "1718.80",
+                        "12",
+                        "14.0000",
+                        "2358.60",
                         "31.98",
                         "0.00",
-                        "1686.82",
+                        "2326.62",
                         null,
                         null,
-                        "153.34727272727",
+                        "193.885",
                         "0",
                         "4"
                     ],
                     "tiles": [
                         {
                             "label": "Faturamento",
-                            "value": "R$ 1.686,82",
-                            "note": "▲ 1.285,5% vs. 13 dias antes"
+                            "value": "R$ 2.326,62",
+                            "note": "▲ 106,2% vs. 25 dias antes"
                         },
                         {
                             "label": "Pedidos pagos",
-                            "value": "11",
-                            "note": "12 itens"
+                            "value": "12",
+                            "note": "14 itens"
                         },
                         {
                             "label": "Ticket médio",
-                            "value": "R$ 153,35",
+                            "value": "R$ 193,89",
                             "note": "com frete"
                         },
                         {

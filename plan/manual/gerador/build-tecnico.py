@@ -128,6 +128,7 @@ ACCESS = {
     'webHome': PUBLIC, 'subscribeNewsletter': PUBLIC, 'confirmNewsletter': PUBLIC,
     'tryOnSettings': PUBLIC + ' (sem login, enabled: false)', 'tryOn': CUST, 'startTryOn': CUST,
     'myWishlist': CUST, 'addToWishlist': CUST, 'removeFromWishlist': CUST,
+    'privacy': PUBLIC, 'saveCookieConsent': PUBLIC + ' (com login, fica ligado ao cliente)', 'acceptPrivacy': CUST, 'myPersonalData': CUST, 'deleteMe': CUST,
 }
 
 
@@ -192,6 +193,12 @@ ERRORS = [
     ('Favoritos e newsletter', [('PRODUCT_IS_VARIANT', 'addToWishlist com uma variação: favorite o produto pai.'), ('WISHLIST_LIMIT', 'A lista de favoritos já tem 200 produtos.'),
                                 ('INVALID_INPUT', 'subscribeNewsletter com e-mail inválido ou websiteId que não existe.'),
                                 ('TOKEN_INVALID', 'confirmNewsletter com link desconhecido, já usado ou vencido (HTTP 200, ao contrário do token de login).')]),
+    ('Privacidade (LGPD)', [('POLICY_VERSION_OUTDATED', 'acceptPrivacy com uma versão que não é a em vigor: mostre o texto de privacy de novo e peça o aceite.'),
+                            ('POLICY_NOT_PUBLISHED', 'acceptPrivacy sem política publicada no website do cliente.'),
+                            ('INVALID_INPUT', 'saveCookieConsent com visitorId fora do formato, categoria ou versão da política desconhecida, ou website que não existe.'),
+                            ('INVALID_CREDENTIALS', 'deleteMe com a senha atual errada.'),
+                            ('LGPD_ERASE_BLOCKED', 'deleteMe com pedido em andamento (aguardando pagamento, pago ou enviado); a mensagem traz os números.'),
+                            ('TOO_MANY_REQUESTS', 'myPersonalData mais de 3 vezes por minuto; deleteMe acima do limite de login; saveCookieConsent acima do limite por IP.')]),
 ]
 
 
@@ -243,6 +250,7 @@ MODULES = [
     ('Wishlist', 'Customer, Catalog', 'Favoritos do cliente, pela API e no cadastro do cliente.'),
     ('Marketing', 'Customer, Sales, Mail, Catalog', 'E-mails de marketing (carrinho abandonado, clientes sem comprar, recorrentes) e a newsletter com confirmação por e-mail.'),
     ('Log', 'Admin, Config', 'Log de operações (auditoria) com antes e depois.'),
+    ('Lgpd', 'Customer', 'LGPD: inventário dos dados e operadores, solicitações dos titulares (cópia, correção, exclusão), política de privacidade com versões, aviso de cookies e prazos de guarda.'),
     ('Report', 'Admin, Config, Sales', 'Os 26 relatórios, exportação, envio por e-mail e a API de relatórios.'),
 ]
 
@@ -252,6 +260,7 @@ CRON = [
     ('15 * * * *', 'bin/order-clean.php', 'Cancela os pedidos não pagos depois do prazo de cada forma de pagamento.'),
     ('10 0 * * *', 'bin/log-clean.php', 'Apaga os arquivos de log e o log de operações mais antigos que o prazo configurado.'),
     ('20 0 * * *', 'bin/quote-clean.php', 'Apaga carrinhos de visitante e pedidos em montagem do admin parados.'),
+    ('40 0 * * *', 'bin/lgpd-clean.php', 'LGPD: aplica os prazos de guarda (anonimiza pedidos depois do prazo fiscal, apaga newsletter não confirmada, provas de consentimento e solicitações vencidas). Sai sem fazer nada com o módulo Lgpd desligado.'),
     ('30 7 * * *', 'bin/report-mail.php', 'Envio automático dos relatórios (segunda-feira ou dia 1º, se ligado).'),
     ('* * * * *', 'bin/backup.php', 'Backup com restic no intervalo de Configurações → Backup (ou ao "Fazer backup agora"); limpeza diária das cópias velhas e teste de restauração mensal. Ver 3.5.'),
 ]
@@ -291,14 +300,14 @@ doc = f'''<!DOCTYPE html>
     <li><a href="#operacao">Operação</a><ol><li>Tarefas agendadas (cron)</li><li>Webhook do Mercado Pago</li><li>Logs</li><li>Testes</li><li>Backup</li></ol></li>
     <li><a href="#api">A API GraphQL</a><ol><li>Endpoint e formato</li><li>Autenticação</li><li>Cabeçalhos e CORS</li><li>Erros</li><li>Limites</li><li>Envio de arquivos</li></ol></li>
     <li><a href="#catalogo">Exemplos: loja e catálogo</a></li>
-    <li><a href="#lojaweb">Exemplos: loja web</a><ol><li>Home (webHome)</li><li>Newsletter</li></ol></li>
+    <li><a href="#lojaweb">Exemplos: loja web</a><ol><li>Home (webHome)</li><li>Newsletter</li><li>Privacidade e cookies</li></ol></li>
     <li><a href="#checkout">Exemplos: compra do visitante</a></li>
-    <li><a href="#cliente">Exemplos: conta do cliente</a> (com os favoritos)</li>
+    <li><a href="#cliente">Exemplos: conta do cliente</a> (com os favoritos e a LGPD)</li>
     <li><a href="#admin">Exemplos: integração do admin</a><ol><li>Login</li><li>Pedidos</li><li>Produtos e estoque</li><li>Relatórios</li></ol></li>
     <li><a href="#erros">Códigos de erro</a></li>
     <li><a href="#referencia">Referência das consultas e mutações</a></li>
   </ol>
-  <div class="tip"><b>Exemplos reais</b>Todas as requisições deste manual foram executadas contra a API desta instalação em 13/11/2026, e as respostas são as que ela devolveu (dentro de uma transação desfeita depois: nada ficou gravado). Listas longas foram cortadas ("… mais N") e os tokens, abreviados.</div>
+  <div class="tip"><b>Exemplos reais</b>Todas as requisições deste manual foram executadas contra a API desta instalação em 25/11/2026, e as respostas são as que ela devolveu (dentro de uma transação desfeita depois: nada ficou gravado). Listas longas foram cortadas ("… mais N") e os tokens, abreviados.</div>
 </section>
 
 <section id="visao">
@@ -372,6 +381,7 @@ php -S localhost:8080 -t public                       # só para desenvolvimento
 15 * * * *  php /srv/iterstore/bin/order-clean.php
 10 0 * * *  php /srv/iterstore/bin/log-clean.php
 20 0 * * *  php /srv/iterstore/bin/quote-clean.php
+40 0 * * *  php /srv/iterstore/bin/lgpd-clean.php
 30 7 * * *  php /srv/iterstore/bin/report-mail.php
 * * * * *   php /srv/iterstore/bin/backup.php >> /srv/iterstore/var/log/backup.log 2>&1</pre>
   <p>Outros scripts: <code>bin/create-admin.php</code> (primeiro admin, ou recuperar o acesso), <code>bin/schema-dump.php</code> (regera o <code>schema.graphql</code>), <code>bin/migrate.php</code> e <code>bin/db-bench.php</code> (tempo das listagens EAV).</p>
@@ -385,7 +395,7 @@ php -S localhost:8080 -t public                       # só para desenvolvimento
   </ul>
   <h3>3.4 Testes</h3>
   <pre class="sh">composer test</pre>
-  <p>Roda <code>view-selftest</code>, <code>db-selftest</code>, <code>admin-selftest</code> (sobe um <code>php -S</code> e testa o painel e a API de ponta a ponta), <code>promotion-selftest</code>, <code>report-selftest</code>, <code>backup-selftest</code> (um backup de verdade num repositório descartável, com restauração e zip) e <code>shipping-provider-selftest</code> (provedores de frete sem rede). Usam o banco real: criam registros <code>selftest_*</code> ou trabalham numa transação desfeita, e limpam tudo ao terminar. Mantêm ligados só os módulos que estavam ligados antes.</p>
+  <p>Roda <code>view-selftest</code>, <code>db-selftest</code>, <code>admin-selftest</code> (sobe um <code>php -S</code> e testa o painel e a API de ponta a ponta), <code>promotion-selftest</code>, <code>report-selftest</code>, <code>backup-selftest</code> (um backup de verdade num repositório descartável, com restauração e zip) <code>shipping-provider-selftest</code> (provedores de frete sem rede), <code>tryon-selftest</code> e os dos provedores do provador, e <code>lgpd-selftest</code> (inventário, cópia, exclusão, política, cookies e prazos de guarda, numa transação desfeita). Usam o banco real: criam registros <code>selftest_*</code> ou trabalham numa transação desfeita, e limpam tudo ao terminar. Mantêm ligados só os módulos que estavam ligados antes.</p>
   <h3>3.5 Backup</h3>
   <p>Módulo <code>Iter_Backup</code>, com <a href="https://restic.net">restic</a>. Cada cópia leva o banco em SQL puro (<code>pg_dump --no-owner --no-privileges</code>, em <code>var/backup/dump/banco.sql</code>, apagado depois), o <code>commit.txt</code> do código, <code>public/media</code> e <code>src/etc</code>. O restic compacta (zstd, nível máximo), cifra e só guarda o que mudou: com o banco de 17 MB e 4,5 MB de imagens, a primeira cópia ocupa 2,6 MB e cada nova cerca de 0,1 MB.</p>
   <ul>
@@ -555,6 +565,18 @@ if (isset($body['errors'])) {{
   {example('subscribeInvalid', 'Erro: e-mail inválido', '<code>INVALID_INPUT</code> também para um <code>websiteId</code> que não existe.')}
   {example('confirmNewsletter', 'Confirmar (a página do link)', 'O token é o do link do e-mail.')}
   {example('confirmNewsletterAgain', 'Erro: link já usado', 'O mesmo token de novo, um token desconhecido ou vencido: <code>TOKEN_INVALID</code> (aqui, com HTTP 200). Mostre a mensagem e ofereça a inscrição de novo.')}
+  <h3>6.3 Privacidade e cookies</h3>
+  <p>A política de privacidade é escrita no painel em <b>LGPD → Política de privacidade</b>, por website, e publicada em versões numeradas; uma versão publicada nunca muda. <code>privacy</code> é pública e traz tudo o que a página "Privacidade" e o aviso de cookies precisam: a versão em vigor e o texto, o encarregado (DPO), os operadores que recebem dados (os do Inventário, só módulos ligados, com <code>international</code> para fora do Brasil), o texto do aviso de cookies e as categorias.</p>
+  <ul>
+    <li><code>version</code> nulo: o website ainda não publicou política; não mostre a página nem peça aceite. Sem <code>websiteId</code>, vale o website padrão; website desconhecido devolve <code>null</code>.</li>
+    <li><code>text</code> é texto puro: linha em branco separa parágrafos. Escape ao mostrar.</li>
+    <li><code>dpo</code> nulo: o encarregado não foi informado em Configurações → LGPD.</li>
+    <li>Categorias de cookies com códigos fixos: <code>necessary</code> (sempre ligada, <code>required: true</code>), <code>statistics</code> e <code>marketing</code>. Os textos vêm de Configurações → LGPD → Cookies da loja web.</li>
+  </ul>
+  {example('privacy', 'A política e o aviso de cookies', 'O texto foi cortado aqui; a resposta traz a política inteira.', keep=3)}
+  <p><code>saveCookieConsent</code> grava a escolha do aviso como prova, sem login: o <code>visitorId</code> é um ID aleatório que a loja gera e guarda no cookie do navegador (16 a 64 letras, números ou hífens), as categorias aceitas (as obrigatórias entram sempre) e a <code>privacy.version</code> mostrada. Cada chamada é um registro novo, com a data e o IP truncado. Com o token de um cliente, a escolha fica ligada a ele e sai na cópia dos dados. Limite por IP em Configurações → LGPD (10 por minuto por padrão).</p>
+  {example('saveCookieConsent', 'Gravar a escolha do aviso')}
+  {example('saveCookieInvalid', 'Erro: categoria desconhecida', '<code>INVALID_INPUT</code> também para <code>visitorId</code> fora do formato, versão da política que não existe no website e website desconhecido.')}
 </section>
 
 <section id="checkout">
@@ -625,6 +647,20 @@ mutation ($card: MercadopagoCardInput!, $deviceId: String) {{
   {example('removeFromWishlist', 'Tirar dos favoritos', '<code>true</code> também se o produto não estava na lista.')}
   {example('wishlistNoToken', 'Sem token', 'Ao contrário de <code>me</code>, os favoritos sem login são erro (<code>UNAUTHENTICATED</code>): o app deve pedir o login antes de favoritar.')}
   {example('myOrders', 'Meus pedidos', 'Paginado. <code>myOrder(number:)</code> traz um pedido com itens, endereço, rastreio e o histórico visível ao cliente.')}
+  <h4>Privacidade (LGPD)</h4>
+  <p>Os direitos do titular pelo app e pela loja web, sempre para o cliente do token (não há argumento de cliente). Cada cópia e cada exclusão ficam registradas em <b>LGPD → Solicitações</b> no painel, com a origem (app ou loja web, pelo cabeçalho <code>X-Store-Url</code>).</p>
+  <ul>
+    <li><b>Aceite da política:</b> compare <code>me.privacyVersion</code> (a última versão que o cliente aceitou; nulo se nenhuma) com <code>privacy.version</code>. Diferentes: mostre a política e chame <code>acceptPrivacy</code> com a versão mostrada. Publicar uma versão nova faz todos aceitarem de novo. No cadastro, chame <code>acceptPrivacy</code> logo depois do <code>registerCustomer</code>. Aceitar de novo a mesma versão não muda nada.</li>
+    <li><b>Cópia dos dados</b> (art. 18, II): <code>myPersonalData</code> devolve um JSON em texto, com uma chave por assunto (cadastro, pedidos, favoritos, newsletter, mensagens, provador, aceites…); ofereça para baixar. Até 3 por minuto.</li>
+    <li><b>Excluir a conta</b> (art. 18, VI): <code>deleteMe</code> pede a senha atual. Com pedido em andamento, <code>LGPD_ERASE_BLOCKED</code> com os números dos pedidos. Sem bloqueio: o cadastro vira "Cliente excluído" (sem e-mail, CPF, telefone, endereços), saem favoritos, newsletter, mensagens e o provador; os pedidos ficam pelo prazo fiscal e são anonimizados depois. O cliente recebe um e-mail de confirmação e o token deixa de valer.</li>
+  </ul>
+  {example('privacyStatus', 'Precisa aceitar a política?', '<code>privacyVersion</code> nulo e <code>version</code> 2: mostre a política e peça o aceite.')}
+  {example('acceptPrivacyOld', 'Erro: versão que não é a em vigor', 'O app mostrou um texto antigo (ou de cache): <code>POLICY_VERSION_OUTDATED</code>. Busque <code>privacy</code> de novo. Sem política publicada: <code>POLICY_NOT_PUBLISHED</code>.')}
+  {example('acceptPrivacy', 'Aceitar a política')}
+  {example('myPersonalData', 'Cópia dos dados', 'O valor é um JSON em texto; aqui, de um cliente recém-cadastrado.')}
+  {example('deleteMeWrong', 'Erro: senha errada', '<code>INVALID_CREDENTIALS</code>. As tentativas contam no limite de login por IP.')}
+  {example('deleteMe', 'Excluir a conta')}
+  {example('afterDeleteMe', 'Depois da exclusão', 'O token antigo não vale mais: <code>me</code> volta <code>null</code>. Leve o cliente para a home, deslogado.')}
 </section>
 
 <section id="admin">
