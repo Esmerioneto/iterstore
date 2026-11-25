@@ -264,7 +264,7 @@ check($data['privacy']['version'] === ($before['version'] ?? null) && count($dat
 [$data] = $gql('{ privacy(websiteId: "' . $websiteId . '") { operators { name country } } }');
 check(!str_contains(json_encode($data, JSON_UNESCAPED_UNICODE), 'conforme o provedor') && !str_contains(json_encode($data, JSON_UNESCAPED_UNICODE), 'Configurações →'), 'privacy: operadores sem jargão do painel', $data);
 check($gql('{ privacy(websiteId: "32000") { version } }')[0]['privacy'] === null, 'website desconhecido: privacy null');
-Config::save(['lgpd/dpo/name' => 'Encarregada Teste', 'lgpd/dpo/email' => 'dpo@example.com']);
+Config::save(['lgpd/dpo/name' => 'Encarregada Teste', 'lgpd/dpo/email' => 'dpo@example.com'], $websiteId); // website scope: a website's own value wins over the default
 check($gql('{ privacy(websiteId: "' . $websiteId . '") { dpo { name email } } }')[0]['privacy']['dpo'] === ['name' => 'Encarregada Teste', 'email' => 'dpo@example.com'], 'encarregado das Configurações na API');
 
 check($code(static fn () => $policies->publish($websiteId, "  \n ", null)) === 'POLICY_EMPTY', 'publicar texto vazio: POLICY_EMPTY');
@@ -301,7 +301,30 @@ check($data['me']['privacyVersion'] === $v1 && $data['privacy']['version'] === $
 check($policies->versions($websiteId)[0]['version'] === $v2 && (int) $policies->versions($websiteId)[1]['accepts'] === 1, 'lista de versões com a contagem de aceites');
 check(PolicyService::truncatedIp('2001:db8:abcd:12:1::5') === '2001:db8:abcd::' && PolicyService::truncatedIp('x') === null, 'IPv6 truncado nos 3 primeiros grupos; inválido vira null');
 $copy = $service->export($ana2, (string) $db->fetchOne('SELECT email FROM customer_flat WHERE customer_id = :c', ['c' => $ana2]));
-check(str_contains(json_encode($copy['Aceite da política e solicitações LGPD'] ?? [], JSON_UNESCAPED_UNICODE), 'Versão ' . $v1), 'a cópia dos dados traz o aceite da política');
+check(str_contains(json_encode($copy['Aceite da política, aviso de cookies e solicitações LGPD'] ?? [], JSON_UNESCAPED_UNICODE), 'Versão ' . $v1), 'a cópia dos dados traz o aceite da política');
+
+// ---------------------------------------------------------------------------------------------------------
+// delivery 4: the cookie notice's choice, recorded as proof
+$visitor = 'selftest-' . bin2hex(random_bytes(8));
+$save = static fn (string $args) => $gql('mutation { saveCookieConsent(websiteId: "' . $websiteId . '", ' . $args . ') }');
+$as(null);
+check($save('visitorId: "' . $visitor . '", categories: ["statistics"], policyVersion: ' . $v2)[0]['saveCookieConsent'] === true, 'saveCookieConsent sem login');
+$row = $db->fetchRow('SELECT categories, policy_version, customer_id, ip FROM lgpd_cookie_consent WHERE visitor_id = :v', ['v' => $visitor]);
+check($row === ['categories' => 'necessary,statistics', 'policy_version' => $v2, 'customer_id' => null, 'ip' => '203.0.113.0'], 'necessários entram sempre; versão e IP truncado gravados', $row);
+check($save('visitorId: "' . $visitor . '", categories: ["ads"]')[1] === 'INVALID_INPUT', 'categoria desconhecida: INVALID_INPUT');
+check($save('visitorId: "curto", categories: []')[1] === 'INVALID_INPUT', 'visitorId inválido: INVALID_INPUT');
+check($save('visitorId: "' . $visitor . '", categories: [], policyVersion: ' . ($v2 + 9))[1] === 'INVALID_INPUT', 'versão da política desconhecida: INVALID_INPUT');
+check($gql('mutation { saveCookieConsent(websiteId: "32000", visitorId: "' . $visitor . '", categories: []) }')[1] === 'INVALID_INPUT', 'website desconhecido: INVALID_INPUT');
+$as($ana2);
+check($save('visitorId: "' . $visitor . '", categories: []')[0]['saveCookieConsent'] === true, 'saveCookieConsent com login');
+$rows = $db->fetchAll('SELECT categories, policy_version, customer_id FROM lgpd_cookie_consent WHERE visitor_id = :v ORDER BY consent_id', ['v' => $visitor]);
+check(count($rows) === 2 && $rows[1] === ['categories' => 'necessary', 'policy_version' => null, 'customer_id' => $ana2], 'nova escolha é registro novo, ligado ao cliente logado', $rows);
+$copy = $service->export($ana2, (string) $db->fetchOne('SELECT email FROM customer_flat WHERE customer_id = :c', ['c' => $ana2]));
+check(str_contains(json_encode($copy['Aceite da política, aviso de cookies e solicitações LGPD']['Aviso de cookies'] ?? [], JSON_UNESCAPED_UNICODE), 'Necessários em '), 'a cópia dos dados traz a escolha de cookies');
+Config::save(['lgpd/cookies/per_minute' => '1']);
+$as(null);
+$_SERVER['REMOTE_ADDR'] = '198.51.100.' . random_int(1, 254);
+check($save('visitorId: "' . $visitor . '", categories: []')[1] === null && $save('visitorId: "' . $visitor . '", categories: []')[1] === 'TOO_MANY_REQUESTS', 'limite por IP: TOO_MANY_REQUESTS');
 
 // the admin screen renders
 $_GET = ['website_id' => (string) $websiteId];

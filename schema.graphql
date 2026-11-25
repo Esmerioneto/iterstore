@@ -1932,6 +1932,16 @@ type Mutation {
   "O cliente do token aceita a política em vigor do website dele. version deve ser a de privacy.version (o texto que foi mostrado): outra dá POLICY_VERSION_OUTDATED. Aceitar de novo não muda nada."
   acceptPrivacy(version: Int!): Boolean!
 
+  "Grava a escolha do aviso de cookies da loja web, como prova (sem login; com login, fica ligada ao cliente e sai na cópia dos dados). visitorId: ID anônimo que a loja guarda no cookie do navegador (16 a 64 letras, números ou hífens). categories: códigos de privacy.cookieCategories; os obrigatórios entram sempre. policyVersion: a privacy.version mostrada (null sem política). Cada chamada é um registro novo. Erros: INVALID_INPUT, TOO_MANY_REQUESTS (Configurações → LGPD → registros por minuto, por IP)."
+  saveCookieConsent(
+    "Omitido = website padrão."
+    websiteId: ID
+
+    visitorId: String!
+    categories: [String!]!
+    policyVersion: Int
+  ): Boolean!
+
   "Exclui a conta do cliente do token (LGPD, art. 18, VI): cadastro, endereços, favoritos, newsletter, mensagens e provador. Os pedidos ficam pelo prazo fiscal e são anonimizados depois. Pede a senha atual; com pedido em andamento devolve LGPD_ERASE_BLOCKED. Manda um e-mail de confirmação e o token deixa de valer."
   deleteMe(currentPassword: String!): Boolean!
 

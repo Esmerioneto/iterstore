@@ -1,10 +1,11 @@
 [
     {
         "module": "Lgpd",
-        "activity": "Aceite da política e solicitações LGPD",
+        "activity": "Aceite da política, aviso de cookies e solicitações LGPD",
         "subjects": "Clientes e visitantes que pedem algo sobre os seus dados",
         "data": [
             "versão da política aceita, data, origem e IP truncado",
+            "escolha no aviso de cookies da loja web: ID anônimo do navegador, categorias, versão da política, data e IP truncado",
             "pedidos de cópia, correção e exclusão, com o e-mail e a resposta"
         ],
         "purpose": "Provar que a política foi aceita e que os pedidos dos titulares foram atendidos",

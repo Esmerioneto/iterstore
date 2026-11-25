@@ -137,6 +137,32 @@ final class LgpdSchema
                         return true;
                     },
                 ],
+                'saveCookieConsent' => [
+                    'type' => Type::nonNull(Type::boolean()),
+                    'description' => 'Grava a escolha do aviso de cookies da loja web, como prova (sem login; com login, fica ligada ao cliente e sai na cópia dos dados). '
+                        . 'visitorId: ID anônimo que a loja guarda no cookie do navegador (16 a 64 letras, números ou hífens). categories: códigos de privacy.cookieCategories; '
+                        . 'os obrigatórios entram sempre. policyVersion: a privacy.version mostrada (null sem política). Cada chamada é um registro novo. '
+                        . 'Erros: INVALID_INPUT, TOO_MANY_REQUESTS (Configurações → LGPD → registros por minuto, por IP).',
+                    'args' => [
+                        'websiteId' => ['type' => Type::id(), 'description' => 'Omitido = website padrão.'],
+                        'visitorId' => Type::nonNull(Type::string()),
+                        'categories' => Type::nonNull(Type::listOf(Type::nonNull(Type::string()))),
+                        'policyVersion' => Type::int(),
+                    ],
+                    'resolve' => static function ($root, array $args): bool {
+                        if (!RateLimit::hit('lgpd_cookie:' . RateLimit::bucket(), (int) Config::get('lgpd/cookies/per_minute'))) {
+                            http_response_code(429);
+                            throw new Error('Muitos registros seguidos. Aguarde um minuto e tente de novo.', extensions: ['code' => 'TOO_MANY_REQUESTS']);
+                        }
+                        $websiteId = isset($args['websiteId']) ? (int) $args['websiteId']
+                            : (int) Connection::get()->adapter()->fetchOne('SELECT website_id FROM store_website ORDER BY is_default DESC, website_id LIMIT 1');
+                        $customer = CustomerAuth::customer();
+                        CookieCategories::saveConsent($websiteId, $args['visitorId'], $args['categories'], $args['policyVersion'] ?? null,
+                            $customer && (int) $customer->getData('website_id') === $websiteId ? (int) $customer->getId() : null, RateLimit::ip());
+
+                        return true;
+                    },
+                ],
                 'deleteMe' => [
                     'type' => Type::nonNull(Type::boolean()),
                     'description' => 'Exclui a conta do cliente do token (LGPD, art. 18, VI): cadastro, endereços, favoritos, newsletter, mensagens e provador. Os pedidos ficam pelo prazo fiscal e são anonimizados depois. Pede a senha atual; com pedido em andamento devolve LGPD_ERASE_BLOCKED. Manda um e-mail de confirmação e o token deixa de valer.',
