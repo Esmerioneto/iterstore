@@ -56,6 +56,7 @@ putenv('ITER_LOG_DIR=' . $tmp . 'log/');
 $values = new ReflectionProperty(Config::class, 'values');
 Config::get('x');
 $real = $values->getValue();
+$real['default:0']['system/log/enabled'] = '1'; // the checks read the test's log, even with the log off in Configurações
 $config = static function (array $set) use ($values, $real): void {
     $v = $real;
     $v['default:0'] = $set + ($v['default:0'] ?? []);

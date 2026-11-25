@@ -40,6 +40,7 @@ $values = new ReflectionProperty(Config::class, 'values');
 Config::get('x');
 // the real config minus Melhor Envio's own settings, so each case sets exactly what it needs
 $real = array_map(static fn (array $scope) => array_filter($scope, static fn ($p) => !str_contains($p, 'melhorenvio') && !str_starts_with($p, 'correios/') && !str_starts_with($p, 'shipping/'), ARRAY_FILTER_USE_KEY), $values->getValue());
+$real['default:0']['system/log/enabled'] = '1'; // the checks read the test's log, even with the log off in Configurações
 $withConfig = static function (array $default, array $website) use ($values, $real, $websiteId): void {
     $v = $real;
     $v['default:0'] = $default + ($v['default:0'] ?? []);

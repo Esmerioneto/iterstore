@@ -2491,6 +2491,7 @@ assertSame([404, false, 'Cannot query field "products" on type "Query".'], [
 ], 'módulo desativado: sem rotas, sem menu e sem API');
 assertSame(true, (bool) $productRow('selftest-up'), 'desativar não apaga os dados');
 $toggle('iter_message', 0);
+$toggle('iter_lgpd', 0); // Lgpd depends on Customer
 assertSame(['Módulo Customer desativado. Os dados dele continuam no banco.'], $toggle('iter_customer', 0), 'Customer desativado pelo admin');
 assertSame([404, false, 'Cannot query field "customers" on type "Query". Did you mean "stores"?'], [$admin->request('/admin/customer/index')['status'], str_contains($admin->request('/admin/index')['body'], '/admin/customer/index'),
     $gql($admin, '{ customers { total } }')['errors'][0]['message'] ?? null], 'Customer desativado: sem rotas, sem menu e sem API');
