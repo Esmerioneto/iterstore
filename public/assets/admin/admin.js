@@ -3,6 +3,8 @@
  * SweetAlert2 (vendored in /assets/vendor/sweetalert2). If the library
  * failed to load, falls back to the native confirm() so nothing breaks.
  * data-confirm-button changes the confirm button's text (default "Remover").
+ * A submit button may carry its own data-confirm (only that button asks); its
+ * name/value goes along as a hidden field, since form.submit() drops it.
  * form.submit() does not fire the submit event, so there is no loop.
  *
  * Flash messages are rendered by the server in .admin-messages (works
@@ -15,15 +17,26 @@ function inkColor() {
 
 document.addEventListener('submit', function (event) {
   var form = event.target;
-  var question = form.dataset.confirm;
+  var button = event.submitter && event.submitter.dataset.confirm ? event.submitter : null;
+  var question = button ? button.dataset.confirm : form.dataset.confirm;
   if (!question) {
     return;
   }
   event.preventDefault();
+  var submit = function () {
+    if (button && button.name) {
+      var field = document.createElement('input');
+      field.type = 'hidden';
+      field.name = button.name;
+      field.value = button.value;
+      form.appendChild(field);
+    }
+    form.submit();
+  };
 
   if (typeof Swal === 'undefined') {
     if (window.confirm(question)) {
-      form.submit();
+      submit();
     }
     return;
   }
@@ -34,7 +47,7 @@ document.addEventListener('submit', function (event) {
     icon: 'warning',
     iconColor: inkColor(),
     showCancelButton: true,
-    confirmButtonText: form.dataset.confirmButton || 'Remover',
+    confirmButtonText: (button || form).dataset.confirmButton || 'Remover',
     cancelButtonText: 'Cancelar',
     focusCancel: true,
     buttonsStyling: false,
@@ -45,7 +58,7 @@ document.addEventListener('submit', function (event) {
     }
   }).then(function (result) {
     if (result.isConfirmed) {
-      form.submit();
+      submit();
     }
   });
 });
