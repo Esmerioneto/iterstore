@@ -282,6 +282,12 @@ type Query {
     pageSize: Int = 20
   ): WishlistPage!
 
+  "Política de privacidade de um website (pública, sem login), com o encarregado, os operadores e as categorias de cookies. Sem websiteId, o website padrão; website desconhecido dá null."
+  privacy(websiteId: ID): Privacy
+
+  "Cópia dos dados pessoais do cliente do token (LGPD, art. 18, II), em JSON: uma chave por assunto (cadastro, pedidos, consentimentos…). Fica registrada em LGPD → Solicitações."
+  myPersonalData: String!
+
   "O usuário do token (ou da sessão do painel); null sem login."
   currentAdmin: AdminUser
 }
@@ -723,6 +729,9 @@ type Customer {
 
   "Os padrões primeiro."
   addresses: [CustomerAddress!]!
+
+  "A última versão da política de privacidade do website que o cliente aceitou; null se nenhuma. Diferente de privacy.version: mostre a política e peça o aceite (acceptPrivacy)."
+  privacyVersion: Int
 }
 
 enum CustomerType {
@@ -1340,6 +1349,53 @@ type WishlistItem {
   addedAt: String!
 }
 
+type Privacy {
+  websiteId: ID!
+
+  "Versão em vigor; null antes da primeira publicação (sem política para mostrar)."
+  version: Int
+
+  "AAAA-MM-DD HH:MM:SS."
+  publishedAt: String
+
+  "Texto puro; linha em branco separa parágrafos."
+  text: String
+
+  "O encarregado (art. 41); null se não informado em Configurações → LGPD."
+  dpo: PrivacyDpo
+
+  "Com quem a loja compartilha dados pessoais (LGPD → Inventário, só módulos ligados)."
+  operators: [PrivacyOperator!]!
+
+  cookieBannerText: String!
+  cookieCategories: [CookieCategory!]!
+}
+
+type PrivacyDpo {
+  name: String
+  email: String!
+}
+
+type PrivacyOperator {
+  name: String!
+  country: String!
+  purpose: String!
+
+  "Fora do Brasil: transferência internacional (art. 33)."
+  international: Boolean!
+}
+
+type CookieCategory {
+  "necessary, statistics ou marketing."
+  code: String!
+
+  label: String!
+  description: String!
+
+  "Sempre ligada (sem opção de recusar)."
+  required: Boolean!
+}
+
 type AdminUser {
   id: ID!
   username: String!
@@ -1872,6 +1928,12 @@ type Mutation {
 
   "A página do link do e-mail de confirmação chama com o token do link. Vale uma vez. Erro: TOKEN_INVALID (desconhecido, já usado ou vencido)."
   confirmNewsletter(token: String!): Boolean!
+
+  "O cliente do token aceita a política em vigor do website dele. version deve ser a de privacy.version (o texto que foi mostrado): outra dá POLICY_VERSION_OUTDATED. Aceitar de novo não muda nada."
+  acceptPrivacy(version: Int!): Boolean!
+
+  "Exclui a conta do cliente do token (LGPD, art. 18, VI): cadastro, endereços, favoritos, newsletter, mensagens e provador. Os pedidos ficam pelo prazo fiscal e são anonimizados depois. Pede a senha atual; com pedido em andamento devolve LGPD_ERASE_BLOCKED. Manda um e-mail de confirmação e o token deixa de valer."
+  deleteMe(currentPassword: String!): Boolean!
 
   "Login do admin pela API. Erra junto com o painel: tentativas contam para o bloqueio."
   generateAdminToken(username: String!, password: String!): AdminToken!

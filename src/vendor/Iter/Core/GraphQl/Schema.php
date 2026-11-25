@@ -147,7 +147,8 @@ class Schema
         $tryon = \isModuleEnabled('iter_tryon') && \isModuleEnabled('iter_catalog');
         $product = \isModuleEnabled('iter_catalog') ? ProductSchema::fields($stock['product'] + ($tryon ? TryonSchema::productFields() : [])) : ['query' => [], 'mutation' => []];
         $stores = \isModuleEnabled('iter_store');
-        $customer = \isModuleEnabled('iter_customer') ? CustomerSchema::fields() : ['query' => [], 'mutation' => []];
+        // Lgpd depends on Customer
+        $customer = \isModuleEnabled('iter_customer') ? CustomerSchema::fields(\isModuleEnabled('iter_lgpd') ? \Iter\Lgpd\GraphQl\LgpdSchema::customerFields() : []) : ['query' => [], 'mutation' => []];
         $admin = AdminSchema::fields(); // Admin is a required module
         $eav = \isModuleEnabled('iter_eav') ? AttributeSchema::fields() : ['query' => [], 'mutation' => []];
         // Sales depends on Catalog, so $product has its types when it's on
@@ -162,6 +163,8 @@ class Schema
         // Wishlist depends on Customer and Catalog, so $product has its types when it's on
         $newsletter = \isModuleEnabled('iter_marketing') ? NewsletterSchema::fields() : ['query' => [], 'mutation' => []];
         $wishlist = \isModuleEnabled('iter_wishlist') && isset($product['types']) ? WishlistSchema::fields($product['types']['product'], $product['preloadFor']) : ['query' => [], 'mutation' => []];
+        // Lgpd depends on Customer
+        $lgpd = \isModuleEnabled('iter_lgpd') ? \Iter\Lgpd\GraphQl\LgpdSchema::fields() : ['query' => [], 'mutation' => []];
 
         $queryType = new ObjectType([
             'name' => 'Query',
@@ -196,7 +199,7 @@ class Schema
                         return $id === null || Config::websiteExists($id) ? ['id' => $id] : null;
                     },
                 ],
-            ] : []) + $product['query'] + $stock['query'] + $customer['query'] + $eav['query'] + $sales['query'] + $orders['query'] + $shipping['query'] + $mercadopago['query'] + $messages['query'] + $reports['query'] + $tryon['query'] + $wishlist['query'] + $admin['query'],
+            ] : []) + $product['query'] + $stock['query'] + $customer['query'] + $eav['query'] + $sales['query'] + $orders['query'] + $shipping['query'] + $mercadopago['query'] + $messages['query'] + $reports['query'] + $tryon['query'] + $wishlist['query'] + $lgpd['query'] + $admin['query'],
         ]);
 
         $mutationType = new ObjectType([
@@ -235,7 +238,7 @@ class Schema
                         return true;
                     }),
                 ],
-            ] : []) + $product['mutation'] + $stock['mutation'] + $customer['mutation'] + $sales['mutation'] + $orders['mutation'] + $adminSales['mutation'] + $shipping['mutation'] + $mercadopago['mutation'] + $messages['mutation'] + $tryon['mutation'] + $wishlist['mutation'] + $newsletter['mutation'] + $admin['mutation'],
+            ] : []) + $product['mutation'] + $stock['mutation'] + $customer['mutation'] + $sales['mutation'] + $orders['mutation'] + $adminSales['mutation'] + $shipping['mutation'] + $mercadopago['mutation'] + $messages['mutation'] + $tryon['mutation'] + $wishlist['mutation'] + $newsletter['mutation'] + $lgpd['mutation'] + $admin['mutation'],
         ]);
 
         if (!$queryType->getFields()) {

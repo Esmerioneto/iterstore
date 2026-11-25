@@ -1,0 +1,21 @@
+[
+    {
+        "module": "Admin",
+        "activity": "Usuários do admin",
+        "subjects": "Funcionários e prestadores",
+        "data": [
+            "nome",
+            "e-mail",
+            "usuário",
+            "senha (só o hash)",
+            "perfil de acesso"
+        ],
+        "purpose": "Acesso ao painel da loja",
+        "basis": [
+            "contract",
+            "legitimate_interest"
+        ],
+        "operators": [],
+        "retention": "Enquanto o usuário existir"
+    }
+]

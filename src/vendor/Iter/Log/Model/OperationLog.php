@@ -30,6 +30,7 @@ class OperationLog
         'marketing_send' => 'Enviou e-mails de marketing', 'marketing_discard' => 'Descartou sugestões de marketing',
         'tryon_image' => 'Abriu a imagem do provador virtual',
         'api_key_reveal' => 'Viu a chave da API',
+        'lgpd_export' => 'Baixou a cópia dos dados (LGPD)', 'lgpd_erase' => 'Excluiu os dados do cliente (LGPD)', 'lgpd_policy' => 'Publicou a política de privacidade',
     ];
     public const AREAS = ['product' => 'Produto', 'customer' => 'Cliente', 'config' => 'Configurações', 'report' => 'Relatório', 'api_key' => 'Chave da API', 'backup' => 'Backup', 'marketing' => 'Marketing', 'web_home' => 'Home web'];
 

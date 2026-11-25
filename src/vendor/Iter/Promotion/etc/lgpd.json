@@ -1,0 +1,18 @@
+[
+    {
+        "module": "Promotion",
+        "activity": "Uso de cupons",
+        "subjects": "Clientes",
+        "data": [
+            "cupom usado",
+            "pedido",
+            "desconto"
+        ],
+        "purpose": "Aplicar o limite de uso do cupom por cliente",
+        "basis": [
+            "contract"
+        ],
+        "operators": [],
+        "retention": "Junto com o pedido"
+    }
+]

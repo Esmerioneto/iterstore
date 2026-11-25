@@ -1,0 +1,50 @@
+[
+    {
+        "module": "Backup",
+        "activity": "Backup na Backblaze",
+        "subjects": "Todos os titulares do banco",
+        "data": [
+            "cópia do banco de dados, cifrada antes de sair do servidor"
+        ],
+        "purpose": "Recuperar a loja depois de uma falha",
+        "basis": [
+            "legitimate_interest"
+        ],
+        "operators": [
+            {
+                "name": "Backblaze B2",
+                "country": "EUA",
+                "purpose": "guardar o backup cifrado"
+            }
+        ],
+        "retention": "Conforme as cópias mantidas em Configurações → Backup",
+        "when": {
+            "config": "system/backup/destination",
+            "equals": "b2"
+        }
+    },
+    {
+        "module": "Backup",
+        "activity": "Backup em S3 compatível",
+        "subjects": "Todos os titulares do banco",
+        "data": [
+            "cópia do banco de dados, cifrada antes de sair do servidor"
+        ],
+        "purpose": "Recuperar a loja depois de uma falha",
+        "basis": [
+            "legitimate_interest"
+        ],
+        "operators": [
+            {
+                "name": "Armazenamento de backup (S3)",
+                "country": "conforme o provedor",
+                "purpose": "guardar o backup cifrado"
+            }
+        ],
+        "retention": "Conforme as cópias mantidas em Configurações → Backup",
+        "when": {
+            "config": "system/backup/destination",
+            "equals": "s3"
+        }
+    }
+]

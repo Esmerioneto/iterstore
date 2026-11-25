@@ -1,0 +1,21 @@
+[
+    {
+        "module": "Fashnlocal",
+        "activity": "Provador virtual: geração da imagem",
+        "subjects": "Clientes que usam o provador",
+        "data": [
+            "foto do cliente",
+            "foto da peça"
+        ],
+        "purpose": "Gerar a imagem do provador no servidor da própria loja",
+        "basis": [
+            "consent"
+        ],
+        "operators": [],
+        "retention": "Não guarda: só o processamento",
+        "when": {
+            "call": "Iter\\Tryon\\Model\\TryonProviderRegistry::inUseCode",
+            "equals": "fashn_local"
+        }
+    }
+]

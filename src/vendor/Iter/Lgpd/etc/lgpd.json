@@ -1,0 +1,19 @@
+[
+    {
+        "module": "Lgpd",
+        "activity": "Aceite da política e solicitações LGPD",
+        "subjects": "Clientes e visitantes que pedem algo sobre os seus dados",
+        "data": [
+            "versão da política aceita, data, origem e IP truncado",
+            "pedidos de cópia, correção e exclusão, com o e-mail e a resposta"
+        ],
+        "purpose": "Provar que a política foi aceita e que os pedidos dos titulares foram atendidos",
+        "basis": [
+            "legal_obligation",
+            "rights"
+        ],
+        "operators": [],
+        "retention": "Sem prazo por enquanto (previsto: 5 anos)",
+        "handler": "Iter\\Lgpd\\Model\\PersonalData"
+    }
+]

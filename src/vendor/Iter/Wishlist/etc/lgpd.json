@@ -1,0 +1,17 @@
+[
+    {
+        "module": "Wishlist",
+        "activity": "Favoritos",
+        "subjects": "Clientes",
+        "data": [
+            "produtos favoritados"
+        ],
+        "purpose": "Guardar os produtos que o cliente marcou",
+        "basis": [
+            "contract"
+        ],
+        "operators": [],
+        "retention": "Enquanto a conta existir",
+        "handler": "Iter\\Wishlist\\Model\\PersonalData"
+    }
+]

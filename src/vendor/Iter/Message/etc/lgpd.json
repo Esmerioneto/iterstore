@@ -1,0 +1,18 @@
+[
+    {
+        "module": "Message",
+        "activity": "Mensagens com a loja",
+        "subjects": "Clientes e atendentes",
+        "data": [
+            "texto das mensagens",
+            "quem enviou e quando"
+        ],
+        "purpose": "Atendimento ao cliente",
+        "basis": [
+            "contract"
+        ],
+        "operators": [],
+        "retention": "Enquanto a conta existir",
+        "handler": "Iter\\Message\\Model\\PersonalData"
+    }
+]

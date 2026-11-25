@@ -1,0 +1,27 @@
+[
+    {
+        "module": "Huggingface",
+        "activity": "Provador virtual: geração da imagem",
+        "subjects": "Clientes que usam o provador",
+        "data": [
+            "foto do cliente",
+            "foto da peça"
+        ],
+        "purpose": "Gerar a imagem do provador",
+        "basis": [
+            "consent"
+        ],
+        "operators": [
+            {
+                "name": "Hugging Face (FASHN)",
+                "country": "EUA",
+                "purpose": "gerar a imagem do provador virtual"
+            }
+        ],
+        "retention": "Conforme os termos do provedor (conferir se ele guarda ou usa a foto)",
+        "when": {
+            "call": "Iter\\Tryon\\Model\\TryonProviderRegistry::inUseCode",
+            "equals": "huggingface"
+        }
+    }
+]

@@ -1,0 +1,1 @@
+{"name":"iter_lgpd","version":"1.0.0","description":"LGPD: inventário dos dados pessoais, direitos do titular, política e cookies","enabled":true,"index":"0","author":"Esmerio","depends":["iter_admin","iter_config","iter_customer"]}

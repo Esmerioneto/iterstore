@@ -1,0 +1,24 @@
+[
+    {
+        "module": "Customer",
+        "activity": "Cadastro do cliente",
+        "subjects": "Clientes",
+        "data": [
+            "nome e sobrenome",
+            "e-mail",
+            "CPF/CNPJ",
+            "razão social e inscrição estadual (PJ)",
+            "telefone",
+            "data de nascimento",
+            "endereços",
+            "senha (só o hash)"
+        ],
+        "purpose": "Criar a conta, entrar no app e na loja, entregar os pedidos e atender o cliente",
+        "basis": [
+            "contract"
+        ],
+        "operators": [],
+        "retention": "Enquanto a conta existir; excluída a pedido do titular",
+        "handler": "Iter\\Customer\\Model\\PersonalData"
+    }
+]

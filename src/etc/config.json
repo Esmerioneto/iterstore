@@ -28,7 +28,8 @@
         "iter_huggingface": "1",
         "iter_fashnlocal": "1",
         "iter_marketing": "1",
-        "iter_wishlist": "1"
+        "iter_wishlist": "1",
+        "iter_lgpd": "1"
     },
     "customized": {
         "egsn_user": "1"

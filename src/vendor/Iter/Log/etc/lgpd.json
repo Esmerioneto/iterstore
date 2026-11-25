@@ -1,0 +1,20 @@
+[
+    {
+        "module": "Log",
+        "activity": "Log de operações",
+        "subjects": "Usuários do admin e clientes",
+        "data": [
+            "usuário do admin e IP",
+            "o que foi visto, alterado ou exportado",
+            "valores alterados"
+        ],
+        "purpose": "Saber quem acessou ou mudou dados pessoais (segurança e prestação de contas)",
+        "basis": [
+            "legal_obligation",
+            "legitimate_interest"
+        ],
+        "operators": [],
+        "retention": "Linhas apagadas depois do prazo",
+        "retention_config": "system/operation_log/retention_days"
+    }
+]

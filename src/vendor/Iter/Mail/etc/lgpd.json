@@ -1,0 +1,27 @@
+[
+    {
+        "module": "Mail",
+        "activity": "E-mails enviados",
+        "subjects": "Clientes, visitantes e usuários do admin",
+        "data": [
+            "e-mail",
+            "nome",
+            "conteúdo do e-mail (pedido, senha, marketing)"
+        ],
+        "purpose": "Avisos de pedido, senha e marketing, e o histórico de envio",
+        "basis": [
+            "contract",
+            "consent"
+        ],
+        "operators": [
+            {
+                "name": "Servidor de e-mail (SMTP)",
+                "country": "conforme o provedor",
+                "purpose": "entregar os e-mails"
+            }
+        ],
+        "retention": "Histórico de e-mails apagado depois do prazo",
+        "retention_config": "mail/log/retention_days",
+        "handler": "Iter\\Mail\\Model\\PersonalData"
+    }
+]

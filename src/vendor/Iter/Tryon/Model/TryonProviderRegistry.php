@@ -55,4 +55,10 @@ class TryonProviderRegistry
 
         return null;
     }
+
+    /** the code of the provider that gets the customers' photos now; null with the try-on off (LGPD inventory) */
+    public static function inUseCode(): ?string
+    {
+        return Config::get('catalog/tryon/active') ? (new self())->active()?->code() : null;
+    }
 }

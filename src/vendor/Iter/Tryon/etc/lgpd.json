@@ -1,0 +1,20 @@
+[
+    {
+        "module": "Tryon",
+        "activity": "Provador virtual",
+        "subjects": "Clientes que usam o provador",
+        "data": [
+            "foto do cliente (não fica guardada)",
+            "imagem gerada",
+            "registro de cada geração"
+        ],
+        "purpose": "Mostrar a peça no corpo do cliente",
+        "basis": [
+            "consent"
+        ],
+        "operators": [],
+        "retention": "A imagem gerada é apagada depois do prazo",
+        "retention_config": "catalog/tryon/result_hours",
+        "handler": "Iter\\Tryon\\Model\\PersonalData"
+    }
+]

@@ -31,8 +31,11 @@ use Iter\Store\Model\Website;
  */
 class CustomerSchema
 {
-    /** @return array{query: array, mutation: array} */
-    public static function fields(): array
+    /**
+     * @param array<string, mixed> $customerFields more fields of the Customer type, from other modules (Lgpd: privacyVersion)
+     * @return array{query: array, mutation: array}
+     */
+    public static function fields(array $customerFields = []): array
     {
         $service = new CustomerService();
         $addressService = new AddressService();
@@ -159,7 +162,7 @@ class CustomerSchema
                     'description' => 'Os padrões primeiro.',
                     'resolve' => static fn ($c) => $addressService->getList((int) $c['customer_id']),
                 ],
-            ],
+            ] + $customerFields,
         ]);
         $customerList = new ObjectType([
             'name' => 'CustomerList',

@@ -1,0 +1,40 @@
+[
+    {
+        "module": "Sales",
+        "activity": "Pedidos",
+        "subjects": "Clientes e visitantes que compram",
+        "data": [
+            "nome",
+            "e-mail",
+            "CPF/CNPJ",
+            "telefone",
+            "endereço de entrega e de cobrança",
+            "itens, valores e pagamento"
+        ],
+        "purpose": "Vender, entregar, emitir nota fiscal, atender trocas e garantia",
+        "basis": [
+            "contract",
+            "legal_obligation"
+        ],
+        "operators": [],
+        "retention": "Sem prazo por enquanto (previsto: 5 anos, prazo fiscal, e depois anonimizar)",
+        "handler": "Iter\\Sales\\Model\\PersonalData"
+    },
+    {
+        "module": "Sales",
+        "activity": "Carrinho",
+        "subjects": "Clientes e visitantes",
+        "data": [
+            "itens",
+            "e-mail do visitante",
+            "endereço informado no checkout"
+        ],
+        "purpose": "Montar a compra antes do pedido",
+        "basis": [
+            "contract"
+        ],
+        "operators": [],
+        "retention": "Carrinho de visitante sem uso é apagado",
+        "retention_config": "sales/quote/guest_days"
+    }
+]

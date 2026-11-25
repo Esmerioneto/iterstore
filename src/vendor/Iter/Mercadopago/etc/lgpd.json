@@ -1,0 +1,26 @@
+[
+    {
+        "module": "Mercadopago",
+        "activity": "Pagamento pelo Mercado Pago",
+        "subjects": "Clientes e visitantes que compram",
+        "data": [
+            "nome",
+            "e-mail",
+            "CPF/CNPJ",
+            "valor do pedido",
+            "bandeira e últimos dígitos do cartão (o número vai do app direto ao Mercado Pago)"
+        ],
+        "purpose": "Cobrar o pedido por Pix, crédito ou débito",
+        "basis": [
+            "contract"
+        ],
+        "operators": [
+            {
+                "name": "Mercado Pago",
+                "country": "Brasil",
+                "purpose": "processar pagamentos (Pix e cartão)"
+            }
+        ],
+        "retention": "Junto com o pedido"
+    }
+]

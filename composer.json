@@ -30,6 +30,7 @@
             "php bin/backup-selftest.php",
             "php bin/shipping-provider-selftest.php",
             "php bin/tryon-selftest.php",
+            "php bin/lgpd-selftest.php",
             "php bin/cloudflare-selftest.php",
             "php bin/gemini-selftest.php",
             "php bin/huggingface-selftest.php",

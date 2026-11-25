@@ -1,0 +1,4 @@
+[
+    { "code": "lgpd_erase_done", "label": "Confirmação da exclusão dos dados (LGPD)", "subject": "Seus dados foram excluídos", "file": "lgpd-erase-done", "private": true,
+      "vars": { "name": "Maria", "store_name": "Iterstore" } }
+]

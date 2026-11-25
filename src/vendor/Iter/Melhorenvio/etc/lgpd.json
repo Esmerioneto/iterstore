@@ -1,0 +1,22 @@
+[
+    {
+        "module": "Melhorenvio",
+        "activity": "Cotação de frete (Melhor Envio)",
+        "subjects": "Clientes e visitantes",
+        "data": [
+            "CEP de entrega"
+        ],
+        "purpose": "Calcular preço e prazo do frete",
+        "basis": [
+            "contract"
+        ],
+        "operators": [
+            {
+                "name": "Melhor Envio",
+                "country": "Brasil",
+                "purpose": "cotação de frete"
+            }
+        ],
+        "retention": "Não guarda: só a consulta"
+    }
+]

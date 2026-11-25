@@ -1,0 +1,22 @@
+[
+    {
+        "module": "Correios",
+        "activity": "Cotação de frete (Correios)",
+        "subjects": "Clientes e visitantes",
+        "data": [
+            "CEP de entrega"
+        ],
+        "purpose": "Calcular preço e prazo do frete",
+        "basis": [
+            "contract"
+        ],
+        "operators": [
+            {
+                "name": "Correios",
+                "country": "Brasil",
+                "purpose": "cotação de frete"
+            }
+        ],
+        "retention": "Não guarda: só a consulta"
+    }
+]

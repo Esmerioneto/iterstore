@@ -1,0 +1,21 @@
+[
+    {
+        "module": "Marketing",
+        "activity": "E-mails de marketing e newsletter",
+        "subjects": "Clientes e inscritos na newsletter",
+        "data": [
+            "nome",
+            "e-mail",
+            "histórico de compras (para escolher quem recebe)",
+            "consentimento e descadastro, com data"
+        ],
+        "purpose": "Enviar ofertas, novidades e lembrete de carrinho abandonado",
+        "basis": [
+            "consent",
+            "legitimate_interest"
+        ],
+        "operators": [],
+        "retention": "Inscrição até o titular sair; o histórico do consentimento fica como prova",
+        "handler": "Iter\\Marketing\\Model\\PersonalData"
+    }
+]
