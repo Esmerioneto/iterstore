@@ -58,6 +58,29 @@ final class PersonalData implements PersonalDataInterface
         return $open ? ['Pedidos em andamento: ' . implode(', ', $open) . '. Conclua ou cancele antes.'] : [];
     }
 
+    /**
+     * Orders older than order_years lose the buyer's copy of their data (LGPD-PLAN §10), of customers and visitors:
+     * name, CPF/CNPJ, e-mail, recipient, phone, street, postcode. Items, totals, city and state stay for the reports.
+     * The anonymous e-mail marks the order as done, so it isn't touched again.
+     */
+    public function purge(array $retention): int
+    {
+        $years = (int) ($retention['order_years'] ?? 0);
+        if ($years < 1) {
+            return 0;
+        }
+        $db = Connection::get()->adapter();
+        $ids = $db->fetchCol("UPDATE sales_order SET email = 'excluido-pedido-' || order_id || '@anonimo.invalid', firstname = :first, lastname = :last, taxvat = ''
+            WHERE created_at < :cut AND status NOT IN ('" . implode("','", self::OPEN) . "') AND email NOT LIKE '%@anonimo.invalid' RETURNING order_id",
+            ['first' => 'Cliente', 'last' => 'excluído', 'cut' => date('Y-m-d H:i:s', strtotime("-{$years} years"))]);
+        if ($ids) {
+            $db->update('sales_order_address', ['recipient' => null, 'telephone' => null, 'street' => null, 'number' => null, 'complement' => null, 'district' => null,
+                'postcode' => null, 'attributes' => '{}'], ['order_id IN (?)' => array_map('intval', $ids)]);
+        }
+
+        return count($ids);
+    }
+
     public function erase(int $customerId, string $email): void
     {
         $db = Connection::get()->adapter();

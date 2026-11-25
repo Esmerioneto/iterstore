@@ -9,6 +9,10 @@ namespace Iter\Lgpd\Model;
  * etc/lgpd.json; Iter_Lgpd calls it without knowing the module's tables, so turning the module off takes its
  * part along.
  *
+ * A handler may also have purge(array $retention): int, the retention routine (bin/lgpd-clean.php): it applies
+ * the module's periods (Configurações → LGPD → Prazos de guarda, PersonalDataService::retention()) and returns how
+ * many records it anonymized or deleted. Optional, so it isn't in the interface.
+ *
  * $email is the subject's e-mail as it was before anything was erased: it finds what is kept by e-mail
  * (a visitor's orders, newsletter, e-mails sent), and handlers run in any order.
  */

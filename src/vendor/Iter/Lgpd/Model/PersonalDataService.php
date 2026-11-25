@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Iter\Lgpd\Model;
 
 use Iter\Admin\Auth;
+use Iter\Core\Config;
 use Iter\Core\Db\Connection;
 use Iter\Core\Log;
 use Iter\Customer\Model\CustomerAuth;
@@ -93,6 +94,36 @@ final class PersonalDataService
         OperationLog::record('lgpd_erase', 'customer', $customerId, 'Cliente #' . $customerId, [], ['Solicitação' => RequestService::protocol($id)]);
 
         return $id;
+    }
+
+    /** Configurações → LGPD → Prazos de guarda, as purge() receives them (0 = never) @return array<string, int> */
+    public static function retention(): array
+    {
+        $out = [];
+        foreach (['order_years', 'newsletter_pending_days', 'consent_years', 'request_years'] as $key) {
+            $out[$key] = max(0, (int) Config::get('lgpd/retention/' . $key));
+        }
+
+        return $out;
+    }
+
+    /**
+     * The retention routine (bin/lgpd-clean.php): each enabled module's purge(), each in its own transaction (one
+     * failing doesn't undo the others). Returns activity => records anonymized or deleted.
+     *
+     * @return array<string, int>
+     */
+    public function purge(): array
+    {
+        $retention = self::retention();
+        $out = [];
+        foreach (Inventory::handlers() as $label => $handler) {
+            if (method_exists($handler, 'purge')) {
+                $out[$label] = (int) Connection::get()->adapter()->transaction(static fn () => $handler->purge($retention));
+            }
+        }
+
+        return $out;
     }
 
     /** the customer's own erase (deleteMe): the password again, then erase(); the token stops working */

@@ -17,8 +17,9 @@
             "legal_obligation"
         ],
         "operators": [],
-        "retention": "Sem prazo por enquanto (previsto: 5 anos, prazo fiscal, e depois anonimizar)",
-        "handler": "Iter\\Sales\\Model\\PersonalData"
+        "retention": "Prazo fiscal; depois o pedido perde os dados do comprador (itens e valores ficam)",
+        "handler": "Iter\\Sales\\Model\\PersonalData",
+        "retention_config": "lgpd/retention/order_years"
     },
     {
         "module": "Sales",

@@ -14,7 +14,8 @@
             "rights"
         ],
         "operators": [],
-        "retention": "Sem prazo por enquanto (previsto: 5 anos)",
-        "handler": "Iter\\Lgpd\\Model\\PersonalData"
+        "retention": "Aceites e escolhas de cookies até o prazo após o fim da relação; solicitações atendidas pelo prazo de Configurações → LGPD",
+        "handler": "Iter\\Lgpd\\Model\\PersonalData",
+        "retention_config": "lgpd/retention/consent_years"
     }
 ]

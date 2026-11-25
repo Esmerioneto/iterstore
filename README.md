@@ -61,6 +61,7 @@ O módulo Log guarda o log de operações: quem fez o quê no admin (tela ou API
 * * * * *  /caminho/do/iterstore/bin/mercadopago-sync-loop.sh   # confere pagamentos do Mercado Pago a cada 5 s
 10 0 * * * php /caminho/do/iterstore/bin/log-clean.php     # apaga logs antigos (arquivos e log de operações)
 20 0 * * * php /caminho/do/iterstore/bin/quote-clean.php   # apaga carrinhos abandonados
+40 0 * * * php /caminho/do/iterstore/bin/lgpd-clean.php    # LGPD: prazos de guarda (anonimiza pedidos antigos, apaga provas vencidas)
 30 7 * * * php /caminho/do/iterstore/bin/report-mail.php   # relatórios por e-mail (se ligado)
 * * * * *  php /caminho/do/iterstore/bin/backup.php >> /caminho/do/iterstore/var/log/backup.log 2>&1   # backup no intervalo de Configurações → Backup
 0,15,30,45 * * * * php /caminho/do/iterstore/bin/marketing.php   # e-mails de marketing (regras de Configurações → Marketing)

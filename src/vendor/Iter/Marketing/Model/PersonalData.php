@@ -40,6 +40,27 @@ final class PersonalData implements PersonalDataInterface
         ]);
     }
 
+    /**
+     * LGPD-PLAN §10: newsletter sign-ups never confirmed go after newsletter_pending_days; the consent proof goes
+     * consent_years after the relationship ended (the account erased, the newsletter left; its consents go with
+     * the subscriber). "Não quero receber" stays: it is what keeps the address from being mailed.
+     */
+    public function purge(array $retention): int
+    {
+        $db = Connection::get()->adapter();
+        $count = 0;
+        if (($days = (int) ($retention['newsletter_pending_days'] ?? 0)) > 0) {
+            $count += $db->delete('marketing_subscriber', ["status = 'pending'", 'created_at < ?' => date('Y-m-d H:i:s', strtotime("-{$days} days"))]);
+        }
+        if (($years = (int) ($retention['consent_years'] ?? 0)) > 0) {
+            $cut = date('Y-m-d H:i:s', strtotime("-{$years} years"));
+            $count += $db->delete('marketing_subscriber', ["status = 'unsubscribed'", 'unsubscribed_at < ?' => $cut]);
+            $count += $db->delete('marketing_consent', ['customer_id IN (SELECT customer_id FROM customer_entity WHERE anonymized_at < ?)' => $cut]);
+        }
+
+        return $count;
+    }
+
     public function blockers(int $customerId): array
     {
         return [];

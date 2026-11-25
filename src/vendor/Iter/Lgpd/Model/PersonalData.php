@@ -30,6 +30,27 @@ final class PersonalData implements PersonalDataInterface
         ]);
     }
 
+    /**
+     * LGPD-PLAN §10: the policy accepts go consent_years after the account was erased; the cookie choices
+     * consent_years after they were made (the notice's cookie lasts a year); the requests answered or refused
+     * request_years after they were opened. Open requests stay.
+     */
+    public function purge(array $retention): int
+    {
+        $db = Connection::get()->adapter();
+        $count = 0;
+        if (($years = (int) ($retention['consent_years'] ?? 0)) > 0) {
+            $cut = date('Y-m-d H:i:s', strtotime("-{$years} years"));
+            $count += $db->delete('lgpd_policy_accept', ['customer_id IN (SELECT customer_id FROM customer_entity WHERE anonymized_at < ?)' => $cut]);
+            $count += $db->delete('lgpd_cookie_consent', ['created_at < ?' => $cut]);
+        }
+        if (($years = (int) ($retention['request_years'] ?? 0)) > 0) {
+            $count += $db->delete('lgpd_request', ["status <> 'open'", 'created_at < ?' => date('Y-m-d H:i:s', strtotime("-{$years} years"))]);
+        }
+
+        return $count;
+    }
+
     public function blockers(int $customerId): array
     {
         return [];

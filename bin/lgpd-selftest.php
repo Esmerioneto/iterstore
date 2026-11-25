@@ -336,4 +336,73 @@ ob_start();
 $html = (string) ob_get_clean();
 check(str_contains($html, 'Versão ' . $v2 . ', publicada') && str_contains($html, 'Publicar versão ' . ($v2 + 1)) && str_contains($html, 'Política B') && str_contains($html, 'dpo@example.com'), 'tela Política: em vigor, próximo número, texto e encarregado');
 
+// ---------------------------------------------------------------------------------------------------------
+// delivery 5: retention (purge), each module by Configurações → LGPD → Prazos de guarda
+$ago = static fn (string $when) => date('Y-m-d H:i:s', strtotime($when));
+$tag = bin2hex(random_bytes(4));
+$mkOrder = static function (string $suffix, string $status, string $created) use ($db, $websiteId, $cpf, $tag): int {
+    $oid = (int) $db->insert('sales_order', ['increment_id' => "LGPDP{$suffix}-{$tag}", 'website_id' => $websiteId, 'email' => "purge-{$suffix}-{$tag}@example.com", 'firstname' => 'Paula',
+        'lastname' => 'Antiga', 'taxvat' => $cpf(), 'status' => $status, 'subtotal' => 7, 'grand_total' => 7, 'created_at' => $created])['order_id'];
+    $db->insert('sales_order_address', ['order_id' => $oid, 'type' => 'shipping', 'postcode' => '01310100', 'street' => 'Rua Velha', 'number' => '9', 'district' => 'Centro',
+        'city' => 'São Paulo', 'region' => 'SP', 'recipient' => 'Paula Antiga', 'telephone' => '11999990000']);
+
+    return $oid;
+};
+$oldOrder = $mkOrder('a', 'complete', $ago('-6 years'));
+$newOrder = $mkOrder('b', 'complete', $ago('-4 years'));
+$oldOpen = $mkOrder('c', 'processing', $ago('-6 years'));
+$sub = static fn (string $status, string $created, ?string $left = null) => (int) $db->insert('marketing_subscriber', ['website_id' => $websiteId, 'email' => "sub-{$status}-" . bin2hex(random_bytes(3)) . "@example.com",
+    'status' => $status, 'created_at' => $created, 'unsubscribed_at' => $left])['subscriber_id'];
+$hasMarketing = isModuleEnabled('iter_marketing');
+if ($hasMarketing) {
+    $pendingOld = $sub('pending', $ago('-10 days'));
+    $pendingNew = $sub('pending', $ago('-2 days'));
+    $leftOld = $sub('unsubscribed', $ago('-7 years'), $ago('-6 years'));
+    $leftNew = $sub('unsubscribed', $ago('-2 years'), $ago('-1 year'));
+    $db->insert('marketing_consent', ['subscriber_id' => $leftOld, 'optin' => 1, 'origin' => 'newsletter']);
+}
+// a customer erased 6 years ago and one erased last year, with consent proof
+$gone = [];
+foreach (['-6 years', '-1 year'] as $when) {
+    $cid = (int) (new CustomerService())->create(['website_id' => $websiteId, 'group_id' => (int) $db->fetchOne('SELECT customer_group_id FROM customer_group ORDER BY customer_group_id LIMIT 1'),
+        'email' => 'purge-cli-' . bin2hex(random_bytes(4)) . '@example.com', 'firstname' => 'Ex', 'lastname' => 'Cliente', 'customer_type' => 'pf', 'taxvat' => $cpf()], [], null, false)->getId();
+    $db->update('customer_entity', ['anonymized_at' => $ago($when)], ['customer_id = ?' => $cid]);
+    $db->insert('lgpd_policy_accept', ['customer_id' => $cid, 'policy_id' => (int) $policies->current($websiteId)['policy_id'], 'origin' => 'app']);
+    $hasMarketing && $db->insert('marketing_consent', ['customer_id' => $cid, 'optin' => 1, 'origin' => 'app']);
+    $gone[] = $cid;
+}
+$cookieOld = 'purge-old-' . $tag . '-xxxxxx';
+$cookieNew = 'purge-new-' . $tag . '-xxxxxx';
+$db->insert('lgpd_cookie_consent', ['website_id' => $websiteId, 'visitor_id' => $cookieOld, 'categories' => 'necessary', 'created_at' => $ago('-6 years')]);
+$db->insert('lgpd_cookie_consent', ['website_id' => $websiteId, 'visitor_id' => $cookieNew, 'categories' => 'necessary', 'created_at' => $ago('-4 years')]);
+$reqs = [];
+foreach ([['done', '-6 years'], ['open', '-6 years'], ['done', '-4 years']] as [$status, $when]) {
+    $rid = $requests->create(['website_id' => $websiteId, 'email' => "purge-req-{$tag}@example.com", 'type' => 'export', 'origin' => 'admin', 'status' => $status]);
+    $db->update('lgpd_request', ['created_at' => $ago($when)], ['request_id = ?' => $rid]);
+    $reqs[] = $rid;
+}
+
+Config::save(['lgpd/retention/order_years' => '0', 'lgpd/retention/newsletter_pending_days' => '0', 'lgpd/retention/consent_years' => '0', 'lgpd/retention/request_years' => '0']);
+check(array_sum($service->purge()) === 0 && $db->fetchOne('SELECT email FROM sales_order WHERE order_id = :o', ['o' => $oldOrder]) === "purge-a-{$tag}@example.com", 'prazos em 0: nada é apagado nem anonimizado');
+Config::save(['lgpd/retention/order_years' => '5', 'lgpd/retention/newsletter_pending_days' => '7', 'lgpd/retention/consent_years' => '5', 'lgpd/retention/request_years' => '5']);
+$done = $service->purge();
+check(isset($done['Pedidos'], $done['Aceite da política, aviso de cookies e solicitações LGPD']) && (!$hasMarketing || isset($done['E-mails de marketing e newsletter'])), 'purge: um total por módulo com prazo', $done);
+
+$o = $db->fetchRow('SELECT email, firstname, lastname, taxvat, grand_total FROM sales_order WHERE order_id = :o', ['o' => $oldOrder]);
+$a = $db->fetchRow('SELECT recipient, telephone, street, number, district, postcode, city, region FROM sales_order_address WHERE order_id = :o', ['o' => $oldOrder]);
+check($o === ['email' => "excluido-pedido-{$oldOrder}@anonimo.invalid", 'firstname' => 'Cliente', 'lastname' => 'excluído', 'taxvat' => '', 'grand_total' => $o['grand_total']] && (float) $o['grand_total'] === 7.0
+    && $a === ['recipient' => null, 'telephone' => null, 'street' => null, 'number' => null, 'district' => null, 'postcode' => null, 'city' => 'São Paulo', 'region' => 'SP'],
+    'pedido de 6 anos: sem dados do comprador; total, cidade e UF ficam', [$o, $a]);
+check($db->fetchOne('SELECT email FROM sales_order WHERE order_id = :o', ['o' => $newOrder]) === "purge-b-{$tag}@example.com"
+    && $db->fetchOne('SELECT email FROM sales_order WHERE order_id = :o', ['o' => $oldOpen]) === "purge-c-{$tag}@example.com", 'pedido dentro do prazo e pedido em andamento ficam intactos');
+check(!$hasMarketing || ($db->fetchCol('SELECT subscriber_id FROM marketing_subscriber WHERE subscriber_id IN (' . implode(',', [$pendingOld, $pendingNew, $leftOld, $leftNew]) . ') ORDER BY subscriber_id') === [$pendingNew, $leftNew]
+    && !$db->fetchOne('SELECT 1 FROM marketing_consent WHERE subscriber_id = :s', ['s' => $leftOld])), 'newsletter: não confirmada antiga e saída há 6 anos apagadas (com o consentimento); as recentes ficam');
+check(!$hasMarketing || $db->fetchCol('SELECT customer_id FROM marketing_consent WHERE customer_id IN (' . implode(',', $gone) . ')') === [$gone[1]], 'consentimento de ofertas: só o de quem foi excluído há mais de 5 anos sai');
+check($db->fetchCol('SELECT customer_id FROM lgpd_policy_accept WHERE customer_id IN (' . implode(',', $gone) . ')') === [$gone[1]], 'aceite da política: só o de quem foi excluído há mais de 5 anos sai');
+check($db->fetchCol('SELECT visitor_id FROM lgpd_cookie_consent WHERE visitor_id IN (:a, :b)', ['a' => $cookieOld, 'b' => $cookieNew]) === [$cookieNew], 'cookies: escolha de 6 anos sai, a de 4 fica');
+check($db->fetchCol('SELECT request_id FROM lgpd_request WHERE request_id IN (' . implode(',', $reqs) . ') ORDER BY request_id') === [$reqs[1], $reqs[2]], 'solicitações: atendida de 6 anos sai; aberta e recente ficam');
+$again = $service->purge();
+check(($again['Pedidos'] ?? -1) === 0, 'rodar de novo: pedido já anonimizado não conta de novo', $again);
+check(str_contains(implode(' ', array_column(Inventory::activities(), 'retention_now')), '5 anos (Configurações)') && !Inventory::problems(), 'inventário mostra o prazo em uso, sem problemas', Inventory::problems());
+
 echo "\nTodos os testes passaram.\n";

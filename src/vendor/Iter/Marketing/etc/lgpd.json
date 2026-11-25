@@ -15,7 +15,8 @@
             "legitimate_interest"
         ],
         "operators": [],
-        "retention": "Inscrição até o titular sair; o histórico do consentimento fica como prova",
-        "handler": "Iter\\Marketing\\Model\\PersonalData"
+        "retention": "Inscrição até o titular sair (a não confirmada sai em alguns dias); o histórico do consentimento fica até o prazo após o fim da relação",
+        "handler": "Iter\\Marketing\\Model\\PersonalData",
+        "retention_config": "lgpd/retention/consent_years"
     }
 ]
