@@ -277,6 +277,7 @@
     <li><strong>Produto simples:</strong> o painel <em>Estoque</em> no fim da edição tem uma linha por origem com a quantidade e a situação. Clique em <strong>Salvar estoque</strong>.</li>
     <li><strong>Produto com grade:</strong> o painel <em>Estoque por grade</em> mostra uma tabela cor × tamanho com totais. Escolha a origem, digite as quantidades e clique em <strong>Salvar estoque</strong>.</li>
   </ul>
+  <figure><img src="img/11b-produto-estoque.png" alt=""><figcaption>Produto simples: o painel Estoque, com o saldo vendável.</figcaption></figure>
   <figure><img src="img/12c-produto-estoque-grade.png" alt=""><figcaption>Estoque por grade: quantidades por cor e tamanho na origem escolhida.</figcaption></figure>
   <figure><img src="img/18-estoque-origens.png" alt=""><figcaption>Origens de estoque.</figcaption></figure>
   <div class="tip"><b>Saldo vendável</b>É a soma das quantidades em estoque nas origens ativas, menos o que os pedidos já reservaram. Quando o cliente faz um pedido, o saldo cai na hora; se o pedido for cancelado, a quantidade volta. A baixa física acontece quando você registra a entrega.</div>
@@ -379,6 +380,8 @@
     <li>Exceção, desligada por padrão: <strong>"Enviar carrinho abandonado mesmo sem consentimento"</strong>. Ligada, o lembrete do carrinho vai também para quem nunca respondeu, mas nunca para quem pediu para sair.</li>
   </ul>
 
+  <figure><img src="img/26b-marketing-historico.png" alt=""><figcaption>Marketing → Histórico: os e-mails de cada regra, com quantos clientes compraram depois.</figcaption></figure>
+
   <h4>Sugestões</h4>
   <p><span class="path">Marketing → Sugestões</span> lista os e-mails que esperam aprovação, com o cliente, a regra e o motivo (ex.: "Última compra: pedido RJ000120"). Filtre por regra, website ou nome/e-mail.</p>
   <ul>
@@ -418,6 +421,7 @@
     <li><strong>Aviso em vermelho:</strong> aparece quando a última prova foi recusada porque a chave do provedor foi recusada ou o saldo acabou. Enquanto isso, os clientes veem "O provador não está disponível agora". Confira a chave e o saldo do provedor.</li>
     <li><strong>Ver imagem:</strong> abre a imagem pronta enquanto ela estiver disponível. É a foto de um cliente: cada abertura fica no Log de operações, no cadastro do cliente.</li>
   </ul>
+  <figure><img src="img/27-provador.png" alt=""><figcaption>Clientes → Provador virtual: o gasto do mês, as provas e a situação de cada uma.</figcaption></figure>
   <div class="warn"><b>Privacidade</b>A foto do cliente não fica guardada no sistema; só a imagem pronta, pelo tempo configurado, e depois é apagada sozinha.</div>
 </section>
 
@@ -658,6 +662,8 @@
   <h3>9.2 Websites, grupos e lojas</h3>
   <p>A hierarquia é <strong>Website → Grupo de loja → Loja</strong>. Cada website é uma loja com numeração de pedidos própria (ex.: <em>RJ000001</em>, <em>SP000001</em>), seus produtos, clientes, categorias e estoque. Só existe um website padrão, e um website com cadastros ligados não pode ser removido.</p>
   <figure><img src="img/41-websites.png" alt=""><figcaption>Websites.</figcaption></figure>
+  <figure><img src="img/42-grupos-loja.png" alt=""><figcaption>Grupos de loja.</figcaption></figure>
+  <figure><img src="img/43-lojas.png" alt=""><figcaption>Lojas.</figcaption></figure>
 
   <h3>9.3 E-mails</h3>
   <p>O sistema envia e-mails automaticamente: boas-vindas, pedido recebido, pagamento confirmado, pedido enviado (com rastreio), cancelamento, comentários e redefinição de senha. Todos levam a logo da loja.</p>
@@ -710,6 +716,7 @@
     <li>Quando o aplicativo já estiver enviando a chave, ligue <strong>Exigir chave do aplicativo</strong> em <span class="path">Configurações → Ajustes do sistema → API</span>. A partir daí, quem chamar a API sem uma chave ativa é recusado.</li>
   </ol>
   <p>A coluna "Último uso" mostra se a chave está sendo usada. Se uma chave vazar, clique em <strong>Revogar</strong>: ela para de funcionar na hora (crie uma nova para o aplicativo antes). Criar e revogar ficam no log de operações.</p>
+  <figure><img src="img/55b-chaves-api.png" alt=""><figcaption>Chaves da API: só o começo e o fim de cada chave aparecem na lista.</figcaption></figure>
   <div class="warn"><b>Não ligue antes da hora</b>Se "Exigir chave do aplicativo" for ligado antes de o app enviar a chave, o app para de carregar produtos. O painel continua funcionando normalmente.</div>
   <h4>Outras proteções em Configurações</h4>
   <ul>
@@ -768,6 +775,8 @@
     <li>No fim da tela há um <strong>texto pronto</strong> com os operadores e os prazos, para copiar para a política de privacidade.</li>
   </ul>
 
+  <figure><img src="img/80-lgpd-inventario.png" alt=""><figcaption>LGPD → Inventário: o que o sistema guarda, para quê, com quem compartilha e por quanto tempo.</figcaption></figure>
+
   <h3>11.2 Solicitações dos clientes</h3>
   <p>A lei dá ao cliente o direito de pedir uma cópia dos seus dados, corrigir e excluir. Na loja web, o próprio cliente baixa a cópia e exclui a conta em "Minha conta" (o app usa o mesmo caminho quando ganhar essas opções); cada uso fica registrado em <span class="path">LGPD → Solicitações</span> como atendido. Pedidos que chegam por e-mail ou telefone são registrados ali pelo atendimento.</p>
   <ul>
@@ -776,6 +785,10 @@
     <li><strong>Na solicitação:</strong> <strong>Baixar a cópia</strong> (arquivo com todos os dados do titular, por assunto), <strong>Excluir os dados</strong>, <strong>Concluir</strong> e <strong>Recusar</strong> (pede o motivo). Cada cópia baixada e cada exclusão ficam no Log de operações.</li>
     <li><strong>Cadastro do cliente:</strong> o bloco <strong>LGPD</strong> tem atalhos para registrar uma cópia, uma exclusão ou uma correção desse cliente, já com o e-mail preenchido, e lista as solicitações dele.</li>
   </ul>
+  <figure><img src="img/81-lgpd-solicitacoes.png" alt=""><figcaption>LGPD → Solicitações: protocolo, titular, tipo, origem, prazo e situação.</figcaption></figure>
+  <figure><img src="img/82-lgpd-nova-solicitacao.png" alt=""><figcaption>Nova solicitação, para pedidos que chegam por e-mail ou telefone.</figcaption></figure>
+  <figure><img src="img/83-lgpd-solicitacao.png" alt=""><figcaption>Uma solicitação já atendida. Abertas mostram os botões Baixar a cópia, Excluir os dados, Concluir e Recusar.</figcaption></figure>
+  <figure><img src="img/87-lgpd-ficha-cliente.png" alt=""><figcaption>O bloco LGPD no cadastro do cliente.</figcaption></figure>
   <h4>O que a exclusão faz</h4>
   <ul>
     <li>Não é possível excluir com <strong>pedido em andamento</strong> (aguardando pagamento, pago ou enviado): a tela e o app mostram os números dos pedidos. Conclua ou cancele antes.</li>
@@ -794,6 +807,7 @@
     <li>Quando sai uma versão nova, o app e a loja web pedem que o cliente aceite de novo. Cada aceite guarda a data, a versão e de onde veio.</li>
     <li>O <strong>encarregado (DPO)</strong>, a pessoa que responde aos clientes e à ANPD, é informado em <span class="path">Lojas → Configurações → LGPD</span> (nome e e-mail, por website) e aparece junto com a política.</li>
   </ul>
+  <figure><img src="img/84-lgpd-politica.png" alt=""><figcaption>LGPD → Política de privacidade: a versão em vigor, o encarregado e o rascunho da próxima versão.</figcaption></figure>
   <div class="tip"><b>O texto é da loja</b>O sistema guarda, versiona e mostra a política, mas não a escreve. Use o texto pronto do Inventário como base e, se possível, peça a revisão de um advogado.</div>
 
   <h3>11.4 Aviso de cookies</h3>
@@ -802,6 +816,9 @@
     <li>O texto do aviso e a descrição de cada categoria (Necessários, Estatística, Marketing) ficam em <span class="path">Lojas → Configurações → LGPD → Cookies da loja web</span>, por website.</li>
     <li>As categorias Estatística e Marketing só passam a ser oferecidas quando a loja instalar ferramentas de análise ou de anúncios (Google Analytics, Meta).</li>
   </ul>
+  <figure><img src="img/88-loja-aviso-cookies.png" alt=""><figcaption>O aviso de cookies na loja web, na primeira visita, com o link para a política.</figcaption></figure>
+
+  <figure><img src="img/86-lgpd-config.png" alt=""><figcaption>Configurações → LGPD: encarregado e os textos do aviso de cookies.</figcaption></figure>
 
   <h3>11.5 Prazos de guarda</h3>
   <p>Todo dia, uma rotina automática apaga ou anonimiza o que passou do prazo. Os prazos ficam em <span class="path">Lojas → Configurações → LGPD → Prazos de guarda</span> (0 = nunca):</p>
@@ -812,6 +829,7 @@
     <tr><td>Apagar as provas de consentimento depois de</td><td>5 anos</td><td>Contados do fim da relação: os aceites da política e o consentimento de ofertas de quem excluiu a conta, a inscrição de quem saiu da newsletter e as escolhas no aviso de cookies.</td></tr>
     <tr><td>Apagar as solicitações LGPD atendidas depois de</td><td>5 anos</td><td>Solicitações abertas nunca são apagadas.</td></tr>
   </table>
+  <figure><img src="img/85-lgpd-config-prazos.png" alt=""><figcaption>Configurações → LGPD → Prazos de guarda.</figcaption></figure>
   <p>A lista "Não quero receber" nunca é apagada. O <strong>Log de operações</strong> tem o prazo próprio em <span class="path">Lojas → Configurações → Log do sistema</span>.</p>
   <p>No perfil do usuário (<span class="path">Sistema → Usuários e perfis</span>), cada parte do menu LGPD tem a sua permissão: inventário, solicitações e cópia dos dados, política de privacidade, excluir os dados de um cliente e configurações.</p>
 </section>
